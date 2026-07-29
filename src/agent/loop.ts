@@ -5,17 +5,17 @@ import {
   createToolContext,
   type LoopContext,
 } from "./deps.js";
+import { runHooks, setupDefaultHooks } from "./hooks.js";
+import { buildSystemPrompt } from "./prompt.js";
+import { TOOL_SCHEMAS, executeTool } from "./tools.js";
 import { maybeAutoCompact } from "../context/compact.js";
 import { resetSession } from "../context/sessions.js";
 import { emitFinalReply, emitUserPrompt } from "../events/conversation.js";
 import { runPhase } from "../events/orchestrator.js";
 import { resetRun } from "../events/run.js";
 import { setupEventPipeline } from "../events/setup.js";
-import { runHooks, setupDefaultHooks, auditToolUse } from "../hooks.js";
 import { chat, extractText } from "../llm.js";
 import { checkPermission } from "../permission/index.js";
-import { buildSystemPrompt } from "../prompt.js";
-import { TOOL_SCHEMAS, executeTool } from "./tools.js";
 
 async function resolveToolOutput(
   turn: number,
@@ -32,11 +32,7 @@ async function resolveToolOutput(
     return hookBlocked;
   }
 
-  const decision = checkPermission(toolName, toolInput);
-  if (decision === "deny") {
-    return `Permission denied: ${toolName}`;
-  }
-  if (decision === "ask") {
+  if (checkPermission(toolName, toolInput) === "ask") {
     const approved = await loopCtx.userInteraction.approveTool({
       toolName,
       input: toolInput,
@@ -45,12 +41,6 @@ async function resolveToolOutput(
       return `Permission denied by user: ${toolName}`;
     }
   }
-
-  auditToolUse({
-    turn,
-    tool_name: toolName,
-    tool_input: toolInput,
-  });
 
   return executeTool(toolName, toolInput, createToolContext(loopCtx));
 }
@@ -84,7 +74,6 @@ export async function agentLoop(
 
     if (response.stop_reason !== "tool_use") {
       runPhase("stop", { turn, messages, response });
-      runHooks("Stop", { messages });
       return { reply: extractText(response.content), turn };
     }
 
@@ -135,7 +124,6 @@ export async function runAgent(userPrompt: string): Promise<string> {
   resetRun();
 
   emitUserPrompt(userPrompt);
-  runHooks("UserPromptSubmit", { prompt: userPrompt });
 
   const messages: MessageParam[] = [{ role: "user", content: userPrompt }];
   const { reply, turn } = await agentLoop(messages);
@@ -152,7 +140,6 @@ export async function continueReplAgent(
   resetRun();
 
   emitUserPrompt(userPrompt);
-  runHooks("UserPromptSubmit", { prompt: userPrompt });
 
   messages.push({ role: "user", content: userPrompt });
   const result = await agentLoop(messages, loopCtx);
