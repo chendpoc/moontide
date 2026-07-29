@@ -82,3 +82,7 @@ export function contextExact(): boolean {
 export function contextSnapshotEnabled(): boolean {
   return process.env.OCULUS_CONTEXT_SNAPSHOT === "1";
 }
+
+export function contextVerboseDetail(): boolean {
+  return process.env.OCULUS_CONTEXT_VERBOSE_DETAIL === "1";
+}

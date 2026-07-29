@@ -42,12 +42,23 @@ export interface ContextTrend {
   cumulativeTokens: number;
 }
 
+export interface MessageLineDetail {
+  kind: "tool_result" | "tool_use" | "text" | "thinking";
+  tokens: number;
+  charCount: number;
+  toolUseId?: string;
+  toolName?: string;
+  preview: string;
+  body?: string;
+}
+
 export interface MessageLine {
   index: number;
   role: string;
   tokens: number;
   label: string;
   preview: string;
+  details?: MessageLineDetail[];
 }
 
 export interface ContextReport {

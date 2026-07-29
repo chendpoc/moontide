@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildContextReport } from "../src/context/analyze.js";
 import { formatContext, getSummary } from "../src/context/format.js";
-import { estimateBreakdown, estimateTextTokens } from "../src/context/metrics.js";
+import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../src/context/metrics.js";
 import { buildSnapshot } from "../src/context/snapshot.js";
 import { resetSession, updateSessionFromSnapshot } from "../src/context/sessions.js";
 import type { ContextSnapshot } from "../src/context/types.js";
@@ -77,6 +77,14 @@ describe("context analyze/format", () => {
     expect(getSummary(report)).toContain("Turn 1");
     expect(formatContext(report, "struct")).toContain("messages[3]");
     expect(formatContext(report, "breakdown")).toContain("tool_results:");
+  });
+
+  it("includes tool_result preview and tool_use_id in message lines", () => {
+    const lines = buildMessageLines(makeSnapshot());
+    const toolResultLine = lines.find((line) => line.preview.includes("file contents here"));
+    expect(toolResultLine).toBeDefined();
+    expect(toolResultLine?.details?.some((detail) => detail.kind === "tool_result")).toBe(true);
+    expect(toolResultLine?.details?.[0]?.toolUseId).toBe("tu_1");
   });
 
   it("tracks turn-to-turn delta via session state", () => {

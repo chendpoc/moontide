@@ -1,7 +1,13 @@
 import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { countTokens } from "../llm.js";
-import type { ContextSnapshot, ContextStructure, MessageLine, TokenBreakdown } from "./types.js";
+import type {
+  ContextSnapshot,
+  ContextStructure,
+  MessageLine,
+  MessageLineDetail,
+  TokenBreakdown,
+} from "./types.js";
 
 const PREVIEW_LIMIT = 48;
 
@@ -12,6 +18,7 @@ type GenericBlock = {
   name?: string;
   input?: unknown;
   content?: unknown;
+  tool_use_id?: string;
 };
 
 export function estimateTextTokens(text: string): number {
@@ -154,6 +161,15 @@ export function analyzeStructure(snapshot: ContextSnapshot): ContextStructure {
   };
 }
 
+function formatToolResultPreview(toolUseId: string | undefined, content: string): string {
+  const snippet = previewText(content);
+  if (!toolUseId) {
+    return snippet;
+  }
+  const shortId = toolUseId.length > 10 ? `${toolUseId.slice(0, 10)}…` : toolUseId;
+  return `${shortId} · ${snippet}`;
+}
+
 export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
   return snapshot.messages.map((message, index) => {
     if (typeof message.content === "string") {
@@ -170,6 +186,7 @@ export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
     let tokens = 0;
     const labels: string[] = [];
     let preview = "";
+    const details: MessageLineDetail[] = [];
 
     for (const block of getMessageBlocks(message)) {
       const part = estimateBlockTokens(block);
@@ -178,15 +195,46 @@ export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
       if (block.type === "text") {
         labels.push(`text:${part.assistant}`);
         preview ||= previewText(block.text ?? "");
+        details.push({
+          kind: "text",
+          tokens: part.assistant,
+          charCount: (block.text ?? "").length,
+          preview: previewText(block.text ?? ""),
+          body: block.text ?? "",
+        });
       } else if (block.type === "thinking") {
         labels.push(`thinking:${part.thinking}`);
         preview ||= "(thinking)";
+        details.push({
+          kind: "thinking",
+          tokens: part.thinking,
+          charCount: (block.thinking ?? "").length,
+          preview: "(thinking)",
+          body: block.thinking ?? "",
+        });
       } else if (block.type === "tool_use") {
-        labels.push(`tool_use:${block.name ?? "unknown"}`);
-        preview ||= `tool_use:${block.name ?? "unknown"}`;
+        const toolName = block.name ?? "unknown";
+        labels.push(`tool_use:${toolName}`);
+        preview ||= `tool_use:${toolName}`;
+        details.push({
+          kind: "tool_use",
+          tokens: part.assistant,
+          charCount: JSON.stringify({ type: "tool_use", name: block.name, input: block.input }).length,
+          toolName,
+          preview: `tool_use:${toolName}`,
+        });
       } else if (block.type === "tool_result") {
+        const content = blockContentText(block.content);
         labels.push(`tool_result:${part.toolResults}`);
-        preview ||= "tool_result";
+        preview ||= formatToolResultPreview(block.tool_use_id, content);
+        details.push({
+          kind: "tool_result",
+          tokens: part.toolResults,
+          charCount: content.length,
+          toolUseId: block.tool_use_id,
+          preview: previewText(content),
+          body: content,
+        });
       }
     }
 
@@ -196,6 +244,7 @@ export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
       tokens,
       label: labels.join(" + ") || message.role,
       preview: preview || message.role,
+      details: details.length > 0 ? details : undefined,
     };
   });
 }

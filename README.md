@@ -61,8 +61,9 @@ MODEL_ID=deepseek-v4-pro
 
 | 环境变量 | 作用 |
 |----------|------|
-| `OCULUS_CONTEXT_VERBOSE=1` | stderr 打印 summary + usage |
-| `OCULUS_CONTEXT_VERBOSE=2` | 额外打印 struct tree |
+| `OCULUS_CONTEXT_VERBOSE=1` | stderr 彩色 summary（用量条、headroom、Δ） |
+| `OCULUS_CONTEXT_VERBOSE=2` | 额外打印 message struct tree |
+| `OCULUS_CONTEXT_VERBOSE_DETAIL=1` | 在 struct tree 下展开 `tool_result` 多行内容（需 `VERBOSE>=2`） |
 | `OCULUS_CONTEXT_LOG` | JSONL 日志路径（默认 `.oculus/context.jsonl`） |
 | `OCULUS_CONTEXT_SNAPSHOT=1` | 另存每 turn messages 快照 |
 

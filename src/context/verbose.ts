@@ -1,6 +1,6 @@
-import { contextVerbose } from "../config.js";
-import { formatContext } from "./format.js";
+import { contextVerbose, contextVerboseDetail } from "../config.js";
 import type { ContextReport } from "./types.js";
+import { renderPostLlmVerbose, renderPreLlmVerbose } from "./terminal.js";
 
 export function printPreLlmVerbose(report: ContextReport): void {
   const level = contextVerbose();
@@ -8,9 +8,8 @@ export function printPreLlmVerbose(report: ContextReport): void {
     return;
   }
 
-  console.error(`[context:pre] ${formatContext(report, "summary").replace(/\n/g, " | ")}`);
-  if (level >= 2) {
-    console.error(formatContext(report, "struct"));
+  for (const line of renderPreLlmVerbose(report, level as 1 | 2, contextVerboseDetail())) {
+    console.error(line);
   }
 }
 
@@ -20,12 +19,13 @@ export function printPostLlmVerbose(report: ContextReport): void {
     return;
   }
 
-  const usage = report.usage;
-  if (!usage?.inputTokens) {
+  const lines = renderPostLlmVerbose(report);
+  if (!lines) {
     return;
   }
 
-  console.error(
-    `[context:post] turn ${report.turn} usage: in=${usage.inputTokens} out=${usage.outputTokens ?? 0}`,
-  );
+  console.error("");
+  for (const line of lines) {
+    console.error(line);
+  }
 }
