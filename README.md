@@ -10,9 +10,8 @@ oculeau/
 │   ├── agent/           # loop、prompt、hooks（默认策略）、tools.ts
 │   ├── builtins/        # fs-tools、git-tools、askUserQuestion
 │   ├── extensions/      # code-repl、context、trace 扩展
-│   ├── toolkit/         # ToolDefinition、createToolCatalog
+│   ├── toolkit/         # ToolDefinition、catalog、register-defaults
 │   ├── permission/      # checkPermission 纯策略
-│   ├── register-defaults.ts  # 显式组装 tool catalog
 │   ├── cli/             # main REPL 入口、commands、statusline
 │   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
 │   └── context/         # context window 分析（metrics、sessions）
@@ -117,7 +116,7 @@ Oculeau idle · context 12.3% · turn 2
 ### 新增 extension tool 模板（`deep_research`）
 
 1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
-2. 在 [`register-defaults.ts`](src/register-defaults.ts) 条件注册
+2. 在 [`toolkit/register-defaults.ts`](src/toolkit/register-defaults.ts) 条件注册
 3. 在 [`permission/index.ts`](src/permission/index.ts) 添加规则（网络类建议 `ask`）
 
 ### code_repl templates（Tier 1）
