@@ -50,15 +50,31 @@ pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
 | `context` | metrics_pre、metrics_post、context_compact |
 | `audit` | tool 审计 |
 
-Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文件模式一致）。stderr 盒式 observability 暂未接入，需要时再启用 `CliSink`。
+Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文件模式一致）。
 
 ## CLI
 
 | 输出 | 内容 |
 |------|------|
 | **stdout** | 每轮 agent 最终 reply |
-| **stderr** | statusline、prompt、分隔线 |
-| **`.oculeau/events.jsonl`** | 全量结构化事件（机器消费） |
+| **stderr** | statusline、prompt、分隔线；**thinking/verbose 开启时**实时 trace/context |
+| **`.oculeau/events.jsonl`** | 全量结构化事件（始终写入） |
+
+### Thinking / Verbose（调试观测，**默认关闭**）
+
+| 模式 | stderr 展示 | 开启方式 |
+|------|-------------|----------|
+| **off（默认）** | 无 trace/context 噪音 | — |
+| **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULEAU_THINKING=1` |
+| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ audit/conversation `EVENT` 标记 | `/verbose on` 或 `OCULEAU_VERBOSE=1` |
+
+`.oculeau/events.jsonl` **始终写入**；thinking/verbose 只控制 stderr 是否同步打印美化块。
+
+```sh
+/thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
+/verbose on     # 完整 debug：context 盒 + audit + conversation
+/thinking status
+```
 
 ### Statusline
 
@@ -80,6 +96,8 @@ Oculeau idle · context 12.3% · turn 2
 | `/compact preview` | dry-run token 估算 |
 | `/compact summary` | LLM 摘要压缩（7b，额外 API） |
 | `/compact auto on\|off` | 超阈值自动 prune（7c） |
+| `/thinking on\|off\|status` | 调用链 trace（thinking / tool / result） |
+| `/verbose on\|off\|status` | 完整 debug trace（含 context / audit） |
 
 ### 工具
 
@@ -127,7 +145,10 @@ Oculeau idle · context 12.3% · turn 2
 | `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
 | `OCULEAU_CODE_REPL_*` / `OCULEAU_PYTHON` / `OCULEAU_VENV` | code_repl 配置 |
 | `OCULEAU_CODE_REPL_DISABLED=1` | 禁用 code_repl |
-| `OCULEAU_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool |
+| `OCULEAU_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |
+| `OCULEAU_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
+| `OCULEAU_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
+| `OCULEAU_VERBOSE=1` | 默认开启 verbose 模式（完整 chalk debug trace；**默认 off**） |
 
 ## 测试
 
