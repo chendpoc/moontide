@@ -15,6 +15,10 @@ HOOKS: dict[str, list[HookFn]] = {
     "PreToolUse": [],
     "PostToolUse": [],
     "Stop": [],
+
+    # 在 llm 调用前后触发
+    "PreLLM": [],
+    "PostLLM": [],
 }
 
 
@@ -46,8 +50,16 @@ def audit_hook(*, tool_name: str, tool_input: dict[str, Any]) -> None:
         handle.write(line)
     return None
 
+def pre_llm_hook(*, messages: list[dict[str, Any]]) -> None:
+    pass
+
+def post_llm_hook(*, messages: list[dict[str, Any]]) -> None:
+    pass
 
 def setup_default_hooks() -> None:
     HOOKS["PreToolUse"].clear()
     register("PreToolUse", audit_hook)
     register("PreToolUse", permission_hook)
+    
+    register("PreLLM", pre_llm_hook)
+    register("PostLLM", post_llm_hook)
