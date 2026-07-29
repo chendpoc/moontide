@@ -9,6 +9,7 @@ export { runBash } from "./bash.js";
 import "./fs-tools.js";
 import "./inspect-context.js";
 import "./code-repl/index.js";
+import "./ask-user-question.js";
 
 import { buildToolSchemas, getToolHandler } from "./registry.js";
 

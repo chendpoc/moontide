@@ -23,6 +23,7 @@ describe("code_repl", () => {
   it("is registered in tool schemas", () => {
     const names = TOOL_SCHEMAS.map((t) => t.name);
     expect(names).toContain("code_repl");
+    expect(names).toContain("askUserQuestion");
   });
 
   it("runs inline tsx code", async () => {
@@ -117,5 +118,42 @@ describe("code_repl", () => {
     const raw = await executeTool("code_repl", { runtime: "tsx" });
     const result = JSON.parse(raw) as { error: string };
     expect(result.error).toContain("Either code or path");
+  });
+});
+
+describe("askUserQuestion", () => {
+  it("returns error when prompt not configured", async () => {
+    const raw = await executeTool("askUserQuestion", {
+      questions: [
+        {
+          id: "runtime",
+          prompt: "Pick runtime",
+          options: [{ id: "tsx", label: "TypeScript" }],
+        },
+      ],
+    });
+    const result = JSON.parse(raw) as { error: string };
+    expect(result.error).toContain("not configured");
+  });
+
+  it("collects answers when prompt configured", async () => {
+    const { setUserQuestionPrompt } = await import("../src/cli/user-question.js");
+    setUserQuestionPrompt(async () => [{ question_id: "runtime", selected: ["python"] }]);
+    const raw = await executeTool("askUserQuestion", {
+      title: "Runtime",
+      questions: [
+        {
+          id: "runtime",
+          prompt: "Pick runtime",
+          options: [
+            { id: "tsx", label: "TypeScript" },
+            { id: "python", label: "Python" },
+          ],
+        },
+      ],
+    });
+    const result = JSON.parse(raw) as { answers: Array<{ question_id: string; selected: string[] }> };
+    expect(result.answers[0]?.selected).toEqual(["python"]);
+    setUserQuestionPrompt(null);
   });
 });
