@@ -18,4 +18,8 @@ describe("permissions", () => {
   it("allows write inside workspace", () => {
     expect(checkPermission("write_file", { path: "ok.txt", content: "hi" })).toBe("allow");
   });
+
+  it("denies dangerous code_repl inline code", () => {
+    expect(checkPermission("code_repl", { code: "rm -rf /", runtime: "bash" })).toBe("deny");
+  });
 });

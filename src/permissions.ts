@@ -39,5 +39,18 @@ export function checkPermission(
     return "ask";
   }
 
+  if (toolName === "code_repl") {
+    const code = String(toolInput.code ?? "");
+    for (const pattern of DENY_LIST) {
+      if (code.includes(pattern)) {
+        return "deny";
+      }
+    }
+    const pathValue = toolInput.path !== undefined ? String(toolInput.path) : "";
+    if (toolInput.persist === true && pathValue && escapesWorkspace(pathValue)) {
+      return "ask";
+    }
+  }
+
   return "allow";
 }

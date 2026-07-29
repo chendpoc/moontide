@@ -8,6 +8,7 @@ export { runBash } from "./bash.js";
 
 import "./fs-tools.js";
 import "./inspect-context.js";
+import "./code-repl/index.js";
 
 import { buildToolSchemas, getToolHandler } from "./registry.js";
 
@@ -23,3 +24,5 @@ export async function executeTool(
   }
   return handler(toolInput);
 }
+
+export { probeAll as probeCodeRuntimes } from "./code-repl/registry.js";

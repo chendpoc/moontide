@@ -131,3 +131,24 @@ export function eventsLogPath(): string {
 export function traceEnabled(): boolean {
   return envFlag("TRACE");
 }
+
+export function codeReplDefaultRuntime(): string {
+  return env("CODE_REPL_DEFAULT_RUNTIME") ?? "tsx";
+}
+
+export function codeReplTimeoutMs(): number {
+  const n = Number(env("CODE_REPL_TIMEOUT_MS") ?? "120000");
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 120_000;
+}
+
+export function pythonPath(): string | undefined {
+  return env("PYTHON");
+}
+
+export function venvPath(): string | undefined {
+  return env("VENV");
+}
+
+export function codeReplDisabled(): boolean {
+  return envFlag("CODE_REPL_DISABLED");
+}
