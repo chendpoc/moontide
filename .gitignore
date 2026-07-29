@@ -8,5 +8,5 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .DS_Store
-.oculus-audit.log
-.oculus/
+.oculeau-audit.log
+.oculeau/

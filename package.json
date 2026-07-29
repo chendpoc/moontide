@@ -1,7 +1,7 @@
 {
-  "name": "oculus",
+  "name": "oculeau",
   "version": "0.1.0",
-  "description": "Oculus — minimal coding agent harness (TypeScript)",
+  "description": "Oculeau — minimal coding agent harness (TypeScript)",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
-    "chalk": "^6.0.0",
+    "chalk": "^5.4.1",
     "dotenv": "^16.4.7",
     "glob": "^11.0.1"
   },

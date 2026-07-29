@@ -1,7 +1,7 @@
 import { getWorkdir } from "./config.js";
 
 export function buildSystemPrompt(): string {
-  return `You are Oculus, a focused coding agent.
+  return `You are Oculeau, a focused coding agent.
 
 Workspace: ${getWorkdir()}
 
