@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { eventsLogPath, getWorkdir } from "../../config.js";
-import type { EventSink } from "../bus.js";
+import type { EventOutput } from "../bus.js";
 import { enrichEvent } from "../enrich.js";
 import type { AgentEvent } from "../types.js";
 
-export class JsonlSink implements EventSink {
+export class JsonlWriter implements EventOutput {
   private readonly filePath: string;
 
   constructor(configuredPath = eventsLogPath()) {

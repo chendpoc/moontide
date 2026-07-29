@@ -14,8 +14,8 @@ import {
   shouldPrintTerminalEvent,
 } from "../src/events/format/terminal.js";
 import { stripAnsi } from "../src/events/format/shared.js";
-import { TerminalSink } from "../src/events/sinks/terminal.js";
-import { setStderrWriterForTest } from "../src/events/sinks/stderr-writer.js";
+import { StderrRenderer } from "../src/events/outputs/stderr-renderer.js";
+import { setStderrWriterForTest } from "../src/events/outputs/stderr-writer.js";
 import type { AgentEvent } from "../src/events/types.js";
 import type { ContextReport } from "../src/context/types.js";
 
@@ -229,7 +229,7 @@ describe("terminal event formatting", () => {
   });
 });
 
-describe("TerminalSink", () => {
+describe("StderrRenderer", () => {
   beforeEach(() => {
     resetObservabilityOverrides();
     resetTerminalRenderState();
@@ -250,8 +250,8 @@ describe("TerminalSink", () => {
       return true;
     });
 
-    const sink = new TerminalSink();
-    sink.handle(
+    const renderer = new StderrRenderer();
+    renderer.handle(
       baseEvent({
         kind: "thinking",
         payload: { body: "inspect repo layout" },
@@ -271,8 +271,8 @@ describe("TerminalSink", () => {
       return true;
     });
 
-    const sink = new TerminalSink();
-    sink.handle(baseEvent({ kind: "thinking", payload: { body: "hidden" } }));
+    const renderer = new StderrRenderer();
+    renderer.handle(baseEvent({ kind: "thinking", payload: { body: "hidden" } }));
 
     expect(lines).toHaveLength(0);
   });

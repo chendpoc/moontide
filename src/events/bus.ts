@@ -3,21 +3,21 @@ import type { AgentEvent, EventDraft } from "./types.js";
 
 export type EventListener = (event: AgentEvent) => void;
 
-export interface EventSink {
+export interface EventOutput {
   handle(event: AgentEvent): void;
   close?(): void;
 }
 
 const listeners = new Set<EventListener>();
-let sinks: EventSink[] = [];
+let outputs: EventOutput[] = [];
 let testCollector: AgentEvent[] | null = null;
 
 export function emit(event: AgentEvent): void {
   if (testCollector) {
     testCollector.push(event);
   }
-  for (const sink of sinks) {
-    sink.handle(event);
+  for (const output of outputs) {
+    output.handle(event);
   }
   for (const listener of listeners) {
     listener(event);
@@ -35,15 +35,15 @@ export function subscribe(listener: EventListener): () => void {
   return () => listeners.delete(listener);
 }
 
-export function setSinks(next: EventSink[]): void {
-  for (const sink of sinks) {
-    sink.close?.();
+export function setOutputs(next: EventOutput[]): void {
+  for (const output of outputs) {
+    output.close?.();
   }
-  sinks = next;
+  outputs = next;
 }
 
-export function getSinks(): readonly EventSink[] {
-  return sinks;
+export function getOutputs(): readonly EventOutput[] {
+  return outputs;
 }
 
 export function enableTestCollector(): void {

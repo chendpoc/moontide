@@ -4,11 +4,11 @@ import {
   resetTerminalRenderState,
 } from "../format/terminal.js";
 import { isObservabilityEnabled } from "../../observability/modes.js";
-import type { EventSink } from "../bus.js";
+import type { EventOutput } from "../bus.js";
 import type { AgentEvent } from "../types.js";
 import { writeStderrBlock } from "./stderr-writer.js";
 
-export class TerminalSink implements EventSink {
+export class StderrRenderer implements EventOutput {
   handle(event: AgentEvent): void {
     if (!isObservabilityEnabled()) {
       return;

@@ -1,23 +1,23 @@
-import { setSinks } from "./bus.js";
-import type { EventSink } from "./bus.js";
+import { setOutputs } from "./bus.js";
+import type { EventOutput } from "./bus.js";
 import { registerAllPlugins } from "./register-plugins.js";
-import { JsonlSink } from "./sinks/jsonl.js";
-import { TerminalSink } from "./sinks/terminal.js";
+import { JsonlWriter } from "./outputs/jsonl.js";
+import { StderrRenderer } from "./outputs/stderr-renderer.js";
 
-function configureSinks(): void {
-  const sinks: EventSink[] = [new JsonlSink(), new TerminalSink()];
-  setSinks(sinks);
+function configureOutputs(): void {
+  const eventOutputs: EventOutput[] = [new JsonlWriter(), new StderrRenderer()];
+  setOutputs(eventOutputs);
 }
 
 export function setupEventPipeline(): void {
   registerAllPlugins();
-  configureSinks();
+  configureOutputs();
 }
 
-export function refreshEventSinks(): void {
-  configureSinks();
+export function refreshEventOutputs(): void {
+  configureOutputs();
 }
 
 export function resetEventPlatform(): void {
-  setSinks([]);
+  setOutputs([]);
 }
