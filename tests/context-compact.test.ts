@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { previewCompact, pruneCompact } from "../src/context/compact.js";
-import { buildSystemPrompt } from "../src/prompt.js";
+import { buildSystemPrompt } from "../src/agent/prompt.js";
 import { TOOL_SCHEMAS } from "../src/agent/tools.js";
 
 function longToolResultMessage(): MessageParam[] {

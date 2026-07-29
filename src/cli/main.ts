@@ -3,18 +3,23 @@ import { stdin as input, stdout as output } from "node:process";
 
 import chalk from "chalk";
 
+import { continueReplAgent } from "../agent/loop.js";
+import { resetSession } from "../context/sessions.js";
+import { setupEventPipeline } from "../events/setup.js";
 import {
   handleReplCommand,
   resetReplConversation,
   type ReplCommandContext,
-} from "./cli/commands/repl.js";
-import { createReplLoopContext } from "./cli/repl/interaction.js";
-import { hasReplSession, getReplMessages, resetReplSession, startReplSession } from "./cli/repl/session.js";
-import { renderStatusLine } from "./cli/statusline/render.js";
-import { setReplPhase } from "./cli/statusline/collect.js";
-import { resetSession } from "./context/sessions.js";
-import { setupEventPipeline } from "./events/setup.js";
-import { continueReplAgent } from "./agent/loop.js";
+} from "./commands/repl.js";
+import { createReplLoopContext } from "./repl/interaction.js";
+import {
+  getReplMessages,
+  hasReplSession,
+  resetReplSession,
+  startReplSession,
+} from "./repl/session.js";
+import { setReplPhase } from "./statusline/collect.js";
+import { renderStatusLine } from "./statusline/render.js";
 
 const SEPARATOR = chalk.gray("─".repeat(48));
 let turnCount = 0;

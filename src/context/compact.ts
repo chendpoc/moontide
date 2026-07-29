@@ -10,7 +10,7 @@ import { estimateBreakdown } from "./metrics.js";
 import { buildSnapshot } from "./snapshot.js";
 import { emitDraft } from "../events/bus.js";
 import { extractText, getClient } from "../llm.js";
-import { buildSystemPrompt } from "../prompt.js";
+import { buildSystemPrompt } from "../agent/prompt.js";
 
 const COMPACT_PLACEHOLDER_PREFIX = "[compact:";
 

@@ -1,4 +1,4 @@
-import { getWorkdir } from "./config.js";
+import { getWorkdir } from "../config.js";
 
 export function buildSystemPrompt(): string {
   return `You are Oculeau, a focused coding agent.
@@ -7,7 +7,8 @@ Workspace: ${getWorkdir()}
 
 Use tools to inspect and modify files. Prefer read_file/edit_file over bash when possible.
 Prefer grep over bash for code search. Prefer http_fetch over bash curl/wget for HTTP requests.
-Prefer git_status/git_diff/git_log over bash git for read-only repository inspection.
+Prefer git_status/git_diff/git_log for atomic read-only git operations.
+For a combined git overview (status + log + diff --stat), call git_summary then run code_repl with the returned template, or use code_repl template git_summary directly.
 Plan before acting on multi-step tasks. Be concise in final replies.
 
 ## code_repl runtime selection
