@@ -1,69 +1,53 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
+import chalk from "chalk";
+
+import { setToolApprovalPrompt } from "./cli/approval.js";
+import {
+  handleReplCommand,
+  resetReplConversation,
+  type ReplCommandContext,
+} from "./cli/repl-commands.js";
+import { hasReplSession, getReplMessages, resetReplSession, startReplSession } from "./cli/repl-session.js";
 import { renderStatusLine } from "./cli/statusline/render.js";
+import { setReplPhase } from "./cli/statusline/collect.js";
+import { resetSession } from "./context/sessions.js";
 import {
   isEventsMode,
   setCliEventsArgv,
-  setContextCliOverride,
-  setEventsDisplayCliOverride,
-  setEventsOverride,
-  setTraceCliOverride,
 } from "./events/cli-session.js";
-import { refreshEventSinks, setupEventPipeline } from "./events/setup.js";
-import { runAgent } from "./loop.js";
+import { setupEventPipeline } from "./events/setup.js";
+import { continueReplAgent } from "./loop.js";
 
-function handleReplCommand(trimmed: string): boolean {
-  const lower = trimmed.toLowerCase();
-
-  if (lower === "/trace on") {
-    setTraceCliOverride(true);
-    return true;
-  }
-  if (lower === "/trace off") {
-    setTraceCliOverride(false);
-    return true;
-  }
-  if (lower === "/events on") {
-    setEventsOverride(true);
-    refreshEventSinks();
-    return true;
-  }
-  if (lower === "/events off") {
-    setEventsOverride(false);
-    refreshEventSinks();
-    return true;
-  }
-  if (lower === "/events-display on") {
-    setEventsDisplayCliOverride(true);
-    return true;
-  }
-  if (lower === "/events-display off") {
-    setEventsDisplayCliOverride(false);
-    return true;
-  }
-  if (lower === "/context on") {
-    setContextCliOverride(true);
-    return true;
-  }
-  if (lower === "/context off") {
-    setContextCliOverride(false);
-    return true;
-  }
-
-  return false;
-}
+const SEPARATOR = chalk.gray("─".repeat(48));
+let turnCount = 0;
 
 async function main(): Promise<void> {
   const eventsFlag = process.argv.slice(2).includes("--events");
   setCliEventsArgv(eventsFlag);
   setupEventPipeline();
 
-  console.error(
-    "Oculeau — /context · /trace · /events · /events-display (on|off)\n",
-  );
+  console.error("Oculeau — type /help for commands\n");
 
   const rl = readline.createInterface({ input, output });
+
+  const ctx: ReplCommandContext = {
+    rl,
+    getMessages: () => getReplMessages(),
+    resetConversation: () => {
+      resetReplConversation();
+      turnCount = 0;
+    },
+  };
+
+  setToolApprovalPrompt(async ({ toolName, toolInput }) => {
+    const preview = JSON.stringify(toolInput).slice(0, 80);
+    const answer = await rl.question(
+      `\x1b[33mAllow ${toolName}? ${preview} [y/N]\x1b[0m `,
+    );
+    return ["y", "yes"].includes(answer.trim().toLowerCase());
+  });
 
   try {
     while (true) {
@@ -73,19 +57,48 @@ async function main(): Promise<void> {
       if (!trimmed || ["q", "exit"].includes(trimmed.toLowerCase())) {
         break;
       }
-      if (handleReplCommand(trimmed)) {
+
+      if (trimmed.startsWith("/")) {
+        const result = await handleReplCommand(trimmed, ctx);
+        if (result === "handled") {
+          continue;
+        }
+        if (result === "unknown") {
+          console.error(`unknown command: ${trimmed.split(/\s+/)[0]} (try /help)`);
+          continue;
+        }
+      }
+
+      if (!hasReplSession()) {
+        resetSession();
+        startReplSession();
+      }
+
+      const messages = ctx.getMessages();
+      if (!messages) {
         continue;
       }
 
-      const reply = await runAgent(trimmed);
+      setReplPhase("running");
+      renderStatusLine();
+
+      const { reply } = await continueReplAgent(trimmed, messages);
+
+      setReplPhase("idle");
+      renderStatusLine();
 
       if (!isEventsMode()) {
+        if (turnCount > 0) {
+          console.error(SEPARATOR);
+        }
+        turnCount += 1;
         console.log(reply);
         console.log();
       }
     }
   } finally {
     rl.close();
+    resetReplSession();
   }
 }
 
