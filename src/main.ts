@@ -17,7 +17,7 @@ import { resetSession } from "./context/sessions.js";
 import {
   isEventsMode,
   setCliEventsArgv,
-} from "./events/cli-session.js";
+} from "./cli/display-session.js";
 import { setupEventPipeline } from "./events/setup.js";
 import { continueReplAgent } from "./loop.js";
 

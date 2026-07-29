@@ -1,6 +1,6 @@
 import { setSinks } from "./bus.js";
 import type { EventSink } from "./bus.js";
-import { isEventsMode } from "./cli-session.js";
+import { isEventsMode } from "../cli/display-session.js";
 import { registerAllPlugins } from "./register-plugins.js";
 import { CliSink } from "./sinks/cli.js";
 import { JsonlSink } from "./sinks/jsonl.js";

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getSinks } from "../src/events/bus.js";
-import { setCliEventsArgv, setEventsOverride } from "../src/events/cli-session.js";
+import { setCliEventsArgv, setEventsOverride } from "../src/cli/display-session.js";
 import { refreshEventSinks, resetEventPlatform } from "../src/events/setup.js";
 import { CliSink } from "../src/events/sinks/cli.js";
 import { JsonlSink } from "../src/events/sinks/jsonl.js";

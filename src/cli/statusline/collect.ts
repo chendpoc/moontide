@@ -5,7 +5,7 @@ import {
   shouldShowContextCli,
   shouldShowEventsCli,
   shouldShowTraceCli,
-} from "../../events/cli-session.js";
+} from "../display-session.js";
 import type { StatusSnapshot } from "./types.js";
 
 let replPhase: "idle" | "running" = "idle";

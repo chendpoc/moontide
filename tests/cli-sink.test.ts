@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { setContextCliOverride, setEventsDisplayCliOverride, setEventsOverride, setTraceCliOverride } from "../src/events/cli-session.js";
+import { setContextCliOverride, setEventsDisplayCliOverride, setEventsOverride, setTraceCliOverride } from "../src/cli/display-session.js";
 import { stripAnsi } from "../src/events/format/shared.js";
 import { formatEventForCli } from "../src/events/sinks/cli.js";
 import type { AgentEvent } from "../src/events/types.js";

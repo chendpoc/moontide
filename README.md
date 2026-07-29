@@ -7,6 +7,7 @@
 ```
 oculeau/
 ├── src/
+│   ├── cli/display-session.ts  # REPL observability overrides（/context on 等）
 │   ├── cli/statusline/  # REPL statusline + .oculeau/status.json
 │   ├── events/          # AgentEvent bus、orchestrator、CliSink、JsonlSink
 │   ├── plugins/         # context / trace 插件（注册 phase slot）

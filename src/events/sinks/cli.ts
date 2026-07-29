@@ -1,4 +1,4 @@
-import { shouldShowContextCli, shouldShowEventsCli, shouldShowTraceCli } from "../cli-session.js";
+import { shouldShowContextCli, shouldShowEventsCli, shouldShowTraceCli } from "../../cli/display-session.js";
 import { formatContextEvent } from "../format/format-context.js";
 import { formatEventsChannelEvent } from "../format/format-events.js";
 import { formatTraceEvent } from "../format/format-trace.js";

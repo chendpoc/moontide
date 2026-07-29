@@ -7,7 +7,7 @@ import {
   setContextCliOverride,
   setEventsDisplayCliOverride,
   setTraceCliOverride,
-} from "../src/events/cli-session.js";
+} from "../src/cli/display-session.js";
 import { stripAnsi } from "../src/events/format/shared.js";
 import { renderStatusLine, resetStatusLineRender } from "../src/cli/statusline/render.js";
 

@@ -1,5 +1,5 @@
 import type { EventSink } from "../bus.js";
-import { isEventsMode } from "../cli-session.js";
+import { isEventsMode } from "../../cli/display-session.js";
 import { enrichEvent } from "../enrich.js";
 import type { AgentEvent } from "../types.js";
 

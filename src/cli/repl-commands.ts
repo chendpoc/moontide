@@ -22,7 +22,7 @@ import {
   setEventsDisplayCliOverride,
   setEventsOverride,
   setTraceCliOverride,
-} from "../events/cli-session.js";
+} from "./display-session.js";
 import { refreshEventSinks } from "../events/setup.js";
 import { resetRun } from "../events/run.js";
 import { TOOL_SCHEMAS } from "../tools/index.js";
