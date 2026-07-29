@@ -2,7 +2,6 @@ import { httpFetchEnabled } from "../config.js";
 import type { ToolDefinition } from "../toolkit/types.js";
 import { runEdit, runGlob, runListDir, runRead, runWrite } from "./fs.js";
 import { runBash } from "./bash.js";
-import { runGitDiff, runGitLog, runGitStatus } from "./git.js";
 import { runGrep } from "./grep.js";
 import { runHttpFetch } from "./http-fetch.js";
 
@@ -129,68 +128,6 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
           glob: input.glob === undefined ? undefined : String(input.glob),
           max_results: input.max_results === undefined ? undefined : Number(input.max_results),
           case_insensitive: input.case_insensitive === true,
-        }),
-    },
-    {
-      schema: {
-        name: "git_status",
-        description:
-          "Read-only git status for the workspace. Prefer over bash git status.",
-        input_schema: {
-          type: "object",
-          properties: {},
-        },
-      },
-      handler: (_input, _ctx) => runGitStatus(),
-    },
-    {
-      schema: {
-        name: "git_diff",
-        description:
-          "Read-only git diff (default --stat). Prefer over bash git diff.",
-        input_schema: {
-          type: "object",
-          properties: {
-            stat: {
-              type: "boolean",
-              description: "Use --stat summary (default true). Set false for unified diff.",
-            },
-            path: { type: "string", description: "Limit diff to a workspace-relative path." },
-            staged: { type: "boolean", description: "Diff staged changes (--cached)." },
-            max_lines: {
-              type: "integer",
-              description: "Context lines when stat=false (default 200, cap 500).",
-            },
-          },
-        },
-      },
-      handler: (input, _ctx) =>
-        runGitDiff({
-          stat: input.stat === undefined ? undefined : input.stat === true,
-          path: input.path === undefined ? undefined : String(input.path),
-          staged: input.staged === true,
-          max_lines: input.max_lines === undefined ? undefined : Number(input.max_lines),
-        }),
-    },
-    {
-      schema: {
-        name: "git_log",
-        description:
-          "Read-only git log (oneline). Prefer over bash git log.",
-        input_schema: {
-          type: "object",
-          properties: {
-            n: { type: "integer", description: "Number of commits (default 10, cap 50)." },
-            path: { type: "string", description: "Limit log to a workspace-relative path." },
-            oneline: { type: "boolean", description: "One line per commit (default true)." },
-          },
-        },
-      },
-      handler: (input, _ctx) =>
-        runGitLog({
-          n: input.n === undefined ? undefined : Number(input.n),
-          path: input.path === undefined ? undefined : String(input.path),
-          oneline: input.oneline === undefined ? undefined : input.oneline === true,
         }),
     },
   ];

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { executeTool } from "../src/agent/tools.js";
-import { runGitDiff, runGitLog, runGitStatus } from "../src/builtins/git.js";
+import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/builtins/git.js";
 import { checkPermission } from "../src/permission/index.js";
 
 let tmpDir = "";
@@ -129,6 +129,18 @@ describe("git tools", () => {
     expect(result.status).toBe("ok");
     expect(result.branch).toBeTruthy();
     expect(result.porcelain).toContain("main");
+  });
+
+  it("git_summary links to code_repl template", () => {
+    const raw = runGitSummaryLink(3);
+    const result = JSON.parse(raw) as {
+      status: string;
+      template: string;
+      vars: { log_n: number };
+    };
+    expect(result.status).toBe("use_code_repl");
+    expect(result.template).toBe("git_summary");
+    expect(result.vars.log_n).toBe(3);
   });
 });
 

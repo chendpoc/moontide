@@ -288,3 +288,24 @@ export async function runGitLog(input: GitLogInput = {}): Promise<string> {
     } satisfies GitLogResult);
   }
 }
+
+export interface GitSummaryLink {
+  status: "use_code_repl";
+  template: "git_summary";
+  vars: { log_n: number };
+  note: string;
+}
+
+export function runGitSummaryLink(logN?: number): string {
+  const log_n =
+    logN !== undefined && Number.isFinite(Number(logN))
+      ? Math.max(1, Math.floor(Number(logN)))
+      : 5;
+  return JSON.stringify({
+    status: "use_code_repl",
+    template: "git_summary",
+    vars: { log_n },
+    note:
+      "Combined status + log + diff --stat. Run via code_repl; implementation in templates/bodies/bash/git_summary.sh",
+  } satisfies GitSummaryLink);
+}

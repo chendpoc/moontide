@@ -59,7 +59,7 @@ export const TEMPLATE_CATALOG: TemplateDef[] = [
   {
     id: "git_summary",
     runtime: "bash",
-    description: "Git status, recent log, and diff --stat (read-only).",
+    description: "Git status, recent log, and diff --stat (read-only). Native git_summary tool redirects here.",
     bodyFile: "bash/git_summary.sh",
     vars: [{ name: "log_n", type: "number", default: 5 }],
   },
