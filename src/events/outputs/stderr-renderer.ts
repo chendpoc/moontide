@@ -3,7 +3,7 @@ import {
   formatTerminalEventBlock,
   resetTerminalRenderState,
 } from "../format/terminal.js";
-import { isObservabilityEnabled } from "../../observability/modes.js";
+import { isObservabilityEnabled } from "../modes.js";
 import type { EventOutput } from "../bus.js";
 import type { AgentEvent } from "../types.js";
 import { writeStderrBlock } from "./stderr-writer.js";

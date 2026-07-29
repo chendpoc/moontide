@@ -4,7 +4,7 @@ import {
   isVerboseEnabled,
   setThinkingOverride,
   setVerboseOverride,
-} from "../../observability/modes.js";
+} from "../../events/modes.js";
 import { reply } from "./io.js";
 import type { ReplCommandResult } from "./types.js";
 

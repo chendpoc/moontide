@@ -6,7 +6,7 @@ import {
   resetObservabilityOverrides,
   setThinkingOverride,
   setVerboseOverride,
-} from "../src/observability/modes.js";
+} from "../src/events/modes.js";
 import {
   composeTerminalBlock,
   formatTerminalEventBlock,

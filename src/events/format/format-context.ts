@@ -1,6 +1,6 @@
 import chalk from "chalk";
 
-import { isVerboseEnabled } from "../../observability/modes.js";
+import { isVerboseEnabled } from "../modes.js";
 import type { ContextReport } from "../../context/types.js";
 import type { AgentEvent } from "../types.js";
 import { boxLine, fmt, padTurn } from "./shared.js";

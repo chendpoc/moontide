@@ -1,4 +1,4 @@
-import { isVerboseEnabled } from "../../observability/modes.js";
+import { isVerboseEnabled } from "../modes.js";
 import type { AgentChannel, AgentEvent } from "../types.js";
 import { formatContextEvent } from "./format-context.js";
 import { formatEventsChannelEvent } from "./format-events.js";

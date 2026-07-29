@@ -5,7 +5,7 @@ import { startReplSession, resetReplSession } from "../src/cli/repl/session.js";
 import {
   isThinkingEnabled,
   resetObservabilityOverrides,
-} from "../src/observability/modes.js";
+} from "../src/events/modes.js";
 
 const fakeRl = {} as import("node:readline/promises").Interface;
 
