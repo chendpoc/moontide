@@ -195,7 +195,7 @@ describe("code_repl templates integration", () => {
     }
     expect(result.exit_code).toBe(0);
     const payload = JSON.parse(result.stdout!) as { workdir: string; node: { available: boolean } };
-    expect(payload.workdir).toBe(tmpDir);
+    expect(fs.realpathSync(payload.workdir)).toBe(fs.realpathSync(tmpDir));
     expect(payload.node.available).toBe(true);
   });
 
