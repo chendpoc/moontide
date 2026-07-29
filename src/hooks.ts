@@ -37,13 +37,10 @@ function permissionHook(context: Record<string, unknown>): string | null {
   if (decision === "deny") {
     return `Permission denied: ${toolName}`;
   }
-  if (decision === "ask") {
-    return `Permission required: ${toolName} needs user approval`;
-  }
   return null;
 }
 
-function auditHook(context: Record<string, unknown>): void {
+export function auditToolUse(context: Record<string, unknown>): void {
   const toolName = String(context.tool_name ?? "");
   const toolInput = context.tool_input ?? {};
   const line = `${new Date().toISOString()}\t${toolName}\t${JSON.stringify(toolInput)}\n`;
@@ -61,7 +58,6 @@ function auditHook(context: Record<string, unknown>): void {
 
 export function setupDefaultHooks(): void {
   HOOKS.PreToolUse = [];
-  register("PreToolUse", auditHook);
   register("PreToolUse", permissionHook);
 }
 
