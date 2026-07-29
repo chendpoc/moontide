@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import { registerContextHooks } from "./context/hook.js";
 import { checkPermission } from "./permissions.js";
 
 export type HookFn = (context: Record<string, unknown>) => string | null | void;
@@ -50,20 +51,13 @@ function auditHook(context: Record<string, unknown>): void {
   fs.appendFileSync(".oculus-audit.log", line, "utf8");
 }
 
-function preLlmHook(_context: Record<string, unknown>): void {
-  // placeholder for prompt snapshot / context injection
-}
-
-function postLlmHook(_context: Record<string, unknown>): void {
-  // placeholder for metrics / logging
-}
-
 export function setupDefaultHooks(): void {
   HOOKS.PreToolUse = [];
+  HOOKS.PreLLM = [];
+  HOOKS.PostLLM = [];
   register("PreToolUse", auditHook);
   register("PreToolUse", permissionHook);
-  register("PreLLM", preLlmHook);
-  register("PostLLM", postLlmHook);
+  registerContextHooks(register);
 }
 
 export type { MessageParam };

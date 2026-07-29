@@ -42,3 +42,43 @@ export function baseUrl(): string {
 export function modelId(): string {
   return process.env.MODEL_ID ?? DEFAULT_MODEL;
 }
+
+const CONTEXT_LIMITS: Record<string, number> = {
+  "deepseek-v4-pro": 128_000,
+  "deepseek-v4-flash": 128_000,
+  default: 128_000,
+};
+
+export function contextLimit(): number {
+  const override = process.env.OCULUS_CONTEXT_LIMIT;
+  if (override) {
+    const parsed = Number(override);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return CONTEXT_LIMITS[modelId()] ?? CONTEXT_LIMITS.default;
+}
+
+export function contextVerbose(): 0 | 1 | 2 {
+  const level = Number(process.env.OCULUS_CONTEXT_VERBOSE ?? "0");
+  if (level >= 2) {
+    return 2;
+  }
+  if (level >= 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function contextLogPath(): string {
+  return process.env.OCULUS_CONTEXT_LOG ?? ".oculus/context.jsonl";
+}
+
+export function contextExact(): boolean {
+  return process.env.OCULUS_CONTEXT_EXACT === "1";
+}
+
+export function contextSnapshotEnabled(): boolean {
+  return process.env.OCULUS_CONTEXT_SNAPSHOT === "1";
+}

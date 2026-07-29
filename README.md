@@ -14,6 +14,8 @@ oculus/
 │   ├── permissions.ts # deny / ask 闸门
 │   ├── hooks.ts       # PreToolUse 审计 + 权限
 │   ├── prompt.ts      # system prompt
+│   ├── context/       # context window 分析（verbose / log / format / inspect）
+│   ├── native-tools/  # Node 原生能力（fs 等，供 context log 使用）
 │   ├── main.ts        # CLI REPL
 │   └── ping.ts        # API 连通测试
 ├── tests/             # vitest 离线测试
@@ -52,6 +54,19 @@ MODEL_ID=deepseek-v4-pro
 | `npm run ping -- "hi"` | 测试 API 连通 |
 | `npm test` | vitest 离线测试 |
 | `npm run typecheck` | TypeScript 类型检查 |
+
+## Context 观测
+
+每次 LLM 调用前后自动分析 context window（通过 Hook，不影响 agent loop 结构）：
+
+| 环境变量 | 作用 |
+|----------|------|
+| `OCULUS_CONTEXT_VERBOSE=1` | stderr 打印 summary + usage |
+| `OCULUS_CONTEXT_VERBOSE=2` | 额外打印 struct tree |
+| `OCULUS_CONTEXT_LOG` | JSONL 日志路径（默认 `.oculus/context.jsonl`） |
+| `OCULUS_CONTEXT_SNAPSHOT=1` | 另存每 turn messages 快照 |
+
+Agent 也可调用 `inspect_context` meta-tool 查看当前 context 占用（可选 `exact: true` 走 API 精确计数）。
 
 ## 测试
 

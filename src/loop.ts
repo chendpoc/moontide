@@ -1,5 +1,6 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import { resetSession } from "./context/sessions.js";
 import { runHooks, setupDefaultHooks } from "./hooks.js";
 import { chat, extractText } from "./llm.js";
 import { buildSystemPrompt } from "./prompt.js";
@@ -9,10 +10,20 @@ export async function agentLoop(messages: MessageParam[]): Promise<string> {
   setupDefaultHooks();
   const system = buildSystemPrompt();
 
+  let turn = 0;
   while (true) {
-    runHooks("PreLLM", { messages });
+    turn += 1;
+    let beforeLLMContext = {
+      turn, 
+      messages,
+      system,
+      tools: TOOL_SCHEMAS,
+    }
+    runHooks("PreLLM", beforeLLMContext);
+    
     const response = await chat(messages, TOOL_SCHEMAS, system);
-    runHooks("PostLLM", { messages, response });
+
+    runHooks("PostLLM", { ...beforeLLMContext, response });
 
     messages.push({ role: "assistant", content: response.content });
 
@@ -57,6 +68,7 @@ export async function agentLoop(messages: MessageParam[]): Promise<string> {
 }
 
 export async function runAgent(userPrompt: string): Promise<string> {
+  resetSession();
   runHooks("UserPromptSubmit", { prompt: userPrompt });
   const messages: MessageParam[] = [{ role: "user", content: userPrompt }];
   return agentLoop(messages);

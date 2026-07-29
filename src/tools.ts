@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { globSync } from "glob";
 import type { Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import { inspectContext } from "./context/index.js";
 import { getWorkdir, setWorkdir } from "./config.js";
 
 const execAsync = promisify(exec);
@@ -169,6 +170,25 @@ export const TOOL_SCHEMAS: Tool[] = [
       required: ["pattern"],
     },
   },
+  {
+    name: "inspect_context",
+    description:
+      "Inspect current conversation context window usage, token breakdown, and headroom.",
+    input_schema: {
+      type: "object",
+      properties: {
+        detail: {
+          type: "string",
+          enum: ["summary", "struct", "breakdown", "full"],
+          description: "Level of detail in the report.",
+        },
+        exact: {
+          type: "boolean",
+          description: "Use API countTokens for exact input token count (extra API call).",
+        },
+      },
+    },
+  },
 ];
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
@@ -179,6 +199,15 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   edit_file: (input) =>
     runEdit(String(input.path ?? ""), String(input.old_text ?? ""), String(input.new_text ?? "")),
   glob: (input) => runGlob(String(input.pattern ?? "")),
+  inspect_context: (input) => {
+    const detail = String(input.detail ?? "summary") as
+      | "summary"
+      | "struct"
+      | "breakdown"
+      | "full";
+    const exact = input.exact === true || input.exact === "true";
+    return inspectContext(detail, exact);
+  },
 };
 
 export async function executeTool(

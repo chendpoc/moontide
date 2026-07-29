@@ -41,3 +41,17 @@ export async function chat(
     max_tokens: maxTokens,
   });
 }
+
+export async function countTokens(
+  messages: MessageParam[],
+  tools: Tool[],
+  system: string,
+): Promise<number> {
+  const result = await getClient().messages.countTokens({
+    model: modelId(),
+    system,
+    messages,
+    tools,
+  });
+  return result.input_tokens;
+}
