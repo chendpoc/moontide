@@ -1,19 +1,54 @@
 import { codeReplDefaultRuntime } from "../../config.js";
 import { getRuntime } from "./registry.js";
 import { cleanupScript, prepareScript, runPreparedScript } from "./runner.js";
+import { expandTemplate } from "./templates/expand.js";
 import type { CodeReplInput, CodeReplResult } from "./types.js";
 
 export async function executeCodeRepl(input: CodeReplInput): Promise<string> {
-  const code = input.code !== undefined ? String(input.code) : undefined;
-  const filePath = input.path !== undefined ? String(input.path) : undefined;
+  let effectiveInput = input;
+  let templateMeta: { template: string; resolved_vars: Record<string, string | number | boolean> } | undefined;
+
+  if (input.template !== undefined) {
+    if (input.code !== undefined) {
+      return JSON.stringify({
+        error: "Cannot use both template and code",
+        template: String(input.template),
+      } satisfies Partial<CodeReplResult>);
+    }
+    if (input.path !== undefined) {
+      return JSON.stringify({
+        error: "Cannot use both template and path",
+        template: String(input.template),
+      } satisfies Partial<CodeReplResult>);
+    }
+
+    const expanded = expandTemplate(String(input.template), input.vars ?? {});
+    if ("error" in expanded) {
+      return JSON.stringify(expanded);
+    }
+
+    templateMeta = {
+      template: String(input.template),
+      resolved_vars: expanded.resolvedVars,
+    };
+    effectiveInput = {
+      ...input,
+      runtime: expanded.runtime,
+      code: expanded.code,
+      path: undefined,
+    };
+  }
+
+  const code = effectiveInput.code !== undefined ? String(effectiveInput.code) : undefined;
+  const filePath = effectiveInput.path !== undefined ? String(effectiveInput.path) : undefined;
 
   if (!code && !filePath) {
     return JSON.stringify({
-      error: "Either code or path is required",
+      error: "Either code, path, or template is required",
     } satisfies Partial<CodeReplResult>);
   }
 
-  const runtimeId = input.runtime?.trim() || undefined;
+  const runtimeId = effectiveInput.runtime?.trim() || undefined;
   const resolvedRuntimeId = runtimeId || codeReplDefaultRuntime();
   const runtime = getRuntime(resolvedRuntimeId);
 
@@ -35,7 +70,7 @@ export async function executeCodeRepl(input: CodeReplInput): Promise<string> {
 
   let script: ReturnType<typeof prepareScript>;
   try {
-    script = prepareScript(input, runtime);
+    script = prepareScript(effectiveInput, runtime);
     if ("error" in script) {
       return JSON.stringify({
         runtime: resolvedRuntimeId,
@@ -50,7 +85,12 @@ export async function executeCodeRepl(input: CodeReplInput): Promise<string> {
   }
 
   try {
-    return await runPreparedScript(runtime, resolvedRuntimeId, script, input);
+    const raw = await runPreparedScript(runtime, resolvedRuntimeId, script, effectiveInput);
+    if (!templateMeta) {
+      return raw;
+    }
+    const result = JSON.parse(raw) as CodeReplResult;
+    return JSON.stringify({ ...result, ...templateMeta });
   } finally {
     cleanupScript(script);
   }

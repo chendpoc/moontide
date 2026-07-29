@@ -25,6 +25,8 @@ export interface CodeReplInput {
   runtime?: string;
   code?: string;
   path?: string;
+  template?: string;
+  vars?: Record<string, unknown>;
   args?: string[];
   timeout_ms?: number;
   persist?: boolean;
@@ -40,6 +42,8 @@ export interface CodeReplResult {
   truncated?: boolean;
   error?: string;
   suggestion?: string;
+  template?: string;
+  resolved_vars?: Record<string, string | number | boolean>;
 }
 
 export const OUTPUT_LIMIT = 50_000;

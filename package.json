@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/extensions/code-repl/templates/bodies dist/extensions/code-repl/templates/",
     "start": "node dist/main.js",
     "dev": "tsx src/main.ts",
     "ping": "tsx src/ping.ts",

@@ -127,7 +127,7 @@ describe("code_repl", () => {
   it("requires code or path", async () => {
     const raw = await executeTool("code_repl", { runtime: "tsx" });
     const result = JSON.parse(raw) as { error: string };
-    expect(result.error).toContain("Either code or path");
+    expect(result.error).toContain("Either code, path, or template");
   });
 });
 

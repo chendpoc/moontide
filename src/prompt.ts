@@ -13,7 +13,10 @@ Plan before acting on multi-step tasks. Be concise in final replies.
 - TypeScript / Oculeau code → runtime "tsx"
 - Training scripts, numpy/torch, Python notebooks → runtime "python"
 - Existing .js files → runtime "node"
-- Shell pipelines, package installs → use bash, not code_repl
+- Shell pipelines, package installs → use bash tool, not code_repl
+
+Prefer code_repl templates over handwritten inline code when they fit:
+read_json, jsonl_tail, package_scripts, glob_stats, git_summary, env_check, json_pretty, peek_csv
 
 When code_repl reports a runtime is unavailable or ambiguous, call askUserQuestion before retrying.
 `;
