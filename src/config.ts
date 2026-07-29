@@ -16,8 +16,19 @@ if (process.env.ANTHROPIC_BASE_URL) {
 }
 
 export const DEFAULT_MODEL = "deepseek-v4-pro";
+export const DATA_DIR = ".oculeau";
+export const AUDIT_LOG_PATH = ".oculeau-audit.log";
 
-let workdir = path.resolve(process.env.OCULUS_WORKDIR ?? process.cwd());
+/** OCULEAU_* with deprecated OCULUS_* fallback. */
+function env(name: string): string | undefined {
+  return process.env[`OCULEAU_${name}`] ?? process.env[`OCULUS_${name}`];
+}
+
+function envFlag(name: string): boolean {
+  return env(name) === "1";
+}
+
+let workdir = path.resolve(env("WORKDIR") ?? process.cwd());
 
 export function getWorkdir(): string {
   return workdir;
@@ -50,7 +61,7 @@ const CONTEXT_LIMITS: Record<string, number> = {
 };
 
 export function contextLimit(): number {
-  const override = process.env.OCULUS_CONTEXT_LIMIT;
+  const override = env("CONTEXT_LIMIT");
   if (override) {
     const parsed = Number(override);
     if (!Number.isNaN(parsed) && parsed > 0) {
@@ -61,7 +72,7 @@ export function contextLimit(): number {
 }
 
 export function contextVerbose(): 0 | 1 | 2 {
-  const level = Number(process.env.OCULUS_CONTEXT_VERBOSE ?? "0");
+  const level = Number(env("CONTEXT_VERBOSE") ?? "0");
   if (level >= 2) {
     return 2;
   }
@@ -72,17 +83,44 @@ export function contextVerbose(): 0 | 1 | 2 {
 }
 
 export function contextLogPath(): string {
-  return process.env.OCULUS_CONTEXT_LOG ?? ".oculus/context.jsonl";
+  return env("CONTEXT_LOG") ?? `${DATA_DIR}/context.jsonl`;
 }
 
 export function contextExact(): boolean {
-  return process.env.OCULUS_CONTEXT_EXACT === "1";
+  return envFlag("CONTEXT_EXACT");
 }
 
 export function contextSnapshotEnabled(): boolean {
-  return process.env.OCULUS_CONTEXT_SNAPSHOT === "1";
+  return envFlag("CONTEXT_SNAPSHOT");
 }
 
 export function contextVerboseDetail(): boolean {
-  return process.env.OCULUS_CONTEXT_VERBOSE_DETAIL === "1";
+  return envFlag("CONTEXT_VERBOSE_DETAIL");
+}
+
+/** stderr context box display; independent of CONTEXT_VERBOSE detail level. */
+export function contextDisplayEnabled(): boolean {
+  if (envFlag("CONTEXT_DISPLAY")) {
+    return true;
+  }
+  return envFlag("CONTEXT");
+}
+
+export function eventsModeEnabled(): boolean {
+  return envFlag("EVENTS");
+}
+
+/** @deprecated Use eventsModeEnabled */
+export const eventsEnabled = eventsModeEnabled;
+
+export function eventsDisplayEnabled(): boolean {
+  return envFlag("EVENTS_DISPLAY");
+}
+
+export function eventsLogPath(): string {
+  return env("EVENTS_LOG") ?? `${DATA_DIR}/events.jsonl`;
+}
+
+export function traceEnabled(): boolean {
+  return envFlag("TRACE");
 }
