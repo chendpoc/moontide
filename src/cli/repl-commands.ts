@@ -100,6 +100,7 @@ export async function handleReplCommand(
     reply("  /compact [preview|summary] · /compact auto on|off");
     reply("  /context|/trace|/events|/events-display on|off");
     reply("  q · exit");
+    reply(formatStatusLineLegend());
     return "handled";
   }
 
