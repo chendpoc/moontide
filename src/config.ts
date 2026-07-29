@@ -70,17 +70,6 @@ export function contextLimit(): number {
   return CONTEXT_LIMITS[modelId()] ?? CONTEXT_LIMITS.default;
 }
 
-export function contextVerbose(): 0 | 1 | 2 {
-  const level = Number(env("CONTEXT_VERBOSE") ?? "0");
-  if (level >= 2) {
-    return 2;
-  }
-  if (level >= 1) {
-    return 1;
-  }
-  return 0;
-}
-
 export function contextLogPath(): string {
   return env("CONTEXT_LOG") ?? `${DATA_DIR}/context.jsonl`;
 }
@@ -91,10 +80,6 @@ export function contextExact(): boolean {
 
 export function contextSnapshotEnabled(): boolean {
   return envFlag("CONTEXT_SNAPSHOT");
-}
-
-export function contextVerboseDetail(): boolean {
-  return envFlag("CONTEXT_VERBOSE_DETAIL");
 }
 
 export function compactKeepTurns(): number {
@@ -138,4 +123,16 @@ export function codeReplDisabled(): boolean {
 
 export function deepResearchEnabled(): boolean {
   return envFlag("DEEP_RESEARCH");
+}
+
+export function tavilyApiKey(): string | undefined {
+  return env("TAVILY_API_KEY") ?? process.env.TAVILY_API_KEY;
+}
+
+export function thinkingModeDefault(): boolean {
+  return envFlag("THINKING");
+}
+
+export function verboseModeDefault(): boolean {
+  return envFlag("VERBOSE");
 }
