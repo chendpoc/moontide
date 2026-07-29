@@ -1,5 +1,9 @@
-import { modelId } from "./config.js";
-import { extractText, getClient } from "./llm.js";
+#!/usr/bin/env tsx
+/**
+ * LLM API smoke test — verify API key, base URL, and model before running the REPL.
+ */
+import { modelId } from "../../src/config.js";
+import { extractText, getClient } from "../../src/llm.js";
 
 async function ping(userText: string): Promise<string> {
   const response = await getClient().messages.create({
@@ -16,7 +20,7 @@ async function ping(userText: string): Promise<string> {
 async function main(): Promise<void> {
   const message = process.argv[2];
   if (!message) {
-    console.error("Usage: npm run ping -- <message>");
+    console.error("Usage: pnpm run ping -- <message>");
     process.exit(1);
   }
   try {

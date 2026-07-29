@@ -10,7 +10,7 @@
     "build": "tsc && cp -r src/extensions/code-repl/templates/bodies dist/extensions/code-repl/templates/",
     "start": "node dist/main.js",
     "dev": "tsx src/main.ts",
-    "ping": "tsx src/ping.ts",
+    "ping": "tsx scripts/healthcheck/ping.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
