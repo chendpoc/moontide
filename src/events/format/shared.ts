@@ -15,6 +15,7 @@ export function padTurn(turn: number): string {
 }
 
 export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex -- intentional ANSI escape stripping
   return text.replace(/\u001b\[[0-9;]*m/g, "");
 }
 

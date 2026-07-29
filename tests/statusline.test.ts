@@ -6,6 +6,7 @@ import type { StatusSnapshot } from "../src/cli/statusline/types.js";
 import { renderStatusLine, resetStatusLineRender } from "../src/cli/statusline/render.js";
 
 function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex -- intentional ANSI escape stripping
   return text.replace(/\u001b\[[0-9;]*m/g, "");
 }
 

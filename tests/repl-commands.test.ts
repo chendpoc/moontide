@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach } from "vitest";
+import type { Interface } from "node:readline/promises";
 
 import { handleReplCommand } from "../src/cli/commands/repl.js";
 import { startReplSession, resetReplSession } from "../src/cli/repl/session.js";
@@ -7,7 +8,7 @@ import {
   resetObservabilityOverrides,
 } from "../src/events/modes.js";
 
-const fakeRl = {} as import("node:readline/promises").Interface;
+const fakeRl = {} as Interface;
 
 describe("repl commands", () => {
   afterEach(() => {
