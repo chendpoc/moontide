@@ -12,7 +12,7 @@ oculeau/
 │   ├── plugins/         # context / trace 插件（注册 phase slot）
 │   ├── context/         # context window 分析（metrics、inspect_context）
 │   ├── loop.ts          # agent loop（只调 runPhase）
-│   ├── tools.ts         # bash / read / write / edit / glob
+│   ├── tools/           # bash / fs / code_repl / askUserQuestion 等
 │   ├── hooks.ts         # 权限 + audit
 │   └── main.ts          # CLI REPL
 ├── scripts/
@@ -60,8 +60,10 @@ pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
 每轮 `Oculeau >>` 前显示**一行** compact statusline（变化时才重绘）：
 
 ```
-Oculeau idle ctx○ tr○ ev↓○ ev▦○ t—
+Oculeau idle · context off · trace off · stream off · display off · turn —
 ```
+
+（有 context 用量时会显示 `context off (12.3%)`；`/context on` 等命令切换通道。）
 
 `/status` 显示 verbose 详情（model、workdir、通道 ON/OFF）。
 
@@ -78,6 +80,24 @@ Oculeau idle ctx○ tr○ ev↓○ ev▦○ t—
 | `/compact summary` | LLM 摘要压缩（7b，额外 API） |
 | `/compact auto on\|off` | 超阈值自动 prune（7c） |
 | `/context\|/trace\|/events\|/events-display on\|off` | 显示/stream 开关 |
+
+### 工具
+
+| 工具 | 作用 |
+|------|------|
+| `bash` / `read_file` / `write_file` / `edit_file` / `glob` | 文件与 shell |
+| `inspect_context` | context window 用量 |
+| `code_repl` | 多 runtime 代码执行（tsx / node / python，可扩展） |
+| `askUserQuestion` | 结构化多选题，阻塞等待用户输入 |
+
+**code_repl runtime 选型：**
+
+| 场景 | runtime |
+|------|---------|
+| TypeScript / Oculeau 脚本 | `tsx`（默认） |
+| ML / 训练脚本 | `python` |
+| 已有 `.js` 文件 | `node` |
+| shell 管道 | `bash` |
 
 权限 `ask` 类工具（如 `rm`）在 REPL 会提示 `Allow tool? [y/N]`。
 
@@ -115,6 +135,11 @@ JSONL / NDJSON 每行事件含可选 `summary`、`displayHint` 字段，便于 g
 | `OCULEAU_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
 | `OCULEAU_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
 | `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
+| `OCULEAU_CODE_REPL_DEFAULT_RUNTIME` | code_repl 缺省 runtime（默认 `tsx`） |
+| `OCULEAU_CODE_REPL_TIMEOUT_MS` | code_repl 默认超时 ms（默认 120000） |
+| `OCULEAU_PYTHON` | Python 解释器路径 |
+| `OCULEAU_VENV` | venv 目录（prepend bin 到 PATH） |
+| `OCULEAU_CODE_REPL_DISABLED=1` | 禁用 code_repl 工具 |
 
 ## 测试
 
