@@ -1,23 +1,21 @@
 # Oculeau
 
-一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / hooks 外挂；**AgentEvent** 写入 JSONL，供 REPL 与未来 desktop sidecar 消费。
+一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；**AgentEvent** 写入 JSONL，供 REPL 与未来 desktop sidecar 消费。
 
 ## 项目结构
 
 ```
 oculeau/
 ├── src/
-│   ├── agent/           # loop、ToolCatalog 入口（tools.ts）
-│   ├── builtins/        # bash / fs / askUserQuestion 核心 tool
+│   ├── agent/           # loop、prompt、hooks（默认策略）、tools.ts
+│   ├── builtins/        # fs-tools、git-tools、askUserQuestion
 │   ├── extensions/      # code-repl、context、trace 扩展
 │   ├── toolkit/         # ToolDefinition、createToolCatalog
-│   ├── permission/      # checkPermission 单入口
+│   ├── permission/      # checkPermission 纯策略
 │   ├── register-defaults.ts  # 显式组装 tool catalog
-│   ├── cli/             # REPL、commands、statusline
+│   ├── cli/             # main REPL 入口、commands、statusline
 │   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
-│   ├── context/         # context window 分析（metrics、sessions）
-│   ├── hooks.ts         # audit hooks
-│   └── main.ts          # CLI REPL
+│   └── context/         # context window 分析（metrics、sessions）
 ├── scripts/
 │   ├── healthcheck/ping.ts   # LLM API smoke test（pnpm run ping）
 │   └── cursor-statusline.ts
@@ -106,7 +104,8 @@ Oculeau idle · context 12.3% · turn 2
 |------|------|
 | `bash` / `read_file` / `write_file` / `edit_file` / `glob` / `list_dir` | 文件与 shell |
 | `grep` | 代码搜索（优先 `rg`，fallback `grep`） |
-| `git_status` / `git_diff` / `git_log` | 只读 git 状态、diff、log（优先于 bash git） |
+| `git_status` / `git_diff` / `git_log` | 只读 git 原子操作（优先于 bash git） |
+| `git_summary` | 软链接 → `code_repl` template `git_summary`（组合 status+log+diff） |
 | `http_fetch` | HTTP/HTTPS 请求（需用户批准；优先于 bash curl） |
 | `inspect_context` | context window 用量 |
 | `code_repl` | 多 runtime 代码执行（tsx / node / python / bash）+ **命名 templates** |
@@ -131,7 +130,7 @@ Oculeau idle · context 12.3% · turn 2
 | `jsonl_tail` | tsx | JSONL 末 N 行 parse |
 | `package_scripts` | tsx | package.json scripts/deps |
 | `glob_stats` | tsx | 按后缀统计文件数/字节 |
-| `git_summary` | bash | git status + log + diff --stat |
+| `git_summary` | bash | git status + log + diff --stat（`git_summary` tool 指向此 template） |
 | `env_check` | tsx | node/python/tsx/pnpm 版本探测 |
 | `json_pretty` | python | JSON 格式化（path 或 text） |
 | `peek_csv` | python | CSV 列名 + 前 N 行 |
