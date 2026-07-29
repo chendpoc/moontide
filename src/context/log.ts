@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import {
@@ -5,7 +6,6 @@ import {
   contextSnapshotEnabled,
   getWorkdir,
 } from "../config.js";
-import { appendFs, mkdirFs, writeFs } from "../native-tools/fs-write.js";
 import type { ContextReport, ContextSnapshot } from "./types.js";
 
 function resolveLogPath(): string {
@@ -15,7 +15,7 @@ function resolveLogPath(): string {
 
 export function appendContextLog(report: ContextReport, snapshot?: ContextSnapshot): void {
   const logPath = resolveLogPath();
-  mkdirFs(path.dirname(logPath));
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
 
   const entry = {
     turn: report.turn,
@@ -34,12 +34,12 @@ export function appendContextLog(report: ContextReport, snapshot?: ContextSnapsh
     alerts: report.alerts,
   };
 
-  appendFs(logPath, `${JSON.stringify(entry)}\n`);
+  fs.appendFileSync(logPath, `${JSON.stringify(entry)}\n`, "utf8");
 
   if (contextSnapshotEnabled() && snapshot) {
     const snapshotDir = path.join(path.dirname(logPath), "snapshots");
-    mkdirFs(snapshotDir);
-    writeFs(
+    fs.mkdirSync(snapshotDir, { recursive: true });
+    fs.writeFileSync(
       path.join(snapshotDir, `turn-${report.turn}.json`),
       JSON.stringify(
         {
@@ -52,6 +52,7 @@ export function appendContextLog(report: ContextReport, snapshot?: ContextSnapsh
         null,
         2,
       ),
+      "utf8",
     );
   }
 }
