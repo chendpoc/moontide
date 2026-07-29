@@ -1,7 +1,7 @@
 import type { Interface } from "node:readline/promises";
 
 import { collectStatusSnapshot } from "./statusline/collect.js";
-import { formatStatusLine, formatStatusLineVerbose } from "./statusline/format.js";
+import { formatStatusLine, formatStatusLineLegend, formatStatusLineVerbose } from "./statusline/format.js";
 import { renderStatusLine } from "./statusline/render.js";
 import {
   defaultCompactSystem,

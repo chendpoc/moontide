@@ -27,17 +27,20 @@ function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
 }
 
 describe("statusline format", () => {
-  it("renders compact single line with circle pills", () => {
+  it("renders compact single line with readable channel labels", () => {
     const line = formatStatusLine(baseSnapshot());
     const text = stripAnsi(line);
     expect(line.split("\n")).toHaveLength(1);
     expect(text).toContain("Oculeau");
     expect(text).toContain("idle");
-    expect(text).toContain("ctx");
-    expect(text).toContain("t—");
+    expect(text).toContain("context off");
+    expect(text).toContain("trace off");
+    expect(text).toContain("stream off");
+    expect(text).toContain("display off");
+    expect(text).toContain("turn —");
   });
 
-  it("shows enabled pills and turn in compact mode", () => {
+  it("shows enabled channels and turn in compact mode", () => {
     const line = formatStatusLine(
       baseSnapshot({
         context: { enabled: true, detail: "12.3%" },
@@ -46,14 +49,16 @@ describe("statusline format", () => {
       }),
     );
     const text = stripAnsi(line);
-    expect(text).toContain("t3");
+    expect(text).toContain("context on");
+    expect(text).toContain("trace on");
+    expect(text).toContain("turn 3");
     expect(text).toContain("12.3%");
   });
 
   it("verbose mode includes model and channel names", () => {
     const line = formatStatusLineVerbose(baseSnapshot({ turn: 2 }));
     const text = stripAnsi(line);
-    expect(text).toContain("ctx OFF");
+    expect(text).toContain("context OFF");
     expect(text).toContain("deepseek-v4-pro");
     expect(text).toContain("turn 2");
   });
