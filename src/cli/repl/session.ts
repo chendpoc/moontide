@@ -1,6 +1,6 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { compactAutoDefault } from "../config.js";
+import { compactAutoDefault } from "../../config.js";
 
 let replMessages: MessageParam[] | null = null;
 let compactAutoOverride: boolean | null = null;

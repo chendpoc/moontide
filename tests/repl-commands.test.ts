@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { handleReplCommand } from "../src/cli/repl-commands.js";
-import { startReplSession, resetReplSession } from "../src/cli/repl-session.js";
+import { handleReplCommand } from "../src/cli/commands/repl.js";
+import { startReplSession, resetReplSession } from "../src/cli/repl/session.js";
 
 const fakeRl = {} as import("node:readline/promises").Interface;
 
 describe("repl commands", () => {
-  it("treats unknown slash commands as unknown", async () => {
+  it("returns unknown for removed observability commands", async () => {
     const result = await handleReplCommand("/trace", {
       rl: fakeRl,
       getMessages: () => null,
       resetConversation: () => {},
     });
-    expect(result).toBe("handled");
+    expect(result).toBe("unknown");
   });
 
   it("does not treat non-commands as handled", async () => {
