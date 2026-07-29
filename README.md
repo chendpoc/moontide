@@ -173,12 +173,23 @@ Oculeau idle · context 12.3% · turn 2
 | `OCULEAU_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
 | `OCULEAU_VERBOSE=1` | 默认开启 verbose 模式（完整 chalk debug trace；**默认 off**） |
 
-## 测试
+## 开发与质量
 
 ```sh
-pnpm test
+pnpm lint          # ESLint（src / tests / scripts）
+pnpm lint:fix      # 自动修复
 pnpm typecheck
+pnpm test
 ```
+
+Git hooks（[husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/lint-staged/lint-staged)）：
+
+| Hook | 行为 |
+|------|------|
+| **pre-commit** | 对 staged 的 `.ts` 跑 `eslint --fix`，然后全量 `typecheck` |
+| **pre-push** | `pnpm test` |
+
+`pnpm install` 会通过 `prepare` 脚本安装 hooks。
 
 ## Phase 2（计划）
 
