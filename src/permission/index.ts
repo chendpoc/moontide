@@ -1,4 +1,4 @@
-import { matchesDestructiveAsk, matchesGrepAsk, matchesNetworkAsk, matchesSystemDeny } from "./patterns.js";
+import { matchesDestructiveAsk, matchesGitAsk, matchesGrepAsk, matchesNetworkAsk, matchesSystemDeny } from "./patterns.js";
 import { escapesWorkspace } from "./path.js";
 
 export type Decision = "allow" | "deny" | "ask";
@@ -13,6 +13,9 @@ function checkBash(command: string): Decision {
     return "ask";
   }
   if (matchesGrepAsk(command)) {
+    return "ask";
+  }
+  if (matchesGitAsk(command)) {
     return "ask";
   }
   if (matchesDestructiveAsk(command)) {

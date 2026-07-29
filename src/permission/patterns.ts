@@ -17,6 +17,9 @@ export const NETWORK_ASK_PATTERNS = [/\bcurl\b/i, /\bwget\b/i];
 /** Code search via bash (prefer grep tool). */
 export const GREP_ASK_PATTERNS = [/\brg\b/, /\bgrep\b/];
 
+/** Read-only git via bash (prefer git_status/git_diff/git_log tools). */
+export const GIT_ASK_PATTERNS = [/\bgit\s+(status|diff|log)\b/i];
+
 export function matchesSystemDeny(text: string): boolean {
   return SYSTEM_DENY_PATTERNS.some((pattern) => text.includes(pattern));
 }
@@ -31,4 +34,8 @@ export function matchesNetworkAsk(text: string): boolean {
 
 export function matchesGrepAsk(text: string): boolean {
   return GREP_ASK_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function matchesGitAsk(text: string): boolean {
+  return GIT_ASK_PATTERNS.some((pattern) => pattern.test(text));
 }

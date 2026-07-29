@@ -42,4 +42,8 @@ describe("permissions", () => {
   it("asks for bash rg", () => {
     expect(checkPermission("bash", { command: "rg TODO src" })).toBe("ask");
   });
+
+  it("asks for bash git status", () => {
+    expect(checkPermission("bash", { command: "git status" })).toBe("ask");
+  });
 });

@@ -19,6 +19,7 @@ oculeau/
 │   ├── hooks.ts         # audit hooks
 │   └── main.ts          # CLI REPL
 ├── scripts/
+│   ├── healthcheck/ping.ts   # LLM API smoke test（pnpm run ping）
 │   └── cursor-statusline.ts
 ├── tests/
 └── package.json
@@ -105,21 +106,20 @@ Oculeau idle · context 12.3% · turn 2
 |------|------|
 | `bash` / `read_file` / `write_file` / `edit_file` / `glob` / `list_dir` | 文件与 shell |
 | `grep` | 代码搜索（优先 `rg`，fallback `grep`） |
+| `git_status` / `git_diff` / `git_log` | 只读 git 状态、diff、log（优先于 bash git） |
 | `http_fetch` | HTTP/HTTPS 请求（需用户批准；优先于 bash curl） |
 | `inspect_context` | context window 用量 |
 | `code_repl` | 多 runtime 代码执行（tsx / node / python / bash）+ **命名 templates** |
 | `askUserQuestion` | 结构化多选题，阻塞等待用户输入 |
 | `deep_research` | 网络调研（**实验性**，默认未注册；见下方） |
 
-权限 `ask` 类工具（如 `rm`、`http_fetch`、`deep_research`）在 REPL 会提示 `Allow tool? [y/N]`。bash 中的 `curl`/`wget`/`rg`/`grep` 也会触发 ask，请使用对应 native tool。
+权限 `ask` 类工具（如 `rm`、`http_fetch`、`deep_research`）在 REPL 会提示 `Allow tool? [y/N]`。bash 中的 `curl`/`wget`/`rg`/`grep`/`git status|diff|log` 也会触发 ask，请使用对应 native tool。
 
 ### 新增 extension tool 模板（`deep_research`）
 
 1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
 2. 在 [`register-defaults.ts`](src/register-defaults.ts) 条件注册
 3. 在 [`permission/index.ts`](src/permission/index.ts) 添加规则（网络类建议 `ask`）
-
-权限 `ask` 类工具（如 `rm`、`http_fetch`、`deep_research`）在 REPL 会提示 `Allow tool? [y/N]`。bash 中的 `curl`/`wget`/`rg`/`grep` 也会触发 ask，请使用对应 native tool。
 
 ### code_repl templates（Tier 1）
 

@@ -7,6 +7,7 @@ Workspace: ${getWorkdir()}
 
 Use tools to inspect and modify files. Prefer read_file/edit_file over bash when possible.
 Prefer grep over bash for code search. Prefer http_fetch over bash curl/wget for HTTP requests.
+Prefer git_status/git_diff/git_log over bash git for read-only repository inspection.
 Plan before acting on multi-step tasks. Be concise in final replies.
 
 ## code_repl runtime selection
