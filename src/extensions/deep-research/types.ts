@@ -3,10 +3,16 @@ export interface DeepResearchInput {
   max_results?: number;
 }
 
+export interface DeepResearchResultItem {
+  title: string;
+  url: string;
+  snippet: string;
+  source?: "tavily";
+}
+
 export interface DeepResearchResult {
-  status: "not_implemented" | "ok" | "error";
+  status: "ok" | "error";
   query?: string;
-  message?: string;
   error?: string;
-  results?: Array<{ title: string; url: string; snippet: string }>;
+  results?: DeepResearchResultItem[];
 }

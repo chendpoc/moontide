@@ -1,6 +1,6 @@
+import { tavilySearch } from "./tavily.js";
 import type { DeepResearchInput, DeepResearchResult } from "./types.js";
 
-/** Placeholder — replace with real network search when implementing deep_research. */
 export async function runDeepResearch(input: DeepResearchInput): Promise<string> {
   const query = String(input.query ?? "").trim();
   if (!query) {
@@ -12,14 +12,22 @@ export async function runDeepResearch(input: DeepResearchInput): Promise<string>
 
   const maxResults =
     input.max_results !== undefined && Number.isFinite(Number(input.max_results))
-      ? Math.max(1, Number(input.max_results))
+      ? Number(input.max_results)
       : undefined;
 
-  return JSON.stringify({
-    status: "not_implemented",
-    query,
-    message:
-      "deep_research is registered but not implemented yet. Add fetch logic in extensions/deep-research/handler.ts.",
-    ...(maxResults !== undefined ? { max_results: maxResults } : {}),
-  } satisfies DeepResearchResult);
+  try {
+    const results = await tavilySearch(query, { maxResults });
+    return JSON.stringify({
+      status: "ok",
+      query,
+      results,
+    } satisfies DeepResearchResult);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return JSON.stringify({
+      status: "error",
+      query,
+      error: message,
+    } satisfies DeepResearchResult);
+  }
 }
