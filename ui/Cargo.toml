@@ -1,0 +1,17 @@
+[package]
+name = "oculeau-ui"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only Slint sidecar UI for Oculeau agent events"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+notify = "7"
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+slint = "~1.9"
+
+[build-dependencies]
+slint-build = "~1.9"

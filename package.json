@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prepare": "husky"
+    "prepare": "husky",
+    "dev:ui": "cargo run --manifest-path ui/Cargo.toml -- --workdir ."
   },
   "lint-staged": {
     "*.{ts,tsx}": "eslint --fix"

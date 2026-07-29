@@ -66,7 +66,7 @@ Enriched fields (JSONL only): `summary`, `displayHint` — see [`enrich.ts`](../
 |------|---------|
 | `tool_use` | `{ toolName, toolInput }` |
 
-## UI mapping (oculeau-ui)
+## UI mapping (`ui/`)
 
 | Tab | Filter |
 |-----|--------|

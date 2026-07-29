@@ -1,6 +1,6 @@
 # Oculeau
 
-一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；**AgentEvent** 写入 JSONL，供 REPL 与未来 desktop sidecar 消费。
+一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；**AgentEvent** 写入 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
 
 ## 项目结构
 
@@ -19,6 +19,9 @@ oculeau/
 │   ├── healthcheck/ping.ts   # LLM API smoke test（pnpm run ping）
 │   └── cursor-statusline.ts
 ├── tests/
+├── ui/                  # Rust/Slint desktop sidecar（只读 tail JSONL）
+│   ├── src/             # watcher、event store
+│   └── ui/              # Slint 组件
 └── package.json
 ```
 
@@ -31,7 +34,10 @@ cp .env.example .env   # 填入 DEEPSEEK_API_KEY
 
 pnpm run ping -- "say hello in one word"
 pnpm dev                 # REPL：statusline + stdout 正文
+pnpm dev:ui              # Slint sidecar（另开终端，或 REPL 运行时启动）
 ```
+
+Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
 ## AgentEvent 架构
 
@@ -191,6 +197,13 @@ Git hooks（[husky](https://typicode.github.io/husky/) + [lint-staged](https://g
 
 `pnpm install` 会通过 `prepare` 脚本安装 hooks。
 
-## Phase 2（计划）
+## Desktop UI（Slint sidecar）
 
-Slint desktop sidecar **tail `workdir/.oculeau/events.jsonl`**，Chat + Trace 多 tab UI。
+只读桌面 UI 位于 [`ui/`](ui/)：tail `workdir/.oculeau/events.jsonl`，展示 Trace / Chat / Context 多 tab。与 REPL 通过文件 sidecar 通信，无 IPC。
+
+```sh
+pnpm dev      # Terminal 1
+pnpm dev:ui   # Terminal 2
+```
+
+事件 schema：[`docs/EVENTS.md`](docs/EVENTS.md)。
