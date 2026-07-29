@@ -1,5 +1,6 @@
 import { handleCompactCommand } from "./compact.js";
 import { handleHelpCommand } from "./help.js";
+import { handleThinkingCommand, handleVerboseCommand } from "./observability.js";
 import { handleResetCommand } from "./reset.js";
 import { handleStatusCommand } from "./status.js";
 import { parseReplCommand, type ReplCommandContext, type ReplCommandResult } from "./types.js";
@@ -29,6 +30,10 @@ export async function handleReplCommand(
       return handleWorkdirCommand(parsed);
     case "/compact":
       return handleCompactCommand(parsed, ctx);
+    case "/thinking":
+      return handleThinkingCommand(parsed.arg);
+    case "/verbose":
+      return handleVerboseCommand(parsed.arg);
     default:
       return "unknown";
   }

@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import { collectStatusSnapshot, setReplPhase } from "../src/cli/statusline/collect.js";
 import { formatStatusLine, formatStatusLineVerbose } from "../src/cli/statusline/format.js";
 import type { StatusSnapshot } from "../src/cli/statusline/types.js";
-import { stripAnsi } from "../src/events/format/shared.js";
 import { renderStatusLine, resetStatusLineRender } from "../src/cli/statusline/render.js";
+
+function stripAnsi(text: string): string {
+  return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
 
 function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   return {

@@ -1,0 +1,28 @@
+import {
+  composeTerminalBlock,
+  formatTerminalEventBlock,
+  resetTerminalRenderState,
+} from "../format/terminal.js";
+import { isObservabilityEnabled } from "../../observability/modes.js";
+import type { EventSink } from "../bus.js";
+import type { AgentEvent } from "../types.js";
+import { writeStderrBlock } from "./stderr-writer.js";
+
+export class TerminalSink implements EventSink {
+  handle(event: AgentEvent): void {
+    if (!isObservabilityEnabled()) {
+      return;
+    }
+
+    const block = formatTerminalEventBlock(event);
+    if (!block) {
+      return;
+    }
+
+    writeStderrBlock(composeTerminalBlock(event, block));
+  }
+
+  close(): void {
+    resetTerminalRenderState();
+  }
+}

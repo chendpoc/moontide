@@ -1,13 +1,12 @@
 import chalk from "chalk";
 
-import { contextVerbose } from "../../config.js";
+import { isVerboseEnabled } from "../../observability/modes.js";
 import type { ContextReport } from "../../context/types.js";
 import type { AgentEvent } from "../types.js";
 import { boxLine, fmt, padTurn } from "./shared.js";
 
 const BOX_WIDTH = 44;
 const theme = {
-  label: chalk.bgCyan.black.bold,
   border: chalk.cyan.dim,
   key: chalk.cyan,
   value: chalk.white,
@@ -69,7 +68,7 @@ function formatMetricsPre(event: AgentEvent, report: ContextReport): string {
     boxLine(`${theme.key("Headroom")} ${theme.value(fmt(report.headroom))}`, BOX_WIDTH),
   ];
 
-  if (contextVerbose() >= 2) {
+  if (isVerboseEnabled()) {
     lines.push(...formatBreakdown(report));
     if (report.structure.messageCount > 0) {
       lines.push(
@@ -112,7 +111,7 @@ function formatMetricsPost(event: AgentEvent, report: ContextReport): string {
     );
   }
 
-  if (contextVerbose() >= 2 && report.breakdown) {
+  if (isVerboseEnabled() && report.breakdown) {
     lines.push(...formatBreakdown(report));
   }
 
