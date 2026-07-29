@@ -25,7 +25,7 @@ import {
 } from "../events/cli-session.js";
 import { refreshEventSinks } from "../events/setup.js";
 import { resetRun } from "../events/run.js";
-import { TOOL_SCHEMAS } from "../tools.js";
+import { TOOL_SCHEMAS } from "../tools/index.js";
 
 export interface ReplCommandContext {
   rl: Interface;

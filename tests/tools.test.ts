@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { runBash, runEdit, runRead, runWrite, safePath } from "../src/tools.js";
+import { runBash, runEdit, runRead, runWrite, safePath } from "../src/tools/index.js";
 
 let tmpDir = "";
 

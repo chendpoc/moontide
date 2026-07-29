@@ -4,7 +4,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages
 
 import { previewCompact, pruneCompact } from "../src/context/compact.js";
 import { buildSystemPrompt } from "../src/prompt.js";
-import { TOOL_SCHEMAS } from "../src/tools.js";
+import { TOOL_SCHEMAS } from "../src/tools/index.js";
 
 function longToolResultMessage(): MessageParam[] {
   const big = "x".repeat(5000);

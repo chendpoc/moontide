@@ -12,7 +12,7 @@ import { runHooks, setupDefaultHooks, auditToolUse } from "./hooks.js";
 import { chat, extractText } from "./llm.js";
 import { checkPermission } from "./permissions.js";
 import { buildSystemPrompt } from "./prompt.js";
-import { TOOL_SCHEMAS, executeTool } from "./tools.js";
+import { TOOL_SCHEMAS, executeTool } from "./tools/index.js";
 
 async function resolveToolOutput(
   turn: number,
