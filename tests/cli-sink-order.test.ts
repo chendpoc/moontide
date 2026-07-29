@@ -13,7 +13,7 @@ import {
   setContextCliOverride,
   setEventsDisplayCliOverride,
   setTraceCliOverride,
-} from "../src/cli/display-session.js";
+} from "../src/events/sinks/cli.js";
 import { stripAnsi } from "../src/events/format/shared.js";
 import { resetRun } from "../src/events/run.js";
 import type { AgentEvent } from "../src/events/types.js";

@@ -3,11 +3,6 @@ import { describe, expect, it } from "vitest";
 import { collectStatusSnapshot, setReplPhase } from "../src/cli/statusline/collect.js";
 import { formatStatusLine, formatStatusLineVerbose } from "../src/cli/statusline/format.js";
 import type { StatusSnapshot } from "../src/cli/statusline/types.js";
-import {
-  setContextCliOverride,
-  setEventsDisplayCliOverride,
-  setTraceCliOverride,
-} from "../src/cli/display-session.js";
 import { stripAnsi } from "../src/events/format/shared.js";
 import { renderStatusLine, resetStatusLineRender } from "../src/cli/statusline/render.js";
 
@@ -18,62 +13,49 @@ function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workdir: "~/code/oculeau",
     turn: null,
     contextPct: null,
-    context: { enabled: false },
-    trace: { enabled: false },
-    eventsStream: { enabled: false },
-    eventsDisplay: { enabled: false },
     ...overrides,
   };
 }
 
 describe("statusline format", () => {
-  it("renders compact single line with readable channel labels", () => {
+  it("renders compact single line with context and turn", () => {
     const line = formatStatusLine(baseSnapshot());
     const text = stripAnsi(line);
     expect(line.split("\n")).toHaveLength(1);
     expect(text).toContain("Oculeau");
     expect(text).toContain("idle");
-    expect(text).toContain("context off");
-    expect(text).toContain("trace off");
-    expect(text).toContain("stream off");
-    expect(text).toContain("display off");
+    expect(text).toContain("context");
     expect(text).toContain("turn —");
   });
 
-  it("shows enabled channels and turn in compact mode", () => {
+  it("shows context percent and turn when available", () => {
     const line = formatStatusLine(
       baseSnapshot({
-        context: { enabled: true, detail: "12.3%" },
-        trace: { enabled: true },
+        contextPct: 12.3,
         turn: 3,
       }),
     );
     const text = stripAnsi(line);
-    expect(text).toContain("context on");
-    expect(text).toContain("trace on");
-    expect(text).toContain("turn 3");
     expect(text).toContain("12.3%");
+    expect(text).toContain("turn 3");
   });
 
-  it("verbose mode includes model and channel names", () => {
-    const line = formatStatusLineVerbose(baseSnapshot({ turn: 2 }));
+  it("verbose mode includes model and context", () => {
+    const line = formatStatusLineVerbose(baseSnapshot({ turn: 2, contextPct: 8.5 }));
     const text = stripAnsi(line);
-    expect(text).toContain("context OFF");
+    expect(text).toContain("context 8.5%");
     expect(text).toContain("deepseek-v4-pro");
     expect(text).toContain("turn 2");
   });
 });
 
 describe("statusline collect", () => {
-  it("defaults all display channels off without env overrides", () => {
-    setContextCliOverride(null);
-    setTraceCliOverride(null);
-    setEventsDisplayCliOverride(null);
+  it("collects session fields without display channel toggles", () => {
     setReplPhase("idle");
     const snapshot = collectStatusSnapshot();
-    expect(snapshot.context.enabled).toBe(false);
-    expect(snapshot.trace.enabled).toBe(false);
-    expect(snapshot.eventsDisplay.enabled).toBe(false);
+    expect(snapshot.phase).toBe("idle");
+    expect(snapshot.model).toBeTruthy();
+    expect(snapshot.workdir).toBeTruthy();
   });
 });
 

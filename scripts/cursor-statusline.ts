@@ -53,10 +53,6 @@ function mergeSnapshot(
       model: cursor.model?.display_name ?? cursor.model?.id ?? oculeau.model,
       workdir: oculeau.workdir || cwd,
       contextPct: pct,
-      context: {
-        ...oculeau.context,
-        detail: pct !== null ? `${pct.toFixed(1)}%` : oculeau.context.detail,
-      },
     };
   }
 
@@ -66,13 +62,6 @@ function mergeSnapshot(
     workdir: cwd,
     turn: null,
     contextPct: pct,
-    context: {
-      enabled: false,
-      detail: pct !== null ? `${pct.toFixed(1)}%` : undefined,
-    },
-    trace: { enabled: false },
-    eventsStream: { enabled: false },
-    eventsDisplay: { enabled: false },
   };
 }
 

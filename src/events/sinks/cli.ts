@@ -1,4 +1,3 @@
-import { shouldShowContextCli, shouldShowEventsCli, shouldShowTraceCli } from "../../cli/display-session.js";
 import { formatContextEvent } from "../format/format-context.js";
 import { formatEventsChannelEvent } from "../format/format-events.js";
 import { formatTraceEvent } from "../format/format-trace.js";
@@ -9,6 +8,35 @@ import {
 import type { EventSink } from "../bus.js";
 import type { AgentChannel, AgentEvent } from "../types.js";
 import { writeStderrBlock } from "./stderr-writer.js";
+
+/** Reserved for future stderr observability — not registered in setup.ts. */
+let contextOverride: boolean | null = null;
+let traceOverride: boolean | null = null;
+let eventsDisplayOverride: boolean | null = null;
+
+export function setContextCliOverride(value: boolean | null): void {
+  contextOverride = value;
+}
+
+export function setTraceCliOverride(value: boolean | null): void {
+  traceOverride = value;
+}
+
+export function setEventsDisplayCliOverride(value: boolean | null): void {
+  eventsDisplayOverride = value;
+}
+
+function shouldShowContextCli(): boolean {
+  return contextOverride === true;
+}
+
+function shouldShowTraceCli(): boolean {
+  return traceOverride === true;
+}
+
+function shouldShowEventsCli(): boolean {
+  return eventsDisplayOverride === true;
+}
 
 export function formatEventForCli(event: AgentEvent): string | null {
   if (event.channel === "context") {
