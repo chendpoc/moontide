@@ -1,9 +1,12 @@
+import { httpFetchEnabled } from "../config.js";
 import type { ToolDefinition } from "../toolkit/types.js";
-import { runEdit, runGlob, runRead, runWrite } from "./fs.js";
+import { runEdit, runGlob, runListDir, runRead, runWrite } from "./fs.js";
 import { runBash } from "./bash.js";
+import { runGrep } from "./grep.js";
+import { runHttpFetch } from "./http-fetch.js";
 
 export function defineBuiltinFsTools(): ToolDefinition[] {
-  return [
+  const tools: ToolDefinition[] = [
     {
       schema: {
         name: "bash",
@@ -24,13 +27,17 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
           type: "object",
           properties: {
             path: { type: "string" },
-            limit: { type: "integer" },
+            limit: { type: "integer", description: "Maximum number of lines to return." },
+            offset: { type: "integer", description: "1-based starting line (default 1)." },
           },
           required: ["path"],
         },
       },
-      handler: (input, _ctx) =>
-        runRead(String(input.path ?? ""), input.limit === undefined ? undefined : Number(input.limit)),
+      handler: (input, _ctx) => {
+        const limit = input.limit === undefined ? undefined : Number(input.limit);
+        const offset = input.offset === undefined ? 1 : Number(input.offset);
+        return runRead(String(input.path ?? ""), limit, offset);
+      },
     },
     {
       schema: {
@@ -76,5 +83,91 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
       },
       handler: (input, _ctx) => runGlob(String(input.pattern ?? "")),
     },
+    {
+      schema: {
+        name: "list_dir",
+        description: "List files and directories under a workspace path.",
+        input_schema: {
+          type: "object",
+          properties: {
+            path: { type: "string", description: "Relative directory path (default .)." },
+            recursive: {
+              type: "boolean",
+              description: "Recurse up to depth 2 (default false).",
+            },
+          },
+        },
+      },
+      handler: (input, _ctx) =>
+        runListDir(
+          input.path === undefined ? "." : String(input.path),
+          input.recursive === true,
+        ),
+    },
+    {
+      schema: {
+        name: "grep",
+        description:
+          "Search code in the workspace with ripgrep (rg) or grep. Prefer over bash for code search.",
+        input_schema: {
+          type: "object",
+          properties: {
+            pattern: { type: "string", description: "Regex pattern to search for." },
+            path: { type: "string", description: "Relative path to search (default .)." },
+            glob: { type: "string", description: "Optional file glob filter, e.g. *.ts." },
+            max_results: { type: "integer", description: "Max matches (default 50, cap 200)." },
+            case_insensitive: { type: "boolean" },
+          },
+          required: ["pattern"],
+        },
+      },
+      handler: (input, _ctx) =>
+        runGrep({
+          pattern: String(input.pattern ?? ""),
+          path: input.path === undefined ? undefined : String(input.path),
+          glob: input.glob === undefined ? undefined : String(input.glob),
+          max_results: input.max_results === undefined ? undefined : Number(input.max_results),
+          case_insensitive: input.case_insensitive === true,
+        }),
+    },
   ];
+
+  if (httpFetchEnabled()) {
+    tools.push({
+      schema: {
+        name: "http_fetch",
+        description:
+          "Fetch a URL over HTTP/HTTPS. Requires user approval. Prefer over bash curl/wget.",
+        input_schema: {
+          type: "object",
+          properties: {
+            url: { type: "string" },
+            method: {
+              type: "string",
+              enum: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+            },
+            headers: { type: "object", additionalProperties: { type: "string" } },
+            body: { type: "string" },
+            max_bytes: { type: "integer" },
+            timeout_ms: { type: "integer" },
+          },
+          required: ["url"],
+        },
+      },
+      handler: (input, _ctx) =>
+        runHttpFetch({
+          url: String(input.url ?? ""),
+          method: input.method === undefined ? undefined : String(input.method),
+          headers:
+            input.headers && typeof input.headers === "object"
+              ? (input.headers as Record<string, string>)
+              : undefined,
+          body: input.body === undefined ? undefined : String(input.body),
+          max_bytes: input.max_bytes === undefined ? undefined : Number(input.max_bytes),
+          timeout_ms: input.timeout_ms === undefined ? undefined : Number(input.timeout_ms),
+        }),
+    });
+  }
+
+  return tools;
 }

@@ -136,3 +136,11 @@ export function thinkingModeDefault(): boolean {
 export function verboseModeDefault(): boolean {
   return envFlag("VERBOSE");
 }
+
+export function httpFetchEnabled(): boolean {
+  const value = env("HTTP");
+  if (value === "0") {
+    return false;
+  }
+  return true;
+}

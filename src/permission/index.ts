@@ -1,4 +1,4 @@
-import { matchesDestructiveAsk, matchesSystemDeny } from "./patterns.js";
+import { matchesDestructiveAsk, matchesGrepAsk, matchesNetworkAsk, matchesSystemDeny } from "./patterns.js";
 import { escapesWorkspace } from "./path.js";
 
 export type Decision = "allow" | "deny" | "ask";
@@ -8,6 +8,12 @@ export type PolicyMode = "blocklist" | "allowlist";
 function checkBash(command: string): Decision {
   if (matchesSystemDeny(command)) {
     return "deny";
+  }
+  if (matchesNetworkAsk(command)) {
+    return "ask";
+  }
+  if (matchesGrepAsk(command)) {
+    return "ask";
   }
   if (matchesDestructiveAsk(command)) {
     return "ask";
@@ -42,6 +48,9 @@ export function checkPermission(
       return "allow";
 
     case "deep_research":
+      return "ask";
+
+    case "http_fetch":
       return "ask";
 
     default:

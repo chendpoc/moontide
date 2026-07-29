@@ -30,4 +30,16 @@ describe("permissions", () => {
   it("asks before deep_research network tool", () => {
     expect(checkPermission("deep_research", { query: "latest LLM papers" })).toBe("ask");
   });
+
+  it("asks before http_fetch", () => {
+    expect(checkPermission("http_fetch", { url: "https://example.com" })).toBe("ask");
+  });
+
+  it("asks for bash curl", () => {
+    expect(checkPermission("bash", { command: "curl https://example.com" })).toBe("ask");
+  });
+
+  it("asks for bash rg", () => {
+    expect(checkPermission("bash", { command: "rg TODO src" })).toBe("ask");
+  });
 });

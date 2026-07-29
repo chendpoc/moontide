@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { runBash, runEdit, runRead, runWrite, safePath } from "../src/agent/tools.js";
+import { runBash, runEdit, runListDir, runRead, runWrite, safePath } from "../src/agent/tools.js";
 
 let tmpDir = "";
 
@@ -31,6 +31,20 @@ describe("tools", () => {
 
   it("blocks path escape", () => {
     expect(() => safePath("../escape.txt")).toThrow(/escapes workspace/);
+  });
+
+  it("reads with offset and limit", () => {
+    runWrite("lines.txt", "a\nb\nc\nd\ne");
+    expect(runRead("lines.txt", 2, 2)).toBe("b\nc\n... (2 more lines)");
+  });
+
+  it("lists directory entries", () => {
+    fs.mkdirSync(path.join(tmpDir, "src"));
+    runWrite("src/a.ts", "x");
+    runWrite("b.txt", "y");
+    const listing = runListDir(".");
+    expect(listing).toContain("dir\tsrc");
+    expect(listing).toContain("file\tb.txt");
   });
 
   it("runs bash echo", async () => {

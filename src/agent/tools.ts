@@ -6,7 +6,7 @@ import { createDefaultLoopContext, createToolContext } from "./deps.js";
 import type { ToolContext } from "../toolkit/types.js";
 
 export { setWorkdir };
-export { safePath, runRead, runWrite, runEdit, runGlob } from "../builtins/fs.js";
+export { safePath, runRead, runWrite, runEdit, runGlob, runListDir } from "../builtins/fs.js";
 export { runBash } from "../builtins/bash.js";
 
 const catalog = createDefaultCatalog();
