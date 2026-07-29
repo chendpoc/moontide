@@ -12,7 +12,13 @@
     "dev": "tsx src/cli/main.ts",
     "ping": "tsx scripts/healthcheck/ping.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "eslint --fix"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -21,9 +27,14 @@
     "glob": "^11.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.13.10",
+    "eslint": "^10.8.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.2.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^3.0.9"
   }
 }
