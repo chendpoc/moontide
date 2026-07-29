@@ -3,8 +3,6 @@ import { escapesWorkspace } from "./path.js";
 
 export type Decision = "allow" | "deny" | "ask";
 
-export type PolicyMode = "blocklist" | "allowlist";
-
 function checkBash(command: string): Decision {
   if (matchesSystemDeny(command)) {
     return "deny";

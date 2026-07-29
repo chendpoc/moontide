@@ -65,12 +65,3 @@ export function composeTerminalBlock(event: AgentEvent, block: string): string {
   parts.push(block);
   return parts.join("\n");
 }
-
-/** @deprecated Use formatTerminalEventBlock + composeTerminalBlock */
-export function formatTerminalEvent(event: AgentEvent): string | null {
-  const block = formatTerminalEventBlock(event);
-  if (!block) {
-    return null;
-  }
-  return composeTerminalBlock(event, block);
-}

@@ -21,6 +21,3 @@ export function registerTracePlugin(): void {
   registerSlot("post_llm:trace", handlePostLlmTrace);
   registerSlot("post_tool:trace", handlePostToolTrace);
 }
-
-/** Alias for register-plugins. */
-export const registerTraceSlots = registerTracePlugin;

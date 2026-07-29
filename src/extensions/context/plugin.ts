@@ -65,6 +65,3 @@ export function registerContextPlugin(): void {
   registerSlot("pre_llm:context", handlePreLlmContext);
   registerSlot("post_llm:context", handlePostLlmContext);
 }
-
-/** Alias for register-plugins. */
-export const registerContextSlots = registerContextPlugin;

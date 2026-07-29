@@ -20,5 +20,3 @@ export async function executeTool(
 ): Promise<string> {
   return catalog.execute(name, toolInput, ctx);
 }
-
-export { probeAll as probeCodeRuntimes } from "../extensions/code-repl/registry.js";
