@@ -10,7 +10,8 @@ export type AgentKind =
   | "tool_use"
   | "tool_result"
   | "metrics_pre"
-  | "metrics_post";
+  | "metrics_post"
+  | "context_compact";
 
 export interface AgentEvent {
   id: string;

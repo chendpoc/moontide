@@ -122,6 +122,15 @@ function formatMetricsPost(event: AgentEvent, report: ContextReport): string {
 }
 
 export function formatContextEvent(event: AgentEvent): string | null {
+  if (event.kind === "context_compact") {
+    const before = Number(event.payload.beforeTokens ?? 0);
+    const after = Number(event.payload.afterTokens ?? 0);
+    const mode = String(event.payload.mode ?? "prune");
+    return theme.border(
+      `compact ${mode} ${fmt(before)}→${fmt(after)} (saved ${fmt(before - after)})`,
+    );
+  }
+
   const report = event.payload.report as ContextReport | undefined;
   if (!report) {
     return null;

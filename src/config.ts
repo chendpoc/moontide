@@ -102,6 +102,20 @@ export function contextDisplayEnabled(): boolean {
   return envFlag("CONTEXT_DISPLAY");
 }
 
+export function compactKeepTurns(): number {
+  const n = Number(env("COMPACT_KEEP_TURNS") ?? "3");
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 3;
+}
+
+export function compactThreshold(): number {
+  const n = Number(env("COMPACT_THRESHOLD") ?? "85");
+  return Number.isFinite(n) && n > 0 ? n : 85;
+}
+
+export function compactAutoDefault(): boolean {
+  return envFlag("COMPACT_AUTO");
+}
+
 export function eventsModeEnabled(): boolean {
   return envFlag("EVENTS");
 }
