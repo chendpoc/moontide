@@ -45,32 +45,43 @@ pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
 |------|------|
 | `conversation` | user_prompt、final |
 | `trace` | thinking、tool_use、tool_result |
-| `context` | metrics_pre、metrics_post |
-| `audit` | tool 审计（jsonl 始终记录；stderr 需显式开启） |
+| `context` | metrics_pre、metrics_post、context_compact |
+| `audit` | tool 审计（jsonl 始终记录） |
 
 ## CLI 模式
 
 | 模式 | 行为 |
 |------|------|
-| 默认 | statusline 显示四路 OFF；stderr **无** context/trace/events 块；stdout：最终 reply |
+| 默认 | 持久 REPL session；compact statusline；stderr 无 observability 块；stdout 最终 reply |
 | `--events` / `OCULEAU_EVENTS=1` | **额外** stdout NDJSON（含 `conversation/final`） |
 
 ### Statusline
 
-每轮 `Oculeau >>` 前显示**一行** statusline（状态变化时才重绘）：
+每轮 `Oculeau >>` 前显示**一行** compact statusline（变化时才重绘）：
 
 ```
-Oculeau · deepseek-v4-pro · ~/code/oculeau · idle · ctx OFF · trace OFF · stream OFF · display OFF · turn —
+Oculeau idle ctx○ tr○ ev↓○ ev▦○ t—
 ```
 
-状态写入 `.oculeau/status.json`，供 Cursor CLI statusLine 脚本读取。
+`/status` 显示 verbose 详情（model、workdir、通道 ON/OFF）。
 
-REPL 命令（**互不排斥，可任意组合**）：
+### REPL 命令
 
-- `/context on|off` — stderr context 盒式指标
-- `/trace on|off` — stderr trace 时间线
-- `/events on|off` — stdout NDJSON 流
-- `/events-display on|off` — stderr EVENT 行（user_prompt / audit）
+| 命令 | 作用 |
+|------|------|
+| `/help` | 命令列表 |
+| `/reset` | 清空 session（messages + metrics） |
+| `/status` | verbose statusline + auto-compact 状态 |
+| `/workdir [path]` | 查看或切换 workspace |
+| `/compact` | prune 旧 tool_result（7a） |
+| `/compact preview` | dry-run token 估算 |
+| `/compact summary` | LLM 摘要压缩（7b，额外 API） |
+| `/compact auto on\|off` | 超阈值自动 prune（7c） |
+| `/context\|/trace\|/events\|/events-display on\|off` | 显示/stream 开关 |
+
+权限 `ask` 类工具（如 `rm`）在 REPL 会提示 `Allow tool? [y/N]`。
+
+跨 prompt 对话会**保留 messages**；`/reset` 开始新会话。
 
 JSONL / NDJSON 每行事件含可选 `summary`、`displayHint` 字段，便于 grep，不影响机器解析。
 
@@ -101,6 +112,9 @@ JSONL / NDJSON 每行事件含可选 `summary`、`displayHint` 字段，便于 g
 | `OCULEAU_EVENTS=1` | stdout NDJSON event stream |
 | `OCULEAU_EVENTS_LOG` | events jsonl 路径（默认 `.oculeau/events.jsonl`） |
 | `OCULEAU_CONTEXT_LOG` | context 报告 jsonl（仍双写） |
+| `OCULEAU_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
+| `OCULEAU_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
+| `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
 
 ## 测试
 
