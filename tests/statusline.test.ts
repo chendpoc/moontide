@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { collectStatusSnapshot, setReplPhase } from "../src/cli/statusline/collect.js";
-import { formatStatusLine } from "../src/cli/statusline/format.js";
+import { formatStatusLine, formatStatusLineVerbose } from "../src/cli/statusline/format.js";
 import type { StatusSnapshot } from "../src/cli/statusline/types.js";
 import {
   setContextCliOverride,
@@ -27,18 +27,17 @@ function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
 }
 
 describe("statusline format", () => {
-  it("renders a single line with all channels OFF by default", () => {
+  it("renders compact single line with circle pills", () => {
     const line = formatStatusLine(baseSnapshot());
     const text = stripAnsi(line);
     expect(line.split("\n")).toHaveLength(1);
-    expect(text).toContain("ctx OFF");
-    expect(text).toContain("trace OFF");
-    expect(text).toContain("stream OFF");
-    expect(text).toContain("display OFF");
+    expect(text).toContain("Oculeau");
     expect(text).toContain("idle");
+    expect(text).toContain("ctx");
+    expect(text).toContain("t—");
   });
 
-  it("shows ON pills with detail when enabled", () => {
+  it("shows enabled pills and turn in compact mode", () => {
     const line = formatStatusLine(
       baseSnapshot({
         context: { enabled: true, detail: "12.3%" },
@@ -47,21 +46,16 @@ describe("statusline format", () => {
       }),
     );
     const text = stripAnsi(line);
-    expect(text).toContain("ctx ON");
+    expect(text).toContain("t3");
     expect(text).toContain("12.3%");
-    expect(text).toContain("trace ON");
-    expect(text).toContain("turn 3");
   });
 
-  it("shows context pct summary when display is off", () => {
-    const line = formatStatusLine(
-      baseSnapshot({
-        context: { enabled: false, detail: "5.0%" },
-      }),
-    );
+  it("verbose mode includes model and channel names", () => {
+    const line = formatStatusLineVerbose(baseSnapshot({ turn: 2 }));
     const text = stripAnsi(line);
     expect(text).toContain("ctx OFF");
-    expect(text).toContain("(5.0%)");
+    expect(text).toContain("deepseek-v4-pro");
+    expect(text).toContain("turn 2");
   });
 });
 

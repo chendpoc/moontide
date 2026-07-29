@@ -12,39 +12,71 @@ const themes = {
   phaseRunning: chalk.yellow,
 };
 
-function formatPill(
+function formatCompactPill(
+  label: string,
+  enabled: boolean,
+  color: typeof themes.context,
+): string {
+  const mark = enabled ? color("●") : themes.dim("○");
+  return `${color(label)}${mark}`;
+}
+
+function formatCtxPill(channel: ChannelStatus): string {
+  const pill = formatCompactPill("ctx", channel.enabled, themes.context);
+  if (channel.detail) {
+    return `${pill}${themes.dim(`(${channel.detail})`)}`;
+  }
+  return pill;
+}
+
+function formatTurn(snapshot: StatusSnapshot): string {
+  if (snapshot.turn === null) {
+    return themes.dim("t—");
+  }
+  return themes.dim(`t${snapshot.turn}`);
+}
+
+/** Default single-line REPL status bar (compact). */
+export function formatStatusLine(snapshot: StatusSnapshot): string {
+  const phasePaint =
+    snapshot.phase === "running" ? themes.phaseRunning("run") : themes.phase("idle");
+
+  const pills = [
+    formatCtxPill(snapshot.context),
+    formatCompactPill("tr", snapshot.trace.enabled, themes.trace),
+    formatCompactPill("ev↓", snapshot.eventsStream.enabled, themes.events),
+    formatCompactPill("ev▦", snapshot.eventsDisplay.enabled, themes.events),
+    formatTurn(snapshot),
+  ].join(" ");
+
+  return [chalk.bold("Oculeau"), phasePaint, pills].join(" ");
+}
+
+function formatVerbosePill(
   name: string,
   channel: ChannelStatus,
   color: typeof themes.context,
 ): string {
   const state = channel.enabled ? color.bold(`${name} ON`) : themes.dim(`${name} OFF`);
-  if (channel.enabled && channel.detail) {
-    return `${state}${themes.dim(` ${channel.detail}`)}`;
-  }
-  if (!channel.enabled && channel.detail && name === "ctx") {
+  if (channel.detail) {
     return `${state}${themes.dim(` (${channel.detail})`)}`;
   }
   return state;
 }
 
-/** Single-line REPL status bar. */
-export function formatStatusLine(snapshot: StatusSnapshot): string {
+/** Full status for /status. */
+export function formatStatusLineVerbose(snapshot: StatusSnapshot): string {
   const phasePaint =
     snapshot.phase === "running" ? themes.phaseRunning("running") : themes.phase("idle");
 
   const turnLabel =
     snapshot.turn !== null ? themes.dim(`turn ${snapshot.turn}`) : themes.dim("turn —");
 
-  const ctxChannel: ChannelStatus = {
-    enabled: snapshot.context.enabled,
-    detail: snapshot.context.detail,
-  };
-
   const pills = [
-    formatPill("ctx", ctxChannel, themes.context),
-    formatPill("trace", snapshot.trace, themes.trace),
-    formatPill("stream", snapshot.eventsStream, themes.events),
-    formatPill("display", snapshot.eventsDisplay, themes.events),
+    formatVerbosePill("ctx", snapshot.context, themes.context),
+    formatVerbosePill("trace", snapshot.trace, themes.trace),
+    formatVerbosePill("stream", snapshot.eventsStream, themes.events),
+    formatVerbosePill("display", snapshot.eventsDisplay, themes.events),
     turnLabel,
   ].join(themes.dim(" · "));
 
