@@ -1,4 +1,9 @@
-import { contextDisplayEnabled, eventsDisplayEnabled, eventsEnabled, traceEnabled } from "../config.js";
+import {
+  contextDisplayEnabled,
+  eventsDisplayEnabled,
+  eventsModeEnabled,
+  traceEnabled,
+} from "../config.js";
 
 let cliEventsArgv = false;
 let traceOverride: boolean | null = null;
@@ -52,5 +57,5 @@ export function isEventsMode(): boolean {
   if (eventsOverride !== null) {
     return eventsOverride;
   }
-  return cliEventsArgv || eventsEnabled();
+  return cliEventsArgv || eventsModeEnabled();
 }

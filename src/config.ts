@@ -19,9 +19,8 @@ export const DEFAULT_MODEL = "deepseek-v4-pro";
 export const DATA_DIR = ".oculeau";
 export const AUDIT_LOG_PATH = ".oculeau-audit.log";
 
-/** OCULEAU_* with deprecated OCULUS_* fallback. */
 function env(name: string): string | undefined {
-  return process.env[`OCULEAU_${name}`] ?? process.env[`OCULUS_${name}`];
+  return process.env[`OCULEAU_${name}`];
 }
 
 function envFlag(name: string): boolean {
@@ -100,18 +99,12 @@ export function contextVerboseDetail(): boolean {
 
 /** stderr context box display; independent of CONTEXT_VERBOSE detail level. */
 export function contextDisplayEnabled(): boolean {
-  if (envFlag("CONTEXT_DISPLAY")) {
-    return true;
-  }
-  return envFlag("CONTEXT");
+  return envFlag("CONTEXT_DISPLAY");
 }
 
 export function eventsModeEnabled(): boolean {
   return envFlag("EVENTS");
 }
-
-/** @deprecated Use eventsModeEnabled */
-export const eventsEnabled = eventsModeEnabled;
 
 export function eventsDisplayEnabled(): boolean {
   return envFlag("EVENTS_DISPLAY");

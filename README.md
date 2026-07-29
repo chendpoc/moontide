@@ -102,8 +102,6 @@ JSONL / NDJSON 每行事件含可选 `summary`、`displayHint` 字段，便于 g
 | `OCULEAU_EVENTS_LOG` | events jsonl 路径（默认 `.oculeau/events.jsonl`） |
 | `OCULEAU_CONTEXT_LOG` | context 报告 jsonl（仍双写） |
 
-> `OCULUS_*` 仍可读（deprecated），请迁移到 `OCULEAU_*`。`OCULEAU_CONTEXT=1` 等价于 `OCULEAU_CONTEXT_DISPLAY=1`。
-
 ## 测试
 
 ```sh
