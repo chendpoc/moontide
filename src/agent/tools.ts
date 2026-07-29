@@ -1,7 +1,7 @@
 import type { Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { setWorkdir } from "../config.js";
-import { createDefaultCatalog } from "../register-defaults.js";
+import { createDefaultCatalog } from "../toolkit/register-defaults.js";
 import { createDefaultLoopContext, createToolContext } from "./deps.js";
 import type { ToolContext } from "../toolkit/types.js";
 
