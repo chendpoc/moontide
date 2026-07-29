@@ -2,7 +2,8 @@ import fs from "node:fs";
 
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { registerContextHooks } from "./context/hook.js";
+import { emitDraft } from "./events/bus.js";
+import { AUDIT_LOG_PATH } from "./config.js";
 import { checkPermission } from "./permissions.js";
 
 export type HookFn = (context: Record<string, unknown>) => string | null | void;
@@ -12,8 +13,6 @@ const HOOKS: Record<string, HookFn[]> = {
   PreToolUse: [],
   PostToolUse: [],
   Stop: [],
-  PreLLM: [],
-  PostLLM: [],
 };
 
 export function register(event: string, callback: HookFn): void {
@@ -46,18 +45,24 @@ function permissionHook(context: Record<string, unknown>): string | null {
 
 function auditHook(context: Record<string, unknown>): void {
   const toolName = String(context.tool_name ?? "");
-  const toolInput = JSON.stringify(context.tool_input ?? {});
-  const line = `${new Date().toISOString()}\t${toolName}\t${toolInput}\n`;
-  fs.appendFileSync(".oculus-audit.log", line, "utf8");
+  const toolInput = context.tool_input ?? {};
+  const line = `${new Date().toISOString()}\t${toolName}\t${JSON.stringify(toolInput)}\n`;
+  fs.appendFileSync(AUDIT_LOG_PATH, line, "utf8");
+
+  emitDraft({
+    turn: Number(context.turn ?? 0),
+    phase: "post_tool",
+    channel: "audit",
+    kind: "tool_use",
+    payload: { toolName, toolInput },
+    preview: toolName,
+  });
 }
 
 export function setupDefaultHooks(): void {
   HOOKS.PreToolUse = [];
-  HOOKS.PreLLM = [];
-  HOOKS.PostLLM = [];
   register("PreToolUse", auditHook);
   register("PreToolUse", permissionHook);
-  registerContextHooks(register);
 }
 
 export type { MessageParam };

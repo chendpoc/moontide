@@ -11,7 +11,7 @@ function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot
   return {
     turn: 1,
     modelId: "deepseek-v4-pro",
-    system: "You are Oculus.",
+    system: "You are Oculeau.",
     tools: [
       {
         name: "read_file",
@@ -118,5 +118,28 @@ describe("buildSnapshot", () => {
     expect(snapshot.turn).toBe(2);
     expect(snapshot.system).toBe("system prompt");
     expect(snapshot.messages).toHaveLength(1);
+  });
+});
+
+describe("context plugin metrics events", () => {
+  it("builds metrics_pre payload with ContextReport fields", () => {
+    const snapshot = makeSnapshot({ turn: 2 });
+    const report = buildContextReport(snapshot);
+    const draft = {
+      turn: snapshot.turn,
+      phase: "pre_llm" as const,
+      channel: "context" as const,
+      kind: "metrics_pre" as const,
+      payload: { report },
+      preview: `est ${report.estimatedTokens}/${report.limit}`,
+    };
+
+    expect(draft.kind).toBe("metrics_pre");
+    expect(draft.payload.report).toMatchObject({
+      turn: 2,
+      estimatedTokens: report.estimatedTokens,
+      limit: report.limit,
+      headroom: report.headroom,
+    });
   });
 });

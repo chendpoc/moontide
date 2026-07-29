@@ -1,35 +1,41 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { resetSession } from "./context/sessions.js";
+import { emitFinalReply, emitUserPrompt } from "./events/conversation.js";
+import { runPhase } from "./events/orchestrator.js";
+import { resetRun } from "./events/run.js";
+import { setupEventPipeline } from "./events/setup.js";
 import { runHooks, setupDefaultHooks } from "./hooks.js";
 import { chat, extractText } from "./llm.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { TOOL_SCHEMAS, executeTool } from "./tools.js";
 
-export async function agentLoop(messages: MessageParam[]): Promise<string> {
+export async function agentLoop(messages: MessageParam[]): Promise<{ reply: string; turn: number }> {
   setupDefaultHooks();
   const system = buildSystemPrompt();
 
   let turn = 0;
   while (true) {
     turn += 1;
-    let beforeLLMContext = {
-      turn, 
+    const beforeLLMContext = {
+      turn,
       messages,
       system,
       tools: TOOL_SCHEMAS,
-    }
-    runHooks("PreLLM", beforeLLMContext);
-    
+    };
+
+    runPhase("pre_llm", beforeLLMContext);
+
     const response = await chat(messages, TOOL_SCHEMAS, system);
 
-    runHooks("PostLLM", { ...beforeLLMContext, response });
+    runPhase("post_llm", { ...beforeLLMContext, response });
 
     messages.push({ role: "assistant", content: response.content });
 
     if (response.stop_reason !== "tool_use") {
+      runPhase("stop", { turn, messages, response });
       runHooks("Stop", { messages });
-      return extractText(response.content);
+      return { reply: extractText(response.content), turn };
     }
 
     const results: Array<{
@@ -44,15 +50,27 @@ export async function agentLoop(messages: MessageParam[]): Promise<string> {
       }
 
       const blocked = runHooks("PreToolUse", {
+        turn,
         tool_name: block.name,
         tool_input: block.input,
       });
 
-      const output = blocked ?? (await executeTool(block.name, block.input as Record<string, unknown>));
+      const output =
+        blocked ?? (await executeTool(block.name, block.input as Record<string, unknown>));
 
       runHooks("PostToolUse", {
+        turn,
         tool_name: block.name,
         tool_input: block.input,
+        tool_use_id: block.id,
+        output,
+      });
+
+      runPhase("post_tool", {
+        turn,
+        tool_name: block.name,
+        tool_input: block.input,
+        tool_use_id: block.id,
         output,
       });
 
@@ -68,8 +86,16 @@ export async function agentLoop(messages: MessageParam[]): Promise<string> {
 }
 
 export async function runAgent(userPrompt: string): Promise<string> {
+  setupEventPipeline();
   resetSession();
+  resetRun();
+
+  emitUserPrompt(userPrompt);
   runHooks("UserPromptSubmit", { prompt: userPrompt });
+
   const messages: MessageParam[] = [{ role: "user", content: userPrompt }];
-  return agentLoop(messages);
+  const { reply, turn } = await agentLoop(messages);
+
+  emitFinalReply(turn, reply);
+  return reply;
 }

@@ -30,8 +30,7 @@ export {
   updateLatestReport,
   updateSessionFromSnapshot,
 } from "./sessions.js";
-export { printPostLlmVerbose, printPreLlmVerbose } from "./verbose.js";
-export { postLlmContextHook, preLlmContextHook, registerContextHooks } from "./hook.js";
+export { registerContextPlugin } from "../plugins/context.js";
 
 import type { DetailLevel } from "./types.js";
 import { withExactTokens } from "./analyze.js";

@@ -9,7 +9,7 @@ import { runBash, runEdit, runRead, runWrite, safePath } from "../src/tools.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculus-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-"));
   setWorkdir(tmpDir);
 });
 
