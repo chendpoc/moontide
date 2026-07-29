@@ -1,5 +1,7 @@
 import { registerRuntime } from "../registry.js";
-import { nodeRuntime, pythonRuntime, tsxRuntime } from "../executor.js";
+import { nodeRuntime } from "./node.js";
+import { pythonRuntime } from "./python.js";
+import { tsxRuntime } from "./tsx.js";
 
 export function registerBuiltinRuntimes(): void {
   registerRuntime(tsxRuntime);

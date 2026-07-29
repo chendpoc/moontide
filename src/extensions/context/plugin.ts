@@ -1,14 +1,14 @@
-import { buildContextReport, withUsage } from "../context/analyze.js";
-import { appendContextLog } from "../context/log.js";
-import { buildSnapshot } from "../context/snapshot.js";
+import { buildContextReport, withUsage } from "../../context/analyze.js";
+import { appendContextLog } from "../../context/log.js";
+import { buildSnapshot } from "../../context/snapshot.js";
 import {
   getPreviousEstimated,
   updateLatestReport,
   updateSessionFromSnapshot,
-} from "../context/sessions.js";
-import type { ContextReport } from "../context/types.js";
-import type { EventDraft } from "../events/types.js";
-import { registerSlot } from "../events/orchestrator.js";
+} from "../../context/sessions.js";
+import type { ContextReport } from "../../context/types.js";
+import type { EventDraft } from "../../events/types.js";
+import { registerSlot } from "../../events/orchestrator.js";
 
 function reportPayload(report: ContextReport): Record<string, unknown> {
   return { report: structuredClone(report) as unknown as Record<string, unknown> };

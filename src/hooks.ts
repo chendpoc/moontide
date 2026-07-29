@@ -4,7 +4,6 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages
 
 import { emitDraft } from "./events/bus.js";
 import { AUDIT_LOG_PATH } from "./config.js";
-import { checkPermission } from "./permissions.js";
 
 export type HookFn = (context: Record<string, unknown>) => string | null | void;
 
@@ -30,16 +29,6 @@ export function runHooks(event: string, context: Record<string, unknown>): strin
   return null;
 }
 
-function permissionHook(context: Record<string, unknown>): string | null {
-  const toolName = String(context.tool_name ?? "");
-  const toolInput = (context.tool_input ?? {}) as Record<string, unknown>;
-  const decision = checkPermission(toolName, toolInput);
-  if (decision === "deny") {
-    return `Permission denied: ${toolName}`;
-  }
-  return null;
-}
-
 export function auditToolUse(context: Record<string, unknown>): void {
   const toolName = String(context.tool_name ?? "");
   const toolInput = context.tool_input ?? {};
@@ -58,7 +47,6 @@ export function auditToolUse(context: Record<string, unknown>): void {
 
 export function setupDefaultHooks(): void {
   HOOKS.PreToolUse = [];
-  register("PreToolUse", permissionHook);
 }
 
 export type { MessageParam };

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectFromResponse,
   collectFromToolResult,
-} from "../src/plugins/trace/collector.js";
+} from "../src/extensions/trace/collector.js";
 
 describe("trace collector", () => {
   it("extracts thinking, text, and tool_use from response content", () => {

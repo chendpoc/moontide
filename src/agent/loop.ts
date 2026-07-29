@@ -1,23 +1,27 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { promptToolApproval } from "./cli/approval.js";
-import { isCompactAutoEnabled } from "./cli/repl-session.js";
-import { maybeAutoCompact } from "./context/compact.js";
-import { resetSession } from "./context/sessions.js";
-import { emitFinalReply, emitUserPrompt } from "./events/conversation.js";
-import { runPhase } from "./events/orchestrator.js";
-import { resetRun } from "./events/run.js";
-import { setupEventPipeline } from "./events/setup.js";
-import { runHooks, setupDefaultHooks, auditToolUse } from "./hooks.js";
-import { chat, extractText } from "./llm.js";
-import { checkPermission } from "./permissions.js";
-import { buildSystemPrompt } from "./prompt.js";
-import { TOOL_SCHEMAS, executeTool } from "./tools/index.js";
+import {
+  createDefaultLoopContext,
+  createToolContext,
+  type LoopContext,
+} from "./deps.js";
+import { maybeAutoCompact } from "../context/compact.js";
+import { resetSession } from "../context/sessions.js";
+import { emitFinalReply, emitUserPrompt } from "../events/conversation.js";
+import { runPhase } from "../events/orchestrator.js";
+import { resetRun } from "../events/run.js";
+import { setupEventPipeline } from "../events/setup.js";
+import { runHooks, setupDefaultHooks, auditToolUse } from "../hooks.js";
+import { chat, extractText } from "../llm.js";
+import { checkPermission } from "../permission/index.js";
+import { buildSystemPrompt } from "../prompt.js";
+import { TOOL_SCHEMAS, executeTool } from "./tools.js";
 
 async function resolveToolOutput(
   turn: number,
   toolName: string,
   toolInput: Record<string, unknown>,
+  loopCtx: LoopContext,
 ): Promise<string> {
   const hookBlocked = runHooks("PreToolUse", {
     turn,
@@ -29,8 +33,14 @@ async function resolveToolOutput(
   }
 
   const decision = checkPermission(toolName, toolInput);
+  if (decision === "deny") {
+    return `Permission denied: ${toolName}`;
+  }
   if (decision === "ask") {
-    const approved = await promptToolApproval({ turn, toolName, toolInput });
+    const approved = await loopCtx.userInteraction.approveTool({
+      toolName,
+      input: toolInput,
+    });
     if (!approved) {
       return `Permission denied by user: ${toolName}`;
     }
@@ -42,17 +52,20 @@ async function resolveToolOutput(
     tool_input: toolInput,
   });
 
-  return executeTool(toolName, toolInput);
+  return executeTool(toolName, toolInput, createToolContext(loopCtx));
 }
 
-export async function agentLoop(messages: MessageParam[]): Promise<{ reply: string; turn: number }> {
+export async function agentLoop(
+  messages: MessageParam[],
+  loopCtx: LoopContext = createDefaultLoopContext(),
+): Promise<{ reply: string; turn: number }> {
   setupDefaultHooks();
   const system = buildSystemPrompt();
 
   let turn = 0;
   while (true) {
     turn += 1;
-    maybeAutoCompact(messages, system, TOOL_SCHEMAS, turn, isCompactAutoEnabled());
+    maybeAutoCompact(messages, system, TOOL_SCHEMAS, turn, loopCtx.isCompactAutoEnabled());
 
     const beforeLLMContext = {
       turn,
@@ -87,7 +100,7 @@ export async function agentLoop(messages: MessageParam[]): Promise<{ reply: stri
       }
 
       const toolInput = block.input as Record<string, unknown>;
-      const output = await resolveToolOutput(turn, block.name, toolInput);
+      const output = await resolveToolOutput(turn, block.name, toolInput, loopCtx);
 
       runHooks("PostToolUse", {
         turn,
@@ -134,6 +147,7 @@ export async function runAgent(userPrompt: string): Promise<string> {
 export async function continueReplAgent(
   userPrompt: string,
   messages: MessageParam[],
+  loopCtx: LoopContext = createDefaultLoopContext(),
 ): Promise<{ reply: string; turn: number }> {
   resetRun();
 
@@ -141,7 +155,7 @@ export async function continueReplAgent(
   runHooks("UserPromptSubmit", { prompt: userPrompt });
 
   messages.push({ role: "user", content: userPrompt });
-  const result = await agentLoop(messages);
+  const result = await agentLoop(messages, loopCtx);
 
   emitFinalReply(result.turn, result.reply);
   return result;

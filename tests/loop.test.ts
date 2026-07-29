@@ -4,10 +4,11 @@ import path from "node:path";
 import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setToolApprovalPrompt } from "../src/cli/approval.js";
+import type { LoopContext } from "../src/agent/deps.js";
 import { setWorkdir } from "../src/config.js";
-import { agentLoop } from "../src/loop.js";
+import { agentLoop } from "../src/agent/loop.js";
 import * as llm from "../src/llm.js";
+import type { UserInteraction } from "../src/toolkit/types.js";
 
 let tmpDir = "";
 
@@ -27,10 +28,23 @@ function assistantMessage(
   };
 }
 
+function loopContext(userInteraction: UserInteraction): LoopContext {
+  return {
+    userInteraction,
+    isCompactAutoEnabled: () => false,
+  };
+}
+
+const denyAllInteraction: UserInteraction = {
+  approveTool: async () => false,
+  askQuestion: async () => {
+    throw new Error("User question prompt is not configured");
+  },
+};
+
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-loop-"));
   setWorkdir(tmpDir);
-  setToolApprovalPrompt(null);
 });
 
 afterEach(() => {
@@ -45,7 +59,7 @@ describe("agentLoop", () => {
     );
 
     const messages = [{ role: "user" as const, content: "hi" }];
-    const { reply, turn } = await agentLoop(messages);
+    const { reply, turn } = await agentLoop(messages, loopContext(denyAllInteraction));
 
     expect(reply).toBe("Hello from model");
     expect(turn).toBe(1);
@@ -74,7 +88,7 @@ describe("agentLoop", () => {
       );
 
     const messages = [{ role: "user" as const, content: "read demo.txt" }];
-    const { reply, turn } = await agentLoop(messages);
+    const { reply, turn } = await agentLoop(messages, loopContext(denyAllInteraction));
 
     expect(reply).toBe("Read complete");
     expect(turn).toBe(2);
@@ -102,7 +116,7 @@ describe("agentLoop", () => {
       );
 
     const messages = [{ role: "user" as const, content: "run bad command" }];
-    await agentLoop(messages);
+    await agentLoop(messages, loopContext(denyAllInteraction));
 
     const toolResult = messages[2];
     expect(toolResult?.role).toBe("user");
@@ -115,7 +129,10 @@ describe("agentLoop", () => {
   });
 
   it("denies ask-class tools when user does not approve", async () => {
-    setToolApprovalPrompt(async () => false);
+    const interaction: UserInteraction = {
+      ...denyAllInteraction,
+      approveTool: async () => false,
+    };
 
     vi.spyOn(llm, "chat")
       .mockResolvedValueOnce(
@@ -136,7 +153,7 @@ describe("agentLoop", () => {
       );
 
     const messages = [{ role: "user" as const, content: "delete foo" }];
-    await agentLoop(messages);
+    await agentLoop(messages, loopContext(interaction));
 
     const toolResult = messages[2];
     if (toolResult && Array.isArray(toolResult.content)) {
@@ -148,7 +165,10 @@ describe("agentLoop", () => {
   });
 
   it("runs ask-class tools when user approves", async () => {
-    setToolApprovalPrompt(async () => true);
+    const interaction: UserInteraction = {
+      ...denyAllInteraction,
+      approveTool: async () => true,
+    };
 
     vi.spyOn(llm, "chat")
       .mockResolvedValueOnce(
@@ -169,7 +189,7 @@ describe("agentLoop", () => {
       );
 
     const messages = [{ role: "user" as const, content: "echo" }];
-    await agentLoop(messages);
+    await agentLoop(messages, loopContext(interaction));
 
     const toolResult = messages[2];
     if (toolResult && Array.isArray(toolResult.content)) {

@@ -30,7 +30,6 @@ export {
   updateLatestReport,
   updateSessionFromSnapshot,
 } from "./sessions.js";
-export { registerContextPlugin } from "../plugins/context.js";
 
 import type { DetailLevel } from "./types.js";
 import { withExactTokens } from "./analyze.js";

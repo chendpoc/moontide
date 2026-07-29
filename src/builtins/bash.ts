@@ -5,15 +5,7 @@ import { getWorkdir } from "../config.js";
 
 const execAsync = promisify(exec);
 
-const DENY_PATTERNS = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
-
 export async function runBash(command: string): Promise<string> {
-  for (const pattern of DENY_PATTERNS) {
-    if (command.includes(pattern)) {
-      return `Error: blocked: ${command}`;
-    }
-  }
-
   try {
     const { stdout, stderr } = await execAsync(command, {
       cwd: getWorkdir(),

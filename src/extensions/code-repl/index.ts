@@ -1,10 +1,8 @@
 import { codeReplDisabled } from "../../config.js";
-import { registerTool } from "../registry.js";
+import type { ToolDefinition } from "../../toolkit/types.js";
 import { buildRuntimeEnum, runtimeDescriptions } from "./registry.js";
 import { executeCodeRepl } from "./executor.js";
 import { registerBuiltinRuntimes } from "./runtimes/index.js";
-
-registerBuiltinRuntimes();
 
 function buildCodeReplSchema() {
   const runtimeEnum = buildRuntimeEnum();
@@ -45,11 +43,17 @@ function buildCodeReplSchema() {
   };
 }
 
-if (!codeReplDisabled()) {
-  registerTool({
+export function defineCodeReplTool(): ToolDefinition | null {
+  if (codeReplDisabled()) {
+    return null;
+  }
+
+  registerBuiltinRuntimes();
+
+  return {
     schema: buildCodeReplSchema(),
-    handler: (input) => executeCodeRepl(input as Parameters<typeof executeCodeRepl>[0]),
-  });
+    handler: (input, _ctx) => executeCodeRepl(input as Parameters<typeof executeCodeRepl>[0]),
+  };
 }
 
 export { executeCodeRepl } from "./executor.js";

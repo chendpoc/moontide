@@ -97,11 +97,6 @@ export function contextVerboseDetail(): boolean {
   return envFlag("CONTEXT_VERBOSE_DETAIL");
 }
 
-/** stderr context box display; independent of CONTEXT_VERBOSE detail level. */
-export function contextDisplayEnabled(): boolean {
-  return envFlag("CONTEXT_DISPLAY");
-}
-
 export function compactKeepTurns(): number {
   const n = Number(env("COMPACT_KEEP_TURNS") ?? "3");
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 3;
@@ -116,20 +111,8 @@ export function compactAutoDefault(): boolean {
   return envFlag("COMPACT_AUTO");
 }
 
-export function eventsModeEnabled(): boolean {
-  return envFlag("EVENTS");
-}
-
-export function eventsDisplayEnabled(): boolean {
-  return envFlag("EVENTS_DISPLAY");
-}
-
 export function eventsLogPath(): string {
   return env("EVENTS_LOG") ?? `${DATA_DIR}/events.jsonl`;
-}
-
-export function traceEnabled(): boolean {
-  return envFlag("TRACE");
 }
 
 export function codeReplDefaultRuntime(): string {
@@ -151,4 +134,8 @@ export function venvPath(): string | undefined {
 
 export function codeReplDisabled(): boolean {
   return envFlag("CODE_REPL_DISABLED");
+}
+
+export function deepResearchEnabled(): boolean {
+  return envFlag("DEEP_RESEARCH");
 }

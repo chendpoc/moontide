@@ -1,6 +1,6 @@
 import { clearSlots } from "./orchestrator.js";
-import { registerContextPlugin } from "../plugins/context.js";
-import { registerTracePlugin } from "../plugins/trace/register.js";
+import { registerContextPlugin } from "../extensions/context/plugin.js";
+import { registerTracePlugin } from "../extensions/trace/register.js";
 
 export function registerAllPlugins(): void {
   clearSlots();
