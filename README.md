@@ -14,7 +14,7 @@ oculeau/
 │   ├── permission/      # checkPermission 单入口
 │   ├── register-defaults.ts  # 显式组装 tool catalog
 │   ├── cli/             # REPL、commands、statusline
-│   ├── events/          # AgentEvent bus、orchestrator、JsonlSink
+│   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
 │   ├── context/         # context window 分析（metrics、sessions）
 │   ├── hooks.ts         # audit hooks
 │   └── main.ts          # CLI REPL
@@ -103,13 +103,15 @@ Oculeau idle · context 12.3% · turn 2
 
 | 工具 | 作用 |
 |------|------|
-| `bash` / `read_file` / `write_file` / `edit_file` / `glob` | 文件与 shell |
+| `bash` / `read_file` / `write_file` / `edit_file` / `glob` / `list_dir` | 文件与 shell |
+| `grep` | 代码搜索（优先 `rg`，fallback `grep`） |
+| `http_fetch` | HTTP/HTTPS 请求（需用户批准；优先于 bash curl） |
 | `inspect_context` | context window 用量 |
 | `code_repl` | 多 runtime 代码执行（tsx / node / python，可扩展） |
 | `askUserQuestion` | 结构化多选题，阻塞等待用户输入 |
 | `deep_research` | 网络调研（**实验性**，默认未注册；见下方） |
 
-权限 `ask` 类工具（如 `rm`、`deep_research`）在 REPL 会提示 `Allow tool? [y/N]`。
+权限 `ask` 类工具（如 `rm`、`http_fetch`、`deep_research`）在 REPL 会提示 `Allow tool? [y/N]`。bash 中的 `curl`/`wget`/`rg`/`grep` 也会触发 ask，请使用对应 native tool。
 
 ### 新增 extension tool 模板（`deep_research`）
 
@@ -147,6 +149,7 @@ Oculeau idle · context 12.3% · turn 2
 | `OCULEAU_CODE_REPL_DISABLED=1` | 禁用 code_repl |
 | `OCULEAU_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |
 | `OCULEAU_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
+| `OCULEAU_HTTP=0` | 禁用 `http_fetch` tool（默认启用且需 ask） |
 | `OCULEAU_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
 | `OCULEAU_VERBOSE=1` | 默认开启 verbose 模式（完整 chalk debug trace；**默认 off**） |
 
