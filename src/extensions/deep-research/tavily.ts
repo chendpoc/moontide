@@ -1,9 +1,11 @@
 import { tavilyApiKey } from "../../config.js";
+import {
+  TAVILY_DEFAULT_MAX_RESULTS,
+  TAVILY_MAX_RESULTS_CAP,
+  TAVILY_SEARCH_URL,
+} from "../../constants/integrations.js";
+import { clampInt } from "../../utils/number.js";
 import type { DeepResearchResultItem } from "./types.js";
-
-const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
-const DEFAULT_MAX_RESULTS = 5;
-const MAX_RESULTS_CAP = 10;
 
 export interface TavilySearchOptions {
   maxResults?: number;
@@ -24,9 +26,9 @@ interface TavilyApiResponse {
 
 export function normalizeMaxResults(maxResults?: number): number {
   if (maxResults === undefined || !Number.isFinite(maxResults)) {
-    return DEFAULT_MAX_RESULTS;
+    return TAVILY_DEFAULT_MAX_RESULTS;
   }
-  return Math.min(MAX_RESULTS_CAP, Math.max(1, Math.floor(maxResults)));
+  return clampInt(maxResults, 1, TAVILY_MAX_RESULTS_CAP);
 }
 
 export async function tavilySearch(

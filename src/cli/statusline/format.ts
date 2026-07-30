@@ -1,5 +1,6 @@
 import chalk from "chalk";
 
+import { ACTIVE_EVENTS_SUFFIX, DATA_DIR, RUNS_DIR } from "../../constants/storage.js";
 import type { StatusSnapshot } from "./types.js";
 
 const themes = {
@@ -55,5 +56,5 @@ export function formatStatusLineVerbose(snapshot: StatusSnapshot): string {
 
 /** Legend text for /help. */
 export function formatStatusLineLegend(): string {
-  return "Statusline: context usage % · turn N · /thinking · /verbose · events → .oculeau/runs/<runId>.active.jsonl";
+  return `Statusline: context usage % · turn N · /thinking · /verbose · events → ${DATA_DIR}/${RUNS_DIR}/<runId>${ACTIVE_EVENTS_SUFFIX}`;
 }

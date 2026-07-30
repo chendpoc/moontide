@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { DATA_DIR, codeReplTimeoutMs, getWorkdir } from "../../config.js";
+import { codeReplTimeoutMs, getWorkdir } from "../../config.js";
+import { DATA_DIR, TMP_DIR } from "../../constants/storage.js";
 import { safePath, runWrite } from "../../builtins/fs.js";
 import { buildRuntimeEnv } from "./runtimes/env.js";
 import type { CodeReplInput, CodeReplResult, CodeRuntime, ExecuteContext } from "./types.js";
@@ -67,7 +68,7 @@ export function prepareScript(
   }
 
   const ext = pickExtension(runtime, filePath);
-  const tmpDir = path.join(workdir, DATA_DIR, "tmp");
+  const tmpDir = path.join(workdir, DATA_DIR, TMP_DIR);
   fs.mkdirSync(tmpDir, { recursive: true });
   const fileName = `${crypto.randomUUID()}${ext}`;
   const absolutePath = path.join(tmpDir, fileName);

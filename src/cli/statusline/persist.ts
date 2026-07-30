@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { DATA_DIR, getWorkdir } from "../../config.js";
+import { getWorkdir } from "../../config.js";
+import { DATA_DIR, STATUS_FILE } from "../../constants/storage.js";
 import type { StatusSnapshot } from "./types.js";
 
 export function statusJsonPath(): string {
-  return path.join(getWorkdir(), DATA_DIR, "status.json");
+  return path.join(getWorkdir(), DATA_DIR, STATUS_FILE);
 }
 
 export function writeStatusJson(snapshot: StatusSnapshot): void {

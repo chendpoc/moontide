@@ -1,6 +1,7 @@
 import { getWorkdir, modelId } from "../../config.js";
 import { getLatestReport, getSession } from "../../context/sessions.js";
 import { getRunId } from "../../events/run.js";
+import { shortenHomePath } from "../../utils/path.js";
 import type { StatusSnapshot } from "./types.js";
 
 let replPhase: "idle" | "running" = "idle";
@@ -13,14 +14,6 @@ export function getReplPhase(): "idle" | "running" {
   return replPhase;
 }
 
-function shortWorkdir(workdir: string): string {
-  const home = process.env.HOME;
-  if (home && workdir.startsWith(home)) {
-    return `~${workdir.slice(home.length)}`;
-  }
-  return workdir;
-}
-
 export function collectStatusSnapshot(): StatusSnapshot {
   const workdir = getWorkdir();
   const report = getLatestReport();
@@ -30,7 +23,7 @@ export function collectStatusSnapshot(): StatusSnapshot {
   return {
     phase: replPhase,
     model: modelId(),
-    workdir: shortWorkdir(workdir),
+    workdir: shortenHomePath(workdir),
     runId: getRunId(),
     turn,
     contextPct,

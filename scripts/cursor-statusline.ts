@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { DATA_DIR } from "../src/config.js";
+import { DATA_DIR, STATUS_FILE } from "../src/constants/storage.js";
 import { formatStatusLine } from "../src/cli/statusline/format.js";
 import type { StatusSnapshot } from "../src/cli/statusline/types.js";
 
@@ -29,7 +29,7 @@ function readStdin(): Promise<string> {
 }
 
 function loadOculeauStatus(cwd: string): StatusSnapshot | null {
-  const filePath = path.join(cwd, DATA_DIR, "status.json");
+  const filePath = path.join(cwd, DATA_DIR, STATUS_FILE);
   if (!fs.existsSync(filePath)) {
     return null;
   }
@@ -60,6 +60,7 @@ function mergeSnapshot(
     phase: "idle",
     model: cursor.model?.display_name ?? cursor.model?.id ?? "unknown",
     workdir: cwd,
+    runId: "",
     turn: null,
     contextPct: pct,
   };
