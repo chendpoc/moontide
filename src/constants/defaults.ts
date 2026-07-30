@@ -1,0 +1,4 @@
+export const COMPACT_KEEP_TURNS_DEFAULT = 3;
+export const COMPACT_THRESHOLD_DEFAULT = 85;
+export const CODE_REPL_DEFAULT_RUNTIME = "tsx";
+export const CODE_REPL_TIMEOUT_MS_DEFAULT = 120_000;
