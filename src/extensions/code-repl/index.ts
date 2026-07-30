@@ -1,5 +1,6 @@
 import { codeReplDisabled } from "../../config.js";
-import type { ToolDefinition } from "../../toolkit/types.js";
+import type { ToolDefinition } from "../../agent/tools/types.js";
+import { TOOL_NAMES } from "../../agent/tools/names.js";
 import { buildRuntimeEnum, runtimeDescriptions } from "./registry.js";
 import { executeCodeRepl } from "./executor.js";
 import { registerBuiltinRuntimes } from "./runtimes/index.js";
@@ -9,7 +10,7 @@ function buildCodeReplSchema() {
   const runtimeEnum = buildRuntimeEnum();
   const templateEnum = listTemplateIds();
   return {
-    name: "code_repl",
+    name: TOOL_NAMES.CODE_REPL,
     description: `Execute code in the workspace via a pluggable runtime, or use a named template for common tasks.
 
 Runtimes:

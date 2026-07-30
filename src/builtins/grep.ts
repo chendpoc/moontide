@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 import { getWorkdir } from "../config.js";
+import { clampInt } from "../utils/number.js";
 import { safePath } from "./fs.js";
 
 export interface GrepInput {
@@ -34,7 +35,7 @@ export function normalizeGrepMaxResults(maxResults?: number): number {
   if (maxResults === undefined || !Number.isFinite(maxResults)) {
     return DEFAULT_MAX_RESULTS;
   }
-  return Math.min(MAX_RESULTS_CAP, Math.max(1, Math.floor(maxResults)));
+  return clampInt(maxResults, 1, MAX_RESULTS_CAP);
 }
 
 function relativePath(absolutePath: string): string {

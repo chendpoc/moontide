@@ -1,4 +1,5 @@
 import { httpFetchEnabled } from "../config.js";
+import { clampInt } from "../utils/number.js";
 
 export interface HttpFetchInput {
   url: string;
@@ -36,14 +37,14 @@ export function normalizeMaxBytes(maxBytes?: number): number {
   if (maxBytes === undefined || !Number.isFinite(maxBytes)) {
     return DEFAULT_MAX_BYTES;
   }
-  return Math.min(MAX_BYTES_CAP, Math.max(1, Math.floor(maxBytes)));
+  return clampInt(maxBytes, 1, MAX_BYTES_CAP);
 }
 
 export function normalizeTimeoutMs(timeoutMs?: number): number {
   if (timeoutMs === undefined || !Number.isFinite(timeoutMs)) {
     return DEFAULT_TIMEOUT_MS;
   }
-  return Math.min(120_000, Math.max(1_000, Math.floor(timeoutMs)));
+  return clampInt(timeoutMs, 1_000, 120_000);
 }
 
 function isPrivateIpv4(host: string): boolean {

@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 
 import { getWorkdir } from "../config.js";
+import { clampInt } from "../utils/number.js";
+import { truncateChars } from "../utils/text.js";
 import { safePath } from "./fs.js";
 
 const OUTPUT_LIMIT = 50_000;
@@ -60,13 +62,6 @@ function spawnGit(args: string[]): Promise<{ stdout: string; stderr: string; cod
 
 function isNotGitRepo(stderr: string): boolean {
   return /not a git repository/i.test(stderr);
-}
-
-function truncateText(text: string, limit = OUTPUT_LIMIT): { text: string; truncated: boolean } {
-  if (text.length <= limit) {
-    return { text, truncated: false };
-  }
-  return { text: text.slice(0, limit), truncated: true };
 }
 
 function parseStatusSb(firstLine: string): { branch?: string; ahead?: number; behind?: number } {
@@ -154,7 +149,7 @@ export async function runGitDiff(input: GitDiffInput = {}): Promise<string> {
   const staged = input.staged === true;
   const maxLines =
     input.max_lines !== undefined && Number.isFinite(Number(input.max_lines))
-      ? Math.min(MAX_DIFF_LINES, Math.max(1, Math.floor(Number(input.max_lines))))
+      ? clampInt(Number(input.max_lines), 1, MAX_DIFF_LINES)
       : DEFAULT_DIFF_LINES;
 
   const args = ["diff"];
@@ -198,7 +193,7 @@ export async function runGitDiff(input: GitDiffInput = {}): Promise<string> {
         truncated = true;
       }
     } else {
-      const trimmed = truncateText(raw);
+      const trimmed = truncateChars(raw, OUTPUT_LIMIT);
       summary = trimmed.text;
       truncated = trimmed.truncated;
     }
@@ -229,7 +224,7 @@ export interface GitLogInput {
 export async function runGitLog(input: GitLogInput = {}): Promise<string> {
   const n =
     input.n !== undefined && Number.isFinite(Number(input.n))
-      ? Math.min(MAX_LOG_N, Math.max(1, Math.floor(Number(input.n))))
+      ? clampInt(Number(input.n), 1, MAX_LOG_N)
       : DEFAULT_LOG_N;
   const oneline = input.oneline !== false;
 

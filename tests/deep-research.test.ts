@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDefaultCatalog } from "../src/toolkit/register-defaults.js";
+import { createDefaultCatalog } from "../src/agent/tools/register-defaults.js";
 import { runDeepResearch } from "../src/extensions/deep-research/handler.js";
 import { defineDeepResearchTool } from "../src/extensions/deep-research/index.js";
 import { normalizeMaxResults, tavilySearch } from "../src/extensions/deep-research/tavily.js";

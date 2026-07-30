@@ -23,7 +23,7 @@ export function createToolCatalog(tools: ToolDefinition[]): ToolCatalog {
     async execute(name, input, ctx) {
       const def = byName.get(name);
       if (!def) {
-        return `Error: unknown tool ${name}`;
+        throw new Error(`Unknown tool: ${name}`);
       }
       return def.handler(input, ctx);
     },

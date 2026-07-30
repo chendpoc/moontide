@@ -1,10 +1,11 @@
 import { inspectContext } from "../../context/index.js";
-import type { ToolDefinition } from "../../toolkit/types.js";
+import type { ToolDefinition } from "../../agent/tools/types.js";
+import { TOOL_NAMES } from "../../agent/tools/names.js";
 
 export function defineInspectContextTool(): ToolDefinition {
   return {
     schema: {
-      name: "inspect_context",
+      name: TOOL_NAMES.INSPECT_CONTEXT,
       description:
         "Inspect current conversation context window usage, token breakdown, and headroom.",
       input_schema: {

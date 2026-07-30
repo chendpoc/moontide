@@ -1,5 +1,6 @@
 import { httpFetchEnabled } from "../config.js";
-import type { ToolDefinition } from "../toolkit/types.js";
+import type { ToolDefinition } from "../agent/tools/types.js";
+import { TOOL_NAMES } from "../agent/tools/names.js";
 import { runEdit, runGlob, runListDir, runRead, runWrite } from "./fs.js";
 import { runBash } from "./bash.js";
 import { runGrep } from "./grep.js";
@@ -9,7 +10,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     {
       schema: {
-        name: "bash",
+        name: TOOL_NAMES.BASH,
         description: "Run a shell command in the workspace.",
         input_schema: {
           type: "object",
@@ -21,7 +22,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "read_file",
+        name: TOOL_NAMES.READ_FILE,
         description: "Read a file relative to the workspace.",
         input_schema: {
           type: "object",
@@ -41,7 +42,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "write_file",
+        name: TOOL_NAMES.WRITE_FILE,
         description: "Write content to a file relative to the workspace.",
         input_schema: {
           type: "object",
@@ -56,7 +57,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "edit_file",
+        name: TOOL_NAMES.EDIT_FILE,
         description: "Replace the first exact occurrence of old_text in a file.",
         input_schema: {
           type: "object",
@@ -73,7 +74,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "glob",
+        name: TOOL_NAMES.GLOB,
         description: "Find files matching a glob pattern in the workspace.",
         input_schema: {
           type: "object",
@@ -85,7 +86,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "list_dir",
+        name: TOOL_NAMES.LIST_DIR,
         description: "List files and directories under a workspace path.",
         input_schema: {
           type: "object",
@@ -106,7 +107,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "grep",
+        name: TOOL_NAMES.GREP,
         description:
           "Search code in the workspace with ripgrep (rg) or grep. Prefer over bash for code search.",
         input_schema: {
@@ -135,7 +136,7 @@ export function defineBuiltinFsTools(): ToolDefinition[] {
   if (httpFetchEnabled()) {
     tools.push({
       schema: {
-        name: "http_fetch",
+        name: TOOL_NAMES.HTTP_FETCH,
         description:
           "Fetch a URL over HTTP/HTTPS. Requires user approval. Prefer over bash curl/wget.",
         input_schema: {

@@ -1,13 +1,14 @@
 import type readline from "node:readline/promises";
 
 import type { LoopContext } from "../../agent/deps.js";
-import type { UserInteraction } from "../../toolkit/types.js";
+import type { UserInteraction } from "../../agent/tools/types.js";
+import { truncateOneLine } from "../../utils/text.js";
 import { isCompactAutoEnabled } from "./session.js";
 
 export function createReplUserInteraction(rl: readline.Interface): UserInteraction {
   return {
     async approveTool({ toolName, input }) {
-      const preview = JSON.stringify(input).slice(0, 80);
+      const preview = truncateOneLine(JSON.stringify(input), 80);
       const answer = await rl.question(
         `\x1b[33mAllow ${toolName}? ${preview} [y/N]\x1b[0m `,
       );

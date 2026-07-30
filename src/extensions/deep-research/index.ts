@@ -1,5 +1,6 @@
 import { deepResearchEnabled } from "../../config.js";
-import type { ToolDefinition } from "../../toolkit/types.js";
+import type { ToolDefinition } from "../../agent/tools/types.js";
+import { TOOL_NAMES } from "../../agent/tools/names.js";
 import { runDeepResearch } from "./handler.js";
 
 export function defineDeepResearchTool(): ToolDefinition | null {
@@ -9,7 +10,7 @@ export function defineDeepResearchTool(): ToolDefinition | null {
 
   return {
     schema: {
-      name: "deep_research",
+      name: TOOL_NAMES.DEEP_RESEARCH,
       description:
         "Search the web and synthesize findings for an open-ended research question. Requires user approval (network).",
       input_schema: {

@@ -4,10 +4,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { executeTool, TOOL_SCHEMAS } from "../src/agent/tools.js";
+import { executeTool, toolSchemas } from "../src/agent/tools/index.js";
 import { registerRuntime } from "../src/extensions/code-repl/registry.js";
 import type { CodeRuntime } from "../src/extensions/code-repl/types.js";
-import type { ToolContext } from "../src/toolkit/types.js";
+import type { ToolContext } from "../src/agent/tools/types.js";
 
 let tmpDir = "";
 
@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe("code_repl", () => {
   it("is registered in tool schemas", () => {
-    const names = TOOL_SCHEMAS.map((t) => t.name);
+    const names = toolSchemas().map((t) => t.name);
     expect(names).toContain("code_repl");
     expect(names).toContain("askUserQuestion");
   });

@@ -1,11 +1,12 @@
-import type { ToolDefinition } from "../toolkit/types.js";
+import type { ToolDefinition } from "../agent/tools/types.js";
+import { TOOL_NAMES } from "../agent/tools/names.js";
 import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "./git.js";
 
 export function defineGitTools(): ToolDefinition[] {
   return [
     {
       schema: {
-        name: "git_status",
+        name: TOOL_NAMES.GIT_STATUS,
         description:
           "Read-only git status for the workspace. Prefer over bash git status.",
         input_schema: {
@@ -17,7 +18,7 @@ export function defineGitTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "git_diff",
+        name: TOOL_NAMES.GIT_DIFF,
         description:
           "Read-only git diff (default --stat). Prefer over bash git diff.",
         input_schema: {
@@ -46,7 +47,7 @@ export function defineGitTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "git_log",
+        name: TOOL_NAMES.GIT_LOG,
         description:
           "Read-only git log (oneline). Prefer over bash git log.",
         input_schema: {
@@ -67,7 +68,7 @@ export function defineGitTools(): ToolDefinition[] {
     },
     {
       schema: {
-        name: "git_summary",
+        name: TOOL_NAMES.GIT_SUMMARY,
         description:
           "Combined git overview (status + log + diff --stat). Does not run git directly — returns code_repl template git_summary invocation. Implementation: templates/bodies/bash/git_summary.sh.",
         input_schema: {

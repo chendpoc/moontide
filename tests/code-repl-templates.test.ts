@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { executeTool, TOOL_SCHEMAS } from "../src/agent/tools.js";
+import { executeTool, toolSchemas } from "../src/agent/tools/index.js";
 import { expandTemplate } from "../src/extensions/code-repl/templates/expand.js";
 import { listTemplateIds } from "../src/extensions/code-repl/templates/catalog.js";
 
@@ -86,7 +86,7 @@ describe("expandTemplate", () => {
 
 describe("code_repl templates integration", () => {
   it("includes template enum in schema", () => {
-    const schema = TOOL_SCHEMAS.find((t) => t.name === "code_repl");
+    const schema = toolSchemas().find((t) => t.name === "code_repl");
     expect(schema).toBeDefined();
     const props = schema!.input_schema.properties as Record<string, { enum?: string[] }>;
     expect(props.template?.enum).toContain("read_json");

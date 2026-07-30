@@ -1,11 +1,11 @@
 import {
   defaultCompactSystem,
-  emitCompactEvent,
   previewCompact,
   pruneCompact,
   summarizeCompact,
 } from "../../context/compact.js";
-import { TOOL_SCHEMAS } from "../../agent/tools.js";
+import { emitCompactEvent } from "../../context/compact-events.js";
+import { toolSchemas } from "../../agent/tools/index.js";
 import { renderStatusLine } from "../statusline/render.js";
 import { setCompactAutoOverride } from "../repl/session.js";
 import { formatCompactReport, handleToggleCommand, reply } from "./io.js";
@@ -35,7 +35,7 @@ export async function handleCompactCommand(
   }
 
   if (arg === "preview") {
-    const preview = previewCompact(messages, system, TOOL_SCHEMAS);
+    const preview = previewCompact(messages, system, toolSchemas());
     reply(
       formatCompactReport(
         "preview",
@@ -48,7 +48,7 @@ export async function handleCompactCommand(
   }
 
   if (arg === "summary") {
-    const result = await summarizeCompact(messages, system, TOOL_SCHEMAS);
+    const result = await summarizeCompact(messages, system, toolSchemas());
     messages.splice(0, messages.length, ...result.messages);
     emitCompactEvent(0, result, "summary");
     reply(formatCompactReport("summary compact", result.beforeTokens, result.afterTokens));
@@ -56,7 +56,7 @@ export async function handleCompactCommand(
     return "handled";
   }
 
-  const result = pruneCompact(messages, system, TOOL_SCHEMAS);
+  const result = pruneCompact(messages, system, toolSchemas());
   if (!result.changed) {
     reply("already compact");
     return "handled";

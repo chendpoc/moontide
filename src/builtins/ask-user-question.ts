@@ -1,9 +1,10 @@
-import type { ToolDefinition } from "../toolkit/types.js";
+import type { ToolDefinition } from "../agent/tools/types.js";
+import { TOOL_NAMES } from "../agent/tools/names.js";
 
 export function defineAskUserQuestionTool(): ToolDefinition {
   return {
     schema: {
-      name: "askUserQuestion",
+      name: TOOL_NAMES.ASK_USER_QUESTION,
       description:
         "Ask the user structured multiple-choice questions and wait for answers. Use when runtime or environment is ambiguous.",
       input_schema: {
