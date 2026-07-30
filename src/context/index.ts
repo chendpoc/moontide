@@ -12,7 +12,6 @@ export type {
 
 export { buildContextReport, withExactTokens, withUsage } from "./analyze.js";
 export { formatContext, getBreakdown, getFull, getStruct, getSummary } from "./format.js";
-export { appendContextLog } from "./log.js";
 export {
   analyzeStructure,
   buildMessageLines,

@@ -1,5 +1,6 @@
 import { getWorkdir, modelId } from "../../config.js";
 import { getLatestReport, getSession } from "../../context/sessions.js";
+import { getRunId } from "../../events/run.js";
 import type { StatusSnapshot } from "./types.js";
 
 let replPhase: "idle" | "running" = "idle";
@@ -30,6 +31,7 @@ export function collectStatusSnapshot(): StatusSnapshot {
     phase: replPhase,
     model: modelId(),
     workdir: shortWorkdir(workdir),
+    runId: getRunId(),
     turn,
     contextPct,
   };

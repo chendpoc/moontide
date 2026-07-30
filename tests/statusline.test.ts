@@ -15,6 +15,7 @@ function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     phase: "idle",
     model: "deepseek-v4-pro",
     workdir: "~/code/oculeau",
+    runId: "run-1",
     turn: null,
     contextPct: null,
     ...overrides,
@@ -60,6 +61,7 @@ describe("statusline collect", () => {
     expect(snapshot.phase).toBe("idle");
     expect(snapshot.model).toBeTruthy();
     expect(snapshot.workdir).toBeTruthy();
+    expect(snapshot.runId).toBeTruthy();
   });
 });
 

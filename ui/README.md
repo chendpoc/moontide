@@ -1,6 +1,8 @@
 # Oculeau UI
 
-Read-only Slint sidecar for Oculeau. Watches `workdir/.oculeau/events.jsonl` and `status.json`, renders **Trace**, **Context**, and **Chat** tabs.
+Read-only Slint sidecar for Oculeau. Reads `status.json.runId`, tails `workdir/.oculeau/runs/<runId>.active.jsonl`, and renders **Trace**, **Context**, and **Chat** tabs.
+
+The UI is live-only: it keeps already loaded rows across segment rotation, but does not read completed `.jsonl.gz` segments. After a UI restart, completed runs are not restored.
 
 macOS-first (folder picker via `rfd`, file watching via `notify`).
 
@@ -61,7 +63,7 @@ Chat in terminal 1; Trace / Context / Chat tabs update as events append.
 | Path | Role |
 |------|------|
 | `ui/app-window.slint` | Main window, tabs, status bar |
-| `src/store/event_store.rs` | JSONL cold read + tail, max 2000 events, latest `runId` |
+| `src/store/event_store.rs` | Active JSONL cold read + tail, max 2000 in-memory events |
 | `src/store/status_store.rs` | `status.json` reader |
 | `src/watch/watcher.rs` | `notify` file watcher |
 

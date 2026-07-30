@@ -17,7 +17,6 @@ if (process.env.ANTHROPIC_BASE_URL) {
 
 export const DEFAULT_MODEL = "deepseek-v4-pro";
 export const DATA_DIR = ".oculeau";
-export const AUDIT_LOG_PATH = ".oculeau-audit.log";
 
 function env(name: string): string | undefined {
   return process.env[`OCULEAU_${name}`];
@@ -70,16 +69,8 @@ export function contextLimit(): number {
   return CONTEXT_LIMITS[modelId()] ?? CONTEXT_LIMITS.default;
 }
 
-export function contextLogPath(): string {
-  return env("CONTEXT_LOG") ?? `${DATA_DIR}/context.jsonl`;
-}
-
 export function contextExact(): boolean {
   return envFlag("CONTEXT_EXACT");
-}
-
-export function contextSnapshotEnabled(): boolean {
-  return envFlag("CONTEXT_SNAPSHOT");
 }
 
 export function compactKeepTurns(): number {
@@ -94,10 +85,6 @@ export function compactThreshold(): number {
 
 export function compactAutoDefault(): boolean {
   return envFlag("COMPACT_AUTO");
-}
-
-export function eventsLogPath(): string {
-  return env("EVENTS_LOG") ?? `${DATA_DIR}/events.jsonl`;
 }
 
 export function codeReplDefaultRuntime(): string {

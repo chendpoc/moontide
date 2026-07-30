@@ -1,5 +1,4 @@
 import { buildContextReport, withUsage } from "../../context/analyze.js";
-import { appendContextLog } from "../../context/log.js";
 import { buildSnapshot } from "../../context/snapshot.js";
 import {
   getPreviousEstimated,
@@ -43,8 +42,6 @@ function handlePostLlmContext(ctx: Record<string, unknown>): EventDraft[] {
     });
     updateLatestReport(report);
   }
-
-  appendContextLog(report, snapshot);
 
   const inTok = report.usage?.inputTokens ?? report.estimatedTokens;
   const outTok = report.usage?.outputTokens ?? 0;

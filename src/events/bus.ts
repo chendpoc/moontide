@@ -5,6 +5,7 @@ export type EventListener = (event: AgentEvent) => void;
 
 export interface EventOutput {
   handle(event: AgentEvent): void;
+  finalizeRun?(runId: string): void;
   close?(): void;
 }
 
@@ -44,6 +45,12 @@ export function setOutputs(next: EventOutput[]): void {
 
 export function getOutputs(): readonly EventOutput[] {
   return outputs;
+}
+
+export function finalizeRunOutputs(runId: string): void {
+  for (const output of outputs) {
+    output.finalizeRun?.(runId);
+  }
 }
 
 export function enableTestCollector(): void {

@@ -79,9 +79,9 @@ fn main() -> Result<()> {
         };
 
         if let Ok(mut locked) = stores_pick.lock() {
-            locked.events.set_workdir(path.clone()).ok();
+            locked.events.set_workdir(path.clone());
             locked.status.set_workdir(path.clone());
-            locked.status.reload().ok();
+            reload_all(&mut locked).ok();
         }
 
         if let Ok(new_watcher) = watch::spawn_watcher(path) {

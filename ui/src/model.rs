@@ -3,7 +3,8 @@ use serde_json::Value;
 
 pub const MAX_EVENTS: usize = 2000;
 pub const OCULEAU_DIR: &str = ".oculeau";
-pub const EVENTS_FILE: &str = "events.jsonl";
+pub const RUNS_DIR: &str = "runs";
+pub const ACTIVE_EVENTS_SUFFIX: &str = ".active.jsonl";
 pub const STATUS_FILE: &str = "status.json";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -31,6 +32,8 @@ pub struct StatusSnapshot {
     pub model: String,
     #[serde(default)]
     pub workdir: String,
+    #[serde(default)]
+    pub run_id: String,
     pub turn: Option<i32>,
     pub context_pct: Option<f64>,
 }
@@ -111,12 +114,17 @@ pub fn trace_row_from_event(event: &AgentEvent) -> Option<TraceRow> {
         }),
         "tool_use" => {
             let tool_name = payload_str(event, &["toolName"]);
+            let body = event
+                .payload
+                .get("input")
+                .map(Value::to_string)
+                .unwrap_or_else(|| event.preview.clone().unwrap_or_default());
             Some(TraceRow {
                 turn: event.turn,
                 icon: "🔧".into(),
                 label: "tool".into(),
                 extra: tool_name,
-                body: truncate(&payload_str(event, &["body"]), 120),
+                body: truncate(&body, 120),
             })
         }
         "tool_result" => Some(TraceRow {

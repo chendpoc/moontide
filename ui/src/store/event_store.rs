@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 
 use crate::model::{
     chat_row_from_event, context_card_from_event, trace_row_from_event, AgentEvent, ChatRow,
-    ContextCard, TraceRow, EVENTS_FILE, MAX_EVENTS, OCULEAU_DIR,
+    ContextCard, TraceRow, ACTIVE_EVENTS_SUFFIX, MAX_EVENTS, OCULEAU_DIR, RUNS_DIR,
 };
 
 pub struct EventStore {
@@ -30,59 +30,47 @@ impl EventStore {
         &self.workdir
     }
 
-    pub fn set_workdir(&mut self, workdir: PathBuf) -> Result<()> {
+    pub fn set_workdir(&mut self, workdir: PathBuf) {
         self.workdir = workdir;
         self.events.clear();
         self.run_id = None;
         self.file_offset = 0;
-        self.load_initial()
     }
 
-    pub fn events_path(&self) -> PathBuf {
-        self.workdir.join(OCULEAU_DIR).join(EVENTS_FILE)
+    pub fn set_run_id(&mut self, run_id: Option<String>) -> Result<bool> {
+        if self.run_id == run_id {
+            return Ok(false);
+        }
+        self.run_id = run_id;
+        self.load_initial()?;
+        Ok(true)
+    }
+
+    pub fn events_path(&self) -> Option<PathBuf> {
+        let run_id = self.run_id.as_ref()?;
+        Some(
+            self.workdir
+                .join(OCULEAU_DIR)
+                .join(RUNS_DIR)
+                .join(format!("{run_id}{ACTIVE_EVENTS_SUFFIX}")),
+        )
     }
 
     pub fn load_initial(&mut self) -> Result<()> {
         self.events.clear();
-        self.run_id = None;
         self.file_offset = 0;
+        self.read_active_from_start().map(|_| ())
+    }
 
-        let path = self.events_path();
-        if !path.exists() {
-            return Ok(());
-        }
-
-        let file = File::open(&path).with_context(|| format!("open {}", path.display()))?;
-        let reader = BufReader::new(file);
-        let mut parsed: Vec<AgentEvent> = Vec::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<AgentEvent>(trimmed) {
-                parsed.push(event);
-            }
-        }
-
-        if let Some(latest) = parsed.last() {
-            self.run_id = Some(latest.run_id.clone());
-        }
-
-        self.events = parsed
-            .into_iter()
-            .filter(|event| self.run_id.as_ref().is_some_and(|id| id == &event.run_id))
-            .collect();
-
-        self.trim_to_max();
-        self.file_offset = std::fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
-        Ok(())
+    pub fn reload_active_segment(&mut self) -> Result<bool> {
+        self.file_offset = 0;
+        self.read_active_from_start()
     }
 
     pub fn reload_tail(&mut self) -> Result<bool> {
-        let path = self.events_path();
+        let Some(path) = self.events_path() else {
+            return Ok(false);
+        };
         if !path.exists() {
             return Ok(false);
         }
@@ -91,7 +79,7 @@ impl EventStore {
         let len = file.metadata()?.len();
 
         if len < self.file_offset {
-            return self.load_initial().map(|_| true);
+            return self.reload_active_segment();
         }
 
         if len == self.file_offset {
@@ -105,40 +93,56 @@ impl EventStore {
 
         let mut changed = false;
         for line in buffer.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let Ok(event) = serde_json::from_str::<AgentEvent>(trimmed) else {
-                continue;
-            };
-            changed |= self.ingest(event);
+            changed |= self.ingest_line(line);
         }
 
         Ok(changed)
     }
 
-    fn ingest(&mut self, event: AgentEvent) -> bool {
-        match &self.run_id {
-            None => {
-                self.run_id = Some(event.run_id.clone());
-                self.events.push(event);
-                self.trim_to_max();
-                true
-            }
-            Some(current) if current == &event.run_id => {
-                self.events.push(event);
-                self.trim_to_max();
-                true
-            }
-            Some(_) => {
-                self.run_id = Some(event.run_id.clone());
-                self.events.clear();
-                self.events.push(event);
-                self.trim_to_max();
-                true
-            }
+    fn read_active_from_start(&mut self) -> Result<bool> {
+        let Some(path) = self.events_path() else {
+            return Ok(false);
+        };
+        if !path.exists() {
+            return Ok(false);
         }
+
+        let file = File::open(&path).with_context(|| format!("open {}", path.display()))?;
+        let reader = BufReader::new(file);
+        let mut changed = false;
+        for line in reader.lines() {
+            changed |= self.ingest_line(&line?);
+        }
+        self.file_offset = std::fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
+        Ok(changed)
+    }
+
+    fn ingest_line(&mut self, line: &str) -> bool {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        let Ok(event) = serde_json::from_str::<AgentEvent>(trimmed) else {
+            return false;
+        };
+        self.ingest(event)
+    }
+
+    fn ingest(&mut self, event: AgentEvent) -> bool {
+        if self
+            .run_id
+            .as_ref()
+            .is_none_or(|current| current != &event.run_id)
+        {
+            return false;
+        }
+        if self.events.iter().any(|existing| existing.id == event.id) {
+            return false;
+        }
+
+        self.events.push(event);
+        self.trim_to_max();
+        true
     }
 
     fn trim_to_max(&mut self) {
@@ -167,5 +171,86 @@ impl EventStore {
             .iter()
             .filter_map(context_card_from_event)
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+
+    fn temp_workdir() -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "oculeau-ui-event-store-{}-{stamp}",
+            std::process::id()
+        ));
+        fs::create_dir_all(path.join(OCULEAU_DIR).join(RUNS_DIR)).expect("create temp runs");
+        path
+    }
+
+    fn event_line(id: &str, run_id: &str, seq: u64) -> String {
+        format!(
+            "{{\"id\":\"{id}\",\"seq\":{seq},\"runId\":\"{run_id}\",\"turn\":1,\"phase\":\"post_llm\",\"channel\":\"trace\",\"kind\":\"thinking\",\"ts\":1,\"payload\":{{\"body\":\"{id}\"}}}}\n"
+        )
+    }
+
+    #[test]
+    fn keeps_loaded_events_when_active_segment_rotates() {
+        let workdir = temp_workdir();
+        let runs = workdir.join(OCULEAU_DIR).join(RUNS_DIR);
+        let active = runs.join("run-1.active.jsonl");
+        fs::write(&active, event_line("event-1", "run-1", 1)).expect("write first");
+
+        let mut store = EventStore::new(workdir.clone());
+        store
+            .set_run_id(Some("run-1".to_string()))
+            .expect("load first");
+        assert_eq!(store.events.len(), 1);
+
+        fs::remove_file(&active).expect("remove rotated active");
+        assert!(!store.reload_active_segment().expect("missing active"));
+        assert_eq!(store.events.len(), 1);
+
+        fs::write(&active, event_line("event-2", "run-1", 2)).expect("write second");
+        assert!(store.reload_active_segment().expect("load replacement"));
+        assert_eq!(store.events.len(), 2);
+
+        fs::remove_dir_all(workdir).ok();
+    }
+
+    #[test]
+    fn switches_run_and_ignores_previous_active_file() {
+        let workdir = temp_workdir();
+        let runs = workdir.join(OCULEAU_DIR).join(RUNS_DIR);
+        fs::write(
+            runs.join("run-1.active.jsonl"),
+            event_line("event-1", "run-1", 1),
+        )
+        .expect("write first run");
+        fs::write(
+            runs.join("run-2.active.jsonl"),
+            event_line("event-2", "run-2", 1),
+        )
+        .expect("write second run");
+
+        let mut store = EventStore::new(workdir.clone());
+        store
+            .set_run_id(Some("run-1".to_string()))
+            .expect("load first run");
+        assert_eq!(store.events[0].run_id, "run-1");
+
+        store
+            .set_run_id(Some("run-2".to_string()))
+            .expect("load second run");
+        assert_eq!(store.events.len(), 1);
+        assert_eq!(store.events[0].run_id, "run-2");
+
+        fs::remove_dir_all(workdir).ok();
     }
 }

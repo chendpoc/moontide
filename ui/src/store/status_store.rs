@@ -38,6 +38,7 @@ impl StatusStore {
         let parsed: StatusSnapshot = serde_json::from_str(&raw)?;
         let changed = parsed.phase != self.snapshot.phase
             || parsed.model != self.snapshot.model
+            || parsed.run_id != self.snapshot.run_id
             || parsed.turn != self.snapshot.turn
             || parsed.context_pct != self.snapshot.context_pct;
         self.snapshot = parsed;

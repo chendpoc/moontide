@@ -1,6 +1,3 @@
-import fs from "node:fs";
-
-import { AUDIT_LOG_PATH } from "../config.js";
 import { emitDraft } from "../events/bus.js";
 import { checkPermission } from "../permission/index.js";
 
@@ -13,16 +10,13 @@ const HOOKS: Record<string, HookFn[]> = {
 
 function auditToolUse(context: Record<string, unknown>): void {
   const toolName = String(context.tool_name ?? "");
-  const toolInput = context.tool_input ?? {};
-  const line = `${new Date().toISOString()}\t${toolName}\t${JSON.stringify(toolInput)}\n`;
-  fs.appendFileSync(AUDIT_LOG_PATH, line, "utf8");
 
   emitDraft({
     turn: Number(context.turn ?? 0),
     phase: "post_tool",
     channel: "audit",
     kind: "tool_use",
-    payload: { toolName, toolInput },
+    payload: { toolName },
     preview: toolName,
   });
 }

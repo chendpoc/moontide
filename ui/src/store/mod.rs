@@ -12,7 +12,11 @@ pub struct SharedStores {
 }
 
 pub fn reload_all(stores: &mut SharedStores) -> Result<()> {
-    stores.events.load_initial()?;
     stores.status.reload()?;
+    let run_id = match stores.status.snapshot().run_id.as_str() {
+        "" => None,
+        value => Some(value.to_string()),
+    };
+    stores.events.set_run_id(run_id)?;
     Ok(())
 }

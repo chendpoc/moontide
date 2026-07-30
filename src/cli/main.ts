@@ -5,6 +5,7 @@ import chalk from "chalk";
 
 import { continueReplAgent } from "../agent/loop.js";
 import { resetSession } from "../context/sessions.js";
+import { resetRun } from "../events/run.js";
 import { setupEventPipeline } from "../events/setup.js";
 import {
   handleReplCommand,
@@ -71,13 +72,17 @@ async function main(): Promise<void> {
         continue;
       }
 
+      const runId = resetRun();
       setReplPhase("running");
       renderStatusLine();
 
-      const { reply } = await continueReplAgent(trimmed, messages, loopCtx);
-
-      setReplPhase("idle");
-      renderStatusLine();
+      let reply: string;
+      try {
+        ({ reply } = await continueReplAgent(trimmed, messages, loopCtx, runId));
+      } finally {
+        setReplPhase("idle");
+        renderStatusLine();
+      }
 
       if (turnCount > 0) {
         console.error(SEPARATOR);

@@ -55,5 +55,5 @@ export function formatStatusLineVerbose(snapshot: StatusSnapshot): string {
 
 /** Legend text for /help. */
 export function formatStatusLineLegend(): string {
-  return "Statusline: context usage % · turn N · /thinking · /verbose · events → .oculeau/events.jsonl";
+  return "Statusline: context usage % · turn N · /thinking · /verbose · events → .oculeau/runs/<runId>.active.jsonl";
 }

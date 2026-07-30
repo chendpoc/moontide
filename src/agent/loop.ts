@@ -11,6 +11,7 @@ import { TOOL_SCHEMAS, executeTool } from "./tools.js";
 import { maybeAutoCompact } from "../context/compact.js";
 import { resetSession } from "../context/sessions.js";
 import { emitFinalReply, emitUserPrompt } from "../events/conversation.js";
+import { finalizeRunOutputs } from "../events/bus.js";
 import { runPhase } from "../events/orchestrator.js";
 import { resetRun } from "../events/run.js";
 import { setupEventPipeline } from "../events/setup.js";
@@ -121,29 +122,36 @@ export async function agentLoop(
 export async function runAgent(userPrompt: string): Promise<string> {
   setupEventPipeline();
   resetSession();
-  resetRun();
+  const runId = resetRun();
 
   emitUserPrompt(userPrompt);
 
-  const messages: MessageParam[] = [{ role: "user", content: userPrompt }];
-  const { reply, turn } = await agentLoop(messages);
-
-  emitFinalReply(turn, reply);
-  return reply;
+  try {
+    const messages: MessageParam[] = [{ role: "user", content: userPrompt }];
+    const { reply, turn } = await agentLoop(messages);
+    emitFinalReply(turn, reply);
+    return reply;
+  } finally {
+    finalizeRunOutputs(runId);
+  }
 }
 
 export async function continueReplAgent(
   userPrompt: string,
   messages: MessageParam[],
   loopCtx: LoopContext = createDefaultLoopContext(),
+  preparedRunId?: string,
 ): Promise<{ reply: string; turn: number }> {
-  resetRun();
+  const runId = resetRun(preparedRunId);
 
   emitUserPrompt(userPrompt);
 
-  messages.push({ role: "user", content: userPrompt });
-  const result = await agentLoop(messages, loopCtx);
-
-  emitFinalReply(result.turn, result.reply);
-  return result;
+  try {
+    messages.push({ role: "user", content: userPrompt });
+    const result = await agentLoop(messages, loopCtx);
+    emitFinalReply(result.turn, result.reply);
+    return result;
+  } finally {
+    finalizeRunOutputs(runId);
+  }
 }

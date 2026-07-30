@@ -1,6 +1,8 @@
 # Oculeau
 
-一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；**AgentEvent** 写入 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
+一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
+
+当前开发优先级与非目标见 [`docs/PLAN.md`](docs/PLAN.md)。
 
 ## 项目结构
 
@@ -41,7 +43,7 @@ Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
 ## AgentEvent 架构
 
-每次 agent run 产生结构化 `AgentEvent`，**始终 append** 到 `workdir/.oculeau/events.jsonl`。插件通过 **phase slot** 注册：
+每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.oculeau/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
 
 ```
 pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
@@ -62,7 +64,8 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 |------|------|
 | **stdout** | 每轮 agent 最终 reply |
 | **stderr** | statusline、prompt、分隔线；**thinking/verbose 开启时**实时 trace/context |
-| **`.oculeau/events.jsonl`** | 全量结构化事件（始终写入） |
+| **`.oculeau/runs/<runId>.active.jsonl`** | 当前 run 的实时结构化事件 |
+| **`.oculeau/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
 
 ### Thinking / Verbose（调试观测，**默认关闭**）
 
@@ -72,7 +75,7 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 | **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULEAU_THINKING=1` |
 | **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ audit/conversation `EVENT` 标记 | `/verbose on` 或 `OCULEAU_VERBOSE=1` |
 
-`.oculeau/events.jsonl` **始终写入**；thinking/verbose 只控制 stderr 是否同步打印美化块。
+run event log **始终写入**；thinking/verbose 只控制 stderr 是否同步打印美化块。
 
 ```sh
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
@@ -166,8 +169,6 @@ Oculeau idle · context 12.3% · turn 2
 
 | 变量 | 作用 |
 |------|------|
-| `OCULEAU_EVENTS_LOG` | events jsonl 路径（默认 `.oculeau/events.jsonl`） |
-| `OCULEAU_CONTEXT_LOG` | context 报告 jsonl |
 | `OCULEAU_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
 | `OCULEAU_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
 | `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
@@ -199,7 +200,7 @@ Git hooks（[husky](https://typicode.github.io/husky/) + [lint-staged](https://g
 
 ## Desktop UI（Slint sidecar）
 
-只读桌面 UI 位于 [`ui/`](ui/)：tail `workdir/.oculeau/events.jsonl`，展示 Trace / Chat / Context 多 tab。与 REPL 通过文件 sidecar 通信，无 IPC。
+只读桌面 UI 位于 [`ui/`](ui/)：根据 `status.json.runId` tail 当前 `<runId>.active.jsonl`，展示 Trace / Chat / Context 多 tab。UI 不读取 gzip 历史；与 REPL 通过文件 sidecar 通信，无 IPC。
 
 ```sh
 pnpm dev      # Terminal 1
