@@ -5,9 +5,9 @@ import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { executeTool } from "../src/agent/tools.js";
+import { executeTool } from "../src/agent/tools/index.js";
 import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/builtins/git.js";
-import { checkPermission } from "../src/permission/index.js";
+import { checkPermission } from "../src/agent/pipeline/permission/index.js";
 
 let tmpDir = "";
 

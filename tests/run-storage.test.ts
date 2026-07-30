@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { continueReplAgent } from "../src/agent/loop.js";
 import { getWorkdir, setWorkdir } from "../src/config.js";
 import { resetEventPlatform, setupEventPipeline } from "../src/events/setup.js";
-import * as llm from "../src/llm.js";
-import type { UserInteraction } from "../src/toolkit/types.js";
+import * as llm from "../src/llm/client/anthropic.js";
+import type { UserInteraction } from "../src/agent/tools/types.js";
 
 let tmpDir = "";
 let originalWorkdir = "";

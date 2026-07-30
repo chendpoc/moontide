@@ -1,5 +1,5 @@
 import { compactAutoDefault, getWorkdir } from "../config.js";
-import type { ToolContext, UserInteraction } from "../toolkit/types.js";
+import type { ToolContext, UserInteraction } from "./tools/types.js";
 
 export interface LoopContext {
   userInteraction: UserInteraction;

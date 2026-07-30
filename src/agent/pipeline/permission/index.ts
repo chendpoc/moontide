@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/names.js";
 import { matchesDestructiveAsk, matchesGitAsk, matchesGrepAsk, matchesNetworkAsk, matchesSystemDeny } from "./patterns.js";
 import { escapesWorkspace } from "./path.js";
 
@@ -35,23 +36,23 @@ export function checkPermission(
   toolInput: Record<string, unknown>,
 ): Decision {
   switch (toolName) {
-    case "bash":
+    case TOOL_NAMES.BASH:
       return checkBash(String(toolInput.command ?? ""));
 
-    case "read_file":
+    case TOOL_NAMES.READ_FILE:
       return checkWorkspacePath(String(toolInput.path ?? ""));
 
-    case "write_file":
-    case "edit_file":
+    case TOOL_NAMES.WRITE_FILE:
+    case TOOL_NAMES.EDIT_FILE:
       return checkWorkspacePath(String(toolInput.path ?? ""));
 
-    case "code_repl":
+    case TOOL_NAMES.CODE_REPL:
       return "allow";
 
-    case "deep_research":
+    case TOOL_NAMES.DEEP_RESEARCH:
       return "ask";
 
-    case "http_fetch":
+    case TOOL_NAMES.HTTP_FETCH:
       return "ask";
 
     default:

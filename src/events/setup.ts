@@ -1,8 +1,11 @@
 import { setOutputs } from "./bus.js";
 import type { EventOutput } from "./bus.js";
-import { registerAllPlugins } from "./register-plugins.js";
+
 import { JsonlWriter } from "./outputs/jsonl.js";
 import { StderrRenderer } from "./outputs/stderr-renderer.js";
+
+import { resetPlugins } from "../agent/pipeline/registry.js";
+
 
 function configureOutputs(): void {
   const eventOutputs: EventOutput[] = [new JsonlWriter(), new StderrRenderer()];
@@ -10,7 +13,7 @@ function configureOutputs(): void {
 }
 
 export function setupEventPipeline(): void {
-  registerAllPlugins();
+  resetPlugins();
   configureOutputs();
 }
 

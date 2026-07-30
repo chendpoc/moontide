@@ -1,7 +1,8 @@
 import path from "node:path";
 
-import { getWorkdir } from "../config.js";
+import { getWorkdir } from "../../../config.js";
 
+// function: is file outside workspace
 export function escapesWorkspace(filePath: string): boolean {
   const workdir = getWorkdir();
   const raw = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(workdir, filePath);

@@ -1,14 +1,9 @@
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import type { LLMCallRecord, ToolUseRecord } from "../../agent/pipeline/types.js";
+import { toolResultContent } from "../../agent/pipeline/tool-result.js";
 import type { EventDraft } from "../../events/types.js";
-
-function truncate(text: string, max = 40): string {
-  const oneLine = text.replace(/\s+/g, " ").trim();
-  if (oneLine.length <= max) {
-    return oneLine;
-  }
-  return `${oneLine.slice(0, max - 1)}…`;
-}
+import { truncateOneLine } from "../../utils/text.js";
 
 function previewInput(input: Record<string, unknown>): string {
   const parts = Object.entries(input)
@@ -35,7 +30,7 @@ export function collectFromResponse(
           body: block.thinking,
           charCount: block.thinking.length,
         },
-        preview: truncate(block.thinking),
+        preview: truncateOneLine(block.thinking),
       });
       continue;
     }
@@ -50,7 +45,7 @@ export function collectFromResponse(
           body: block.text,
           charCount: block.text.length,
         },
-        preview: truncate(block.text),
+        preview: truncateOneLine(block.text),
       });
       continue;
     }
@@ -77,6 +72,34 @@ export function collectFromResponse(
   return drafts;
 }
 
+export function collectFromLLMCall(record: LLMCallRecord): EventDraft[] {
+  if (record.outcome.status === "failed") {
+    return [];
+  }
+  return collectFromResponse(record.outcome.response, record.turn);
+}
+
+export function collectFromToolUse(record: ToolUseRecord): EventDraft[] {
+  const body = toolResultContent(record.outcome);
+  return [
+    {
+      turn: record.turn,
+      phase: "post_tool",
+      channel: "trace",
+      kind: "tool_result",
+      payload: {
+        body,
+        toolName: record.toolName,
+        toolUseId: record.toolUseId,
+        charCount: body.length,
+        status: record.outcome.status,
+      },
+      preview: truncateOneLine(body),
+    },
+  ];
+}
+
+/** @deprecated Use collectFromToolUse — snake_case ctx for legacy callers. */
 export function collectFromToolResult(ctx: Record<string, unknown>): EventDraft[] {
   const turn = Number(ctx.turn ?? 0);
   const toolName = String(ctx.tool_name ?? "tool");
@@ -95,12 +118,11 @@ export function collectFromToolResult(ctx: Record<string, unknown>): EventDraft[
         toolUseId,
         charCount: output.length,
       },
-      preview: truncate(output),
+      preview: truncateOneLine(output),
     },
   ];
 }
 
-/** Convenience wrapper used by trace register slot. */
 export function collectToolResult(
   turn: number,
   toolName: string,

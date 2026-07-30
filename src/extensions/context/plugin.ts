@@ -6,59 +6,65 @@ import {
   updateSessionFromSnapshot,
 } from "../../context/sessions.js";
 import type { ContextReport } from "../../context/types.js";
+import type { AgentPlugin, LLMCallRecord } from "../../agent/pipeline/types.js";
 import type { EventDraft } from "../../events/types.js";
-import { registerSlot } from "../../events/orchestrator.js";
 
 function reportPayload(report: ContextReport): Record<string, unknown> {
   return { report: structuredClone(report) as unknown as Record<string, unknown> };
 }
 
-function handlePreLlmContext(ctx: Record<string, unknown>): EventDraft[] {
-  const snapshot = buildSnapshot(ctx);
-  const report = buildContextReport(snapshot, getPreviousEstimated());
+function formatMetricsPreview(report: ContextReport): string {
+  const usage = report.usage;
+  if (usage?.inputTokens !== undefined) {
+    const outTok = usage.outputTokens ?? 0;
+    return `in=${usage.inputTokens} out=${outTok}`;
+  }
+  const kind = report.exactTokens !== undefined ? "exact" : "est";
+  const tokens = report.exactTokens ?? report.estimatedTokens;
+  return `est ${tokens}/${report.limit} ${kind}`;
+}
+
+function buildContextMetricsDraft(record: LLMCallRecord): EventDraft[] {
+  const snapshot = buildSnapshot({
+    turn: record.turn,
+    messages: record.request.messages,
+    system: record.request.system,
+    tools: record.request.tools,
+    response:
+      record.outcome.status === "succeeded" ? record.outcome.response : undefined,
+  });
+
+  let report = buildContextReport(snapshot, getPreviousEstimated());
   updateSessionFromSnapshot(snapshot, report);
 
-  return [
-    {
-      turn: snapshot.turn,
-      phase: "pre_llm",
-      channel: "context",
-      kind: "metrics_pre",
-      payload: reportPayload(report),
-      preview: `est ${report.estimatedTokens}/${report.limit}`,
-    },
-  ];
-}
-
-function handlePostLlmContext(ctx: Record<string, unknown>): EventDraft[] {
-  const snapshot = buildSnapshot(ctx);
-  let report = buildContextReport(snapshot, getPreviousEstimated());
-
-  const usage = snapshot.response?.usage;
-  if (usage) {
-    report = withUsage(report, {
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
-    });
-    updateLatestReport(report);
+  if (record.outcome.status === "succeeded") {
+    const usage = record.outcome.response.usage;
+    if (usage) {
+      report = withUsage(report, {
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+      });
+      updateLatestReport(report);
+    }
   }
 
-  const inTok = report.usage?.inputTokens ?? report.estimatedTokens;
-  const outTok = report.usage?.outputTokens ?? 0;
-
   return [
     {
-      turn: snapshot.turn,
+      turn: record.turn,
       phase: "post_llm",
       channel: "context",
-      kind: "metrics_post",
+      kind: "context_metrics",
       payload: reportPayload(report),
-      preview: `in=${inTok} out=${outTok}`,
+      preview: formatMetricsPreview(report),
     },
   ];
 }
 
-export function registerContextPlugin(): void {
-  registerSlot("pre_llm:context", handlePreLlmContext);
-  registerSlot("post_llm:context", handlePostLlmContext);
+export function contextPlugin(): AgentPlugin {
+  return {
+    name: "context",
+    onLLMCall(record) {
+      return buildContextMetricsDraft(record);
+    },
+  };
 }

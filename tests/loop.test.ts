@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoopContext } from "../src/agent/deps.js";
 import { setWorkdir } from "../src/config.js";
 import { agentLoop } from "../src/agent/loop.js";
-import * as llm from "../src/llm.js";
-import type { UserInteraction } from "../src/toolkit/types.js";
+import * as llm from "../src/llm/client/anthropic.js";
+import type { UserInteraction } from "../src/agent/tools/types.js";
 
 let tmpDir = "";
 
@@ -96,7 +96,7 @@ describe("agentLoop", () => {
     expect(messages).toHaveLength(4);
   });
 
-  it("blocks deny-class tools via PreToolUse hook", async () => {
+  it("blocks deny-class tools via Tool Use Module", async () => {
     vi.spyOn(llm, "chat")
       .mockResolvedValueOnce(
         assistantMessage(

@@ -8,8 +8,7 @@ import {
 import { buildContextReport } from "./analyze.js";
 import { estimateBreakdown } from "./metrics.js";
 import { buildSnapshot } from "./snapshot.js";
-import { emitDraft } from "../events/bus.js";
-import { extractText, getClient } from "../llm.js";
+import { extractText, getClient } from "../llm/client/anthropic.js";
 import { buildSystemPrompt } from "../agent/prompt.js";
 
 const COMPACT_PLACEHOLDER_PREFIX = "[compact:";
@@ -257,40 +256,18 @@ export async function summarizeCompact(
   };
 }
 
-export function emitCompactEvent(
-  turn: number,
-  result: CompactResult,
-  mode: "prune" | "summary" | "auto",
-): void {
-  emitDraft({
-    turn,
-    phase: "pre_llm",
-    channel: "context",
-    kind: "context_compact",
-    payload: {
-      mode,
-      beforeTokens: result.beforeTokens,
-      afterTokens: result.afterTokens,
-      savedTokens: result.beforeTokens - result.afterTokens,
-      truncatedToolResults: result.truncatedToolResults,
-      keepFromIndex: result.keepFromIndex,
-    },
-    preview: `${mode} ${result.beforeTokens}→${result.afterTokens}`,
-  });
-}
-
-export function maybeAutoCompact(
+/** Pure: decide whether auto-compact should run and compute the pruned messages. */
+export function computeAutoCompact(
   messages: MessageParam[],
   system: string,
   tools: Tool[],
-  turn: number,
   enabled: boolean,
 ): CompactResult | null {
   if (!enabled || messages.length === 0) {
     return null;
   }
 
-  const snapshot = buildSnapshot({ turn, messages, system, tools });
+  const snapshot = buildSnapshot({ turn: 0, messages, system, tools });
   const report = buildContextReport(snapshot);
   if (report.percentUsed < compactThreshold()) {
     return null;
@@ -301,8 +278,6 @@ export function maybeAutoCompact(
     return null;
   }
 
-  messages.splice(0, messages.length, ...result.messages);
-  emitCompactEvent(turn, result, "auto");
   return result;
 }
 
