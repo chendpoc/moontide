@@ -1,7 +1,8 @@
 import chalk from "chalk";
 
 import type { AgentEvent } from "../types.js";
-import { padTurn, truncate } from "./shared.js";
+import { padTurn } from "./shared.js";
+import { truncateOneLine } from "../../utils/text.js";
 
 const theme = {
   rail: chalk.gray,
@@ -49,23 +50,23 @@ export function formatTraceEvent(event: AgentEvent): string | null {
       return formatTraceStep(
         event,
         meta,
-        `"${truncate(String(event.payload.body ?? event.preview ?? ""))}"`,
+        `"${truncateOneLine(String(event.payload.body ?? event.preview ?? ""))}"`,
       );
     case "tool_use": {
       const toolName = String(event.payload.toolName ?? "tool");
-      const preview = event.preview ?? truncate(String(event.payload.body ?? ""));
+      const preview = event.preview ?? truncateOneLine(String(event.payload.body ?? ""));
       return formatTraceStep(event, meta, preview, `${toolName}  `);
     }
     case "tool_result": {
       const toolName = String(event.payload.toolName ?? "tool");
-      const preview = truncate(String(event.payload.body ?? event.preview ?? ""));
+      const preview = truncateOneLine(String(event.payload.body ?? event.preview ?? ""));
       return formatTraceStep(event, meta, preview, `${toolName}  `);
     }
     case "assistant_text":
       return formatTraceStep(
         event,
         meta,
-        truncate(String(event.payload.body ?? event.preview ?? "")),
+        truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
       );
     default:
       return null;

@@ -11,7 +11,7 @@ function baseEvent(partial: Partial<AgentEvent>): AgentEvent {
     turn: 1,
     phase: "pre_llm",
     channel: "context",
-    kind: "metrics_pre",
+    kind: "context_metrics",
     ts: Date.now(),
     payload: {},
     ...partial,
@@ -54,6 +54,6 @@ describe("enrichEvent", () => {
     );
     const line = JSON.stringify(enriched);
     expect(() => JSON.parse(line)).not.toThrow();
-    expect(JSON.parse(line).summary).toContain("context/metrics_pre");
+    expect(JSON.parse(line).summary).toContain("context/context_metrics");
   });
 });

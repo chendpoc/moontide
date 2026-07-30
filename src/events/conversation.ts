@@ -1,4 +1,5 @@
 import { emitDraft } from "./bus.js";
+import { truncateOneLine } from "../utils/text.js";
 
 export function emitUserPrompt(prompt: string): void {
   emitDraft({
@@ -7,7 +8,7 @@ export function emitUserPrompt(prompt: string): void {
     channel: "conversation",
     kind: "user_prompt",
     payload: { text: prompt },
-    preview: prompt.length > 80 ? `${prompt.slice(0, 79)}…` : prompt,
+    preview: truncateOneLine(prompt, 80),
   });
 }
 
@@ -18,6 +19,6 @@ export function emitFinalReply(turn: number, text: string): void {
     channel: "conversation",
     kind: "final",
     payload: { text },
-    preview: text.length > 80 ? `${text.slice(0, 79)}…` : text,
+    preview: truncateOneLine(text, 80),
   });
 }

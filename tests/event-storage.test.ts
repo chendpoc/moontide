@@ -4,9 +4,12 @@ import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { JsonlWriter, RUNS_DIR } from "../src/events/outputs/jsonl.js";
+import { JsonlWriter } from "../src/events/outputs/jsonl.js";
 import {
   MAX_PERSISTED_EVENT_BYTES,
+  RUNS_DIR,
+} from "../src/constants/storage.js";
+import {
   serializePersistedEvent,
 } from "../src/events/persist.js";
 import type { AgentEvent } from "../src/events/types.js";
@@ -71,7 +74,7 @@ describe("persisted event projection", () => {
     writer.handle(
       event("run-2", {
         channel: "context",
-        kind: "metrics_pre",
+        kind: "context_metrics",
         phase: "pre_llm",
         payload: {
           report: {
@@ -123,6 +126,33 @@ describe("persisted event projection", () => {
     expect(persisted[1]?.payload).not.toHaveProperty("body");
     expect(persisted[1]?.preview).toBe("read_file");
     expect(persisted[2]?.payload).toEqual({ toolName: "read_file" });
+  });
+
+  it("keeps plugin_error diagnostics on the audit channel", () => {
+    const writer = new JsonlWriter({ workdir: tmpDir });
+    const failure = {
+      plugin: "trace",
+      hook: "onToolUse",
+      runId: "run-plugin",
+      toolName: "read_file",
+      toolUseId: "toolu_1",
+      message: "trace blew up",
+      stack: "Error: trace blew up\n    at onToolUse",
+    };
+
+    writer.handle(
+      event("run-plugin", {
+        channel: "audit",
+        kind: "plugin_error",
+        phase: "post_tool",
+        payload: failure,
+        preview: "trace/onToolUse",
+      }),
+    );
+
+    const activePath = path.join(runsDir(), "run-plugin.active.jsonl");
+    const persisted = readJsonl(activePath);
+    expect(persisted[0]?.payload).toEqual(failure);
   });
 
   it("caps a Unicode event at 64 KiB and keeps valid JSON", () => {

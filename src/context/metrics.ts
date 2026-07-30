@@ -1,6 +1,7 @@
 import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { countTokens } from "../llm.js";
+import { countTokens } from "../llm/client/anthropic.js";
+import { truncateOneLine } from "../utils/text.js";
 import type {
   ContextSnapshot,
   ContextStructure,
@@ -36,11 +37,7 @@ export function estimateJsonTokens(value: unknown): number {
 }
 
 function previewText(text: string): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized.length <= PREVIEW_LIMIT) {
-    return normalized;
-  }
-  return `${normalized.slice(0, PREVIEW_LIMIT)}...`;
+  return truncateOneLine(text, PREVIEW_LIMIT, "...");
 }
 
 function blockContentText(content: unknown): string {
@@ -162,7 +159,7 @@ export function analyzeStructure(snapshot: ContextSnapshot): ContextStructure {
 }
 
 function formatToolResultPreview(toolUseId: string | undefined, content: string): string {
-  const snippet = previewText(content);
+  const snippet = truncateOneLine(content, PREVIEW_LIMIT, "...");
   if (!toolUseId) {
     return snippet;
   }

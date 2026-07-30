@@ -120,6 +120,65 @@ function formatMetricsPost(event: AgentEvent, report: ContextReport): string {
   return lines.join("\n");
 }
 
+function formatContextMetrics(event: AgentEvent, report: ContextReport): string {
+  const usage = report.usage;
+  const kind = report.exactTokens !== undefined ? "exact" : "est";
+  const tokens = report.exactTokens ?? report.estimatedTokens;
+  const title = `CONTEXT · turn ${padTurn(event.turn)}`;
+
+  const lines = [boxTop(title)];
+
+  if (usage?.inputTokens !== undefined) {
+    lines.push(
+      boxLine(
+        `${theme.key("Usage")}  ${theme.value(`in=${fmt(usage.inputTokens)}  out=${fmt(usage.outputTokens ?? 0)}`)}`,
+        BOX_WIDTH,
+      ),
+    );
+  } else {
+    lines.push(
+      boxLine(
+        `${theme.key("Tokens")}  ${theme.value(`${fmt(tokens)} / ${fmt(report.limit)}`)}  ${kind}`,
+        BOX_WIDTH,
+      ),
+    );
+    lines.push(
+      boxLine(
+        `${theme.key("Usage")}   ${theme.value(`${report.percentUsed.toFixed(1)}%`)}  ${tokenBar(report.percentUsed)}`,
+        BOX_WIDTH,
+      ),
+    );
+    lines.push(boxLine(`${theme.key("Headroom")} ${theme.value(fmt(report.headroom))}`, BOX_WIDTH));
+  }
+
+  if (report.trend && usage?.inputTokens !== undefined) {
+    const delta = report.trend.deltaTokens;
+    const deltaStr = delta >= 0 ? `+${fmt(delta)}` : fmt(delta);
+    lines.push(
+      boxLine(
+        `${theme.key("Trend")}  ${theme.value(`Δ ${deltaStr}  cumulative ${fmt(report.trend.cumulativeTokens)}`)}`,
+        BOX_WIDTH,
+      ),
+    );
+  }
+
+  if (isVerboseEnabled()) {
+    lines.push(...formatBreakdown(report));
+    if (report.structure.messageCount > 0) {
+      lines.push(
+        boxLine(
+          `msgs ${report.structure.messageCount}  tool calls ${report.structure.toolCallCount}`,
+          BOX_WIDTH,
+        ),
+      );
+    }
+  }
+
+  lines.push(...formatAlerts(report));
+  lines.push(boxBottom());
+  return lines.join("\n");
+}
+
 export function formatContextEvent(event: AgentEvent): string | null {
   if (event.kind === "context_compact") {
     const before = Number(event.payload.beforeTokens ?? 0);
@@ -135,10 +194,14 @@ export function formatContextEvent(event: AgentEvent): string | null {
     return null;
   }
 
-  if (event.kind === "metrics_pre") {
+  if (event.kind === "context_metrics") {
+    return formatContextMetrics(event, report);
+  }
+  const legacyKind = event.kind as string;
+  if (legacyKind === "metrics_pre") {
     return formatMetricsPre(event, report);
   }
-  if (event.kind === "metrics_post") {
+  if (legacyKind === "metrics_post") {
     const block = formatMetricsPost(event, report);
     return block || null;
   }

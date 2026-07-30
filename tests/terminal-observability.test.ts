@@ -13,7 +13,7 @@ import {
   resetTerminalRenderState,
   shouldPrintTerminalEvent,
 } from "../src/events/format/terminal.js";
-import { stripAnsi } from "../src/events/format/shared.js";
+import { stripAnsi } from "../src/utils/text.js";
 import { StderrRenderer } from "../src/events/outputs/stderr-renderer.js";
 import { setStderrWriterForTest } from "../src/events/outputs/stderr-writer.js";
 import type { AgentEvent } from "../src/events/types.js";
@@ -126,7 +126,7 @@ describe("terminal event formatting", () => {
       ),
     ).toBe(false);
     expect(
-      shouldPrintTerminalEvent(baseEvent({ channel: "context", kind: "metrics_pre" })),
+      shouldPrintTerminalEvent(baseEvent({ channel: "context", kind: "context_metrics" })),
     ).toBe(false);
   });
 
@@ -134,7 +134,7 @@ describe("terminal event formatting", () => {
     setVerboseOverride(true);
 
     expect(
-      shouldPrintTerminalEvent(baseEvent({ channel: "context", kind: "metrics_pre" })),
+      shouldPrintTerminalEvent(baseEvent({ channel: "context", kind: "context_metrics" })),
     ).toBe(true);
     expect(
       shouldPrintTerminalEvent(
@@ -171,7 +171,7 @@ describe("terminal event formatting", () => {
     const block = formatTerminalEventBlock(
       baseEvent({
         channel: "context",
-        kind: "metrics_pre",
+        kind: "context_metrics",
         payload: { report: sampleReport() },
       }),
     );
@@ -220,7 +220,7 @@ describe("terminal event formatting", () => {
       baseEvent({
         turn: 1,
         channel: "context",
-        kind: "metrics_pre",
+        kind: "context_metrics",
         payload: { report: sampleReport() },
       }),
       "context-line",

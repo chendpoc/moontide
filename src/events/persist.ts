@@ -1,7 +1,7 @@
 import { enrichEvent } from "./enrich.js";
+import { MAX_PERSISTED_EVENT_BYTES } from "../constants/storage.js";
+import { byteLengthUtf8, truncateUtf8 } from "../utils/utf8.js";
 import type { AgentEvent, EnrichedAgentEvent } from "./types.js";
-
-export const MAX_PERSISTED_EVENT_BYTES = 64 * 1024;
 
 export interface PersistedAgentEvent extends EnrichedAgentEvent {
   truncated?: boolean;
@@ -12,23 +12,6 @@ export interface SerializedEvent {
   event: PersistedAgentEvent;
   line: string;
   bytes: number;
-}
-
-function byteLength(text: string): number {
-  return Buffer.byteLength(text, "utf8");
-}
-
-function truncateUtf8(text: string, maxBytes: number): string {
-  if (byteLength(text) <= maxBytes) {
-    return text;
-  }
-
-  const bytes = Buffer.from(text, "utf8");
-  let end = Math.min(bytes.length, maxBytes);
-  while (end > 0 && end < bytes.length && (bytes[end]! & 0xc0) === 0x80) {
-    end -= 1;
-  }
-  return bytes.subarray(0, end).toString("utf8");
 }
 
 function projectContextPayload(
@@ -52,7 +35,7 @@ function projectPayload(event: AgentEvent): Record<string, unknown> {
     return projectContextPayload(event.payload);
   }
 
-  if (event.channel === "audit") {
+  if (event.channel === "audit" && event.kind === "tool_use") {
     return {
       toolName: event.payload.toolName,
     };
@@ -127,7 +110,7 @@ function serialize(event: PersistedAgentEvent): SerializedEvent {
   return {
     event,
     line,
-    bytes: byteLength(line),
+    bytes: byteLengthUtf8(line),
   };
 }
 

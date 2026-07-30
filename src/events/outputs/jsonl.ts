@@ -2,21 +2,23 @@ import fs from "node:fs";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-import { DATA_DIR, getWorkdir } from "../../config.js";
+import { getWorkdir } from "../../config.js";
+import {
+  ACTIVE_EVENTS_SUFFIX,
+  ARCHIVE_EVENTS_SUFFIX,
+  DATA_DIR,
+  GZIP_LEVEL,
+  MAX_ARCHIVE_BYTES,
+  MAX_COMPLETED_RUNS,
+  RUNS_DIR,
+  SEALED_EVENTS_SUFFIX,
+  SEGMENT_LIMIT_BYTES,
+  TEMP_ARCHIVE_SUFFIX,
+} from "../../constants/storage.js";
+import { escapeRegExp } from "../../utils/text.js";
 import type { EventOutput } from "../bus.js";
 import { serializePersistedEvent } from "../persist.js";
 import type { AgentEvent } from "../types.js";
-
-export const RUNS_DIR = "runs";
-export const SEGMENT_LIMIT_BYTES = 5 * 1024 * 1024;
-export const MAX_COMPLETED_RUNS = 20;
-export const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024;
-export const GZIP_LEVEL = 2;
-
-const ACTIVE_SUFFIX = ".active.jsonl";
-const SEALED_SUFFIX = ".jsonl.sealed";
-const ARCHIVE_SUFFIX = ".jsonl.gz";
-const TEMP_SUFFIX = ".jsonl.gz.tmp";
 
 export interface JsonlWriterOptions {
   workdir?: string;
@@ -33,13 +35,9 @@ interface RunArchive {
   mtimeMs: number;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function activeRunId(fileName: string): string | null {
-  return fileName.endsWith(ACTIVE_SUFFIX)
-    ? fileName.slice(0, -ACTIVE_SUFFIX.length)
+  return fileName.endsWith(ACTIVE_EVENTS_SUFFIX)
+    ? fileName.slice(0, -ACTIVE_EVENTS_SUFFIX.length)
     : null;
 }
 
@@ -131,7 +129,7 @@ export class JsonlWriter implements EventOutput {
   }
 
   private activePath(runsDir: string, runId: string): string {
-    return path.join(runsDir, `${runId}${ACTIVE_SUFFIX}`);
+    return path.join(runsDir, `${runId}${ACTIVE_EVENTS_SUFFIX}`);
   }
 
   private nextSegmentIndex(runsDir: string, runId: string): number {
@@ -151,9 +149,9 @@ export class JsonlWriter implements EventOutput {
   private segmentPaths(runsDir: string, runId: string, index: number) {
     const stem = `${runId}-${String(index).padStart(4, "0")}`;
     return {
-      sealed: path.join(runsDir, `${stem}${SEALED_SUFFIX}`),
-      archive: path.join(runsDir, `${stem}${ARCHIVE_SUFFIX}`),
-      temp: path.join(runsDir, `${stem}${TEMP_SUFFIX}`),
+      sealed: path.join(runsDir, `${stem}${SEALED_EVENTS_SUFFIX}`),
+      archive: path.join(runsDir, `${stem}${ARCHIVE_EVENTS_SUFFIX}`),
+      temp: path.join(runsDir, `${stem}${TEMP_ARCHIVE_SUFFIX}`),
     };
   }
 
@@ -196,7 +194,7 @@ export class JsonlWriter implements EventOutput {
 
   private recoverTemporaryFiles(runsDir: string): void {
     for (const fileName of fs.readdirSync(runsDir)) {
-      if (fileName.endsWith(TEMP_SUFFIX)) {
+      if (fileName.endsWith(TEMP_ARCHIVE_SUFFIX)) {
         fs.unlinkSync(path.join(runsDir, fileName));
       }
     }
@@ -204,13 +202,13 @@ export class JsonlWriter implements EventOutput {
 
   private recoverSealedFiles(runsDir: string): void {
     for (const fileName of fs.readdirSync(runsDir)) {
-      if (!fileName.endsWith(SEALED_SUFFIX)) {
+      if (!fileName.endsWith(SEALED_EVENTS_SUFFIX)) {
         continue;
       }
 
       const sealedPath = path.join(runsDir, fileName);
-      const archivePath = sealedPath.slice(0, -SEALED_SUFFIX.length) + ARCHIVE_SUFFIX;
-      const tempPath = sealedPath.slice(0, -SEALED_SUFFIX.length) + TEMP_SUFFIX;
+      const archivePath = sealedPath.slice(0, -SEALED_EVENTS_SUFFIX.length) + ARCHIVE_EVENTS_SUFFIX;
+      const tempPath = sealedPath.slice(0, -SEALED_EVENTS_SUFFIX.length) + TEMP_ARCHIVE_SUFFIX;
 
       if (fs.existsSync(archivePath)) {
         try {

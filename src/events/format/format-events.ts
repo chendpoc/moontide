@@ -1,7 +1,8 @@
 import chalk from "chalk";
 
 import type { AgentEvent } from "../types.js";
-import { padTurn, truncate } from "./shared.js";
+import { padTurn } from "./shared.js";
+import { truncateOneLine } from "../../utils/text.js";
 
 const theme = {
   marker: chalk.bgMagenta.white.bold,
@@ -27,7 +28,7 @@ function formatConversationEvent(event: AgentEvent): string | null {
 
   if (event.kind === "user_prompt") {
     const text = String(event.payload.text ?? event.preview ?? "");
-    lines.push(theme.border("  │ ") + theme.text(truncate(text, 72)));
+    lines.push(theme.border("  │ ") + theme.text(truncateOneLine(text, 72)));
     return lines.join("\n");
   }
 
@@ -43,7 +44,7 @@ function formatAuditEvent(event: AgentEvent): string | null {
   const toolInput = event.payload.toolInput;
   const inputPreview =
     toolInput && typeof toolInput === "object"
-      ? truncate(JSON.stringify(toolInput), 60)
+      ? truncateOneLine(JSON.stringify(toolInput), 60)
       : "";
 
   const lines = [

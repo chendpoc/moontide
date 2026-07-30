@@ -122,19 +122,19 @@ describe("buildSnapshot", () => {
 });
 
 describe("context plugin metrics events", () => {
-  it("builds metrics_pre payload with ContextReport fields", () => {
+  it("builds context_metrics payload with ContextReport fields", () => {
     const snapshot = makeSnapshot({ turn: 2 });
     const report = buildContextReport(snapshot);
     const draft = {
       turn: snapshot.turn,
-      phase: "pre_llm" as const,
+      phase: "post_llm" as const,
       channel: "context" as const,
-      kind: "metrics_pre" as const,
+      kind: "context_metrics" as const,
       payload: { report },
-      preview: `est ${report.estimatedTokens}/${report.limit}`,
+      preview: `est ${report.estimatedTokens}/${report.limit} est`,
     };
 
-    expect(draft.kind).toBe("metrics_pre");
+    expect(draft.kind).toBe("context_metrics");
     expect(draft.payload.report).toMatchObject({
       turn: 2,
       estimatedTokens: report.estimatedTokens,

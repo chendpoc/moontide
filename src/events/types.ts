@@ -9,9 +9,9 @@ export type AgentKind =
   | "thinking"
   | "tool_use"
   | "tool_result"
-  | "metrics_pre"
-  | "metrics_post"
-  | "context_compact";
+  | "context_metrics"
+  | "context_compact"
+  | "plugin_error";
 
 export interface AgentEvent {
   id: string;
@@ -36,11 +36,3 @@ export type EnrichedAgentEvent = AgentEvent & EventLogMeta;
 
 /** Draft event before id/seq/runId/ts assignment. */
 export type EventDraft = Omit<AgentEvent, "id" | "seq" | "runId" | "ts">;
-
-export type PartialAgentEvent = EventDraft;
-
-export type PhaseSlot =
-  | "pre_llm:context"
-  | "post_llm:trace"
-  | "post_llm:context"
-  | "post_tool:trace";
