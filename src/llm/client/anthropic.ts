@@ -5,7 +5,8 @@ import type {
   Tool,
 } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { apiKey, baseUrl, modelId } from "./config.js";
+import { apiKey, baseUrl, modelId } from "../../config.js";
+import { DEFAULT_MAX_TOKENS } from "../../constants/llm.js";
 
 let client: Anthropic | undefined;
 
@@ -31,7 +32,7 @@ export async function chat(
   messages: MessageParam[],
   tools: Tool[],
   system: string,
-  maxTokens = 8000,
+  maxTokens = DEFAULT_MAX_TOKENS,
 ) {
   return getClient().messages.create({
     model: modelId(),

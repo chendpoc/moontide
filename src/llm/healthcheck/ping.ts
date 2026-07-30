@@ -2,13 +2,15 @@
 /**
  * LLM API smoke test — verify API key, base URL, and model before running the REPL.
  */
-import { modelId } from "../../src/config.js";
-import { extractText, getClient } from "../../src/llm.js";
+import "../../bootstrap.js";
+import { PING_MAX_TOKENS } from "../../constants/llm.js";
+import { modelId } from "../../config.js";
+import { extractText, getClient } from "../client/anthropic.js";
 
 async function ping(userText: string): Promise<string> {
   const response = await getClient().messages.create({
     model: modelId(),
-    max_tokens: 512,
+    max_tokens: PING_MAX_TOKENS,
     messages: [{ role: "user", content: userText }],
   });
   if (!response.content?.length) {
