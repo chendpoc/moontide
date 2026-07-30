@@ -9,16 +9,20 @@
 ```
 oculeau/
 ├── src/
-│   ├── agent/           # loop、prompt、hooks（默认策略）、tools.ts
+│   ├── agent/           # loop、prompt、pipeline、tools/
+│   │   ├── pipeline/    # runLLM、runTool、permission
+│   │   └── tools/       # ToolDefinition、catalog、register-defaults、executeTool
 │   ├── builtins/        # fs-tools、git-tools、askUserQuestion
-│   ├── extensions/      # code-repl、context、trace 扩展
-│   ├── toolkit/         # ToolDefinition、catalog、register-defaults
-│   ├── permission/      # checkPermission 纯策略
+│   ├── extensions/      # code-repl、context、trace、audit 扩展
+│   ├── constants/       # env keys、API URL、存储路径、默认值
+│   ├── utils/           # 跨模块通用纯函数（text、utf8、number、path）
+│   ├── bootstrap.ts     # dotenv 加载、provider env 归一化（入口显式 import）
+│   ├── config.ts        # 运行时配置 accessor（无副作用）
 │   ├── cli/             # main REPL 入口、commands、statusline
-│   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
-│   └── context/         # context window 分析（metrics、sessions）
+│   ├── events/          # AgentEvent bus、pipeline plugins、JSONL writer
+│   ├── context/         # context window 分析（metrics、sessions）
+│   └── llm/             # Anthropic client、healthcheck ping
 ├── scripts/
-│   ├── healthcheck/ping.ts   # LLM API smoke test（pnpm run ping）
 │   └── cursor-statusline.ts
 ├── tests/
 ├── ui/                  # Rust/Slint desktop sidecar（只读 tail JSONL）
@@ -43,17 +47,21 @@ Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
 ## AgentEvent 架构
 
-每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.oculeau/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
+每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.oculeau/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。
+
+插件通过 `AgentPlugin` 注册（`agent/pipeline/registry.ts`），在 LLM / tool 调用完成后观测：
 
 ```
-pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
+runLLM → onLLMCall（trace、context、…）→ runToolUses → onToolUse（trace、audit、…）
 ```
+
+事件上的 `phase` 字段（`pre_llm` / `post_llm` / `post_tool`）仅描述时序，不再用于插件路由。
 
 | 通道 | 内容 |
 |------|------|
 | `conversation` | user_prompt、final |
 | `trace` | thinking、tool_use、tool_result |
-| `context` | metrics_pre、metrics_post、context_compact |
+| `context` | context_metrics、context_compact |
 | `audit` | tool 审计 |
 
 Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文件模式一致）。
@@ -125,8 +133,8 @@ Oculeau idle · context 12.3% · turn 2
 ### 新增 extension tool 模板（`deep_research`）
 
 1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
-2. 在 [`toolkit/register-defaults.ts`](src/toolkit/register-defaults.ts) 条件注册
-3. 在 [`permission/index.ts`](src/permission/index.ts) 添加规则（网络类建议 `ask`）
+2. 在 [`agent/tools/register-defaults.ts`](src/agent/tools/register-defaults.ts) 条件注册
+3. 在 [`pipeline/permission/index.ts`](src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
 
 ### code_repl templates（Tier 1）
 

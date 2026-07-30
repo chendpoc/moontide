@@ -236,6 +236,41 @@ pub fn context_card_from_event(event: &AgentEvent) -> Option<ContextCard> {
         .to_string();
 
     match event.kind.as_str() {
+        "context_metrics" => {
+            if let Some(usage) = report.get("usage") {
+                if let Some(input) = usage.get("inputTokens").and_then(Value::as_i64) {
+                    let output = usage
+                        .get("outputTokens")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(0);
+                    return Some(ContextCard {
+                        title: format!("CONTEXT · turn {}", pad_turn(event.turn)),
+                        line1: format!("Usage  in={}  out={}", fmt_num(input), fmt_num(output)),
+                        line2: String::new(),
+                        line3: String::new(),
+                        line4: String::new(),
+                        alert,
+                    });
+                }
+            }
+            Some(ContextCard {
+                title: format!("CONTEXT · turn {}", pad_turn(event.turn)),
+                line1: format!(
+                    "Tokens  {} / {}  {}",
+                    fmt_num(tokens),
+                    fmt_num(limit),
+                    kind
+                ),
+                line2: format!(
+                    "Usage   {:.1}%  {}",
+                    percent_used,
+                    token_bar(percent_used, 20)
+                ),
+                line3: format!("Headroom {}", fmt_num(headroom)),
+                line4: String::new(),
+                alert,
+            })
+        }
         "metrics_pre" => Some(ContextCard {
             title: format!("CONTEXT · turn {} · pre", pad_turn(event.turn)),
             line1: format!(
