@@ -9,7 +9,5 @@ __pycache__/
 .DS_Store
 .ocula-audit.log
 .ocula/
-.oculeau-audit.log
-.oculeau/
 
 ui/target/

@@ -70,9 +70,6 @@ flowchart TB
 - 不走织物系（Loom / Spool / Motif / Swatch 等已弃）
 - **Aster** 曾为 harness 候选，已由 **Lyra** 代号取代（二者均未用于现行产品名）
 
-### 曾用英文名
-
-**Oculeau**（*oculus* + *eau*）因读音不直观已弃；现行英文品牌为 **Ocula**。
 
 ## Naming non-goals
 
