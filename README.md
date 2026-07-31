@@ -9,20 +9,16 @@
 ```
 oculeau/
 ├── src/
-│   ├── agent/           # loop、prompt、pipeline、tools/
-│   │   ├── pipeline/    # runLLM、runTool、permission
-│   │   └── tools/       # ToolDefinition、catalog、register-defaults、executeTool
+│   ├── agent/           # loop、prompt、hooks（默认策略）、tools.ts
 │   ├── builtins/        # fs-tools、git-tools、askUserQuestion
-│   ├── extensions/      # code-repl、context、trace、audit 扩展
-│   ├── constants/       # env keys、API URL、存储路径、默认值
-│   ├── utils/           # 跨模块通用纯函数（text、utf8、number、path）
-│   ├── bootstrap.ts     # dotenv 加载、provider env 归一化（入口显式 import）
-│   ├── config.ts        # 运行时配置 accessor（无副作用）
+│   ├── extensions/      # code-repl、context、trace 扩展
+│   ├── toolkit/         # ToolDefinition、catalog、register-defaults
+│   ├── permission/      # checkPermission 纯策略
 │   ├── cli/             # main REPL 入口、commands、statusline
-│   ├── events/          # AgentEvent bus、pipeline plugins、JSONL writer
-│   ├── context/         # context window 分析（metrics、sessions）
-│   └── llm/             # Anthropic client、healthcheck ping
+│   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
+│   └── context/         # context window 分析（metrics、sessions）
 ├── scripts/
+│   ├── healthcheck/ping.ts   # LLM API smoke test（pnpm run ping）
 │   └── cursor-statusline.ts
 ├── tests/
 ├── ui/                  # Rust/Slint desktop sidecar（只读 tail JSONL）
@@ -45,23 +41,27 @@ pnpm dev:ui              # Slint sidecar（另开终端，或 REPL 运行时启�
 
 Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
+## LLM Provider 与模型配置
+
+Oculeau 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
+
+设计详述见 [`docs/llm-provider.md`](docs/llm-provider.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/llm-input-mapping.md`](docs/llm-input-mapping.md)。
+
+**今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `OCULEAU_PROVIDER` 与各厂商 key。
+
 ## AgentEvent 架构
 
-每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.oculeau/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。
-
-插件通过 `AgentPlugin` 注册（`agent/pipeline/registry.ts`），在 LLM / tool 调用完成后观测：
+每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.oculeau/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
 
 ```
-runLLM → onLLMCall（trace、context、…）→ runToolUses → onToolUse（trace、audit、…）
+pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
 ```
-
-事件上的 `phase` 字段（`pre_llm` / `post_llm` / `post_tool`）仅描述时序，不再用于插件路由。
 
 | 通道 | 内容 |
 |------|------|
 | `conversation` | user_prompt、final |
 | `trace` | thinking、tool_use、tool_result |
-| `context` | context_metrics、context_compact |
+| `context` | metrics_pre、metrics_post、context_compact |
 | `audit` | tool 审计 |
 
 Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文件模式一致）。
@@ -133,8 +133,8 @@ Oculeau idle · context 12.3% · turn 2
 ### 新增 extension tool 模板（`deep_research`）
 
 1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
-2. 在 [`agent/tools/register-defaults.ts`](src/agent/tools/register-defaults.ts) 条件注册
-3. 在 [`pipeline/permission/index.ts`](src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
+2. 在 [`toolkit/register-defaults.ts`](src/toolkit/register-defaults.ts) 条件注册
+3. 在 [`permission/index.ts`](src/permission/index.ts) 添加规则（网络类建议 `ask`）
 
 ### code_repl templates（Tier 1）
 
@@ -177,6 +177,9 @@ Oculeau idle · context 12.3% · turn 2
 
 | 变量 | 作用 |
 |------|------|
+| `DEEPSEEK_API_KEY` / `MODEL_ID` | LLM API（今天默认 DeepSeek Anthropic 兼容端点） |
+| `OCULEAU_PROVIDER` | Provider preset（目标：`deepseek` \| `kimi` \| `openai` \| `anthropic` \| `gemini` \| `openrouter` \| `custom`） |
+| `OCULEAU_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/llm-provider.md`](docs/llm-provider.md)） |
 | `OCULEAU_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
 | `OCULEAU_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
 | `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
