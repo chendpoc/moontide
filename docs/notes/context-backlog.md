@@ -1,7 +1,7 @@
 # Oculeau Context Window 特性 Backlog
 
 > Context Composer **演进特性**候选：优先级、设计要点、代价与阶段。  
-> **非实现承诺** — 选型与排期以 [`context-composer.md`](context-composer.md) 主路径（C0–C6）为准。
+> **非实现承诺** — 选型与排期以 [`context-composer.md`](../spec/context-composer.md) 主路径（C0–C6）为准。
 
 ---
 
@@ -9,9 +9,9 @@
 
 | 顺序 | 文档 | 内容 |
 |------|------|------|
-| 1 | [`context-composer.md`](context-composer.md) | 已定 Spec：Session Event Log、State Stores、Composer、Compaction / Checkpoint |
+| 1 | [`context-composer.md`](../spec/context-composer.md) | 已定 Spec：Session Event Log、State Stores、Composer、Compaction / Checkpoint |
 | 2 | **本文** | 分账、Structured IR、实验 Compose、backlog 特性、Deferred 项 |
-| 3 | [`context-window-analysis.md`](context-window-analysis.md) | 行业 SOTA 与 CS 类比背景 |
+| 3 | [`context-analysis.md`](context-analysis.md) | 行业 SOTA 与 CS 类比背景 |
 
 ---
 
@@ -119,7 +119,7 @@ export interface BudgetTierUsage {
 
 **对话：** 保持 Session Event Log **时序 + recent tail**；不做全 session 向量化或 knowledge graph（第一版 **非目标**）。
 
-与 [`context-composer.md` §6.3](context-composer.md#63-compaction-record) `StructuredPayload` 对齐；summary 类 Compaction 优先写 IR，再 **渲染** 为模型可见文本。
+与 [`context-composer.md` §6.3](../spec/context-composer.md#63-compaction-record) `StructuredPayload` 对齐；summary 类 Compaction 优先写 IR，再 **渲染** 为模型可见文本。
 
 ### 4.3 依赖与阶段
 
@@ -244,7 +244,7 @@ Compose 时的 **可选实验策略**：
 | | **When（触发）** | **Validate（验证）** |
 |---|------------------|----------------------|
 | 关注点 | 何时执行 Compaction | Compaction **之后** 投影是否仍合法 |
-| 第一版 | token 压力 / 阈值（沿用 [`compact.ts`](../src/context/compact.ts) 思路） | **不做** |
+| 第一版 | token 压力 / 阈值（沿用 [`compact.ts`](../../src/context/compact.ts) 思路） | **不做** |
 | 远期示例 | 分级压力 | instruction 已注入；tool 配对完整；tier 未越界；失败 → mechanical fallback |
 
 Validate 的新意是 **状态转换正确性**（类似 DB constraint），不是替换百分比触发。
@@ -256,7 +256,7 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | 非目标 | 说明 |
 |--------|------|
 | 全 session **对话**向量化 / knowledge graph | 理论阶段；第一版不做 |
-| 后台并行 compaction daemon | 见 context-window-analysis research frontier |
+| 后台并行 compaction daemon | 见 context-analysis research frontier |
 | Vector **跨 session** memory | 远期；不阻塞 C0–C6 |
 | Cherry 式大 context 聚合 UI | 非 Oculeau harness 范围 |
 
@@ -273,13 +273,13 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | 内容寻址 | Artifact CDC |
 | cgroup 分账 | Context Budget Tiers L1–L4 |
 
-详述见 [`context-window-analysis.md`](context-window-analysis.md)。
+详述见 [`context-analysis.md`](context-analysis.md)。
 
 ---
 
 ## 11. 特性 × 实现阶段矩阵
 
-与 [`context-composer.md` §12](context-composer.md#12-后续实现分期代码指引) C0–C6 对齐：
+与 [`context-composer.md` §12](../spec/context-composer.md#12-后续实现分期代码指引) C0–C6 对齐：
 
 | 特性 | 级别 | 建议阶段 | 阻塞于 |
 |------|------|----------|--------|
@@ -298,13 +298,13 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 
 | 文档 | 关系 |
 |------|------|
-| [`context-composer.md`](context-composer.md) | 主 Spec 与 C0–C6 |
-| [`llm-provider.md`](llm-provider.md) | `LLMRequest`、`ModelCapabilities` |
-| [`llm-input-mapping.md`](llm-input-mapping.md) | 三参数对表 |
-| [`context-window-analysis.md`](context-window-analysis.md) | 竞品与 SOTA |
-| [`EVENTS.md`](EVENTS.md) | Agent Event Log |
-| [`VISION.md`](VISION.md) | Bruma 代号 |
-| [`agent.md`](../agent.md) | 文档用词 |
+| [`context-composer.md`](../spec/context-composer.md) | 主 Spec 与 C0–C6 |
+| [`llm-provider.md`](../spec/llm-provider.md) | `LLMRequest`、`ModelCapabilities` |
+| [`llm-input.md`](../spec/llm-input.md) | 三参数对表 |
+| [`context-analysis.md`](context-analysis.md) | 竞品与 SOTA |
+| [`agent-events.md`](../spec/agent-events.md) | Agent Event Log |
+| [`vision.md`](../product/vision.md) | Bruma 代号 |
+| [`agent.md`](../../agent.md) | 文档用词 |
 
 ---
 

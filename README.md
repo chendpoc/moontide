@@ -2,23 +2,23 @@
 
 一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
 
-当前开发优先级与非目标见 [`docs/PLAN.md`](docs/PLAN.md)。
+当前开发优先级与非目标见 [`docs/product/plan.md`](docs/product/plan.md)。设计文档索引见 [`docs/README.md`](docs/README.md)（Doc Map）。
 
 ## 项目结构
 
 ```
 oculeau/
+├── docs/                # 设计 Spec 与 Doc Map（product / spec / notes）
 ├── src/
-│   ├── agent/           # loop、prompt、hooks（默认策略）、tools.ts
-│   ├── builtins/        # fs-tools、git-tools、askUserQuestion
-│   ├── extensions/      # code-repl、context、trace 扩展
-│   ├── toolkit/         # ToolDefinition、catalog、register-defaults
-│   ├── permission/      # checkPermission 纯策略
-│   ├── cli/             # main REPL 入口、commands、statusline
+│   ├── agent/           # loop、prompt、pipeline（runLLM / runTool）、tools
+│   ├── builtins/        # fs、git、grep、bash、http_fetch 等原生 tool
+│   ├── extensions/      # audit、code-repl、context、trace、deep-research
+│   ├── llm/             # client、healthcheck（`pnpm run ping`）
+│   ├── cli/             # REPL 入口、commands、statusline
 │   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
-│   └── context/         # context window 分析（metrics、sessions）
+│   ├── context/         # metrics、sessions、compact
+│   └── constants/       # storage、llm、env 等常量
 ├── scripts/
-│   ├── healthcheck/ping.ts   # LLM API smoke test（pnpm run ping）
 │   └── cursor-statusline.ts
 ├── tests/
 ├── ui/                  # Rust/Slint desktop sidecar（只读 tail JSONL）
@@ -41,11 +41,22 @@ pnpm dev:ui              # Slint sidecar（另开终端，或 REPL 运行时启�
 
 Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
+## 文档
+
+| 层级 | 路径 | 内容 |
+|------|------|------|
+| 索引 | [`docs/README.md`](docs/README.md) | Doc Map、阅读路径 |
+| 方向 | [`docs/product/`](docs/product/) | [vision](docs/product/vision.md)、[plan](docs/product/plan.md) |
+| Spec | [`docs/spec/`](docs/spec/) | context-composer、llm-provider、llm-input、agent-events |
+| 参考 | [`docs/notes/`](docs/notes/) | 行业分析、演进 backlog、runtime 讨论 |
+
+Agent 协作用词规范见 [`agent.md`](agent.md)。
+
 ## LLM Provider 与模型配置
 
 Oculeau 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
 
-设计详述见 [`docs/llm-provider.md`](docs/llm-provider.md)（API 适配层）与 [`docs/context-composer.md`](docs/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/context-features-backlog.md`](docs/context-features-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/llm-input-mapping.md`](docs/llm-input-mapping.md)。
+设计详述见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)（API 适配层）与 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/spec/llm-input.md`](docs/spec/llm-input.md)。
 
 **今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `OCULEAU_PROVIDER` 与各厂商 key。
 
@@ -133,8 +144,8 @@ Oculeau idle · context 12.3% · turn 2
 ### 新增 extension tool 模板（`deep_research`）
 
 1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
-2. 在 [`toolkit/register-defaults.ts`](src/toolkit/register-defaults.ts) 条件注册
-3. 在 [`permission/index.ts`](src/permission/index.ts) 添加规则（网络类建议 `ask`）
+2. 在 [`register-defaults.ts`](src/agent/tools/register-defaults.ts) 条件注册
+3. 在 [`permission/index.ts`](src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
 
 ### code_repl templates（Tier 1）
 
@@ -179,7 +190,7 @@ Oculeau idle · context 12.3% · turn 2
 |------|------|
 | `DEEPSEEK_API_KEY` / `MODEL_ID` | LLM API（今天默认 DeepSeek Anthropic 兼容端点） |
 | `OCULEAU_PROVIDER` | Provider preset（目标：`deepseek` \| `kimi` \| `openai` \| `anthropic` \| `gemini` \| `openrouter` \| `custom`） |
-| `OCULEAU_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/llm-provider.md`](docs/llm-provider.md)） |
+| `OCULEAU_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)） |
 | `OCULEAU_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
 | `OCULEAU_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
 | `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
@@ -218,4 +229,4 @@ pnpm dev      # Terminal 1
 pnpm dev:ui   # Terminal 2
 ```
 
-事件 schema：[`docs/EVENTS.md`](docs/EVENTS.md)。
+事件 schema：[`docs/spec/agent-events.md`](docs/spec/agent-events.md)。

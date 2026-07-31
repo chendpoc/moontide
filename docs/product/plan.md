@@ -1,5 +1,7 @@
 # Oculeau 分段日志存储
 
+> 完整 TODO：[`TODO.md`](../../TODO.md) · Doc Map：[`docs/README.md`](../README.md)
+
 ## 已确定设计
 
 ```text
@@ -27,4 +29,4 @@
 - active segment 原地 compact。
 - privacy/redaction policy。
 
-事件字段、恢复流程和 retention 规则见 [`EVENTS.md`](EVENTS.md)。
+事件字段、恢复流程和 retention 规则见 [`agent-events.md`](../spec/agent-events.md)。

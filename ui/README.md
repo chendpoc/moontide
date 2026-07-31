@@ -8,6 +8,15 @@ macOS-first (folder picker via `rfd`, file watching via `notify`).
 
 **Requires Rust stable ≥ 1.89** (Slint 1.9 dependency tree). Project includes `rust-toolchain.toml`; first build may auto-install via rustup.
 
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [`docs/README.md`](../docs/README.md) | Doc Map |
+| [`docs/spec/agent-events.md`](../docs/spec/agent-events.md) | Agent Event Log schema（UI 消费的 JSONL 字段） |
+| [`docs/product/plan.md`](../docs/product/plan.md) | 分段 JSONL 存储、retention 与非目标 |
+| [`docs/notes/runtime-multilang.md`](../docs/notes/runtime-multilang.md) | 多语言 Desktop Runtime 架构讨论 |
+
 ## Prerequisites
 
 - [rustup](https://rustup.rs) with **stable ≥ 1.89**
@@ -67,4 +76,4 @@ Chat in terminal 1; Trace / Context / Chat tabs update as events append.
 | `src/store/status_store.rs` | `status.json` reader |
 | `src/watch/watcher.rs` | `notify` file watcher |
 
-Event schema: [../docs/EVENTS.md](../docs/EVENTS.md).
+Event schema: [`docs/spec/agent-events.md`](../docs/spec/agent-events.md).

@@ -1,7 +1,7 @@
 # Oculeau Context Composer 与 Session 中间态
 
 > Context window 的数据组成、持久化边界与编译流程。  
-> 一次 API 调用的出口类型见 [`llm-provider.md`](llm-provider.md)（`LLMRequest`）；三参数对表见 [`llm-input-mapping.md`](llm-input-mapping.md)；行业背景见 [`context-window-analysis.md`](context-window-analysis.md)。
+> 一次 API 调用的出口类型见 [`llm-provider.md`](llm-provider.md)（`LLMRequest`）；三参数对表见 [`llm-input.md`](llm-input.md)；行业背景见 [`context-analysis.md`](../notes/context-analysis.md)。
 
 ---
 
@@ -28,9 +28,9 @@ API 适配层 → 厂商 API
 | 文档 | 职责 |
 |------|------|
 | [`llm-provider.md`](llm-provider.md) | `LLMRequest` / Oculeau 协议、API 适配层、ModelCapabilities 来源 |
-| [`llm-input-mapping.md`](llm-input-mapping.md) | `system` / `tools` / `messages` 对表与现状缺口 |
-| [`context-window-analysis.md`](context-window-analysis.md) | 行业 SOTA 与竞品参考 |
-| [`EVENTS.md`](EVENTS.md) | **Agent Event Log**（run 级观测） |
+| [`llm-input.md`](llm-input.md) | `system` / `tools` / `messages` 对表与现状缺口 |
+| [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA 与竞品参考 |
+| [`agent-events.md`](agent-events.md) | **Agent Event Log**（run 级观测） |
 | 本文 | **Session Event Log**、Session State Stores、Composer、Manifest |
 
 ### 1.3 设计 Invariant（五条）
@@ -94,7 +94,7 @@ flowchart TB
 | **ModelCapabilities** | context 上限、token 计数策略等 | 配置 / catalog | [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities) |
 | **Context Composer** | 编译 `LLMRequest` + `Context Manifest` | 否 | 目标：`src/context/composer/` |
 | **Context Manifest** | 本轮投影决策与预算说明 | 可选持久 / 观测 | 随 turn 写入 Agent Event Log 或内存 |
-| **Bruma** | VISION 保留代号，指 Session 事实为 source of truth 的产品方向 | — | 技术 Spec 用 **Session Event Log** |
+| **Bruma** | vision 保留代号，指 Session 事实为 source of truth 的产品方向 | — | 技术 Spec 用 **Session Event Log** |
 
 ---
 
@@ -113,7 +113,7 @@ flowchart TB
 - Session Event Log 为权威；Agent Event Log 可从其 **派生** 或 **双写** 观测字段。
 - 第一版实现可并存；不得以 Agent Event Log 反向覆盖 Session Event Log。
 
-详见 [`EVENTS.md`](EVENTS.md)。
+详见 [`agent-events.md`](agent-events.md)。
 
 ---
 
@@ -215,7 +215,7 @@ export interface InstructionState {
 }
 ```
 
-- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../src/agent/prompt.ts)；远期 `AGENTS.md`、`.oculeau/rules`。
+- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../src/agent/prompt.ts)；远期 `AGENTS.md`、`.oculeau/rules`。
 - **Composer：** 每 turn 拼成 `LLMRequest.system`；**不参与** conversation summary。
 - **`epoch`：** 规则文件变更时递增，便于 cache 与调试。
 
@@ -302,7 +302,7 @@ export interface Checkpoint {
 
 ### 7.3 与 today `/compact` 的对照
 
-| 今天 [`compact.ts`](../src/context/compact.ts) | 目标 |
+| 今天 [`compact.ts`](../../src/context/compact.ts) | 目标 |
 |------------------------------------------------|------|
 | auto compact：`splice` 旧 tool_result | **prune** 投影；Session Event Log 不变 |
 | `/compact summary`：摘要塞进 `messages[]` | 写 **Compaction Record** + `compaction` 事件；Composer 引用 |
@@ -337,7 +337,7 @@ export interface Checkpoint {
 ### 9.1 Tool Definitions
 
 - **含义：** 本轮 `LLMRequest.tools` — 每个 tool 的 `name`、`description`、`input_schema`。
-- **来源：** Harness 内 **Tool Registry**（实现：[`src/agent/tools/catalog.ts`](../src/agent/tools/catalog.ts) 的 `ToolCatalog.schemas()`）。
+- **来源：** Harness 内 **Tool Registry**（实现：[`src/agent/tools/catalog.ts`](../../src/agent/tools/catalog.ts) 的 `ToolCatalog.schemas()`）。
 - **文档与代码：** 架构层称 **Tool Definitions**；代码类型 `ToolCatalog` 为 Registry 实现名，重构时可改为 `ToolRegistry`。
 
 ### 9.2 ModelCapabilities
@@ -411,10 +411,10 @@ agentLoop:
 
 | 项 | 现状 | 目标 |
 |----|------|------|
-| 会话事实 | 可变 `MessageParam[]` in [`loop.ts`](../src/agent/loop.ts) | **Session Event Log** append-only |
+| 会话事实 | 可变 `MessageParam[]` in [`loop.ts`](../../src/agent/loop.ts) | **Session Event Log** append-only |
 | API 输入 | 同一数组直接 `runLLM` | **Composer** → `LLMRequest` |
-| Compact | [`compact.ts`](../src/context/compact.ts) `splice` | **Compaction** 事件 + 投影；可选 **Compaction Record** |
-| Session 内存 | [`sessions.ts`](../src/context/sessions.ts) 存 messages 引用 | 存 Manifest / log 指针 |
+| Compact | [`compact.ts`](../../src/context/compact.ts) `splice` | **Compaction** 事件 + 投影；可选 **Compaction Record** |
+| Session 内存 | [`sessions.ts`](../../src/context/sessions.ts) 存 messages 引用 | 存 Manifest / log 指针 |
 | 观测 | **Agent Event Log** | 保留；与 Session Event Log 职责分离 |
 | 大 tool 输出 | 全文 in tool_result | **Artifact Store** + receipt |
 | system 规则 | 仅 `prompt.ts` | **Instruction State** |
@@ -443,12 +443,12 @@ agentLoop:
 | 文档 | 关系 |
 |------|------|
 | [`llm-provider.md`](llm-provider.md) | `LLMRequest`、`ModelCapabilities`、API 适配层 |
-| [`llm-input-mapping.md`](llm-input-mapping.md) | 三参数对表与现状缺口 |
-| [`context-window-analysis.md`](context-window-analysis.md) | 行业 SOTA |
-| [`EVENTS.md`](EVENTS.md) | Agent Event Log schema |
-| [`VISION.md`](VISION.md) | Bruma 代号与产品方向 |
-| [`agent.md`](../agent.md) | 文档用词偏好 |
-| [`context-features-backlog.md`](context-features-backlog.md) | Context 演进特性 backlog（分账、IR、实验与 Deferred） |
+| [`llm-input.md`](llm-input.md) | 三参数对表与现状缺口 |
+| [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA |
+| [`agent-events.md`](agent-events.md) | Agent Event Log schema |
+| [`vision.md`](../product/vision.md) | Bruma 代号与产品方向 |
+| [`agent.md`](../../agent.md) | 文档用词偏好 |
+| [`context-backlog.md`](../notes/context-backlog.md) | Context 演进特性 backlog（分账、IR、实验与 Deferred） |
 
 ---
 
@@ -460,7 +460,7 @@ agentLoop:
 
 ## 15. Context 特性 backlog（演进）
 
-主 Spec（本文 §1–§14、C0–C6）落地后，可按 [`context-features-backlog.md`](context-features-backlog.md) 择项演进：
+主 Spec（本文 §1–§14、C0–C6）落地后，可按 [`context-backlog.md`](../notes/context-backlog.md) 择项演进：
 
 - **Core：** Context Budget Tiers（L1 Pinned / L2 Dialogue / L3 Reference / L4 Reserved）— 各块 token 分账，避免 dialogue 挤占 Instruction 与输出预留
 - **优先：** Structured Session IR（files / tool / task；对话不做全 session 向量 graph）

@@ -1,7 +1,7 @@
 # Oculeau LLM Provider 与 Model 机制
 
 > Oculeau 如何把「选模型、接 API、发请求」从 agent loop 里拆出来。  
-> LLM 一次 input 的三参数对表见 [`llm-input-mapping.md`](llm-input-mapping.md)；context 组装见 [`context-window-analysis.md`](context-window-analysis.md)。
+> LLM 一次 input 的三参数对表见 [`llm-input.md`](llm-input.md)；context 组装见 [`context-analysis.md`](../notes/context-analysis.md)。
 
 ---
 
@@ -286,7 +286,7 @@ src/llm/
     index.ts              # presetId → CompatOverrides
 ```
 
-现状 [`src/llm/client/anthropic.ts`](../src/llm/client/anthropic.ts) 在实现时迁入 `adapters/anthropic-messages.ts` 并删除。
+现状 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts) 在实现时迁入 `adapters/anthropic-messages.ts` 并删除。
 
 ### 8.3 normalize 职责
 
@@ -312,7 +312,7 @@ export interface LLMProvider {
 export function getLLMProvider(route: ResolvedRoute): LLMProvider;
 ```
 
-[`runLLM`](../src/agent/pipeline/runLLM.ts) 目标形态：接受/返回 Oculeau `LLMRequest` / `LLMResponse`；loop 判断 `stopReason === "tool_use"`，不再依赖 SDK 字段名 `stop_reason`。
+[`runLLM`](../../src/agent/pipeline/runLLM.ts) 目标形态：接受/返回 Oculeau `LLMRequest` / `LLMResponse`；loop 判断 `stopReason === "tool_use"`，不再依赖 SDK 字段名 `stop_reason`。
 
 ---
 
@@ -361,7 +361,7 @@ export interface LLMResponse {
 }
 ```
 
-Context Composer 产出 **`LLMRequest`**；见 [`context-composer.md`](context-composer.md)、[`llm-input-mapping.md`](llm-input-mapping.md)。
+Context Composer 产出 **`LLMRequest`**；见 [`context-composer.md`](context-composer.md)、[`llm-input.md`](llm-input.md)。
 
 ### 9.2 Provider Preset 配置
 
@@ -535,7 +535,7 @@ OCULEAU_CONTEXT_LIMIT=1000000
 OCULEAU_CONTEXT_EXACT=0
 ```
 
-完整示例见仓库根目录 [`.env.example`](../.env.example)。
+完整示例见仓库根目录 [`.env.example`](../../.env.example)。
 
 ---
 
@@ -543,10 +543,10 @@ OCULEAU_CONTEXT_EXACT=0
 
 | 项 | 现状 | 目标 |
 |----|------|------|
-| Client | 仅 [`src/llm/client/anthropic.ts`](../src/llm/client/anthropic.ts) | `LLMProvider` + `adapters/*` + `normalize/*` |
+| Client | 仅 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts) | `LLMProvider` + `adapters/*` + `normalize/*` |
 | API 适配 | 隐式 DeepSeek → Anthropic SDK | **方案 A**（§5） |
 | Provider | `bootstrap.ts` 将 DeepSeek 映射为 Anthropic env | 显式 `ProviderPreset` + `resolveRoute()` |
-| Model | `MODEL_ID` 字符串 + [`constants/llm.ts`](../src/constants/llm.ts) 硬编码 context | `ModelCatalog` + `ModelCapabilities` |
+| Model | `MODEL_ID` 字符串 + [`constants/llm.ts`](../../src/constants/llm.ts) 硬编码 context | `ModelCatalog` + `ModelCapabilities` |
 | 类型泄漏 | `@anthropic-ai/sdk` 约 17 处 | 仅 `src/llm/adapters/**` |
 | Compact / ping | `compact.ts` 直连 `getClient()` | 经 `LLMProvider` |
 | 路由 | 无 | Model Router + Route Resolver |
@@ -587,11 +587,11 @@ OCULEAU_CONTEXT_EXACT=0
 
 | 文档 | 关系 |
 |------|------|
-| [`llm-input-mapping.md`](llm-input-mapping.md) | 一次 LLM 调用的 `system` / `tools` / `messages`；目标产出 `LLMRequest`；Provider 层负责 **谁执行** `chat()` |
+| [`llm-input.md`](llm-input.md) | 一次 LLM 调用的 `system` / `tools` / `messages`；目标产出 `LLMRequest`；Provider 层负责 **谁执行** `chat()` |
 | [`context-composer.md`](context-composer.md) | Session Event Log、Context Composer、Compaction / Checkpoint；产出 `LLMRequest` |
-| [`context-window-analysis.md`](context-window-analysis.md) | 行业 SOTA；ModelCapabilities 与 Tool Definitions 进入 Composer |
-| [`VISION.md`](VISION.md) | 产品名 Oculeau；run 观测需 provider + model 字段 |
-| [`EVENTS.md`](EVENTS.md) | `RoutingDecision` 写入 run event log |
+| [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA；ModelCapabilities 与 Tool Definitions 进入 Composer |
+| [`vision.md`](../product/vision.md) | 产品名 Oculeau；run 观测需 provider + model 字段 |
+| [`agent-events.md`](agent-events.md) | `RoutingDecision` 写入 run event log |
 
 ---
 

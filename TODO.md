@@ -1,5 +1,7 @@
 # TODO
 
+> 产品方向：[`docs/product/vision.md`](docs/product/vision.md) · 当前计划：[`docs/product/plan.md`](docs/product/plan.md) · 设计索引：[`docs/README.md`](docs/README.md)
+
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果
   - 动效
@@ -19,7 +21,7 @@
 - [ ] **5. 虚拟人物**
 
 - [ ] **6. Session — Bruma**
-  - **Session Event Log**（`.oculeau/sessions/<sessionId>.jsonl`）作为会话事实源；Spec 见 [`docs/context-composer.md`](docs/context-composer.md)，演进特性见 [`docs/context-features-backlog.md`](docs/context-features-backlog.md)
+  - **Session Event Log**（`.oculeau/sessions/<sessionId>.jsonl`）作为会话事实源；Spec 见 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)，演进特性见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)
 
 - [ ] **7. Feature 基线性能测试套件**
   - 自动化测试完善
@@ -40,9 +42,10 @@
   - 参考 Vibe Island 的布局与交互：浮动 panel、可 dock、可 pin、渐入渐出
   - 每个 panel 是独立控件（Tide、Fleet、Buoy 等）
   - 与 **1. Slint 桌面样式优化** 联动（透明虚化、动效、背景）
+  - 架构讨论见 [`docs/notes/runtime-multilang.md`](docs/notes/runtime-multilang.md)
 
 - [ ] **11. 产品命名 — 已定稿**
-  - 见 [`docs/VISION.md`](docs/VISION.md)
+  - 见 [`docs/product/vision.md`](docs/product/vision.md)
   - **当前产品：Oculeau｜观澜**（CLI / repo / npm / `.oculeau/`）
   - **Ciel · Lyra · MoonTide · Zephyr · Bruma · Tide · Fleet · Buoy** 为保留代号，仅指未来产品线，不用于现行产品名
 
@@ -60,7 +63,7 @@
     - 选择指定 agent（Codewhale / Reasonix / Pi Agent / Cursor / Codex / Claude Code 等）进行对话
     - 向选定 agent 派发任务
   - 适配层：各产品 session / transcript / status 格式的 reader + 可选 writer
-  - 与 **6. Bruma**、context-window 设计对齐（**Session Event Log** 作为 source of truth；见 [`docs/context-composer.md`](docs/context-composer.md)）
+  - 与 **6. Bruma**、context-window 设计对齐（**Session Event Log** 作为 source of truth；见 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)）
 
 - [ ] **14. Agent 外网数据源可达性与体验（国内网络）**
   - **背景**：大量国内用户无法稳定访问 GitHub、Google 等外网数据源；agent 拉依赖、搜文档、clone、调 API 时易失败

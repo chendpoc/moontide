@@ -16,7 +16,7 @@ flowchart LR
 
 也就是说：
 
-- Session history 是 source of truth（Oculeau：**Session Event Log**，见 [`context-composer.md`](context-composer.md)）。
+- Session history 是 source of truth（Oculeau：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)）。
 - Model context 只是针对某次请求编译出来的 ephemeral projection（**LLMRequest**）。
 - System instructions、permissions、用户约束不能依赖 conversation summary 存活。
 - 大型 tool output 应先变成可寻址 artifact，而不是直接塞进 summary。
@@ -155,22 +155,22 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 
 当前实现是合格的 prototype，但还不是可持续的 context architecture：
 
-- [`agent/loop.ts`](/Users/chenjiayu/code/agent-learning/oculeau/src/agent/loop.ts:20) 让 loop 直接持有并原地修改 `messages[]`。
-- [`compact.ts`](/Users/chenjiayu/code/agent-learning/oculeau/src/context/compact.ts:145) 的 auto compact 只缩减旧 tool results 和 thinking；manual summary 使用通用 prompt，并把每条消息序列化后截到 4,000 字符。
-- [`snapshot.ts`](/Users/chenjiayu/code/agent-learning/oculeau/src/context/snapshot.ts:6) 与 [`sessions.ts`](/Users/chenjiayu/code/agent-learning/oculeau/src/context/sessions.ts:39) 保存的是原数组引用，不是真正 snapshot。
-- [`constants/llm.ts`](/Users/chenjiayu/code/agent-learning/oculeau/src/constants/llm.ts:9) 仍把 DeepSeek V4 设为 128K，与当前官方 1M 不一致。
+- [`agent/loop.ts`](../../src/agent/loop.ts) 让 loop 直接持有并原地修改 `messages[]`。
+- [`compact.ts`](../../src/context/compact.ts) 的 auto compact 只缩减旧 tool results 和 thinking；manual summary 使用通用 prompt，并把每条消息序列化后截到 4,000 字符。
+- [`snapshot.ts`](../../src/context/snapshot.ts) 与 [`sessions.ts`](../../src/context/sessions.ts) 保存的是原数组引用，不是真正 snapshot。
+- [`constants/llm.ts`](../../src/constants/llm.ts) 仍把 DeepSeek V4 设为 128K，与当前官方 1M 不一致。
 
 建议保持克制，按这个顺序推进：
 
-1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile 对应 **ModelCapabilities**（[`llm-provider.md`](llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](context-composer.md)。
-2. 增加 **Context Composer** Module，让所有 LLM 请求只能从这里获得 `LLMRequest` 与 Manifest（Spec：[`context-composer.md`](context-composer.md)）。
+1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile 对应 **ModelCapabilities**（[`llm-provider.md`](../spec/llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](../spec/context-composer.md)。
+2. 增加 **Context Composer** Module，让所有 LLM 请求只能从这里获得 `LLMRequest` 与 Manifest（Spec：[`context-composer.md`](../spec/context-composer.md)）。
 3. 把 system/project/runtime instruction state 移出 conversation compaction。
 4. 给 tool result 增加 full artifact + bounded prompt projection；先解决最大的 context 消耗来源。
 5. 再实现 structured checkpoint + 最近完整 turns，验证成功后才替换 active context。
 6. 建立多次 compaction、约束存活、exact path/error recall、tool pair、overflow、crash/resume、cache hit、latency/cost 测试。
 7. 只有这些指标证明有必要，再考虑 graph、vector memory 或后台 compaction。
 
-**演进特性 backlog**（分账、Structured IR、Compose 实验与 Deferred 项）见 [`context-features-backlog.md`](context-features-backlog.md)。
+**演进特性 backlog**（分账、Structured IR、Compose 实验与 Deferred 项）见 [`context-backlog.md`](context-backlog.md)。
 
 不需要因为 Codex 使用 Rust 就重写 Oculeau agent core。这个问题的主要矛盾是 state ownership、invariants、recovery 和 observability，TypeScript 完全能够正确实现。
 

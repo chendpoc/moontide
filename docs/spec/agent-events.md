@@ -29,7 +29,7 @@ workdir/.oculeau/runs/<runId>-0001.jsonl.gz
 The final active segment is also compressed when the run completes. Compressed
 segments are lossless archives; the desktop UI only tails the active JSONL.
 
-TypeScript source: [`src/events/types.ts`](../src/events/types.ts).
+TypeScript source: [`src/events/types.ts`](../../src/events/types.ts).
 
 ## Core fields
 

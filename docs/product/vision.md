@@ -2,6 +2,8 @@
 
 **当前产品名：Oculeau｜观澜**
 
+> Doc Map：[`docs/README.md`](../README.md) · 任务清单：[`TODO.md`](../../TODO.md)
+
 本仓库交付的是 **Oculeau** — 最小可用的 coding agent CLI + Slint sidecar。  
 **观澜** 为中文品牌名（观澜索源：观水之象，溯流之源）；**Oculeau** 为英文品牌 / repo / npm / CLI（眼 + 水）。
 
@@ -19,7 +21,7 @@
 | **Lyra** | 天琴（星） | 独立 agent harness 产品线（若与 Oculeau 分叉） |
 | **MoonTide** | 月潮 | 多 panel / 多窗口桌面 shell |
 | **Zephyr** | 风 | 跨 agent 产品切换与迁移 |
-| **Bruma** | 雾 | Session 事实为 source of truth（技术 Spec：**Session Event Log**，见 [`context-composer.md`](context-composer.md)） |
+| **Bruma** | 雾 | Session 事实为 source of truth（技术 Spec：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)） |
 | **Tide** | — | MoonTide 内：日常 action 摘要 panel |
 | **Fleet** | — | MoonTide 内：多 agent 运行监控 panel |
 | **Buoy** | — | MoonTide 内：Pin notes |
@@ -52,8 +54,8 @@ flowchart TB
 
 ### 代号说明（备忘，非现行规格）
 
-- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 `LLMRequest` 投影。Spec：[`context-composer.md`](./context-composer.md)；在 Oculeau 中由 `src/context/` 等模块 **逐步演进**，产品名仍称 Oculeau。
-- **MoonTide / Tide / Fleet / Buoy** — 桌面 shell 与 panel 设想，见 [`TODO.md`](../TODO.md)。
+- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 `LLMRequest` 投影。Spec：[`context-composer.md`](../spec/context-composer.md)；在 Oculeau 中由 `src/context/` 等模块 **逐步演进**，产品名仍称 Oculeau。
+- **MoonTide / Tide / Fleet / Buoy** — 桌面 shell 与 panel 设想，见 [`TODO.md`](../../TODO.md)。
 - **Zephyr** — 跨 Cursor / Claude Code / Codex 等工具的会话管理与迁移，远期。
 - **Lyra** — 曾为 harness 候选名；若未来单独发产品线再启用，当前 harness 即 **Oculeau**。
 
