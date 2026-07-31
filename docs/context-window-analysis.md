@@ -4,20 +4,20 @@
 
 ```mermaid
 flowchart LR
-    J["Durable Session Journal<br/>完整会话事实"] --> C["Context Composer"]
-    I["Instruction / Policy State<br/>不可被摘要替代"] --> C
+    SEL["Session Event Log<br/>完整会话事实"] --> C["Context Composer"]
+    I["Instruction State<br/>不可被摘要替代"] --> C
     A["Artifact Store<br/>完整 tool outputs"] --> C
-    T["Tool Catalog + Model Profile"] --> C
-    C --> P["Immutable Model Input<br/>本次调用的临时投影"]
+    TD["Tool Definitions + ModelCapabilities"] --> C
+    C --> P["LLMRequest<br/>本次调用的临时投影"]
     C --> M["Context Manifest<br/>选择、丢弃、预算原因"]
-    P --> L["LLM"]
-    L --> J
+    P --> L["LLM via API 适配层"]
+    L --> SEL
 ```
 
 也就是说：
 
-- Session history 是 source of truth。
-- Model context 只是针对某次请求编译出来的 ephemeral projection。
+- Session history 是 source of truth（Oculeau：**Session Event Log**，见 [`context-composer.md`](context-composer.md)）。
+- Model context 只是针对某次请求编译出来的 ephemeral projection（**LLMRequest**）。
 - System instructions、permissions、用户约束不能依赖 conversation summary 存活。
 - 大型 tool output 应先变成可寻址 artifact，而不是直接塞进 summary。
 - Compaction 是有验证、有恢复能力的状态转换，不是对 `messages[]` 随手 `splice()`。
@@ -162,13 +162,15 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 
 建议保持克制，按这个顺序推进：
 
-1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile（`contextWindow`、`tokenCount` 策略）目标来源：[`llm-provider.md`](llm-provider.md) 中的 `ModelCapabilities` / Model Catalog（Provider 层代码分期 C，见该文档 §13）。
-2. 增加一个深的 `Context Composer` Module，让所有 LLM 请求只能从这里获得 immutable model input 和 manifest。
+1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile 对应 **ModelCapabilities**（[`llm-provider.md`](llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](context-composer.md)。
+2. 增加 **Context Composer** Module，让所有 LLM 请求只能从这里获得 `LLMRequest` 与 Manifest（Spec：[`context-composer.md`](context-composer.md)）。
 3. 把 system/project/runtime instruction state 移出 conversation compaction。
 4. 给 tool result 增加 full artifact + bounded prompt projection；先解决最大的 context 消耗来源。
 5. 再实现 structured checkpoint + 最近完整 turns，验证成功后才替换 active context。
 6. 建立多次 compaction、约束存活、exact path/error recall、tool pair、overflow、crash/resume、cache hit、latency/cost 测试。
 7. 只有这些指标证明有必要，再考虑 graph、vector memory 或后台 compaction。
+
+**演进特性 backlog**（分账、Structured IR、Compose 实验与 Deferred 项）见 [`context-features-backlog.md`](context-features-backlog.md)。
 
 不需要因为 Codex 使用 Rust 就重写 Oculeau agent core。这个问题的主要矛盾是 state ownership、invariants、recovery 和 observability，TypeScript 完全能够正确实现。
 

@@ -19,7 +19,7 @@
 - [ ] **5. 虚拟人物**
 
 - [ ] **6. Session — Bruma**
-  - Durable Session Journal；与 context-window 设计对齐
+  - **Session Event Log**（`.oculeau/sessions/<sessionId>.jsonl`）作为会话事实源；Spec 见 [`docs/context-composer.md`](docs/context-composer.md)，演进特性见 [`docs/context-features-backlog.md`](docs/context-features-backlog.md)
 
 - [ ] **7. Feature 基线性能测试套件**
   - 自动化测试完善
@@ -60,7 +60,7 @@
     - 选择指定 agent（Codewhale / Reasonix / Pi Agent / Cursor / Codex / Claude Code 等）进行对话
     - 向选定 agent 派发任务
   - 适配层：各产品 session / transcript / status 格式的 reader + 可选 writer
-  - 与 **6. Bruma**、context-window 设计对齐（Durable Session Journal 作为 source of truth）
+  - 与 **6. Bruma**、context-window 设计对齐（**Session Event Log** 作为 source of truth；见 [`docs/context-composer.md`](docs/context-composer.md)）
 
 - [ ] **14. Agent 外网数据源可达性与体验（国内网络）**
   - **背景**：大量国内用户无法稳定访问 GitHub、Google 等外网数据源；agent 拉依赖、搜文档、clone、调 API 时易失败

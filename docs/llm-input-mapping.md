@@ -1,7 +1,7 @@
 # Oculeau LLM Input 对表
 
 > 说明「成熟 agent 一次 LLM 请求应包含什么」，以及 **Oculeau 当前实现** 落在哪、缺什么。  
-> 行业背景见 [`context-window-analysis.md`](context-window-analysis.md)；Provider / API 适配层设计见 [`llm-provider.md`](llm-provider.md)（目标产出 **`LLMRequest`**：`system` + `tools` + `messages`）。  
+> 行业背景见 [`context-window-analysis.md`](context-window-analysis.md)；Provider / API 适配层见 [`llm-provider.md`](llm-provider.md)；Session 中间态与 **Context Composer** 见 [`context-composer.md`](context-composer.md)（目标产出 **`LLMRequest`**）。  
 > 本文只做 **API 对表 + 代码落点**，不涉及代码实现计划。
 
 ---
@@ -40,7 +40,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 | 全局 tool 选用策略 | prefer read_file over bash 等 | **有** | `prompt.ts` L8–11 | 与部分 tool description 重复 |
 | Extension 使用说明 | code_repl runtime、templates | **有（混在 system）** | `prompt.ts` L14–23 | code_repl schema 里也有长 description |
 | 项目规则 | `AGENTS.md` / `CLAUDE.md` | **无** | — | 未读 repo 指令文件 |
-| 用户偏好 / 长期记忆 | `~/.oculeau/` 或 MEMORY.md，每轮 re-inject | **无** | — | 远期 Session Journal（VISION 代号 Bruma） |
+| 用户偏好 / 长期记忆 | `~/.oculeau/` 或 MEMORY.md，每轮 re-inject | **无** | — | 远期 **Instruction State**（[`context-composer.md`](context-composer.md)） |
 | 权限 / 审批提示 | "bash 可能需用户确认" | **无** | permission 在 [`runTool.ts`](../src/agent/pipeline/runTool.ts) 执行层 | 模型不可见 |
 | 压缩摘要 | 通常放 **messages**，不是 system | — | `/compact summary` 进 messages | 见 §4 |
 
@@ -76,7 +76,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 | Thinking（若模型支持） | assistant thinking block | **有（若 API 返回）** | trace 采集；compact 可 strip | [`compact.ts`](../src/context/compact.ts) |
 | 旧对话 LLM 摘要 | synthetic user message | **部分** | `/compact summary` → `summarizeCompact` | auto compact **只用 prune**，不用 summary |
 | 大 tool 输出外置 + 短引用 | artifact 文件 + receipt | **无** | 仅 `[compact: …]` 占位 | |
-| 完整归档 vs 发给模型 | journal 与 active 分离 | **无** | 同一 `messages[]` 被 splice | TODO #6 / Session Journal |
+| 完整归档 vs 发给模型 | Session Event Log 与投影分离 | **无** | 同一 `messages[]` 被 splice | TODO #6；见 [`context-composer.md`](context-composer.md) |
 | 多模态（图片等） | message content blocks | **无** | 仅 string / tool blocks | |
 
 ### 当前数据流
@@ -112,7 +112,7 @@ flowchart LR
 |----|------|---------|
 | Context 用量估算 | 决定是否 compact | **有** — [`src/context/`](../src/context/) metrics + context plugin |
 | Event JSONL | 观测 / UI tail | **有** — 与发给模型的 messages **不是同一份** |
-| `sessions.ts` | inspect_context / statusline | **有** — 存 messages **引用**，非 immutable journal |
+| `sessions.ts` | inspect_context / statusline | **有** — 存 messages **引用**，非 Session Event Log |
 | Model context limit | 预算阈值 | **有但可能过时** — [`constants/llm.ts`](../src/constants/llm.ts) 128K（DeepSeek 官方 1M） |
 | Provider / Model 选型 | 谁发 HTTP、用哪个 model | **未分层** — 目标见 [`llm-provider.md`](llm-provider.md)（API 适配方案 A：`LLMProvider` + adapter） |
 | adapter / normalize | SDK 与协议翻译 | **未分层** — 目标见 [`llm-provider.md` §5–§8](llm-provider.md#5-api-适配选型方案-a) |
@@ -123,11 +123,11 @@ flowchart LR
 
 | 优先级 | 缺口 | 今天表现 | 建议方向（Oculeau 演进，未实现） |
 |--------|------|----------|----------------------------------|
-| P0 | messages 一物两用 | loop 原地 `splice` | Journal 只 append + 每轮 `assembleForLLM()` |
-| P0 | 无 project / memory 注入 | 仅 `prompt.ts` | 读 `AGENTS.md` / `.oculeau/rules` → 拼 system |
-| P1 | tool 输出全量进 messages | 大 read 全文进 tool_result | artifact 文件 + 短 receipt + `read_artifact` |
-| P1 | instruction 可被 compact 间接丢 | summary 只摘要 messages | system 每轮从 Instructions 重建，不参与摘要 |
-| P2 | 无 structured checkpoint + tail | prune 或 generic summary | checkpoint JSON + 最近 N 轮原文 |
+| P0 | messages 一物两用 | loop 原地 `splice` | Session Event Log append-only + **Context Composer** → `LLMRequest` |
+| P0 | 无 project / memory 注入 | 仅 `prompt.ts` | **Instruction State** → 拼 system |
+| P1 | tool 输出全量进 messages | 大 read 全文进 tool_result | **Artifact Store** + receipt |
+| P1 | instruction 可被 compact 间接丢 | summary 只摘要 messages | Instruction State 每轮重建，不参与 summary |
+| P2 | Compaction 与恢复未分层 | prune 或 generic summary | **Compaction** 与 **Checkpoint** 独立；见 context-composer |
 | P2 | context limit 128K | 与 DeepSeek 1M 不一致 | `ModelCatalog` + `ModelCapabilities`，见 [`llm-provider.md`](llm-provider.md) |
 | P2 | Provider / Model 绑 Anthropic SDK | 仅 DeepSeek compat | API 适配方案 A：Preset + `LLMProvider` + 4 协议族 adapter，见 [`llm-provider.md`](llm-provider.md) |
 
@@ -137,13 +137,15 @@ flowchart LR
 
 **Oculeau 今天已覆盖：** `system`（手写）+ `tools`（完整 schema）+ `messages`（user / assistant / tool_result 循环）。
 
-**尚未覆盖：** personal/project memory、journal 与 model input 分离、tool 输出外置、instruction 与 compaction 解耦——见 [`context-window-analysis.md`](context-window-analysis.md) 与 [`VISION.md`](VISION.md) 中的 Session Journal 方向（保留代号 Bruma）。
+**尚未覆盖：** Instruction State、Session Event Log 与 `LLMRequest` 投影分离、Artifact Store、Compaction 与 Checkpoint——见 [`context-composer.md`](context-composer.md) 与 [`VISION.md`](VISION.md)（保留代号 Bruma）。
 
 ---
 
 ## 相关文档
 
-- [`llm-provider.md`](llm-provider.md) — API 适配方案 A、Provider Preset（含 `custom`）、Model Catalog、Model Router、`LLMRequest` 目标边界
+- [`context-composer.md`](context-composer.md) — Session Event Log、Context Composer、Compaction / Checkpoint
+- [`context-features-backlog.md`](context-features-backlog.md) — Context 演进特性（分账、IR、实验与 Deferred）
+- [`llm-provider.md`](llm-provider.md) — API 适配方案 A、Provider Preset、`LLMRequest`、`ModelCapabilities`
 - [`context-window-analysis.md`](context-window-analysis.md) — 行业 SOTA 与产品对比
 - [`VISION.md`](VISION.md) — 产品名 Oculeau；保留代号与未来方向
 - [`EVENTS.md`](EVENTS.md) — 观测侧 JSONL（与 LLM input 分离）

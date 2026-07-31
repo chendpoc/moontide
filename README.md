@@ -45,7 +45,7 @@ Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
 Oculeau 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
 
-设计详述见 [`docs/llm-provider.md`](docs/llm-provider.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/llm-input-mapping.md`](docs/llm-input-mapping.md)。
+设计详述见 [`docs/llm-provider.md`](docs/llm-provider.md)（API 适配层）与 [`docs/context-composer.md`](docs/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/context-features-backlog.md`](docs/context-features-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/llm-input-mapping.md`](docs/llm-input-mapping.md)。
 
 **今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `OCULEAU_PROVIDER` 与各厂商 key。
 

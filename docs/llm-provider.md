@@ -361,7 +361,7 @@ export interface LLMResponse {
 }
 ```
 
-Context Composer 未来的 `assembleForLLM()` 产出即 `LLMRequest`；见 [`llm-input-mapping.md`](llm-input-mapping.md)。
+Context Composer 产出 **`LLMRequest`**；见 [`context-composer.md`](context-composer.md)、[`llm-input-mapping.md`](llm-input-mapping.md)。
 
 ### 9.2 Provider Preset 配置
 
@@ -435,7 +435,7 @@ export interface ModelCapabilities {
 }
 ```
 
-来源优先级：catalog → env 覆盖（`OCULEAU_CONTEXT_LIMIT`）→ default。Context Composer 的 **Model Profile**（contextWindow、tokenCount 策略）来自此结构；见 [`context-window-analysis.md`](context-window-analysis.md) 中 Tool Catalog + Model Profile → Composer 链路。
+来源优先级：catalog → env 覆盖（`OCULEAU_CONTEXT_LIMIT`）→ default。Context Composer 的预算与 token 策略来自 **ModelCapabilities**；见 [`context-composer.md`](context-composer.md)。
 
 ### 9.5 RoutingDecision（观测）
 
@@ -570,7 +570,7 @@ OCULEAU_CONTEXT_EXACT=0
 | **G** | Model Router v1 + `RoutingDecision` 观测 | `/model auto` + JSONL 可复盘 |
 | **H** | `thinkingLevel` 各 adapter 映射 + ESLint 边界 rule | 与 trace 开关分离可测 |
 
-**与 Session Journal 的顺序：** 先完成 A–C（类型 + Provider + Capabilities），再动 journal / `assembleForLLM()`（TODO #6 / Bruma），避免 journal 存厂商专有类型。
+**与 Session Event Log 的顺序：** 先完成 A–C（类型 + Provider + Capabilities），再动 Session Event Log / Context Composer（TODO #6 / Bruma），避免 session 事实存厂商专有类型。
 
 **各阶段均不做（显式排除）：**
 
@@ -588,7 +588,8 @@ OCULEAU_CONTEXT_EXACT=0
 | 文档 | 关系 |
 |------|------|
 | [`llm-input-mapping.md`](llm-input-mapping.md) | 一次 LLM 调用的 `system` / `tools` / `messages`；目标产出 `LLMRequest`；Provider 层负责 **谁执行** `chat()` |
-| [`context-window-analysis.md`](context-window-analysis.md) | Context Composer 需 **Model Profile**；来自 `ModelCapabilities`（§9.4） |
+| [`context-composer.md`](context-composer.md) | Session Event Log、Context Composer、Compaction / Checkpoint；产出 `LLMRequest` |
+| [`context-window-analysis.md`](context-window-analysis.md) | 行业 SOTA；ModelCapabilities 与 Tool Definitions 进入 Composer |
 | [`VISION.md`](VISION.md) | 产品名 Oculeau；run 观测需 provider + model 字段 |
 | [`EVENTS.md`](EVENTS.md) | `RoutingDecision` 写入 run event log |
 
