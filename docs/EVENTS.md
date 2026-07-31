@@ -58,7 +58,8 @@ Persisted events also include `summary` and `displayHint`.
 | `trace/assistant_text` | `{ body, charCount }` |
 | `trace/tool_use` | `{ toolName, toolUseId, charCount, input }` |
 | `trace/tool_result` | `{ toolName, toolUseId, body, charCount }` |
-| `context/context_metrics` | `{ report }` without historical message details |
+| `context/metrics_pre` | `{ report }` without historical message details |
+| `context/metrics_post` | `{ report }` without historical message details |
 | `context/context_compact` | compact mode and token deltas |
 | `audit/tool_use` | `{ toolName }` |
 
