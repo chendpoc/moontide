@@ -1,11 +1,11 @@
-# Oculeau 分段日志存储
+# Ocula 分段日志存储
 
 > 完整 TODO：[`TODO.md`](../../TODO.md) · Doc Map：[`docs/README.md`](../README.md)
 
 ## 已确定设计
 
 ```text
-<workspace>/.oculeau/
+<workspace>/.ocula/
 ├── runs/
 │   ├── <runId>-0001.jsonl.gz
 │   └── <runId>.active.jsonl

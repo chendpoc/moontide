@@ -1,6 +1,6 @@
 # Doc Map
 
-Oculeau 文档分三层：`product/` 定方向，`spec/` 是可实现的设计，`notes/` 是分析与候选。用词规范见 [`agent.md`](../agent.md)。
+Ocula 文档分三层：`product/` 定方向，`spec/` 是可实现的设计，`notes/` 是分析与候选。用词规范见 [`agent.md`](../agent.md)。
 
 **命名：** 全部小写 kebab-case；`{domain}-{topic}.md`，目录已表达层级时不重复前缀。
 
@@ -58,7 +58,7 @@ flowchart TB
 
 | 文档 | 一句话 |
 |------|--------|
-| [vision](product/vision.md) | 产品定位与远期代号（Bruma、MoonTide 等） |
+| [vision](product/vision.md) | 产品定位（Ocula）与远期代号（Bruma、MoonTide 等） |
 | [plan](product/plan.md) | 当前优先级、分段 JSONL 存储与非目标 |
 | [context-composer](spec/context-composer.md) | Session Event Log、Context Composer、Compaction 主 Spec |
 | [llm-provider](spec/llm-provider.md) | Provider preset、API 适配层、`LLMRequest` |

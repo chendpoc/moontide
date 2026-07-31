@@ -1,25 +1,25 @@
-# Oculeau — Product Vision
+# Ocula — Product Vision
 
-**当前产品名：Oculeau｜观澜**
+**当前产品名：Ocula** · 读音 **/AH-kyoo-lah/**（重音第二音节）
 
 > Doc Map：[`docs/README.md`](../README.md) · 任务清单：[`TODO.md`](../../TODO.md)
 
-本仓库交付的是 **Oculeau** — 最小可用的 coding agent CLI + Slint sidecar。  
-**观澜** 为中文品牌名（观澜索源：观水之象，溯流之源）；**Oculeau** 为英文品牌 / repo / npm / CLI（眼 + 水）。
+本仓库交付的是 **Ocula** — 最小可用的 coding agent CLI + Slint sidecar。  
+**Ocula** 来自 *oculus*（眼 / 观测），与 AgentEvent、trace、audit 等观测语义一致。
 
-文档、代码、CLI、配置目录（`.oculeau/`）在现阶段 **统一使用 Oculeau**，不使用下文保留代号指称当前产品。
+文档、代码、CLI、配置目录（`.ocula/`）、环境变量（`OCULA_*`）统一使用 **Ocula**。不使用下文保留代号指称当前产品。
 
 ---
 
 ## 保留代号（未来产品，当前不用）
 
-以下名称已登记为 **未来产品线代号**，仅供愿景与 TODO 引用；**不是** 本仓库现行产品名，也不应在用户-facing 文案、README 或实现注释中替代 Oculeau。
+以下名称已登记为 **未来产品线代号**，仅供愿景与 TODO 引用；**不是** 本仓库现行产品名，也不应在用户-facing 文案、README 或实现注释中替代 Ocula。
 
 | 代号 | 天象意象 | 设想方向（远期） |
 |------|----------|------------------|
 | **Ciel** | 天 | 产品家族 / 天象母题总称 |
-| **Lyra** | 天琴（星） | 独立 agent harness 产品线（若与 Oculeau 分叉） |
-| **MoonTide** | 月潮 | 多 panel / 多窗口桌面 shell |
+| **Lyra** | 天琴（星） | 独立 agent harness 产品线（若与 Ocula 分叉） |
+| **MoonTide** | 月潮 | 多 panel / 多窗口 desktop shell |
 | **Zephyr** | 风 | 跨 agent 产品切换与迁移 |
 | **Bruma** | 雾 | Session 事实为 source of truth（技术 Spec：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)） |
 | **Tide** | — | MoonTide 内：日常 action 摘要 panel |
@@ -28,7 +28,7 @@
 
 ```mermaid
 flowchart TB
-  Now["Oculeau — 当前产品"]
+  Now["Ocula — 当前产品"]
   Now --> CLI["CLI / agent harness · src/"]
   Now --> UI["Slint sidecar · ui/"]
   Now --> Ctx["context / events · 演进中"]
@@ -54,10 +54,10 @@ flowchart TB
 
 ### 代号说明（备忘，非现行规格）
 
-- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 `LLMRequest` 投影。Spec：[`context-composer.md`](../spec/context-composer.md)；在 Oculeau 中由 `src/context/` 等模块 **逐步演进**，产品名仍称 Oculeau。
+- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 `LLMRequest` 投影。Spec：[`context-composer.md`](../spec/context-composer.md)；在 Ocula 中由 `src/context/` 等模块 **逐步演进**，产品名仍称 Ocula。
 - **MoonTide / Tide / Fleet / Buoy** — 桌面 shell 与 panel 设想，见 [`TODO.md`](../../TODO.md)。
 - **Zephyr** — 跨 Cursor / Claude Code / Codex 等工具的会话管理与迁移，远期。
-- **Lyra** — 曾为 harness 候选名；若未来单独发产品线再启用，当前 harness 即 **Oculeau**。
+- **Lyra** — 曾为 harness 候选名；若未来单独发产品线再启用，当前 harness 即 **Ocula**。
 
 ---
 
@@ -70,6 +70,10 @@ flowchart TB
 - 不走织物系（Loom / Spool / Motif / Swatch 等已弃）
 - **Aster** 曾为 harness 候选，已由 **Lyra** 代号取代（二者均未用于现行产品名）
 
+### 曾用英文名
+
+**Oculeau**（*oculus* + *eau*）因读音不直观已弃；现行英文品牌为 **Ocula**。
+
 ## Naming non-goals
 
 不用于产品 / 代号登记：
@@ -78,9 +82,11 @@ flowchart TB
 - Current（显 low）
 - Atoll / Estuary / Archipelago（地理古板）
 - Loom / Spool / Weave / Shuttle / Motif / Swatch（织物系，已弃）
+- Eauland / Oceanland / Ocean Realm（地理感 + 泛化）
 
 ## Status
 
-- **对外与实现：Oculeau｜观澜**
+- **对外与实现：Ocula**
+- **技术标识：`ocula/` repo、`.ocula/`、`OCULA_*`、npm `ocula`**
 - **保留代号：仅文档 / TODO / 愿景，不替代当前产品名**
-- 包名、CLI 二进制、`.oculeau/` 路径维持 Oculeau；无计划将 CLI 改名为 Lyra 等代号
+- 无计划将 CLI 二进制或 npm 包改名为 Lyra 等代号

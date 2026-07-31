@@ -34,7 +34,7 @@ function assistantMessage(text: string): Message {
 
 beforeEach(() => {
   originalWorkdir = getWorkdir();
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-run-storage-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-run-storage-"));
   setWorkdir(tmpDir);
   setupEventPipeline();
 });
@@ -61,7 +61,7 @@ describe("run storage integration", () => {
     await continueReplAgent("first prompt sentinel", messages, loopContext);
     await continueReplAgent("second prompt", messages, loopContext);
 
-    const storageDir = path.join(tmpDir, ".oculeau");
+    const storageDir = path.join(tmpDir, ".ocula");
     const runsDir = path.join(storageDir, "runs");
     const files = fs.readdirSync(runsDir);
     expect(files.filter((file) => file.endsWith(".jsonl.gz"))).toHaveLength(2);
@@ -91,6 +91,6 @@ describe("run storage integration", () => {
     }
 
     expect(fs.existsSync(path.join(storageDir, "context.jsonl"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, ".oculeau-audit.log"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".ocula-audit.log"))).toBe(false);
   });
 });

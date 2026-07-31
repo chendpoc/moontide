@@ -1,8 +1,8 @@
 [package]
-name = "oculeau-ui"
+name = "ocula-ui"
 version = "0.1.0"
 edition = "2021"
-description = "Read-only Slint sidecar UI for Oculeau agent events"
+description = "Read-only Slint sidecar UI for Ocula agent events"
 
 [dependencies]
 anyhow = "1"

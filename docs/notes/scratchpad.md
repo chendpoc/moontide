@@ -9,7 +9,7 @@
 
 ## 1. 特性概述
 
-**Executable Scratchpad** 为 Oculeau Agent 提供一种 **短生命周期、沙箱化、可重复执行** 的 JavaScript 计算面，通过单一工具 **`scratch.eval`** 暴露给模型。
+**Executable Scratchpad** 为 Ocula Agent 提供一种 **短生命周期、沙箱化、可重复执行** 的 JavaScript 计算面，通过单一工具 **`scratch.eval`** 暴露给模型。
 
 Agent 在以下场景不必为一次性逻辑新建文件、调用 Shell、或请求用户手动计算：
 
@@ -58,7 +58,7 @@ Coding Agent 在真实任务中频繁遇到 **体量小但逻辑具体** 的计�
 
 ### 2.2 与 Shell / 文件工具的职责冲突
 
-Oculeau 架构倾向 **program + argv[]** 而非自由 Shell 字符串（见 [`runtime-multilang.md` §2.2](runtime-multilang.md)）。但许多「小计算」本质上是 **纯函数**：
+Ocula 架构倾向 **program + argv[]** 而非自由 Shell 字符串（见 [`runtime-multilang.md` §2.2](runtime-multilang.md)）。但许多「小计算」本质上是 **纯函数**：
 
 ```text
 f(inputs) → value
@@ -117,7 +117,7 @@ Scratchpad 针对以上痛点，提供 **专用、可审计、结构化** 的计
 | NG3 | **完整 Node.js 兼容** | 无 `require`、无 npm、无 `fs`/`net`/`child_process` |
 | NG4 | **用户-facing REPL UI** | 无独立 Scratchpad 面板（远期 MoonTide 可另议） |
 | NG5 | **任意语言** | MVP 仅 JavaScript；Python/WASM 组件为 Phase 3+ |
-| NG6 | **LLM 内嵌代码执行** | 不在 Provider API 侧执行；仅在 Oculeau Harness |
+| NG6 | **LLM 内嵌代码执行** | 不在 Provider API 侧执行；仅在 Ocula Harness |
 | NG7 | **跨 session 持久状态** | scratch state 不 survive session；不替代 Artifact Store |
 | NG8 | **替代 Context Composer** | 不 inline 大段 eval 历史进 `LLMRequest`；结果摘要进对话 |
 
@@ -558,7 +558,7 @@ flowchart TD
 ### 10.1 Scratch Session Store
 
 **Scope：** 单个 `sessionId`  
-**Storage：** 内存 + 可选 `.oculeau/sessions/<sessionId>/scratch-state.json`（Phase 2 持久化）
+**Storage：** 内存 + 可选 `.ocula/sessions/<sessionId>/scratch-state.json`（Phase 2 持久化）
 
 ```typescript
 interface ScratchStateAPI {
@@ -610,10 +610,10 @@ session end / clear → store dropped
 
 | 指标 | 类型 | 标签 |
 |------|------|------|
-| `oculeau_scratch_eval_total` | counter | `ok`, `error_kind` |
-| `oculeau_scratch_eval_duration_ms` | histogram | — |
-| `oculeau_scratch_output_bytes` | histogram | — |
-| `oculeau_scratch_pool_active` | gauge | — |
+| `ocula_scratch_eval_total` | counter | `ok`, `error_kind` |
+| `ocula_scratch_eval_duration_ms` | histogram | — |
+| `ocula_scratch_output_bytes` | histogram | — |
+| `ocula_scratch_pool_active` | gauge | — |
 
 ### 11.2 Trace
 
@@ -621,7 +621,7 @@ session end / clear → store dropped
 
 ### 11.3 Debug 与告警
 
-- `OCULEAU_SCRATCH_DEBUG=1`：Event Log 保留完整 code；Router 输出 policy 决策
+- `OCULA_SCRATCH_DEBUG=1`：Event Log 保留完整 code；Router 输出 policy 决策
 - 告警：Timeout 突增 → warn；PolicyViolation 突增 → 查 injection；pool 耗尽 → 扩 pool 或 queue
 
 ---
@@ -643,7 +643,7 @@ session end / clear → store dropped
 
 - **不可信：** LLM 生成的 code；**可信：** Router、bindings 来源、helpers
 - 所有 eval 记 `audit/tool_use`；失败也审计；bindings 含 secret 时 Phase 2 redaction
-- 落盘遵循 `.oculeau/` retention（见 [`plan.md`](../product/plan.md)）
+- 落盘遵循 `.ocula/` retention（见 [`plan.md`](../product/plan.md)）
 
 ---
 
@@ -808,11 +808,11 @@ Tool Registry、Rust Host（Router 挂载）、Session Event Log、Agent Event L
 
 ## 19. 最终定义
 
-**Executable Scratchpad** 是 Oculeau 为 Agent 提供的 **沙箱化 JavaScript 计算工具链**，核心对外接口为 **`scratch.eval`**。
+**Executable Scratchpad** 是 Ocula 为 Agent 提供的 **沙箱化 JavaScript 计算工具链**，核心对外接口为 **`scratch.eval`**。
 
 它由 **Rust Execution Router** 调度 **QuickJS**（远期 WASM）执行 Agent 提交的短代码，在 **无文件、无网络、有配额** 的前提下，将 **bindings** 映射为结构化 **value** 或 **typed error**，并可选维护 **session-scoped scratch state**。
 
-其存在意义是：让「小步、确定性、可审计的计算」脱离 Shell 与临时文件，降低 context 噪音与 Agent 算术错误，并与 Oculeau 多语言 Runtime 战略中的 **WASM 沙箱层** 对齐。
+其存在意义是：让「小步、确定性、可审计的计算」脱离 Shell 与临时文件，降低 context 噪音与 Agent 算术错误，并与 Ocula 多语言 Runtime 战略中的 **WASM 沙箱层** 对齐。
 
 **Done 的含义（MVP）：**  
 用户在 coding session 中观察到 Agent 合理使用 `scratch.eval` 完成正则、路径与 JSON 变换，工作区无临时脚本污染，失败可理解且可 retry，Event Log 可追踪每次 eval。

@@ -8,12 +8,12 @@ import {
 
 describe("http_fetch", () => {
   beforeEach(() => {
-    delete process.env.OCULEAU_HTTP;
+    delete process.env.OCULA_HTTP;
     vi.restoreAllMocks();
   });
 
   afterEach(() => {
-    delete process.env.OCULEAU_HTTP;
+    delete process.env.OCULA_HTTP;
     vi.restoreAllMocks();
   });
 
@@ -62,8 +62,8 @@ describe("http_fetch", () => {
     expect(result.body.length).toBe(1000);
   });
 
-  it("is disabled when OCULEAU_HTTP=0", async () => {
-    process.env.OCULEAU_HTTP = "0";
+  it("is disabled when OCULA_HTTP=0", async () => {
+    process.env.OCULA_HTTP = "0";
     const raw = await runHttpFetch({ url: "https://example.com" });
     const result = JSON.parse(raw) as { status: string; error: string };
     expect(result.status).toBe("error");

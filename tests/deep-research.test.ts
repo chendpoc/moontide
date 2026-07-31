@@ -5,8 +5,8 @@ import { runDeepResearch } from "../src/extensions/deep-research/handler.js";
 import { defineDeepResearchTool } from "../src/extensions/deep-research/index.js";
 import { normalizeMaxResults, tavilySearch } from "../src/extensions/deep-research/tavily.js";
 
-const ENV_KEY = "OCULEAU_DEEP_RESEARCH";
-const TAVILY_KEY = "OCULEAU_TAVILY_API_KEY";
+const ENV_KEY = "OCULA_DEEP_RESEARCH";
+const TAVILY_KEY = "OCULA_TAVILY_API_KEY";
 
 describe("deep_research extension", () => {
   beforeEach(() => {
@@ -21,7 +21,7 @@ describe("deep_research extension", () => {
     vi.restoreAllMocks();
   });
 
-  it("is omitted from catalog unless OCULEAU_DEEP_RESEARCH=1", () => {
+  it("is omitted from catalog unless OCULA_DEEP_RESEARCH=1", () => {
     expect(defineDeepResearchTool()).toBeNull();
     const names = createDefaultCatalog()
       .schemas()
@@ -29,7 +29,7 @@ describe("deep_research extension", () => {
     expect(names).not.toContain("deep_research");
   });
 
-  it("registers when OCULEAU_DEEP_RESEARCH=1", () => {
+  it("registers when OCULA_DEEP_RESEARCH=1", () => {
     process.env[ENV_KEY] = "1";
     const tool = defineDeepResearchTool();
     expect(tool?.schema.name).toBe("deep_research");

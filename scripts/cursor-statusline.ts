@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Cursor CLI statusLine script — merges Cursor stdin payload with Oculeau .oculeau/status.json.
+ * Cursor CLI statusLine script — merges Cursor stdin payload with Ocula .ocula/status.json.
  * Config: ~/.cursor/cli-config.json → statusLine.command
  */
 import fs from "node:fs";
@@ -28,7 +28,7 @@ function readStdin(): Promise<string> {
   });
 }
 
-function loadOculeauStatus(cwd: string): StatusSnapshot | null {
+function loadOculaStatus(cwd: string): StatusSnapshot | null {
   const filePath = path.join(cwd, DATA_DIR, STATUS_FILE);
   if (!fs.existsSync(filePath)) {
     return null;
@@ -42,16 +42,16 @@ function loadOculeauStatus(cwd: string): StatusSnapshot | null {
 
 function mergeSnapshot(
   cursor: CursorStatusPayload,
-  oculeau: StatusSnapshot | null,
+  ocula: StatusSnapshot | null,
 ): StatusSnapshot {
   const cwd = cursor.cwd ?? process.cwd();
-  const pct = cursor.context_window?.used_percentage ?? oculeau?.contextPct ?? null;
+  const pct = cursor.context_window?.used_percentage ?? ocula?.contextPct ?? null;
 
-  if (oculeau) {
+  if (ocula) {
     return {
-      ...oculeau,
-      model: cursor.model?.display_name ?? cursor.model?.id ?? oculeau.model,
-      workdir: oculeau.workdir || cwd,
+      ...ocula,
+      model: cursor.model?.display_name ?? cursor.model?.id ?? ocula.model,
+      workdir: ocula.workdir || cwd,
       contextPct: pct,
     };
   }
@@ -70,8 +70,8 @@ async function main(): Promise<void> {
   const raw = await readStdin();
   const cursor = raw.trim() ? (JSON.parse(raw) as CursorStatusPayload) : {};
   const cwd = cursor.cwd ?? process.cwd();
-  const oculeau = loadOculeauStatus(cwd);
-  const snapshot = mergeSnapshot(cursor, oculeau);
+  const ocula = loadOculaStatus(cwd);
+  const snapshot = mergeSnapshot(cursor, ocula);
   const lines = formatStatusLine(snapshot);
   process.stdout.write(`${lines}\n`);
 }

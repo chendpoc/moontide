@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const MAX_EVENTS: usize = 2000;
-pub const OCULEAU_DIR: &str = ".oculeau";
+pub const OCULA_DIR: &str = ".ocula";
 pub const RUNS_DIR: &str = "runs";
 pub const ACTIVE_EVENTS_SUFFIX: &str = ".active.jsonl";
 pub const STATUS_FILE: &str = "status.json";

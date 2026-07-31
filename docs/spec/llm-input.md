@@ -1,6 +1,6 @@
-# Oculeau LLM Input 对表
+# Ocula LLM Input 对表
 
-> 说明「成熟 agent 一次 LLM 请求应包含什么」，以及 **Oculeau 当前实现** 落在哪、缺什么。  
+> 说明「成熟 agent 一次 LLM 请求应包含什么」，以及 **Ocula 当前实现** 落在哪、缺什么。  
 > 行业背景见 [`context-analysis.md`](../notes/context-analysis.md)；Provider / API 适配层见 [`llm-provider.md`](llm-provider.md)；Session 中间态与 **Context Composer** 见 [`context-composer.md`](context-composer.md)（目标产出 **`LLMRequest`**）。  
 > 本文只做 **API 对表 + 代码落点**，不涉及代码实现计划。
 
@@ -8,13 +8,13 @@
 
 ## 1. API 顶层：实际只有三个参数
 
-Oculeau 调用见 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts)：
+Ocula 调用见 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts)：
 
 ```typescript
 messages.create({ model, system, messages, tools, max_tokens })
 ```
 
-| API 参数 | 含义 | Oculeau 谁组装 | 现状 |
+| API 参数 | 含义 | Ocula 谁组装 | 现状 |
 |----------|------|----------------|------|
 | `system` | 静态/半静态指令 | [`src/agent/loop.ts`](../../src/agent/loop.ts) → `buildSystemPrompt()` | 有，每 turn 重建 |
 | `tools` | 工具名 + description + schema | [`src/agent/tools/index.ts`](../../src/agent/tools/index.ts) → `toolSchemas()` | 有，按 config 动态注册 |
@@ -33,14 +33,14 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 ## 2. `system` 里通常有什么
 
-| 内容块 | 成熟做法 | Oculeau | 代码 / 文件 | 备注 |
+| 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
-| 身份 / 角色 | system 首段 | **有** | [`src/agent/prompt.ts`](../../src/agent/prompt.ts) | "You are Oculeau…" |
+| 身份 / 角色 | system 首段 | **有** | [`src/agent/prompt.ts`](../../src/agent/prompt.ts) | "You are Ocula…" |
 | 工作区路径 | cwd / workdir | **有** | `prompt.ts` → `getWorkdir()` | 动态注入 |
 | 全局 tool 选用策略 | prefer read_file over bash 等 | **有** | `prompt.ts` L8–11 | 与部分 tool description 重复 |
 | Extension 使用说明 | code_repl runtime、templates | **有（混在 system）** | `prompt.ts` L14–23 | code_repl schema 里也有长 description |
 | 项目规则 | `AGENTS.md` / `CLAUDE.md` | **无** | — | 未读 repo 指令文件 |
-| 用户偏好 / 长期记忆 | `~/.oculeau/` 或 MEMORY.md，每轮 re-inject | **无** | — | 远期 **Instruction State**（[`context-composer.md`](context-composer.md)） |
+| 用户偏好 / 长期记忆 | `~/.ocula/` 或 MEMORY.md，每轮 re-inject | **无** | — | 远期 **Instruction State**（[`context-composer.md`](context-composer.md)） |
 | 权限 / 审批提示 | "bash 可能需用户确认" | **无** | permission 在 [`runTool.ts`](../../src/agent/pipeline/runTool.ts) 执行层 | 模型不可见 |
 | 压缩摘要 | 通常放 **messages**，不是 system | — | `/compact summary` 进 messages | 见 §4 |
 
@@ -50,7 +50,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 ## 3. `tools[]` 里通常有什么
 
-| 内容块 | 成熟做法 | Oculeau | 代码 / 文件 | 备注 |
+| 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
 | Tool name | API schema | **有** | 各 `ToolDefinition.schema.name` | |
 | Tool description | 每个 tool 一段 | **有** | [`builtins/fs-tools.ts`](../../src/builtins/fs-tools.ts) 等 | grep / code_repl 较详细 |
@@ -66,7 +66,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 ## 4. `messages[]` 里通常有什么
 
-| 内容块 | 成熟做法 | Oculeau | 代码 / 文件 | 备注 |
+| 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
 | 用户输入（首轮） | `role: user` 文本 | **有** | [`runAgent`](../../src/agent/loop.ts) / REPL | |
 | 用户输入（后续轮） | messages 末尾 append | **有** | `continueReplAgent` push | 不是独立 API 字段 |
@@ -96,7 +96,7 @@ flowchart LR
 
 ## 5. 你列的五项 → 正确落点
 
-| # | 你的说法 | API 落点 | Oculeau 现状 |
+| # | 你的说法 | API 落点 | Ocula 现状 |
 |---|----------|----------|--------------|
 | 1 | system prompt | `system` | **有** — `prompt.ts` |
 | 2 | tool description | `tools[].description` + `input_schema` | **有** — 各 tool 注册 |
@@ -108,7 +108,7 @@ flowchart LR
 
 ## 6. 相关但不在「一次 LLM input」里
 
-| 项 | 作用 | Oculeau |
+| 项 | 作用 | Ocula |
 |----|------|---------|
 | Context 用量估算 | 决定是否 compact | **有** — [`src/context/`](../../src/context/) metrics + context plugin |
 | Event JSONL | 观测 / UI tail | **有** — 与发给模型的 messages **不是同一份** |
@@ -121,7 +121,7 @@ flowchart LR
 
 ## 7. 缺口优先级（对照 context-window 设计）
 
-| 优先级 | 缺口 | 今天表现 | 建议方向（Oculeau 演进，未实现） |
+| 优先级 | 缺口 | 今天表现 | 建议方向（Ocula 演进，未实现） |
 |--------|------|----------|----------------------------------|
 | P0 | messages 一物两用 | loop 原地 `splice` | Session Event Log append-only + **Context Composer** → `LLMRequest` |
 | P0 | 无 project / memory 注入 | 仅 `prompt.ts` | **Instruction State** → 拼 system |
@@ -135,7 +135,7 @@ flowchart LR
 
 ## 8. 一句话总结
 
-**Oculeau 今天已覆盖：** `system`（手写）+ `tools`（完整 schema）+ `messages`（user / assistant / tool_result 循环）。
+**Ocula 今天已覆盖：** `system`（手写）+ `tools`（完整 schema）+ `messages`（user / assistant / tool_result 循环）。
 
 **尚未覆盖：** Instruction State、Session Event Log 与 `LLMRequest` 投影分离、Artifact Store、Compaction 与 Checkpoint——见 [`context-composer.md`](context-composer.md) 与 [`vision.md`](../product/vision.md)（保留代号 Bruma）。
 
@@ -147,5 +147,5 @@ flowchart LR
 - [`context-backlog.md`](../notes/context-backlog.md) — Context 演进特性（分账、IR、实验与 Deferred）
 - [`llm-provider.md`](llm-provider.md) — API 适配方案 A、Provider Preset、`LLMRequest`、`ModelCapabilities`
 - [`context-analysis.md`](../notes/context-analysis.md) — 行业 SOTA 与产品对比
-- [`vision.md`](../product/vision.md) — 产品名 Oculeau；保留代号与未来方向
+- [`vision.md`](../product/vision.md) — 产品名 Ocula；保留代号与未来方向
 - [`agent-events.md`](agent-events.md) — 观测侧 JSONL（与 LLM input 分离）

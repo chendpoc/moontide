@@ -1,6 +1,6 @@
-# Oculeau UI
+# Ocula UI
 
-Read-only Slint sidecar for Oculeau. Reads `status.json.runId`, tails `workdir/.oculeau/runs/<runId>.active.jsonl`, and renders **Trace**, **Context**, and **Chat** tabs.
+Read-only Slint sidecar for Ocula. Reads `status.json.runId`, tails `workdir/.ocula/runs/<runId>.active.jsonl`, and renders **Trace**, **Context**, and **Chat** tabs.
 
 The UI is live-only: it keeps already loaded rows across segment rotation, but does not read completed `.jsonl.gz` segments. After a UI restart, completed runs are not restored.
 
@@ -20,7 +20,7 @@ macOS-first (folder picker via `rfd`, file watching via `notify`).
 ## Prerequisites
 
 - [rustup](https://rustup.rs) with **stable ≥ 1.89**
-- Oculeau REPL writing `.oculeau/` artifacts in the workdir
+- Ocula REPL writing `.ocula/` artifacts in the workdir
 
 ### Upgrade Rust (国内镜像)
 
@@ -35,7 +35,7 @@ rustc --version   # expect 1.89+
 ## Build & run
 
 ```bash
-cd oculeau/ui
+cd ocula/ui
 cargo build
 cargo run -- --workdir ..
 ```
@@ -50,17 +50,17 @@ Use **Pick…** to switch workdir at runtime.
 
 ## 联调
 
-Terminal 1 — Oculeau REPL:
+Terminal 1 — Ocula REPL:
 
 ```bash
-cd oculeau
+cd ocula
 pnpm dev
 ```
 
 Terminal 2 — UI sidecar:
 
 ```bash
-cd oculeau
+cd ocula
 pnpm dev:ui
 # or: cd ui && cargo run -- --workdir ..
 ```

@@ -14,7 +14,7 @@ function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   return {
     phase: "idle",
     model: "deepseek-v4-pro",
-    workdir: "~/code/oculeau",
+    workdir: "~/code/ocula",
     runId: "run-1",
     turn: null,
     contextPct: null,
@@ -27,7 +27,7 @@ describe("statusline format", () => {
     const line = formatStatusLine(baseSnapshot());
     const text = stripAnsi(line);
     expect(line.split("\n")).toHaveLength(1);
-    expect(text).toContain("Oculeau");
+    expect(text).toContain("Ocula");
     expect(text).toContain("idle");
     expect(text).toContain("context");
     expect(text).toContain("turn —");

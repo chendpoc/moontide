@@ -1,13 +1,13 @@
-# Oculeau
+# Ocula
 
-一个最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
+**Ocula** — /AH-kyoo-lah/ · 最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
 
 当前开发优先级与非目标见 [`docs/product/plan.md`](docs/product/plan.md)。设计文档索引见 [`docs/README.md`](docs/README.md)（Doc Map）。
 
 ## 项目结构
 
 ```
-oculeau/
+ocula/
 ├── docs/                # 设计 Spec 与 Doc Map（product / spec / notes）
 ├── src/
 │   ├── agent/           # loop、prompt、pipeline（runLLM / runTool）、tools
@@ -30,7 +30,7 @@ oculeau/
 ## 快速开始
 
 ```sh
-cd oculeau
+cd ocula
 pnpm install
 cp .env.example .env   # 填入 DEEPSEEK_API_KEY
 
@@ -54,15 +54,15 @@ Agent 协作用词规范见 [`agent.md`](agent.md)。
 
 ## LLM Provider 与模型配置
 
-Oculeau 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
+Ocula 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
 
 设计详述见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)（API 适配层）与 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/spec/llm-input.md`](docs/spec/llm-input.md)。
 
-**今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `OCULEAU_PROVIDER` 与各厂商 key。
+**今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `OCULA_PROVIDER` 与各厂商 key。
 
 ## AgentEvent 架构
 
-每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.oculeau/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
+每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.ocula/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
 
 ```
 pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
@@ -83,16 +83,16 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 |------|------|
 | **stdout** | 每轮 agent 最终 reply |
 | **stderr** | statusline、prompt、分隔线；**thinking/verbose 开启时**实时 trace/context |
-| **`.oculeau/runs/<runId>.active.jsonl`** | 当前 run 的实时结构化事件 |
-| **`.oculeau/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
+| **`.ocula/runs/<runId>.active.jsonl`** | 当前 run 的实时结构化事件 |
+| **`.ocula/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
 
 ### Thinking / Verbose（调试观测，**默认关闭**）
 
 | 模式 | stderr 展示 | 开启方式 |
 |------|-------------|----------|
 | **off（默认）** | 无 trace/context 噪音 | — |
-| **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULEAU_THINKING=1` |
-| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ audit/conversation `EVENT` 标记 | `/verbose on` 或 `OCULEAU_VERBOSE=1` |
+| **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULA_THINKING=1` |
+| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ audit/conversation `EVENT` 标记 | `/verbose on` 或 `OCULA_VERBOSE=1` |
 
 run event log **始终写入**；thinking/verbose 只控制 stderr 是否同步打印美化块。
 
@@ -105,7 +105,7 @@ run event log **始终写入**；thinking/verbose 只控制 stderr 是否同步�
 ### Statusline
 
 ```
-Oculeau idle · context 12.3% · turn 2
+Ocula idle · context 12.3% · turn 2
 ```
 
 （无 context 报告时显示 `context —`。）
@@ -177,30 +177,30 @@ Oculeau idle · context 12.3% · turn 2
 {
   "statusLine": {
     "type": "command",
-    "command": "tsx /path/to/oculeau/scripts/cursor-statusline.ts"
+    "command": "tsx /path/to/ocula/scripts/cursor-statusline.ts"
   }
 }
 ```
 
-脚本合并 Cursor stdin payload 与 `.oculeau/status.json`。
+脚本合并 Cursor stdin payload 与 `.ocula/status.json`。
 
 ## 环境变量
 
 | 变量 | 作用 |
 |------|------|
 | `DEEPSEEK_API_KEY` / `MODEL_ID` | LLM API（今天默认 DeepSeek Anthropic 兼容端点） |
-| `OCULEAU_PROVIDER` | Provider preset（目标：`deepseek` \| `kimi` \| `openai` \| `anthropic` \| `gemini` \| `openrouter` \| `custom`） |
-| `OCULEAU_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)） |
-| `OCULEAU_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
-| `OCULEAU_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
-| `OCULEAU_COMPACT_AUTO=1` | 默认开启 auto compact |
-| `OCULEAU_CODE_REPL_*` / `OCULEAU_PYTHON` / `OCULEAU_VENV` | code_repl 配置 |
-| `OCULEAU_CODE_REPL_DISABLED=1` | 禁用 code_repl |
-| `OCULEAU_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |
-| `OCULEAU_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
-| `OCULEAU_HTTP=0` | 禁用 `http_fetch` tool（默认启用且需 ask） |
-| `OCULEAU_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
-| `OCULEAU_VERBOSE=1` | 默认开启 verbose 模式（完整 chalk debug trace；**默认 off**） |
+| `OCULA_PROVIDER` | Provider preset（目标：`deepseek` \| `kimi` \| `openai` \| `anthropic` \| `gemini` \| `openrouter` \| `custom`） |
+| `OCULA_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)） |
+| `OCULA_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
+| `OCULA_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
+| `OCULA_COMPACT_AUTO=1` | 默认开启 auto compact |
+| `OCULA_CODE_REPL_*` / `OCULA_PYTHON` / `OCULA_VENV` | code_repl 配置 |
+| `OCULA_CODE_REPL_DISABLED=1` | 禁用 code_repl |
+| `OCULA_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |
+| `OCULA_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
+| `OCULA_HTTP=0` | 禁用 `http_fetch` tool（默认启用且需 ask） |
+| `OCULA_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
+| `OCULA_VERBOSE=1` | 默认开启 verbose 模式（完整 chalk debug trace；**默认 off**） |
 
 ## 开发与质量
 

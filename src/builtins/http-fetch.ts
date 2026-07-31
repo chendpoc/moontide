@@ -97,7 +97,7 @@ export async function runHttpFetch(input: HttpFetchInput): Promise<string> {
   if (!httpFetchEnabled()) {
     return JSON.stringify({
       status: "error",
-      error: "http_fetch is disabled (set OCULEAU_HTTP unset or not 0)",
+      error: "http_fetch is disabled (set OCULA_HTTP unset or not 0)",
     } satisfies HttpFetchResult);
   }
 

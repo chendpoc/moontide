@@ -21,7 +21,7 @@ function testToolContext(
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-code-repl-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-code-repl-"));
   setWorkdir(tmpDir);
 });
 

@@ -1,7 +1,7 @@
 import { getWorkdir } from "../config.js";
 
 export function buildSystemPrompt(): string {
-  return `You are Oculeau, a focused coding agent.
+  return `You are Ocula, a focused coding agent.
 
 Workspace: ${getWorkdir()}
 
@@ -12,7 +12,7 @@ For a combined git overview (status + log + diff --stat), call git_summary then 
 Plan before acting on multi-step tasks. Be concise in final replies.
 
 ## code_repl runtime selection
-- TypeScript / Oculeau code → runtime "tsx"
+- TypeScript / Ocula code → runtime "tsx"
 - Training scripts, numpy/torch, Python notebooks → runtime "python"
 - Existing .js files → runtime "node"
 - Shell pipelines, package installs → use bash tool, not code_repl

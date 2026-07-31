@@ -33,7 +33,7 @@ export const pythonRuntime: CodeRuntime = {
 
     return {
       available: false,
-      error: "python interpreter not found (set OCULEAU_PYTHON or OCULEAU_VENV)",
+      error: "python interpreter not found (set OCULA_PYTHON or OCULA_VENV)",
     };
   },
   buildCommand(ctx) {

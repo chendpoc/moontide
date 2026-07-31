@@ -24,7 +24,7 @@ const loopCtx = (interaction = denyAllInteraction): LoopContext => ({
 });
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-run-tool-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-run-tool-"));
   setWorkdir(tmpDir);
 });
 

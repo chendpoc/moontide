@@ -43,7 +43,7 @@ const denyAllInteraction: UserInteraction = {
 };
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-loop-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-loop-"));
   setWorkdir(tmpDir);
 });
 

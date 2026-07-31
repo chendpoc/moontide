@@ -21,7 +21,7 @@
 - [ ] **5. 虚拟人物**
 
 - [ ] **6. Session — Bruma**
-  - **Session Event Log**（`.oculeau/sessions/<sessionId>.jsonl`）作为会话事实源；Spec 见 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)，演进特性见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)
+  - **Session Event Log**（`.ocula/sessions/<sessionId>.jsonl`）作为会话事实源；Spec 见 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)，演进特性见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)
 
 - [ ] **7. Feature 基线性能测试套件**
   - 自动化测试完善
@@ -32,7 +32,7 @@
 
 - [ ] **9. 日常 Action 统计控件（Tide）**
   - 多 UI 组件之一：可视化「今天做了什么 / 最近做了什么」
-  - 数据源不限于 Oculeau app 内，覆盖电脑上的日常操作（窗口切换、应用使用、文件编辑、终端命令、浏览器等）
+  - 数据源不限于 Ocula app 内，覆盖电脑上的日常操作（窗口切换、应用使用、文件编辑、终端命令、浏览器等）
   - 作为独立 panel / widget 嵌入 **MoonTide**，持续监控并汇总 daily action
   - 与 AgentEvent / trace 打通，区分「人做的」与「agent 做的」
   - 远期：时间线视图、分类 Tag、与 Project Tree / Session（**Bruma**）关联
@@ -44,9 +44,9 @@
   - 与 **1. Slint 桌面样式优化** 联动（透明虚化、动效、背景）
   - 架构讨论见 [`docs/notes/runtime-multilang.md`](docs/notes/runtime-multilang.md)
 
-- [ ] **11. 产品命名 — 已定稿**
+- [x] **11. 产品命名 — 已定稿**
   - 见 [`docs/product/vision.md`](docs/product/vision.md)
-  - **当前产品：Oculeau｜观澜**（CLI / repo / npm / `.oculeau/`）
+  - **当前产品：Ocula**（repo `ocula/`、工作区 `.ocula/`、`OCULA_*`）
   - **Ciel · Lyra · MoonTide · Zephyr · Bruma · Tide · Fleet · Buoy** 为保留代号，仅指未来产品线，不用于现行产品名
 
 - [ ] **12. 多 Agent 进程监控（Fleet）**
@@ -67,7 +67,7 @@
 
 - [ ] **14. Agent 外网数据源可达性与体验（国内网络）**
   - **背景**：大量国内用户无法稳定访问 GitHub、Google 等外网数据源；agent 拉依赖、搜文档、clone、调 API 时易失败
-  - **目标**：在 **Oculeau** 与相关工具链上做可达性优化与体验提升；即使无法彻底解决连通，也要有明确降级、错误说明与替代路径
+  - **目标**：在 **Ocula** 与相关工具链上做可达性优化与体验提升；即使无法彻底解决连通，也要有明确降级、错误说明与替代路径
   - **探索方向**（非本期实现承诺）：
     - 失败时可读的错误与建议（镜像、代理、本地缓存、离线知识）
     - 可选镜像 / 国内可替代源的探测与配置

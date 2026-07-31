@@ -26,7 +26,7 @@ Returns JSON with exit_code, stdout, stderr, duration_ms, executed_path. Templat
         runtime: {
           type: "string",
           enum: runtimeEnum,
-          description: "Execution runtime (default from OCULEAU_CODE_REPL_DEFAULT_RUNTIME). Overridden by template when template is set.",
+          description: "Execution runtime (default from OCULA_CODE_REPL_DEFAULT_RUNTIME). Overridden by template when template is set.",
         },
         template: {
           type: "string",

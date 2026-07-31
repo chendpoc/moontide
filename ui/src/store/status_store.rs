@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::model::{StatusSnapshot, OCULEAU_DIR, STATUS_FILE};
+use crate::model::{StatusSnapshot, OCULA_DIR, STATUS_FILE};
 
 pub struct StatusStore {
     workdir: PathBuf,
@@ -24,7 +24,7 @@ impl StatusStore {
     }
 
     pub fn status_path(&self) -> PathBuf {
-        self.workdir.join(OCULEAU_DIR).join(STATUS_FILE)
+        self.workdir.join(OCULA_DIR).join(STATUS_FILE)
     }
 
     pub fn reload(&mut self) -> Result<bool> {

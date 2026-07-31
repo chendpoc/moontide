@@ -11,7 +11,7 @@ function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot
   return {
     turn: 1,
     modelId: "deepseek-v4-pro",
-    system: "You are Oculeau.",
+    system: "You are Ocula.",
     tools: [
       {
         name: "read_file",

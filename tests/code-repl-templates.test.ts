@@ -11,7 +11,7 @@ import { listTemplateIds } from "../src/extensions/code-repl/templates/catalog.j
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-templates-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-templates-"));
   setWorkdir(tmpDir);
 });
 

@@ -37,7 +37,7 @@ function commitFile(relativePath: string, content: string, message: string): voi
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-git-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-git-"));
   setWorkdir(tmpDir);
 });
 

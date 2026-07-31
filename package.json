@@ -1,7 +1,7 @@
 {
-  "name": "oculeau",
+  "name": "ocula",
   "version": "0.1.0",
-  "description": "Oculeau — minimal coding agent harness (TypeScript)",
+  "description": "Ocula — minimal coding agent harness (TypeScript)",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -13,6 +13,7 @@
     "ping": "tsx src/llm/healthcheck/ping.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare": "husky",

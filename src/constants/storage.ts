@@ -1,5 +1,5 @@
-/** Workspace-local Oculeau data directory name. */
-export const DATA_DIR = ".oculeau";
+/** Workspace-local Ocula data directory name. */
+export const DATA_DIR = ".ocula";
 
 export const RUNS_DIR = "runs";
 export const STATUS_FILE = "status.json";

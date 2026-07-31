@@ -36,7 +36,7 @@ function event(
 }
 
 function runsDir(): string {
-  return path.join(tmpDir, ".oculeau", RUNS_DIR);
+  return path.join(tmpDir, ".ocula", RUNS_DIR);
 }
 
 function readJsonl(filePath: string): AgentEvent[] {
@@ -49,7 +49,7 @@ function readJsonl(filePath: string): AgentEvent[] {
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-storage-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-storage-"));
 });
 
 afterEach(() => {
@@ -179,7 +179,7 @@ describe("persisted event projection", () => {
 
 describe("per-run gzip segments", () => {
   it("leaves the legacy event log untouched", () => {
-    const dataDir = path.join(tmpDir, ".oculeau");
+    const dataDir = path.join(tmpDir, ".ocula");
     const legacyPath = path.join(dataDir, "events.jsonl");
     fs.mkdirSync(dataDir, { recursive: true });
     fs.writeFileSync(legacyPath, "legacy-content\n");

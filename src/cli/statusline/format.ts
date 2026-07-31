@@ -33,7 +33,7 @@ export function formatStatusLine(snapshot: StatusSnapshot): string {
 
   const channels = [formatContext(snapshot), formatTurn(snapshot)].join(themes.dim(" · "));
 
-  return [chalk.bold("Oculeau"), phasePaint, channels].join(themes.dim(" · "));
+  return [chalk.bold("Ocula"), phasePaint, channels].join(themes.dim(" · "));
 }
 
 /** Full status for /status. */
@@ -45,7 +45,7 @@ export function formatStatusLineVerbose(snapshot: StatusSnapshot): string {
     snapshot.contextPct !== null ? `${snapshot.contextPct.toFixed(1)}%` : "—";
 
   return [
-    chalk.bold("Oculeau"),
+    chalk.bold("Ocula"),
     themes.dim(snapshot.model),
     themes.dim(snapshot.workdir),
     phasePaint,

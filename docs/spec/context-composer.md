@@ -1,4 +1,4 @@
-# Oculeau Context Composer 与 Session 中间态
+# Ocula Context Composer 与 Session 中间态
 
 > Context window 的数据组成、持久化边界与编译流程。  
 > 一次 API 调用的出口类型见 [`llm-provider.md`](llm-provider.md)（`LLMRequest`）；三参数对表见 [`llm-input.md`](llm-input.md)；行业背景见 [`context-analysis.md`](../notes/context-analysis.md)。
@@ -9,7 +9,7 @@
 
 ### 1.1 定位
 
-Oculeau 的 context window 不是「一个可变 `messages[]`」，而是：
+Ocula 的 context window 不是「一个可变 `messages[]`」，而是：
 
 ```
 Session Event Log + Session State Stores + Tool Definitions + ModelCapabilities
@@ -27,7 +27,7 @@ API 适配层 → 厂商 API
 
 | 文档 | 职责 |
 |------|------|
-| [`llm-provider.md`](llm-provider.md) | `LLMRequest` / Oculeau 协议、API 适配层、ModelCapabilities 来源 |
+| [`llm-provider.md`](llm-provider.md) | `LLMRequest` / Ocula 协议、API 适配层、ModelCapabilities 来源 |
 | [`llm-input.md`](llm-input.md) | `system` / `tools` / `messages` 对表与现状缺口 |
 | [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA 与竞品参考 |
 | [`agent-events.md`](agent-events.md) | **Agent Event Log**（run 级观测） |
@@ -39,7 +39,7 @@ API 适配层 → 厂商 API
 2. **投影 immutable** — 每 turn 新建 `LLMRequest`；adapter 只读，不 mutate Composer 产出。
 3. **Instruction State 独立于对话摘要** — `system` 每轮从 Instruction State 重建，不依赖 summary 记得规则。
 4. **Compaction ≠ Checkpoint** — 前者调整 context 预算投影；后者保存可恢复快照；互不必然伴随。
-5. **厂商中性** — Session 中间态使用 Oculeau `ContentBlock`（见 [`llm-provider.md` §9.1](llm-provider.md#91-oculeau-协议内核唯一依赖)），不存 SDK 专有类型。
+5. **厂商中性** — Session 中间态使用 Ocula `ContentBlock`（见 [`llm-provider.md` §9.1](llm-provider.md#91-ocula-协议内核唯一依赖)），不存 SDK 专有类型。
 
 ---
 
@@ -83,12 +83,12 @@ flowchart TB
 
 | 术语 | 定义 | 持久化 | 典型路径 / 模块 |
 |------|------|--------|-----------------|
-| **Agent Event Log** | 单次 run 的观测事件（trace、metrics、audit） | 是 | `.oculeau/runs/<runId>.jsonl` |
-| **Session Event Log** | 整场 session 的 append-only 事实 | 是 | `.oculeau/sessions/<sessionId>.jsonl` |
-| **Instruction State** | 拼进 `LLMRequest.system` 的规则与 prompt 来源 | 部分（文件源） | 内存 + `AGENTS.md` / `.oculeau/rules`（远期） |
-| **Artifact Store** | 大 tool 输出全文 | 是 | `.oculeau/artifacts/<sessionId>/<artifactId>` |
-| **Compaction Record** | summary / structured 压缩的持久产物 | 是 | `.oculeau/sessions/<sessionId>/compaction/<id>.json` |
-| **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.oculeau/sessions/<sessionId>/checkpoints/<id>.json` |
+| **Agent Event Log** | 单次 run 的观测事件（trace、metrics、audit） | 是 | `.ocula/runs/<runId>.jsonl` |
+| **Session Event Log** | 整场 session 的 append-only 事实 | 是 | `.ocula/sessions/<sessionId>.jsonl` |
+| **Instruction State** | 拼进 `LLMRequest.system` 的规则与 prompt 来源 | 部分（文件源） | 内存 + `AGENTS.md` / `.ocula/rules`（远期） |
+| **Artifact Store** | 大 tool 输出全文 | 是 | `.ocula/artifacts/<sessionId>/<artifactId>` |
+| **Compaction Record** | summary / structured 压缩的持久产物 | 是 | `.ocula/sessions/<sessionId>/compaction/<id>.json` |
+| **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.ocula/sessions/<sessionId>/checkpoints/<id>.json` |
 | **Compaction** | 调整 Composer 投影策略的操作（过程） | 事件写入 Session Event Log | — |
 | **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | `Tool Registry.schemas()` → Composer |
 | **ModelCapabilities** | context 上限、token 计数策略等 | 配置 / catalog | [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities) |
@@ -103,7 +103,7 @@ flowchart TB
 | | **Agent Event Log** | **Session Event Log** |
 |---|---------------------|------------------------|
 | **Scope** | 单次 **run** | 整场 **session**（可跨多个 run） |
-| **路径** | `.oculeau/runs/<runId>.active.jsonl` | `.oculeau/sessions/<sessionId>.jsonl` |
+| **路径** | `.ocula/runs/<runId>.active.jsonl` | `.ocula/sessions/<sessionId>.jsonl` |
 | **职责** | trace、context metrics、audit、UI tail | **source of truth**：user、assistant、tool、compaction、checkpoint 等事实 |
 | **是否 append-only** | 是（按 run 分段压缩） | 是 |
 | **与模型 input 关系** | 观测镜像；**不是**唯一事实源 | 事实源；Composer **读取**后投影，不整包等于 `LLMRequest` |
@@ -119,7 +119,7 @@ flowchart TB
 
 ## 5. Session Event Log — 条目 Spec
 
-每行一条 JSON（NDJSON）。条目厂商中性；assistant / tool 块对齐 Oculeau `ContentBlock`。
+每行一条 JSON（NDJSON）。条目厂商中性；assistant / tool 块对齐 Ocula `ContentBlock`。
 
 ```typescript
 export type SessionLogEntry =
@@ -215,7 +215,7 @@ export interface InstructionState {
 }
 ```
 
-- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../src/agent/prompt.ts)；远期 `AGENTS.md`、`.oculeau/rules`。
+- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../src/agent/prompt.ts)；远期 `AGENTS.md`、`.ocula/rules`。
 - **Composer：** 每 turn 拼成 `LLMRequest.system`；**不参与** conversation summary。
 - **`epoch`：** 规则文件变更时递增，便于 cache 与调试。
 
@@ -233,7 +233,7 @@ export interface Artifact {
 }
 ```
 
-- **路径：** `.oculeau/artifacts/<sessionId>/<artifactId>`
+- **路径：** `.ocula/artifacts/<sessionId>/<artifactId>`
 - **Session Event Log：** `tool_outcome` 只存 `artifactId` + `receipt`；全文在 Artifact Store。
 - **Composer：** 默认只投影 receipt；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
 
@@ -258,7 +258,7 @@ export interface StructuredPayload {
 }
 ```
 
-- **路径：** `.oculeau/sessions/<sessionId>/compaction/<id>.json`
+- **路径：** `.ocula/sessions/<sessionId>/compaction/<id>.json`
 - **何时写入：** 仅 **summary / structured** 类 Compaction 需要；**prune / tail_window** 不需要 Compaction Record。
 - **Composer：** 投影旧对话时引用最新适用的 Compaction Record + 最近 tail 条目。
 
@@ -277,7 +277,7 @@ export interface Checkpoint {
 }
 ```
 
-- **路径：** `.oculeau/sessions/<sessionId>/checkpoints/<id>.json`
+- **路径：** `.ocula/sessions/<sessionId>/checkpoints/<id>.json`
 - **用途：** resume、debug、fork；**不**等同于 Compaction Record。
 - **触发（示例）：** user turn 结束、用户命令、run 结束；与是否刚 Compaction **无必然关系**。
 
@@ -424,7 +424,7 @@ agentLoop:
 
 ## 12. 后续实现分期（代码指引）
 
-> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（Oculeau 协议 + `LLMProvider` + `ModelCapabilities`）。
+> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（Ocula 协议 + `LLMProvider` + `ModelCapabilities`）。
 
 | 阶段 | 内容 | 验收 |
 |------|------|------|

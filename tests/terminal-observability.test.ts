@@ -19,8 +19,8 @@ import { setStderrWriterForTest } from "../src/events/outputs/stderr-writer.js";
 import type { AgentEvent } from "../src/events/types.js";
 import type { ContextReport } from "../src/context/types.js";
 
-const THINKING_KEY = "OCULEAU_THINKING";
-const VERBOSE_KEY = "OCULEAU_VERBOSE";
+const THINKING_KEY = "OCULA_THINKING";
+const VERBOSE_KEY = "OCULA_VERBOSE";
 
 function baseEvent(overrides: Partial<AgentEvent>): AgentEvent {
   return {

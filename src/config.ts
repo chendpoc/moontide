@@ -9,7 +9,7 @@ import {
   DEFAULT_MODEL,
   DEEPSEEK_ANTHROPIC_BASE_URL,
   ENV_PREFIX,
-  OCULEAU_ENV,
+  OCULA_ENV,
   PROVIDER_ENV,
 } from "./constants/index.js";
 
@@ -21,7 +21,7 @@ function envFlag(name: string): boolean {
   return env(name) === "1";
 }
 
-let workdir = path.resolve(env(OCULEAU_ENV.WORKDIR) ?? process.cwd());
+let workdir = path.resolve(env(OCULA_ENV.WORKDIR) ?? process.cwd());
 
 export function getWorkdir(): string {
   return workdir;
@@ -50,7 +50,7 @@ export function modelId(): string {
 }
 
 export function contextLimit(): number {
-  const override = env(OCULEAU_ENV.CONTEXT_LIMIT);
+  const override = env(OCULA_ENV.CONTEXT_LIMIT);
   if (override) {
     const parsed = Number(override);
     if (!Number.isNaN(parsed) && parsed > 0) {
@@ -61,62 +61,62 @@ export function contextLimit(): number {
 }
 
 export function contextExact(): boolean {
-  return envFlag(OCULEAU_ENV.CONTEXT_EXACT);
+  return envFlag(OCULA_ENV.CONTEXT_EXACT);
 }
 
 export function compactKeepTurns(): number {
-  const n = Number(env(OCULEAU_ENV.COMPACT_KEEP_TURNS) ?? String(COMPACT_KEEP_TURNS_DEFAULT));
+  const n = Number(env(OCULA_ENV.COMPACT_KEEP_TURNS) ?? String(COMPACT_KEEP_TURNS_DEFAULT));
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : COMPACT_KEEP_TURNS_DEFAULT;
 }
 
 export function compactThreshold(): number {
-  const n = Number(env(OCULEAU_ENV.COMPACT_THRESHOLD) ?? String(COMPACT_THRESHOLD_DEFAULT));
+  const n = Number(env(OCULA_ENV.COMPACT_THRESHOLD) ?? String(COMPACT_THRESHOLD_DEFAULT));
   return Number.isFinite(n) && n > 0 ? n : COMPACT_THRESHOLD_DEFAULT;
 }
 
 export function compactAutoDefault(): boolean {
-  return envFlag(OCULEAU_ENV.COMPACT_AUTO);
+  return envFlag(OCULA_ENV.COMPACT_AUTO);
 }
 
 export function codeReplDefaultRuntime(): string {
-  return env(OCULEAU_ENV.CODE_REPL_DEFAULT_RUNTIME) ?? CODE_REPL_DEFAULT_RUNTIME;
+  return env(OCULA_ENV.CODE_REPL_DEFAULT_RUNTIME) ?? CODE_REPL_DEFAULT_RUNTIME;
 }
 
 export function codeReplTimeoutMs(): number {
-  const n = Number(env(OCULEAU_ENV.CODE_REPL_TIMEOUT_MS) ?? String(CODE_REPL_TIMEOUT_MS_DEFAULT));
+  const n = Number(env(OCULA_ENV.CODE_REPL_TIMEOUT_MS) ?? String(CODE_REPL_TIMEOUT_MS_DEFAULT));
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : CODE_REPL_TIMEOUT_MS_DEFAULT;
 }
 
 export function pythonPath(): string | undefined {
-  return env(OCULEAU_ENV.PYTHON);
+  return env(OCULA_ENV.PYTHON);
 }
 
 export function venvPath(): string | undefined {
-  return env(OCULEAU_ENV.VENV);
+  return env(OCULA_ENV.VENV);
 }
 
 export function codeReplDisabled(): boolean {
-  return envFlag(OCULEAU_ENV.CODE_REPL_DISABLED);
+  return envFlag(OCULA_ENV.CODE_REPL_DISABLED);
 }
 
 export function deepResearchEnabled(): boolean {
-  return envFlag(OCULEAU_ENV.DEEP_RESEARCH);
+  return envFlag(OCULA_ENV.DEEP_RESEARCH);
 }
 
 export function tavilyApiKey(): string | undefined {
-  return env(OCULEAU_ENV.TAVILY_API_KEY) ?? process.env[PROVIDER_ENV.TAVILY_API_KEY];
+  return env(OCULA_ENV.TAVILY_API_KEY) ?? process.env[PROVIDER_ENV.TAVILY_API_KEY];
 }
 
 export function thinkingModeDefault(): boolean {
-  return envFlag(OCULEAU_ENV.THINKING);
+  return envFlag(OCULA_ENV.THINKING);
 }
 
 export function verboseModeDefault(): boolean {
-  return envFlag(OCULEAU_ENV.VERBOSE);
+  return envFlag(OCULA_ENV.VERBOSE);
 }
 
 export function httpFetchEnabled(): boolean {
-  const value = env(OCULEAU_ENV.HTTP);
+  const value = env(OCULA_ENV.HTTP);
   if (value === "0") {
     return false;
   }

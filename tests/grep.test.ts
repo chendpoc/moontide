@@ -34,7 +34,7 @@ function mockSpawn(stdout: string, stderr = "", code = 0): void {
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-grep-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-grep-"));
   setWorkdir(tmpDir);
   fs.writeFileSync(path.join(tmpDir, "demo.ts"), "export const hello = 1;\n");
   vi.mocked(spawn).mockReset();

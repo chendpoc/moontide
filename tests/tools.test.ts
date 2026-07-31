@@ -10,7 +10,7 @@ import { runEdit, runListDir, runRead, runWrite, safePath } from "../src/builtin
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oculeau-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-"));
   setWorkdir(tmpDir);
 });
 

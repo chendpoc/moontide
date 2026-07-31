@@ -44,7 +44,7 @@ fn send_event_signal(tx: &Sender<WatchSignal>, event: &Event) {
 pub fn spawn_watcher(workdir: PathBuf) -> Result<FileWatcher> {
     let (tx, rx) = mpsc::channel();
     let signal_tx = tx.clone();
-    let watch_dir = workdir.join(".oculeau");
+    let watch_dir = workdir.join(".ocula");
     let watch_dir_for_closure = watch_dir.clone();
 
     let mut watcher = RecommendedWatcher::new(

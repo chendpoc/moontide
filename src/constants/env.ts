@@ -1,8 +1,8 @@
-/** Prefix for Oculeau-specific environment variables. */
-export const ENV_PREFIX = "OCULEAU_" as const;
+/** Prefix for Ocula-specific environment variables. */
+export const ENV_PREFIX = "OCULA_" as const;
 
-/** Oculeau-scoped env keys (without prefix). */
-export const OCULEAU_ENV = {
+/** Ocula-scoped env keys (without prefix). */
+export const OCULA_ENV = {
   WORKDIR: "WORKDIR",
   CONTEXT_LIMIT: "CONTEXT_LIMIT",
   CONTEXT_EXACT: "CONTEXT_EXACT",

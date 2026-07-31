@@ -29,7 +29,7 @@ let turnCount = 0;
 async function main(): Promise<void> {
   setupEventPipeline();
 
-  console.error("Oculeau — type /help for commands\n");
+  console.error("Ocula — type /help for commands\n");
 
   const rl = readline.createInterface({ input, output });
   const loopCtx = createReplLoopContext(rl);
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   try {
     while (true) {
       renderStatusLine();
-      const query = await rl.question("\x1b[36mOculeau >> \x1b[0m");
+      const query = await rl.question("\x1b[36mOcula >> \x1b[0m");
       const trimmed = query.trim();
       if (!trimmed || ["q", "exit"].includes(trimmed.toLowerCase())) {
         break;

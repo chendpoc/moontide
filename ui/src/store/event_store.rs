@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 
 use crate::model::{
     chat_row_from_event, context_card_from_event, trace_row_from_event, AgentEvent, ChatRow,
-    ContextCard, TraceRow, ACTIVE_EVENTS_SUFFIX, MAX_EVENTS, OCULEAU_DIR, RUNS_DIR,
+    ContextCard, TraceRow, ACTIVE_EVENTS_SUFFIX, MAX_EVENTS, OCULA_DIR, RUNS_DIR,
 };
 
 pub struct EventStore {
@@ -50,7 +50,7 @@ impl EventStore {
         let run_id = self.run_id.as_ref()?;
         Some(
             self.workdir
-                .join(OCULEAU_DIR)
+                .join(OCULA_DIR)
                 .join(RUNS_DIR)
                 .join(format!("{run_id}{ACTIVE_EVENTS_SUFFIX}")),
         )
@@ -187,10 +187,10 @@ mod tests {
             .expect("clock")
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "oculeau-ui-event-store-{}-{stamp}",
+            "ocula-ui-event-store-{}-{stamp}",
             std::process::id()
         ));
-        fs::create_dir_all(path.join(OCULEAU_DIR).join(RUNS_DIR)).expect("create temp runs");
+        fs::create_dir_all(path.join(OCULA_DIR).join(RUNS_DIR)).expect("create temp runs");
         path
     }
 
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn keeps_loaded_events_when_active_segment_rotates() {
         let workdir = temp_workdir();
-        let runs = workdir.join(OCULEAU_DIR).join(RUNS_DIR);
+        let runs = workdir.join(OCULA_DIR).join(RUNS_DIR);
         let active = runs.join("run-1.active.jsonl");
         fs::write(&active, event_line("event-1", "run-1", 1)).expect("write first");
 
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn switches_run_and_ignores_previous_active_file() {
         let workdir = temp_workdir();
-        let runs = workdir.join(OCULEAU_DIR).join(RUNS_DIR);
+        let runs = workdir.join(OCULA_DIR).join(RUNS_DIR);
         fs::write(
             runs.join("run-1.active.jsonl"),
             event_line("event-1", "run-1", 1),
