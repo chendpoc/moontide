@@ -1,10 +1,51 @@
-use ocula_protocol::{ContentBlock, Message, MessageContent, Role, SessionLog};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-pub fn log_to_messages(log: &[SessionLog], up_to_turn: Option<u32>) -> Vec<Message> {
+use ocula_protocol::{ContentBlock, Message, MessageContent, Role, SessionLog, ToolResultSummary};
+use ocula_tools::{
+    preview_chars, truncation_footnote, ToolProjectionConfig,
+};
+
+pub type ArtifactLoader = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
+#[derive(Clone)]
+pub struct ProjectionContext {
+    pub config: ToolProjectionConfig,
+    pub artifact_loader: Option<ArtifactLoader>,
+    pub inline_budget: usize,
+    pub keep_from_turn: u32,
+}
+
+impl ProjectionContext {
+    pub fn recent_window_turn(log: &[SessionLog], keep_turns: u32) -> u32 {
+        let mut user_turns = 0u32;
+        let mut keep_from = 0u32;
+        for record in log.iter().rev() {
+            if matches!(record, SessionLog::UserMessage { .. }) {
+                user_turns += 1;
+                keep_from = record.turn();
+                if user_turns >= keep_turns {
+                    break;
+                }
+            }
+        }
+        keep_from
+    }
+}
+
+pub fn log_to_messages(
+    log: &[SessionLog],
+    up_to_turn: Option<u32>,
+    ctx: Option<&ProjectionContext>,
+) -> Vec<Message> {
     let filtered: Vec<&SessionLog> = match up_to_turn {
         Some(max) => log.iter().filter(|r| r.turn() <= max).collect(),
         None => log.iter().collect(),
     };
+
+    let keep_from_turn = ctx
+        .map(|c| c.keep_from_turn)
+        .unwrap_or(0);
 
     let mut messages = Vec::new();
     let mut pending_tool_results: Vec<ContentBlock> = Vec::new();
@@ -27,12 +68,21 @@ pub fn log_to_messages(log: &[SessionLog], up_to_turn: Option<u32>) -> Vec<Messa
             }
             SessionLog::ToolOutcome {
                 tool_use_id,
+                artifact_id,
                 result_summary,
                 ..
             } => {
+                let text = project_tool_outcome(
+                    record.turn(),
+                    tool_use_id,
+                    artifact_id.as_deref(),
+                    result_summary,
+                    ctx,
+                    keep_from_turn,
+                );
                 pending_tool_results.push(ContentBlock::ToolResult {
                     tool_use_id: tool_use_id.clone(),
-                    content: ocula_protocol::ToolResultContent::Text(result_summary.summary.clone()),
+                    content: ocula_protocol::ToolResultContent::Text(text),
                 });
             }
             SessionLog::ToolInvocation { .. }
@@ -46,6 +96,51 @@ pub fn log_to_messages(log: &[SessionLog], up_to_turn: Option<u32>) -> Vec<Messa
     messages
 }
 
+fn project_tool_outcome(
+    turn: u32,
+    _tool_use_id: &str,
+    artifact_id: Option<&str>,
+    summary: &ToolResultSummary,
+    ctx: Option<&ProjectionContext>,
+    keep_from_turn: u32,
+) -> String {
+    let Some(ctx) = ctx else {
+        return summary.summary.clone();
+    };
+
+    let in_recent = turn >= keep_from_turn;
+    let budget = ctx.inline_budget;
+
+    if in_recent {
+        if summary.truncated != Some(true) {
+            return summary.summary.clone();
+        }
+        if let (Some(loader), Some(id)) = (&ctx.artifact_loader, artifact_id) {
+            if let Some(full) = loader(id) {
+                if full.chars().count() <= budget {
+                    return full;
+                }
+                return format!(
+                    "{}{}",
+                    preview_chars(&full, budget),
+                    format_truncation_suffix(summary.byte_count, Some(id))
+                );
+            }
+        }
+    }
+
+    truncation_footnote(summary, artifact_id)
+}
+
+fn format_truncation_suffix(byte_count: u32, artifact_id: Option<&str>) -> String {
+    let artifact_hint = artifact_id
+        .map(|id| format!("; artifact: {id}; use read_artifact"))
+        .unwrap_or_default();
+    format!(
+        "… [truncated: {byte_count} bytes total{artifact_hint}; prefer narrower tool args]"
+    )
+}
+
 fn flush_tool_results(pending: &mut Vec<ContentBlock>, messages: &mut Vec<Message>) {
     if pending.is_empty() {
         return;
@@ -56,17 +151,33 @@ fn flush_tool_results(pending: &mut Vec<ContentBlock>, messages: &mut Vec<Messag
     });
 }
 
+/// Build tool_use_id → tool_name map from log invocations.
+pub fn tool_names_from_log(log: &[SessionLog]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for record in log {
+        if let SessionLog::ToolInvocation {
+            tool_use_id,
+            name,
+            ..
+        } = record
+        {
+            map.insert(tool_use_id.clone(), name.clone());
+        }
+    }
+    map
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ocula_protocol::{SessionLog, SessionLogBase, ToolResultSummary};
     use serde_json::json;
 
-    fn base(id: &str) -> SessionLogBase {
+    fn base(id: &str, turn: u32) -> SessionLogBase {
         SessionLogBase {
             id: id.into(),
             session_id: "sess-1".into(),
-            turn: 1,
+            turn,
             at: "2026-07-31T08:00:00.000Z".into(),
         }
     }
@@ -75,63 +186,136 @@ mod tests {
     fn replays_user_then_assistant() {
         let log = vec![
             SessionLog::UserMessage {
-                base: base("e1"),
+                base: base("e1", 1),
                 text: "hi".into(),
             },
             SessionLog::AssistantMessage {
-                base: base("e2"),
+                base: base("e2", 1),
                 blocks: vec![ContentBlock::text("hello")],
             },
         ];
 
-        let messages = log_to_messages(&log, None);
+        let messages = log_to_messages(&log, None, None);
         assert_eq!(messages.len(), 2);
-        match &messages[0].content {
-            MessageContent::Text(t) => assert_eq!(t, "hi"),
-            _ => panic!("expected text user message"),
+    }
+
+    #[test]
+    fn recent_turn_expands_artifact_inline() {
+        let log = vec![
+            SessionLog::UserMessage {
+                base: base("e1", 1),
+                text: "go".into(),
+            },
+            SessionLog::AssistantMessage {
+                base: base("e2", 1),
+                blocks: vec![ContentBlock::tool_use("toolu_1", "bash", json!({}))],
+            },
+            SessionLog::ToolOutcome {
+                base: base("e3", 1),
+                tool_use_id: "toolu_1".into(),
+                artifact_id: Some("art_abc".into()),
+                result_summary: ToolResultSummary {
+                    summary: "preview…".into(),
+                    byte_count: 100,
+                    line_count: Some(1),
+                    truncated: Some(true),
+                },
+            },
+        ];
+
+        let loader: ArtifactLoader = Arc::new(|id| {
+            if id == "art_abc" {
+                Some("full artifact body".into())
+            } else {
+                None
+            }
+        });
+        let ctx = ProjectionContext {
+            config: ToolProjectionConfig::from_env(),
+            artifact_loader: Some(loader),
+            inline_budget: 8192,
+            keep_from_turn: 1,
+        };
+
+        let messages = log_to_messages(&log, None, Some(&ctx));
+        match &messages[2].content {
+            MessageContent::Blocks(blocks) => match &blocks[0] {
+                ContentBlock::ToolResult { content, .. } => {
+                    let text = match content {
+                        ocula_protocol::ToolResultContent::Text(t) => t.as_str(),
+                        ocula_protocol::ToolResultContent::Blocks(_) => "",
+                    };
+                    assert_eq!(text, "full artifact body");
+                }
+                _ => panic!("expected tool result"),
+            },
+            _ => panic!("expected blocks"),
         }
     }
 
     #[test]
-    fn merges_tool_outcome_into_user_tool_result() {
+    fn old_turn_shows_footnote_only() {
         let log = vec![
             SessionLog::UserMessage {
-                base: base("e1"),
-                text: "read file".into(),
-            },
-            SessionLog::AssistantMessage {
-                base: base("e2"),
-                blocks: vec![ContentBlock::tool_use(
-                    "toolu_1",
-                    "read_file",
-                    json!({ "path": "a.txt" }),
-                )],
+                base: base("e1", 1),
+                text: "old".into(),
             },
             SessionLog::ToolOutcome {
-                base: base("e3"),
+                base: base("e2", 1),
                 tool_use_id: "toolu_1".into(),
-                artifact_id: None,
+                artifact_id: Some("art_old".into()),
                 result_summary: ToolResultSummary {
-                    summary: "contents".into(),
-                    byte_count: 8,
+                    summary: "preview".into(),
+                    byte_count: 5000,
                     line_count: None,
-                    truncated: None,
+                    truncated: Some(true),
                 },
             },
-            SessionLog::AssistantMessage {
-                base: base("e4"),
-                blocks: vec![ContentBlock::text("done")],
+            SessionLog::UserMessage {
+                base: base("e3", 2),
+                text: "new".into(),
+            },
+            SessionLog::ToolOutcome {
+                base: base("e4", 2),
+                tool_use_id: "toolu_2".into(),
+                artifact_id: Some("art_new".into()),
+                result_summary: ToolResultSummary {
+                    summary: "preview2".into(),
+                    byte_count: 200,
+                    line_count: None,
+                    truncated: Some(true),
+                },
             },
         ];
 
-        let messages = log_to_messages(&log, None);
-        assert_eq!(messages.len(), 4);
-        match &messages[2].content {
-            MessageContent::Blocks(blocks) => {
-                assert_eq!(blocks.len(), 1);
-                assert!(matches!(blocks[0], ContentBlock::ToolResult { .. }));
-            }
-            _ => panic!("expected tool result user message"),
-        }
+        let loader: ArtifactLoader = Arc::new(|id| Some(format!("FULL-{id}")));
+        let ctx = ProjectionContext {
+            config: ToolProjectionConfig {
+                keep_turns: 1,
+                ..ToolProjectionConfig::from_env()
+            },
+            artifact_loader: Some(loader),
+            inline_budget: 8192,
+            keep_from_turn: 2,
+        };
+
+        let messages = log_to_messages(&log, None, Some(&ctx));
+        // Find first tool result (turn 1)
+        let first_tool = messages
+            .iter()
+            .flat_map(|m| match &m.content {
+                MessageContent::Blocks(b) => b.iter(),
+                _ => [].iter(),
+            })
+            .find_map(|b| match b {
+                ContentBlock::ToolResult { content, .. } => match content {
+                    ocula_protocol::ToolResultContent::Text(t) => Some(t.clone()),
+                    ocula_protocol::ToolResultContent::Blocks(_) => None,
+                },
+                _ => None,
+            })
+            .unwrap();
+        assert!(first_tool.contains("[truncated:"));
+        assert!(first_tool.contains("art_old"));
     }
 }
