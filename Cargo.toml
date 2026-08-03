@@ -6,6 +6,7 @@ members = [
     "crates/ocula-composer",
     "crates/ocula-llm",
     "crates/ocula-tools",
+    "crates/ocula-observability",
     "crates/ocula-agent",
     "crates/ocula-cli",
     "ui",
@@ -30,10 +31,12 @@ serde_json = "1"
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
+owo-colors = "4.3"
 
 ocula-protocol = { path = "crates/ocula-protocol" }
 ocula-session = { path = "crates/ocula-session" }
 ocula-composer = { path = "crates/ocula-composer" }
 ocula-llm = { path = "crates/ocula-llm" }
 ocula-tools = { path = "crates/ocula-tools" }
+ocula-observability = { path = "crates/ocula-observability" }
 ocula-agent = { path = "crates/ocula-agent" }

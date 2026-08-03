@@ -3427,6 +3427,7 @@ dependencies = [
  "async-trait",
  "ocula-composer",
  "ocula-llm",
+ "ocula-observability",
  "ocula-protocol",
  "ocula-session",
  "ocula-tools",
@@ -3444,6 +3445,7 @@ dependencies = [
  "dotenvy",
  "ocula-agent",
  "ocula-llm",
+ "ocula-observability",
  "ocula-session",
  "ocula-tools",
  "rustyline",
@@ -3471,6 +3473,13 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "ocula-observability"
+version = "0.1.0"
+dependencies = [
+ "owo-colors",
 ]
 
 [[package]]
@@ -3502,6 +3511,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "glob",
  "ocula-protocol",
  "regex",
@@ -3569,6 +3579,12 @@ checksum = "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b"
 dependencies = [
  "ttf-parser 0.25.1",
 ]
+
+[[package]]
+name = "owo-colors"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
 name = "parking"
