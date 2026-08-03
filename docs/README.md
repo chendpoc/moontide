@@ -27,6 +27,7 @@ flowchart TB
     KO[kocoro-architecture]
     SH[session-handoff]
     RM[runtime-multilang]
+    PH[plugin-host]
     SP[scratchpad]
   end
 
@@ -34,6 +35,9 @@ flowchart TB
   V --> PS
   PS --> RM
   PS --> AR
+  PS --> PH
+  PH --> RM
+  PH -.-> AE
   P --> AE
   AR -.-> AE
   CC --> LP
@@ -55,7 +59,7 @@ flowchart TB
 |------|------|------|
 | [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
-| [`notes/`](notes/) | 参考 / 候选 | [agent-run-hooks](notes/agent-run-hooks.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
+| [`notes/`](notes/) | 参考 / 候选 | [agent-run-hooks](notes/agent-run-hooks.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
 ## 阅读路径
 
@@ -73,7 +77,7 @@ flowchart TB
 
 **改桌面 runtime** — runtime-multilang → kocoro-architecture → context-composer
 
-**Release / 竞争定位** — platform-strategy → runtime-multilang → context-analysis
+**Release / 竞争定位** — platform-strategy → plugin-host → runtime-multilang → context-analysis
 
 **Hook 工程落地** — agent-run-hooks §11+ → agent-run-hooks §1–§10 → [agent-run.ts](../src/agent/agent-run.ts)
 
@@ -82,7 +86,8 @@ flowchart TB
 | 主题 | 主文档 | 关联 |
 |------|--------|------|
 | Agent hook 设计 | [agent-run-hooks](notes/agent-run-hooks.md) | agent-events · session-log-migration · platform-strategy |
-| Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | runtime-multilang · kocoro-architecture · agent-run-hooks |
+| Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | plugin-host · runtime-multilang · kocoro-architecture · agent-run-hooks |
+| 插件与 MCP 集成 | [plugin-host](notes/plugin-host.md) | platform-strategy · runtime-multilang · scratchpad |
 | Context 演进 | [context-backlog](notes/context-backlog.md) | context-composer · context-analysis |
 | 跨 agent 交接 | [session-handoff](notes/session-handoff.md) | context-composer · vision（Zephyr） |
 | Edge 本地推理 | [edge-local-models](notes/edge-local-models.md) | llm-provider · runtime-multilang · kocoro-architecture |
@@ -96,6 +101,7 @@ flowchart TB
 |------|--------|
 | [vision](product/vision.md) | 产品定位（Ocula）与远期保留产品名（Bruma、MoonTide 等） |
 | [platform-strategy](product/platform-strategy.md) | Release 架构、竞争定位、MCP/sidecar 边界与非目标 |
+| [plugin-host](notes/plugin-host.md) | Plugin host、MCP client、startup assembly 与 runtime attach |
 | [plan](product/plan.md) | 当前优先级、分段 JSONL 存储与非目标 |
 | [context-composer](spec/context-composer.md) | Session Event Log、Context Composer、Compaction 主 Spec |
 | [llm-provider](spec/llm-provider.md) | Provider preset、`local-direct`、API 适配层、`LLMRequest` |

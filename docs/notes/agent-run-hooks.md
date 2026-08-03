@@ -3,7 +3,7 @@
 > **文档性质：** notes（设计讨论，非 Spec）  
 > **问题：** Ocula agent 在运行过程中，扩展点（hooks）应如何划分生命周期、定义语义、注册与卸载？  
 > **当前代码：** Run 级 [`RunHooks`](../../src/agent/run-hooks.ts) + Step 级 [`AgentPlugin`](../../src/agent/pipeline/types.ts)（两套机制并存）；目标形态 **HookRegistry + HookRunner**（未实现）  
-> **平台策略：** Release 与 sidecar 边界见 [`platform-strategy.md`](../product/platform-strategy.md)
+> **平台策略：** Release 与 sidecar 边界见 [`platform-strategy.md`](../product/platform-strategy.md) · Plugin host 见 [`plugin-host.md`](plugin-host.md)
 
 ---
 
@@ -275,7 +275,7 @@ onRunStart → appendUser → [loop: buildInput → runLLM → append/tool] → 
 
 **Ocula 代码：** [agent-run.ts](../../src/agent/agent-run.ts) · [run-hooks.ts](../../src/agent/run-hooks.ts) · [pipeline/types.ts](../../src/agent/pipeline/types.ts)
 
-**Ocula 文档：** [platform-strategy.md](../product/platform-strategy.md) · [session-log-migration.md](session-log-migration.md) · [agent-events.md](../spec/agent-events.md)
+**Ocula 文档：** [platform-strategy.md](../product/platform-strategy.md) · [plugin-host.md](plugin-host.md) · [session-log-migration.md](session-log-migration.md) · [agent-events.md](../spec/agent-events.md)
 
 **外部：** [Pi AgentHarness hooks](https://github.com/badlogic/pi-mono/blob/main/packages/agent/docs/hooks.md) · [harness-pi hook phases](https://github.com/chasey-myagi/harness-pi/blob/main/packages/core/README.md) · [Pi createLoopConfig](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/harness/agent-harness.ts)
 
@@ -414,7 +414,7 @@ while (true) {
 
 ### 13.3 Node sidecar 注意
 
-若扩展跑在 **Node sidecar**（见 platform-strategy L2），in-process Transform 变为 **IPC RPC**：handler 看不到共享对象引用；Observer 看不到 Transform 中间态（与 Pi `observe` 限制同旨）。可能需额外 phase（如 `afterBuildInput`）或 sidecar 内完成 compact 后以结果 RPC 返回。
+若扩展跑在 **Node sidecar**（见 [`platform-strategy.md`](../product/platform-strategy.md) L2 与 [`plugin-host.md`](plugin-host.md) §9），in-process Transform 变为 **IPC RPC**：handler 看不到共享对象引用；Observer 看不到 Transform 中间态（与 Pi `observe` 限制同旨）。可能需额外 phase（如 `afterBuildInput`）或 sidecar 内完成 compact 后以结果 RPC 返回。
 
 ---
 

@@ -1,0 +1,20 @@
+[package]
+name = "ocula-cli"
+description = "Ocula Rust CLI"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "ocula"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+dotenvy = { workspace = true }
+ocula-agent = { workspace = true }
+ocula-llm = { workspace = true }
+ocula-session = { workspace = true }
+ocula-tools = { workspace = true }
+rustyline = { workspace = true }
+tokio = { workspace = true }

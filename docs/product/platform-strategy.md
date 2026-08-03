@@ -2,7 +2,7 @@
 
 > **文档性质：** product（方向与发布策略，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名与保留产品名见 [`vision.md`](vision.md)  
-> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context-analysis.md)；Hook 工程落地见 [`agent-run-hooks.md`](../notes/agent-run-hooks.md) §11+
+> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context-analysis.md)；Hook 工程落地见 [`agent-run-hooks.md`](../notes/agent-run-hooks.md) §11+；插件加载与 MCP 集成见 [`plugin-host.md`](../notes/plugin-host.md)
 
 ---
 
@@ -189,6 +189,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | [`runtime-multilang.md`](../notes/runtime-multilang.md) | Desktop IPC、20MB 分发、sidecar 监管 |
 | [`kocoro-architecture.md`](../notes/kocoro-architecture.md) | Go daemon / sidecar 参考 |
 | [`agent-run-hooks.md`](../notes/agent-run-hooks.md) | Hook 生命周期与 loop 工程落地 |
+| [`plugin-host.md`](../notes/plugin-host.md) | Plugin host、MCP attach、tool registry |
 | [`agent-events.md`](../spec/agent-events.md) | Run 级观测 JSONL |
 
 ---

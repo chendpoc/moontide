@@ -8,6 +8,8 @@
 
 ```
 ocula/
+├── crates/              # Rust agent（ocula-cli、ocula-agent、session、tools…）
+├── Cargo.toml           # workspace
 ├── docs/                # 设计 Spec 与 Doc Map（product / spec / notes）
 ├── src/
 │   ├── agent/           # loop、prompt、pipeline（runLLM / runTool）、tools
@@ -40,6 +42,20 @@ pnpm dev:ui              # Slint sidecar（另开终端，或 REPL 运行时启�
 ```
 
 Sidecar 详情见 [`ui/README.md`](ui/README.md)。
+
+## Rust CLI（R0）
+
+Native agent loop（Session JSONL → Composer v1 → LLM → builtins），无 Node 依赖：
+
+```sh
+cargo run -p ocula-cli -- --workdir .
+# 或
+cargo build -p ocula-cli --release && ./target/release/ocula
+```
+
+REPL 命令：`/exit`、`/new`、`/workdir`。需 `.env` 中 `DEEPSEEK_API_KEY`（或 `ANTHROPIC_API_KEY`）。
+
+TypeScript CLI（`pnpm dev`）仍作参考实现与 conformance 对照；release 方向见 [`docs/product/platform-strategy.md`](docs/product/platform-strategy.md)。
 
 ## 文档
 

@@ -1,0 +1,12 @@
+[package]
+name = "ocula-composer"
+description = "Ocula Context Composer v1"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ocula-protocol = { workspace = true }
+ocula-tools = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

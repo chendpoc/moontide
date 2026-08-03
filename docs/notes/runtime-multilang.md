@@ -1,7 +1,7 @@
 # 多语言 Agent Desktop Runtime 技术讨论
 
 > 进程边界、Sidecar 监管与 IPC 设计备忘。  
-> **非实现承诺** — 本地推理见 [`edge-local-models.md`](edge-local-models.md)；参考架构见 [`kocoro-architecture.md`](kocoro-architecture.md)；产品级 Release 与竞争定位见 [`platform-strategy.md`](../product/platform-strategy.md)。
+> **非实现承诺** — 本地推理见 [`edge-local-models.md`](edge-local-models.md)；参考架构见 [`kocoro-architecture.md`](kocoro-architecture.md)；产品级 Release 与竞争定位见 [`platform-strategy.md`](../product/platform-strategy.md)；Plugin host 与 MCP attach 见 [`plugin-host.md`](plugin-host.md)。
 
 ---
 
