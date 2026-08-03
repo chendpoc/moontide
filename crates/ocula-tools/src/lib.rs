@@ -1,4 +1,5 @@
 pub mod projection;
+mod truncation_strategies;
 mod approval;
 mod builtins;
 mod execute;
@@ -15,6 +16,7 @@ pub use permission::*;
 pub use registry::*;
 pub use projection::*;
 pub use summarize::*;
+pub use truncation_strategies::*;
 
 pub fn dev_tool_learning_enabled() -> bool {
     builtins::dev_tool_learning_enabled()

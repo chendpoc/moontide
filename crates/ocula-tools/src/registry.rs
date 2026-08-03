@@ -35,7 +35,7 @@ fn build_registry() -> HashMap<String, ToolDefinition> {
         let mut tools = vec![
             tool(
                 names::BASH,
-                "Run a shell command in the workspace. Avoid git diff/status — use git_* tools instead.",
+                "Run a shell command. If output truncates, see [strategies] in the result — do not repeat the same command. For git changes use git_status/git_diff, not bash git diff.",
                 json!({
                     "type": "object",
                     "properties": { "command": { "type": "string" } },

@@ -83,17 +83,15 @@ pub fn preview_chars(text: &str, limit: usize) -> String {
 }
 
 pub fn truncation_footnote(summary: &ToolResultSummary, artifact_id: Option<&str>) -> String {
-    if summary.truncated != Some(true) {
-        return summary.summary.clone();
-    }
-    let artifact_hint = artifact_id
-        .map(|id| format!("; artifact: {id}; use read_artifact"))
-        .unwrap_or_default();
-    format!(
-        "{}… [truncated: {} bytes total{artifact_hint}; prefer narrower tool args]",
-        summary.summary.trim_end_matches('…'),
-        summary.byte_count
-    )
+    truncation_footnote_for_tool("unknown", summary, artifact_id)
+}
+
+pub fn truncation_footnote_for_tool(
+    tool_name: &str,
+    summary: &ToolResultSummary,
+    artifact_id: Option<&str>,
+) -> String {
+    crate::truncation_strategies::format_truncation_with_strategies(tool_name, summary, artifact_id)
 }
 
 pub fn estimate_messages_chars(messages: &[ocula_protocol::Message]) -> usize {
