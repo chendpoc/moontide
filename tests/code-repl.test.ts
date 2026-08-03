@@ -1,13 +1,13 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { executeTool, toolSchemas } from "../src/agent/tools/index.js";
+import { executeTool, getToolDefinitions } from "../src/tools/index.js";
 import { registerRuntime } from "../src/extensions/code-repl/registry.js";
 import type { CodeRuntime } from "../src/extensions/code-repl/types.js";
-import type { ToolContext } from "../src/agent/tools/types.js";
+import type { ToolContext } from "../src/tools/types.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
@@ -21,17 +21,17 @@ function testToolContext(
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-code-repl-"));
+  tmpDir = createTmpWorkdir("ocula-code-repl-");
   setWorkdir(tmpDir);
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
 });
 
 describe("code_repl", () => {
   it("is registered in tool schemas", () => {
-    const names = toolSchemas().map((t) => t.name);
+    const names = getToolDefinitions().map((t) => t.name);
     expect(names).toContain("code_repl");
     expect(names).toContain("askUserQuestion");
   });
@@ -70,7 +70,7 @@ describe("code_repl", () => {
   });
 
   it("executes an existing file by path", async () => {
-    fs.writeFileSync(path.join(tmpDir, "script.js"), 'console.log("from file")', "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "script.js"), 'console.log("from file")', "utf8");
     const raw = await executeTool("code_repl", {
       runtime: "node",
       path: "script.js",
@@ -89,7 +89,7 @@ describe("code_repl", () => {
     const result = JSON.parse(raw) as { exit_code: number; stdout: string };
     expect(result.exit_code).toBe(0);
     expect(result.stdout).toContain("written");
-    expect(fs.existsSync(path.join(tmpDir, "nested/run.js"))).toBe(true);
+    expect(fs.existsSync(joinPath(tmpDir, "nested/run.js"))).toBe(true);
   });
 
   it("rejects path escape", async () => {

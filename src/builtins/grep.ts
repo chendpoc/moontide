@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import path from "node:path";
 
 import { getWorkdir } from "../config.js";
 import { clampInt } from "../utils/number.js";
+import { basename, relativePath as workspaceRelativePath } from "../utils/path.js";
 import { safePath } from "./fs.js";
 
 export interface GrepInput {
@@ -40,7 +40,7 @@ export function normalizeGrepMaxResults(maxResults?: number): number {
 
 function relativePath(absolutePath: string): string {
   const workdir = getWorkdir();
-  return path.relative(workdir, absolutePath) || path.basename(absolutePath);
+  return workspaceRelativePath(workdir, absolutePath) || basename(absolutePath);
 }
 
 function spawnCollect(

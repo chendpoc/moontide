@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { TOOL_NAMES } from "../src/agent/tools/names.js";
+import { TOOL_NAMES } from "../src/tools/names.js";
 import { checkPermission } from "../src/agent/pipeline/permission/index.js";
 
 describe("permissions", () => {

@@ -1,6 +1,6 @@
 import { inspectContext } from "../../context/index.js";
-import type { ToolDefinition } from "../../agent/tools/types.js";
-import { TOOL_NAMES } from "../../agent/tools/names.js";
+import type { ToolDefinition } from "../../tools/types.js";
+import { TOOL_NAMES } from "../../tools/names.js";
 
 export function defineInspectContextTool(): ToolDefinition {
   return {

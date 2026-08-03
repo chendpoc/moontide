@@ -47,7 +47,7 @@
 - [x] **11. 产品命名 — 已定稿**
   - 见 [`docs/product/vision.md`](docs/product/vision.md)
   - **当前产品：Ocula**（repo `ocula/`、工作区 `.ocula/`、`OCULA_*`）
-  - **Ciel · Lyra · MoonTide · Zephyr · Bruma · Tide · Fleet · Buoy** 为保留代号，仅指未来产品线，不用于现行产品名
+  - **Ciel · Lyra · MoonTide · Zephyr · Bruma** 为保留产品名；**Tide · Fleet · Buoy** 为 MoonTide 内组件代号；均不用于现行 Ocula 产品名或实现模块名
 
 - [ ] **12. 多 Agent 进程监控（Fleet）**
   - 在 **MoonTide** 中实时查看多个 agent 的运行状态（进行中 / 等待 / 完成 / 失败）

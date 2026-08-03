@@ -7,7 +7,7 @@ flowchart LR
     SEL["Session Event Log<br/>完整会话事实"] --> C["Context Composer"]
     I["Instruction State<br/>不可被摘要替代"] --> C
     A["Artifact Store<br/>完整 tool outputs"] --> C
-    TD["Tool Definitions + ModelCapabilities"] --> C
+    TD["Tool Definitions + ModelProfile"] --> C
     C --> P["LLMRequest<br/>本次调用的临时投影"]
     C --> M["Context Manifest<br/>选择、丢弃、预算原因"]
     P --> L["LLM via API 适配层"]
@@ -132,7 +132,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 4. Structured checkpoint + recent verbatim tail，而不是 summary-only。
 5. 使用 provider actual usage；估算 projected next request，并预留 output/reasoning/tool headroom。
 6. 保持确定性的 prefix 顺序，但把 cache 当优化，不当 correctness boundary。
-7. 完整 tool result 存进可寻址 artifact；prompt 中只放 receipt、preview 和重读方式。
+7. 完整 tool result 存进可寻址 artifact；prompt 中只放 `ToolResultSummary`、preview 和重读方式。
 8. Compaction replacement 必须 validate，再进行原子持久化和 active-state 切换。
 9. 高输出研究任务放进 fresh subagent context，parent 只接收 bounded result。
 10. 建立 Context Manifest 和多次 compaction 后的任务成功率测试。
@@ -162,7 +162,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 
 建议保持克制，按这个顺序推进：
 
-1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile 对应 **ModelCapabilities**（[`llm-provider.md`](../spec/llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](../spec/context-composer.md)。
+1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile 对应 **ModelProfile**（[`llm-provider.md`](../spec/llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](../spec/context-composer.md)。
 2. 增加 **Context Composer** Module，让所有 LLM 请求只能从这里获得 `LLMRequest` 与 Manifest（Spec：[`context-composer.md`](../spec/context-composer.md)）。
 3. 把 system/project/runtime instruction state 移出 conversation compaction。
 4. 给 tool result 增加 full artifact + bounded prompt projection；先解决最大的 context 消耗来源。

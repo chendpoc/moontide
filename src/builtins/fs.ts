@@ -1,17 +1,19 @@
 import fs from "node:fs";
-import path from "node:path";
-import { globSync } from "glob";
 
 import { getWorkdir } from "../config.js";
+import { globSync } from "glob";
+
+import {
+  dirname,
+  isAbsolutePath,
+  joinPath,
+  relativePath,
+  resolvePath,
+  resolveWorkspacePath,
+} from "../utils/path.js";
 
 export function safePath(relative: string): string {
-  const workdir = getWorkdir();
-  const resolved = path.resolve(workdir, relative);
-  const rel = path.relative(workdir, resolved);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`Path escapes workspace: ${relative}`);
-  }
-  return resolved;
+  return resolveWorkspacePath(relative);
 }
 
 export function runRead(filePath: string, limit?: number, offset = 1): string {
@@ -33,7 +35,7 @@ export function runRead(filePath: string, limit?: number, offset = 1): string {
 export function runWrite(filePath: string, content: string): string {
   try {
     const resolved = safePath(filePath);
-    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    fs.mkdirSync(dirname(resolved), { recursive: true });
     fs.writeFileSync(resolved, content, "utf8");
     return `Wrote ${content.length} bytes to ${filePath}`;
   } catch (error) {
@@ -61,9 +63,9 @@ export function runGlob(pattern: string): string {
   try {
     const workdir = getWorkdir();
     const matches = globSync(pattern, { cwd: workdir, nodir: true }).filter((match) => {
-      const resolved = path.resolve(workdir, match);
-      const rel = path.relative(workdir, resolved);
-      return !rel.startsWith("..") && !path.isAbsolute(rel);
+      const resolved = resolvePath(workdir, match);
+      const rel = relativePath(workdir, resolved);
+      return !rel.startsWith("..") && !isAbsolutePath(rel);
     });
     return matches.length > 0 ? matches.join("\n") : "(no matches)";
   } catch (error) {
@@ -95,7 +97,7 @@ function listDirEntries(dirPath: string, prefix: string, depth: number, entries:
     if (entries.length >= LIST_DIR_MAX_ENTRIES) {
       break;
     }
-    const absolute = path.join(dirPath, name);
+    const absolute = joinPath(dirPath, name);
     const relative = prefix ? `${prefix}/${name}` : name;
     let stat: fs.Stats;
     try {
@@ -131,7 +133,7 @@ export function runListDir(relativePath = ".", recursive = false): string {
       listDirEntries(resolved, relativePath === "." ? "" : relativePath, 1, entries);
     } else {
       for (const name of fs.readdirSync(resolved).sort()) {
-        const absolute = path.join(resolved, name);
+        const absolute = joinPath(resolved, name);
         const itemStat = fs.lstatSync(absolute);
         if (itemStat.isSymbolicLink()) {
           continue;

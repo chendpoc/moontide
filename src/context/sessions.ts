@@ -1,4 +1,6 @@
-import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+
+import type { ToolSchema } from "../llm/protocol/types.js";
 
 import type { ContextReport, ContextSnapshot } from "./types.js";
 
@@ -6,7 +8,7 @@ interface SessionData {
   turn: number;
   messages: MessageParam[];
   system: string;
-  tools: Tool[];
+  tools: ToolSchema[];
   latestReport?: ContextReport;
   previousEstimated?: number;
 }

@@ -1,15 +1,17 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { gunzipSync } from "node:zlib";
-import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentSession } from "../src/agent/agent-session.js";
 import { continueReplAgent } from "../src/agent/loop.js";
 import { getWorkdir, setWorkdir } from "../src/config.js";
 import { resetEventPlatform, setupEventPipeline } from "../src/events/setup.js";
 import * as llm from "../src/llm/client/anthropic.js";
-import type { UserInteraction } from "../src/agent/tools/types.js";
+import type { UserInteraction } from "../src/tools/types.js";
+import { dataPath, joinPath } from "../src/utils/path.js";
+import { RUNS_DIR } from "../src/constants/storage.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 let originalWorkdir = "";
@@ -34,7 +36,7 @@ function assistantMessage(text: string): Message {
 
 beforeEach(() => {
   originalWorkdir = getWorkdir();
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-run-storage-"));
+  tmpDir = createTmpWorkdir("ocula-run-storage-");
   setWorkdir(tmpDir);
   setupEventPipeline();
 });
@@ -42,7 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   resetEventPlatform();
   setWorkdir(originalWorkdir);
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
 });
 
@@ -52,17 +54,16 @@ describe("run storage integration", () => {
       .mockResolvedValueOnce(assistantMessage("first reply"))
       .mockResolvedValueOnce(assistantMessage("second reply"));
 
-    const messages: MessageParam[] = [];
+    const agentSession = AgentSession.create(tmpDir);
     const loopContext = {
       userInteraction: interaction,
-      isCompactAutoEnabled: () => false,
+      session: agentSession.session,
     };
 
-    await continueReplAgent("first prompt sentinel", messages, loopContext);
-    await continueReplAgent("second prompt", messages, loopContext);
+    await continueReplAgent("first prompt sentinel", agentSession, loopContext);
+    await continueReplAgent("second prompt", agentSession, loopContext);
 
-    const storageDir = path.join(tmpDir, ".ocula");
-    const runsDir = path.join(storageDir, "runs");
+    const runsDir = dataPath(tmpDir, RUNS_DIR);
     const files = fs.readdirSync(runsDir);
     expect(files.filter((file) => file.endsWith(".jsonl.gz"))).toHaveLength(2);
     expect(files.some((file) => file.endsWith(".active.jsonl"))).toBe(false);
@@ -70,7 +71,7 @@ describe("run storage integration", () => {
     const archives = files
       .filter((file) => file.endsWith(".jsonl.gz"))
       .map((file) =>
-        gunzipSync(fs.readFileSync(path.join(runsDir, file))).toString("utf8"),
+        gunzipSync(fs.readFileSync(joinPath(runsDir, file))).toString("utf8"),
       );
     const secondRun = archives.find((archive) =>
       archive.includes("second prompt"),
@@ -90,7 +91,7 @@ describe("run storage integration", () => {
       }
     }
 
-    expect(fs.existsSync(path.join(storageDir, "context.jsonl"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, ".ocula-audit.log"))).toBe(false);
+    expect(fs.existsSync(joinPath(dataPath(tmpDir), "context.jsonl"))).toBe(false);
+    expect(fs.existsSync(joinPath(tmpDir, ".ocula-audit.log"))).toBe(false);
   });
 });

@@ -1,5 +1,7 @@
 import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import type { ToolSchema } from "../llm/protocol/types.js";
+
 import { countTokens } from "../llm/client/anthropic.js";
 import { truncateOneLine } from "../utils/text.js";
 import type {
@@ -98,7 +100,7 @@ function getMessageBlocks(message: MessageParam): GenericBlock[] {
 export function estimateBreakdown(snapshot: ContextSnapshot): TokenBreakdown {
   const breakdown: TokenBreakdown = {
     system: estimateTextTokens(snapshot.system),
-    toolSchemas: estimateJsonTokens(snapshot.tools),
+    toolDefinitions: estimateJsonTokens(snapshot.tools),
     user: 0,
     assistant: 0,
     thinking: 0,
@@ -130,7 +132,7 @@ export function estimateBreakdown(snapshot: ContextSnapshot): TokenBreakdown {
 
   breakdown.total =
     breakdown.system +
-    breakdown.toolSchemas +
+    breakdown.toolDefinitions +
     breakdown.user +
     breakdown.assistant +
     breakdown.thinking +
@@ -249,7 +251,7 @@ export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
 export async function exactTokenCount(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
 ): Promise<number> {
-  return countTokens(messages, tools, system);
+  return countTokens(messages, tools as Tool[], system);
 }

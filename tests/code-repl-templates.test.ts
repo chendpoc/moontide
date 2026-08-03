@@ -1,22 +1,22 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { executeTool, toolSchemas } from "../src/agent/tools/index.js";
+import { executeTool, getToolDefinitions } from "../src/tools/index.js";
 import { expandTemplate } from "../src/extensions/code-repl/templates/expand.js";
 import { listTemplateIds } from "../src/extensions/code-repl/templates/catalog.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-templates-"));
+  tmpDir = createTmpWorkdir("ocula-templates-");
   setWorkdir(tmpDir);
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
 });
 
 describe("expandTemplate", () => {
@@ -55,7 +55,7 @@ describe("expandTemplate", () => {
   });
 
   it("expands read_json with safe path", () => {
-    const pkgPath = path.join(tmpDir, "package.json");
+    const pkgPath = joinPath(tmpDir, "package.json");
     fs.writeFileSync(pkgPath, JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
 
     const result = expandTemplate("read_json", { path: "package.json", max_depth: 1 });
@@ -86,7 +86,7 @@ describe("expandTemplate", () => {
 
 describe("code_repl templates integration", () => {
   it("includes template enum in schema", () => {
-    const schema = toolSchemas().find((t) => t.name === "code_repl");
+    const schema = getToolDefinitions().find((t) => t.name === "code_repl");
     expect(schema).toBeDefined();
     const props = schema!.input_schema.properties as Record<string, { enum?: string[] }>;
     expect(props.template?.enum).toContain("read_json");
@@ -104,7 +104,7 @@ describe("code_repl templates integration", () => {
 
   it("runs read_json template", async () => {
     fs.writeFileSync(
-      path.join(tmpDir, "config.json"),
+      joinPath(tmpDir, "config.json"),
       JSON.stringify({ alpha: 1, nested: { beta: 2 } }),
       "utf8",
     );
@@ -131,7 +131,7 @@ describe("code_repl templates integration", () => {
 
   it("runs package_scripts template", async () => {
     fs.writeFileSync(
-      path.join(tmpDir, "package.json"),
+      joinPath(tmpDir, "package.json"),
       JSON.stringify({
         name: "fixture",
         scripts: { test: "vitest run" },
@@ -154,7 +154,7 @@ describe("code_repl templates integration", () => {
 
   it("runs jsonl_tail template", async () => {
     const lines = ['{"a":1}\n', '{"b":2}\n', '{"c":3}\n'].join("");
-    fs.writeFileSync(path.join(tmpDir, "events.jsonl"), lines, "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "events.jsonl"), lines, "utf8");
     const raw = await executeTool("code_repl", {
       template: "jsonl_tail",
       vars: { path: "events.jsonl", n: 2 },
@@ -171,8 +171,8 @@ describe("code_repl templates integration", () => {
   });
 
   it("runs glob_stats template", async () => {
-    fs.writeFileSync(path.join(tmpDir, "a.ts"), "x", "utf8");
-    fs.writeFileSync(path.join(tmpDir, "b.js"), "yy", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "a.ts"), "x", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "b.js"), "yy", "utf8");
     const raw = await executeTool("code_repl", { template: "glob_stats" });
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error) {
@@ -218,7 +218,7 @@ describe("code_repl templates integration", () => {
   });
 
   it("runs peek_csv template", async () => {
-    fs.writeFileSync(path.join(tmpDir, "data.csv"), "name,score\nalice,90\nbob,80\n", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "data.csv"), "name,score\nalice,90\nbob,80\n", "utf8");
     const raw = await executeTool("code_repl", {
       template: "peek_csv",
       vars: { path: "data.csv", n: 1 },
@@ -243,7 +243,7 @@ describe("code_repl templates integration", () => {
   });
 
   it("runs git_summary template when git repo", async () => {
-    fs.writeFileSync(path.join(tmpDir, "README.md"), "# demo", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "README.md"), "# demo", "utf8");
     const { execFileSync } = await import("node:child_process");
     try {
       execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });

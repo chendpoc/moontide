@@ -10,76 +10,57 @@ import {
 
 const fakeRl = {} as Interface;
 
+const emptyCtx = {
+  rl: fakeRl,
+  getAgentSession: () => null,
+  resetConversation: () => {},
+};
+
 describe("repl commands", () => {
   afterEach(() => {
     resetObservabilityOverrides();
+    resetReplSession();
   });
 
   it("returns unknown for legacy /trace command", async () => {
-    const result = await handleReplCommand("/trace", {
-      rl: fakeRl,
-      getMessages: () => null,
-      resetConversation: () => {},
-    });
+    const result = await handleReplCommand("/trace", emptyCtx);
     expect(result).toBe("unknown");
   });
 
   it("toggles thinking mode", async () => {
-    const result = await handleReplCommand("/thinking on", {
-      rl: fakeRl,
-      getMessages: () => null,
-      resetConversation: () => {},
-    });
+    const result = await handleReplCommand("/thinking on", emptyCtx);
     expect(result).toBe("handled");
     expect(isThinkingEnabled()).toBe(true);
   });
 
   it("reports verbose status", async () => {
-    const result = await handleReplCommand("/verbose status", {
-      rl: fakeRl,
-      getMessages: () => null,
-      resetConversation: () => {},
-    });
+    const result = await handleReplCommand("/verbose status", emptyCtx);
     expect(result).toBe("handled");
   });
 
   it("does not treat non-commands as handled", async () => {
-    const result = await handleReplCommand("hello", {
-      rl: fakeRl,
-      getMessages: () => null,
-      resetConversation: () => {},
-    });
+    const result = await handleReplCommand("hello", emptyCtx);
     expect(result).toBe("not_command");
   });
 
   it("returns unknown for bogus commands", async () => {
-    const result = await handleReplCommand("/bogus", {
-      rl: fakeRl,
-      getMessages: () => null,
-      resetConversation: () => {},
-    });
+    const result = await handleReplCommand("/bogus", emptyCtx);
     expect(result).toBe("unknown");
   });
 
-  it("compact preview requires messages", async () => {
-    resetReplSession();
-    const result = await handleReplCommand("/compact preview", {
-      rl: fakeRl,
-      getMessages: () => null,
-      resetConversation: () => {},
-    });
+  it("compact preview requires session", async () => {
+    const result = await handleReplCommand("/compact preview", emptyCtx);
     expect(result).toBe("handled");
   });
 
-  it("compact preview works with session messages", async () => {
-    const messages = startReplSession();
-    messages.push({ role: "user", content: "hi" });
+  it("compact preview works with session log", async () => {
+    const agentSession = startReplSession();
+    await agentSession.session.appendUser(1, "hi");
     const result = await handleReplCommand("/compact preview", {
       rl: fakeRl,
-      getMessages: () => messages,
+      getAgentSession: () => agentSession,
       resetConversation: () => {},
     });
     expect(result).toBe("handled");
-    resetReplSession();
   });
 });

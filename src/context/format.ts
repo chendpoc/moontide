@@ -24,7 +24,7 @@ export function getStruct(report: ContextReport): string {
   const lines = [
     getSummary(report),
     `├─ system          ${formatNumber(report.breakdown.system)} tok`,
-    `├─ tool_schemas    ${formatNumber(report.breakdown.toolSchemas)} tok`,
+    `├─ tool_definitions ${formatNumber(report.breakdown.toolDefinitions)} tok`,
     `└─ messages[${report.structure.messageCount}]`,
   ];
 
@@ -45,7 +45,7 @@ export function getBreakdown(report: ContextReport): string {
     "",
     "Breakdown:",
     `- system:       ${formatNumber(b.system)}`,
-    `- tool_schemas: ${formatNumber(b.toolSchemas)}`,
+    `- tool_definitions: ${formatNumber(b.toolDefinitions)}`,
     `- user:         ${formatNumber(b.user)}`,
     `- assistant:    ${formatNumber(b.assistant)}`,
     `- thinking:     ${formatNumber(b.thinking)}`,

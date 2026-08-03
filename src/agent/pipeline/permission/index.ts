@@ -1,6 +1,6 @@
-import { TOOL_NAMES } from "../../tools/names.js";
+import { TOOL_NAMES } from "../../../tools/names.js";
+import { isOutsideWorkspace } from "../../../utils/path.js";
 import { matchesDestructiveAsk, matchesGitAsk, matchesGrepAsk, matchesNetworkAsk, matchesSystemDeny } from "./patterns.js";
-import { escapesWorkspace } from "./path.js";
 
 export type Decision = "allow" | "deny" | "ask";
 
@@ -24,7 +24,7 @@ function checkBash(command: string): Decision {
 }
 
 function checkWorkspacePath(filePath: string): Decision {
-  if (!filePath || !escapesWorkspace(filePath)) {
+  if (!filePath || !isOutsideWorkspace(filePath)) {
     return "allow";
   }
   return "ask";
@@ -60,4 +60,4 @@ export function checkPermission(
   }
 }
 
-export { escapesWorkspace } from "./path.js";
+export { escapesWorkspace, isOutsideWorkspace } from "../../../utils/path.js";

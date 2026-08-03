@@ -1,41 +1,49 @@
 import {
   defaultCompactSystem,
   previewCompact,
-  pruneCompact,
-  summarizeCompact,
 } from "../../context/compact.js";
-import { emitCompactEvent } from "../../context/compact-events.js";
-import { toolSchemas } from "../../agent/tools/index.js";
-import { renderStatusLine } from "../statusline/render.js";
-import { setCompactAutoOverride } from "../repl/session.js";
-import { formatCompactReport, handleToggleCommand, reply } from "./io.js";
+import { composeContextV1 } from "../../context/composer/compose.js";
+import { SessionLogSlice } from "../../session/log-slice.js";
+import { reply, formatCompactReport } from "./io.js";
 import type { ParsedReplCommand, ReplCommandContext, ReplCommandResult } from "./types.js";
+
+const NEXT_MILESTONE = "session-log compaction is not available yet (next milestone)";
 
 export async function handleCompactCommand(
   parsed: ParsedReplCommand,
   ctx: ReplCommandContext,
 ): Promise<ReplCommandResult> {
-  const messages = ctx.getMessages();
-  if (!messages || messages.length === 0) {
+  const agentSession = ctx.getAgentSession();
+  if (!agentSession) {
     reply("nothing to compact — send a prompt first");
     return "handled";
   }
 
-  const system = defaultCompactSystem();
-  const { arg, arg2 } = parsed;
-
-  if (arg === "auto") {
-    handleToggleCommand(
-      "/compact auto",
-      arg2,
-      () => setCompactAutoOverride(true),
-      () => setCompactAutoOverride(false),
-    );
+  const log = await agentSession.session.readLog();
+  if (log.length === 0) {
+    reply("nothing to compact — send a prompt first");
     return "handled";
   }
 
+  const { arg } = parsed;
+
+  if (arg === "auto" || arg === "summary" || (!arg && parsed.parts.length === 1)) {
+    if (arg === "auto") {
+      reply(NEXT_MILESTONE);
+      return "handled";
+    }
+    if (arg === "summary") {
+      reply(NEXT_MILESTONE);
+      return "handled";
+    }
+  }
+
   if (arg === "preview") {
-    const preview = previewCompact(messages, system, toolSchemas());
+    const slice = SessionLogSlice.fromLog(log);
+    const messages = slice.toMessageParams();
+    const system = defaultCompactSystem();
+    const { request } = composeContextV1({ turn: 0, messages, system });
+    const preview = previewCompact(messages, request.system, request.tools);
     reply(
       formatCompactReport(
         "preview",
@@ -47,30 +55,6 @@ export async function handleCompactCommand(
     return "handled";
   }
 
-  if (arg === "summary") {
-    const result = await summarizeCompact(messages, system, toolSchemas());
-    messages.splice(0, messages.length, ...result.messages);
-    emitCompactEvent(0, result, "summary");
-    reply(formatCompactReport("summary compact", result.beforeTokens, result.afterTokens));
-    renderStatusLine();
-    return "handled";
-  }
-
-  const result = pruneCompact(messages, system, toolSchemas());
-  if (!result.changed) {
-    reply("already compact");
-    return "handled";
-  }
-  messages.splice(0, messages.length, ...result.messages);
-  emitCompactEvent(0, result, "prune");
-  reply(
-    formatCompactReport(
-      "compact",
-      result.beforeTokens,
-      result.afterTokens,
-      `${result.truncatedToolResults} tool results shrunk`,
-    ),
-  );
-  renderStatusLine();
+  reply(NEXT_MILESTONE);
   return "handled";
 }

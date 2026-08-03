@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDefaultCatalog } from "../src/agent/tools/register-defaults.js";
+import { registerDefaultTools } from "../src/tools/register-defaults.js";
 import { runDeepResearch } from "../src/extensions/deep-research/handler.js";
 import { defineDeepResearchTool } from "../src/extensions/deep-research/index.js";
 import { normalizeMaxResults, tavilySearch } from "../src/extensions/deep-research/tavily.js";
@@ -21,11 +21,9 @@ describe("deep_research extension", () => {
     vi.restoreAllMocks();
   });
 
-  it("is omitted from catalog unless OCULA_DEEP_RESEARCH=1", () => {
+  it("is omitted from tool definitions unless OCULA_DEEP_RESEARCH=1", () => {
     expect(defineDeepResearchTool()).toBeNull();
-    const names = createDefaultCatalog()
-      .schemas()
-      .map((tool) => tool.name);
+    const names = registerDefaultTools().map((tool) => tool.schema.name);
     expect(names).not.toContain("deep_research");
   });
 
@@ -34,9 +32,7 @@ describe("deep_research extension", () => {
     const tool = defineDeepResearchTool();
     expect(tool?.schema.name).toBe("deep_research");
 
-    const names = createDefaultCatalog()
-      .schemas()
-      .map((t) => t.name);
+    const names = registerDefaultTools().map((t) => t.schema.name);
     expect(names).toContain("deep_research");
   });
 

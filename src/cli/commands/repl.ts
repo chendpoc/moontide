@@ -25,7 +25,7 @@ export async function handleReplCommand(
     case "/new":
       return handleResetCommand(ctx);
     case "/status":
-      return handleStatusCommand(ctx);
+      return await handleStatusCommand(ctx);
     case "/workdir":
       return handleWorkdirCommand(parsed);
     case "/compact":

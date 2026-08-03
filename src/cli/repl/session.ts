@@ -1,34 +1,20 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import { AgentSession } from "../../agent/agent-session.js";
 
-import { compactAutoDefault } from "../../config.js";
-
-let replMessages: MessageParam[] | null = null;
-let compactAutoOverride: boolean | null = null;
+let replAgentSession: AgentSession | null = null;
 
 export function hasReplSession(): boolean {
-  return replMessages !== null;
+  return replAgentSession !== null;
 }
 
-export function getReplMessages(): MessageParam[] | null {
-  return replMessages;
+export function getReplAgentSession(): AgentSession | null {
+  return replAgentSession;
 }
 
-export function startReplSession(): MessageParam[] {
-  replMessages = [];
-  return replMessages;
+export function startReplSession(): AgentSession {
+  replAgentSession = AgentSession.create();
+  return replAgentSession;
 }
 
 export function resetReplSession(): void {
-  replMessages = null;
-}
-
-export function isCompactAutoEnabled(): boolean {
-  if (compactAutoOverride !== null) {
-    return compactAutoOverride;
-  }
-  return compactAutoDefault();
-}
-
-export function setCompactAutoOverride(value: boolean | null): void {
-  compactAutoOverride = value;
+  replAgentSession = null;
 }

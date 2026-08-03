@@ -1,4 +1,4 @@
-import path from "node:path";
+import { resolvePath } from "./utils/path.js";
 
 import {
   CODE_REPL_DEFAULT_RUNTIME,
@@ -21,14 +21,14 @@ function envFlag(name: string): boolean {
   return env(name) === "1";
 }
 
-let workdir = path.resolve(env(OCULA_ENV.WORKDIR) ?? process.cwd());
+let workdir = resolvePath(env(OCULA_ENV.WORKDIR) ?? process.cwd());
 
 export function getWorkdir(): string {
   return workdir;
 }
 
 export function setWorkdir(dir: string): void {
-  workdir = path.resolve(dir);
+  workdir = resolvePath(dir);
 }
 
 export function apiKey(): string {

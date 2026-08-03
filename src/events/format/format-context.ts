@@ -35,7 +35,7 @@ function boxBottom(): string {
 function formatBreakdown(report: ContextReport): string[] {
   const { breakdown } = report;
   return [
-    boxLine(`system ${fmt(breakdown.system)}  tools ${fmt(breakdown.toolSchemas)}`, BOX_WIDTH),
+    boxLine(`system ${fmt(breakdown.system)}  tools ${fmt(breakdown.toolDefinitions)}`, BOX_WIDTH),
     boxLine(
       `user ${fmt(breakdown.user)}  asst ${fmt(breakdown.assistant)}  think ${fmt(breakdown.thinking)}`,
       BOX_WIDTH,

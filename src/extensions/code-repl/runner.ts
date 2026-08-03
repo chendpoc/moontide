@@ -1,11 +1,13 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 import { promisify } from "node:util";
 
 import { codeReplTimeoutMs, getWorkdir } from "../../config.js";
-import { DATA_DIR, TMP_DIR } from "../../constants/storage.js";
+import { TMP_DIR } from "../../constants/storage.js";
 import { safePath, runWrite } from "../../builtins/fs.js";
+import { newEventId } from "../../utils/id.js";
+import { dataPath, extname, joinPath, relativePath } from "../../utils/path.js";
+import { ensureDir } from "../../storage/fs.js";
 import { buildRuntimeEnv } from "./runtimes/env.js";
 import type { CodeReplInput, CodeReplResult, CodeRuntime, ExecuteContext } from "./types.js";
 import { OUTPUT_LIMIT } from "./types.js";
@@ -14,7 +16,7 @@ const execFileAsync = promisify(execFile);
 
 export function pickExtension(runtime: CodeRuntime, filePath?: string): string {
   if (filePath) {
-    const ext = path.extname(filePath);
+    const ext = extname(filePath);
     if (ext && runtime.extensions.includes(ext)) {
       return ext;
     }
@@ -68,13 +70,13 @@ export function prepareScript(
   }
 
   const ext = pickExtension(runtime, filePath);
-  const tmpDir = path.join(workdir, DATA_DIR, TMP_DIR);
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const fileName = `${crypto.randomUUID()}${ext}`;
-  const absolutePath = path.join(tmpDir, fileName);
-  const relativePath = path.relative(workdir, absolutePath);
+  const tmpDir = dataPath(workdir, TMP_DIR);
+  ensureDir(tmpDir);
+  const fileName = `${newEventId()}${ext}`;
+  const absolutePath = joinPath(tmpDir, fileName);
+  const scriptRelativePath = relativePath(workdir, absolutePath);
   fs.writeFileSync(absolutePath, code!, "utf8");
-  return { absolutePath, relativePath, cleanup: !persist };
+  return { absolutePath, relativePath: scriptRelativePath, cleanup: !persist };
 }
 
 export async function runPreparedScript(

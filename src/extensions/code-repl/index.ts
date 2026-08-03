@@ -1,6 +1,6 @@
 import { codeReplDisabled } from "../../config.js";
-import type { ToolDefinition } from "../../agent/tools/types.js";
-import { TOOL_NAMES } from "../../agent/tools/names.js";
+import type { ToolDefinition } from "../../tools/types.js";
+import { TOOL_NAMES } from "../../tools/names.js";
 import { buildRuntimeEnum, runtimeDescriptions } from "./registry.js";
 import { executeCodeRepl } from "./executor.js";
 import { registerBuiltinRuntimes } from "./runtimes/index.js";

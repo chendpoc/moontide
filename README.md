@@ -144,7 +144,7 @@ Ocula idle · context 12.3% · turn 2
 ### 新增 extension tool 模板（`deep_research`）
 
 1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
-2. 在 [`register-defaults.ts`](src/agent/tools/register-defaults.ts) 条件注册
+2. 在 [`register-defaults.ts`](src/tools/register-defaults.ts) 条件注册
 3. 在 [`permission/index.ts`](src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
 
 ### code_repl templates（Tier 1）

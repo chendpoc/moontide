@@ -12,7 +12,7 @@
 Ocula 的 context window 不是「一个可变 `messages[]`」，而是：
 
 ```
-Session Event Log + Session State Stores + Tool Definitions + ModelCapabilities
+Session Event Log + Session State Stores + Tool Definitions + ModelProfile
         ↓
 Context Composer（含 Compaction 投影策略）
         ↓
@@ -27,7 +27,7 @@ API 适配层 → 厂商 API
 
 | 文档 | 职责 |
 |------|------|
-| [`llm-provider.md`](llm-provider.md) | `LLMRequest` / Ocula 协议、API 适配层、ModelCapabilities 来源 |
+| [`llm-provider.md`](llm-provider.md) | `LLMRequest` / Ocula 协议、API 适配层、ModelProfile 来源 |
 | [`llm-input.md`](llm-input.md) | `system` / `tools` / `messages` 对表与现状缺口 |
 | [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA 与竞品参考 |
 | [`agent-events.md`](agent-events.md) | **Agent Event Log**（run 级观测） |
@@ -60,7 +60,7 @@ flowchart TB
   end
 
   TD["Tool Definitions"]
-  MC["ModelCapabilities"]
+  MC["ModelProfile"]
   Composer["Context Composer"]
   Out["LLMRequest + Context Manifest"]
   Adapter["API 适配层"]
@@ -90,11 +90,11 @@ flowchart TB
 | **Compaction Record** | summary / structured 压缩的持久产物 | 是 | `.ocula/sessions/<sessionId>/compaction/<id>.json` |
 | **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.ocula/sessions/<sessionId>/checkpoints/<id>.json` |
 | **Compaction** | 调整 Composer 投影策略的操作（过程） | 事件写入 Session Event Log | — |
-| **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | `Tool Registry.schemas()` → Composer |
-| **ModelCapabilities** | context 上限、token 计数策略等 | 配置 / catalog | [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities) |
+| **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | [`tools/`](../../src/tools/) `getToolDefinitions()` → Composer |
+| **ModelProfile** | context 上限、token 计数策略等 | model 注册表 + env | [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities) |
 | **Context Composer** | 编译 `LLMRequest` + `Context Manifest` | 否 | 目标：`src/context/composer/` |
 | **Context Manifest** | 本轮投影决策与预算说明 | 可选持久 / 观测 | 随 turn 写入 Agent Event Log 或内存 |
-| **Bruma** | vision 保留代号，指 Session 事实为 source of truth 的产品方向 | — | 技术 Spec 用 **Session Event Log** |
+| **Bruma** | vision **保留产品名**，指 Session 事实为 source of truth 的远期产品线方向 | — | 本 repo 实现与 Spec 用 **Session Event Log**；Bruma 不作模块代号 |
 
 ---
 
@@ -155,7 +155,7 @@ export interface ToolInvocationEntry extends SessionLogEntryBase {
   input: Record<string, unknown>;
 }
 
-export interface ToolReceipt {
+export interface ToolResultSummary {
   summary: string;
   byteCount: number;
   lineCount?: number;
@@ -166,7 +166,7 @@ export interface ToolOutcomeEntry extends SessionLogEntryBase {
   kind: "tool_outcome";
   toolUseId: string;
   artifactId?: string;
-  receipt: ToolReceipt;
+  resultSummary: ToolResultSummary;
 }
 
 export interface CompactionEventEntry extends SessionLogEntryBase {
@@ -234,8 +234,8 @@ export interface Artifact {
 ```
 
 - **路径：** `.ocula/artifacts/<sessionId>/<artifactId>`
-- **Session Event Log：** `tool_outcome` 只存 `artifactId` + `receipt`；全文在 Artifact Store。
-- **Composer：** 默认只投影 receipt；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
+- **Session Event Log：** `tool_outcome` 只存 `artifactId` + `resultSummary`（`ToolResultSummary`）；全文在 Artifact Store。
+- **Composer：** 默认只投影 `resultSummary`；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
 
 ### 6.3 Compaction Record
 
@@ -287,7 +287,7 @@ export interface Checkpoint {
 
 ### 7.1 定义
 
-**Compaction** 是为把 context 投影塞进 **ModelCapabilities** 预算而调整 Composer 规则的一次操作。
+**Compaction** 是为把 context 投影塞进 **ModelProfile** 预算而调整 Composer 规则的一次操作。
 
 - **不删除** Session Event Log 条目。
 - **必留痕迹：** Session Event Log 的 `compaction` 事件 + 本轮 **Context Manifest**。
@@ -296,7 +296,7 @@ export interface Checkpoint {
 
 | 类型 | 行为 | 需要 Compaction Record |
 |------|------|------------------------|
-| **prune** | 旧 tool 结果只投影 receipt / 占位 | 否 |
+| **prune** | 旧 tool 结果只投影 `resultSummary` / 占位 | 否 |
 | **tail_window** | 只投影最近 N 轮 user turn 起的条目 | 否 |
 | **summary** | LLM 生成摘要并注入投影 | 是 |
 
@@ -332,18 +332,18 @@ export interface Checkpoint {
 
 ---
 
-## 9. Tool Definitions 与 ModelCapabilities
+## 9. Tool Definitions 与 ModelProfile
 
 ### 9.1 Tool Definitions
 
 - **含义：** 本轮 `LLMRequest.tools` — 每个 tool 的 `name`、`description`、`input_schema`。
-- **来源：** Harness 内 **Tool Registry**（实现：[`src/agent/tools/catalog.ts`](../../src/agent/tools/catalog.ts) 的 `ToolCatalog.schemas()`）。
-- **文档与代码：** 架构层称 **Tool Definitions**；代码类型 `ToolCatalog` 为 Registry 实现名，重构时可改为 `ToolRegistry`。
+- **来源：** [`src/tools/`](../../src/tools/) — `getToolDefinitions()` 产出 `ToolSchema[]` 快照；`executeTool()` 执行 handler。
+- **Composer：** [`composer/tool-definitions/`](../../src/context/composer/tool-definitions/) resolve 为 `LLMRequest.tools`。
 
-### 9.2 ModelCapabilities
+### 9.2 ModelProfile
 
 - **含义：** 当前 logical model 的 context 上限、输出上限、是否支持 tools/thinking、`tokenCount: "api" | "estimate"`。
-- **来源：** [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities)（Model Catalog + env 覆盖）。
+- **来源：** [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities)（**model 注册表** + env 覆盖）。
 - **Composer：** 预算阈值、compact 触发、Manifest 中的 `limit` / `percentUsed`。
 
 ---
@@ -361,8 +361,8 @@ export interface ComposeContextInput {
   artifacts: ArtifactStore;
   compactionRecords: CompactionRecordStore;
   checkpoints: CheckpointStore;
-  toolDefinitions: ToolDefinition[];
-  modelCapabilities: ModelCapabilities;
+  toolDefinitions: ToolSchema[];
+  modelProfile: ModelProfile;
   compactionPolicy: CompactionPolicy;
   resumeFromCheckpointId?: string;
 }
@@ -381,7 +381,7 @@ export function composeContext(input: ComposeContextInput): ComposedContext;
 export interface ContextManifest {
   turn: number;
   sessionId: string;
-  modelCapabilities: ModelCapabilities;
+  modelProfile: ModelProfile;
   estimatedInputTokens: number;
   exactInputTokens?: number;
   includedEntryIds: string[];
@@ -416,7 +416,7 @@ agentLoop:
 | Compact | [`compact.ts`](../../src/context/compact.ts) `splice` | **Compaction** 事件 + 投影；可选 **Compaction Record** |
 | Session 内存 | [`sessions.ts`](../../src/context/sessions.ts) 存 messages 引用 | 存 Manifest / log 指针 |
 | 观测 | **Agent Event Log** | 保留；与 Session Event Log 职责分离 |
-| 大 tool 输出 | 全文 in tool_result | **Artifact Store** + receipt |
+| 大 tool 输出 | 全文 in tool_result | **Artifact Store** + `ToolResultSummary` |
 | system 规则 | 仅 `prompt.ts` | **Instruction State** |
 | 恢复 | `/reset` 清空 | **Checkpoint** resume（远期） |
 
@@ -424,13 +424,13 @@ agentLoop:
 
 ## 12. 后续实现分期（代码指引）
 
-> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（Ocula 协议 + `LLMProvider` + `ModelCapabilities`）。
+> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（Ocula 协议 + `LLMProvider` + `ModelProfile`）。
 
 | 阶段 | 内容 | 验收 |
 |------|------|------|
 | **C0** | Provider A–C | `LLMRequest` 类型边界就绪 |
 | **C1** | Session Event Log 写入 + Composer 骨架；**prune** 投影 | 行为接近 today auto compact，但不 `splice` |
-| **C2** | Artifact Store + `tool_outcome` receipt | 大 read 不全文进投影 |
+| **C2** | Artifact Store + `tool_outcome.resultSummary` | 大 read 不全文进投影 |
 | **C3** | Instruction State（`AGENTS.md` / rules） | system 与 summary 解耦 |
 | **C4** | Compaction Record + summary Compaction | `/compact summary` 迁移 |
 | **C5** | Checkpoint 持久化与 resume | 跨 REPL 续 session |
@@ -442,11 +442,11 @@ agentLoop:
 
 | 文档 | 关系 |
 |------|------|
-| [`llm-provider.md`](llm-provider.md) | `LLMRequest`、`ModelCapabilities`、API 适配层 |
+| [`llm-provider.md`](llm-provider.md) | `LLMRequest`、`ModelProfile`、API 适配层 |
 | [`llm-input.md`](llm-input.md) | 三参数对表与现状缺口 |
 | [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA |
 | [`agent-events.md`](agent-events.md) | Agent Event Log schema |
-| [`vision.md`](../product/vision.md) | Bruma 代号与产品方向 |
+| [`vision.md`](../product/vision.md) | Bruma 保留产品名与产品方向 |
 | [`agent.md`](../../agent.md) | 文档用词偏好 |
 | [`context-backlog.md`](../notes/context-backlog.md) | Context 演进特性 backlog（分账、IR、实验与 Deferred） |
 

@@ -3,7 +3,7 @@
 > **状态：** Backlog / 特性候选  
 > **关联：** [`runtime-multilang.md`](runtime-multilang.md)（WASM 沙箱定位）、[`context-composer.md`](../spec/context-composer.md)（Session Event Log）、[`agent-events.md`](../spec/agent-events.md)（Agent Event Log）  
 > **工具名：** `scratch.eval`  
-> **非实现承诺** — 排期与 MVP 边界以本文 §16–§18 为准，落地前需与 Harness / Tool Registry 对齐。
+> **非实现承诺** — 排期与 MVP 边界以本文 §16–§18 为准，落地前需与 Harness / Tool Definitions 对齐。
 
 ---
 
@@ -100,7 +100,7 @@ Scratchpad 针对以上痛点，提供 **专用、可审计、结构化** 的计
 | ID | 目标 | 说明 |
 |----|------|------|
 | G1 | **Ephemeral JS 执行** | 单次 `scratch.eval` 调用在沙箱内完成，默认不写入工作区 |
-| G2 | **结构化 I/O** | 输入输出均为 JSON-serializable；与 Tool Registry schema 对齐 |
+| G2 | **结构化 I/O** | 输入输出均为 JSON-serializable；与 Tool Definitions schema 对齐 |
 | G3 | **确定性优先** | 同 code + inputs + scratch state → 同 result（Modulo 浮点） |
 | G4 | **低延迟** | 冷启动 P99 < 50ms（MVP 桌面目标）；热路径复用 runtime 实例 |
 | G5 | **可观测** | 每次 eval 写入 Agent Event Log（audit + trace）；可选 metrics |
@@ -204,7 +204,7 @@ return { matches, count: matches.length };
 
 ### 5.1 工具可见性
 
-- `scratch.eval` 注册于 **Tool Registry**，与 Shell、Read、Write 同级
+- `scratch.eval` 注册于 **Tool Definitions**（`tools/`），与 Shell、Read、Write 同级
 - 默认 **对 coding agent 启用**；可通过 Instruction State 或 env 关闭
 - Tool description 需明确：纯计算、无 IO、有超时
 
@@ -458,7 +458,7 @@ Harness 将 success / failure **均** 作为 JSON 字符串或 structured block 
 ```text
 ┌─────────────────────────────────────────┐
 │ Node.js Harness (agent loop)            │
-│  Tool Registry · scratch.eval handler   │
+│  Tool Definitions · scratch.eval handler   │
 └──────────────────┬──────────────────────┘
                    │ IPC / napi / sidecar RPC
 ┌──────────────────▼──────────────────────┐
@@ -700,7 +700,7 @@ WASM 部署；scratch state 磁盘持久化；async/Promise；用户 UI；expect
 
 ### 15.3 依赖
 
-Tool Registry、Rust Host（Router 挂载）、Session Event Log、Agent Event Log。
+Tool Definitions（`tools/`）、Rust Host（Router 挂载）、Session Event Log、Agent Event Log。
 
 ---
 
@@ -756,7 +756,7 @@ Tool Registry、Rust Host（Router 挂载）、Session Event Log、Agent Event L
 | P0-5 | Timeout + output limit | 单测 | 1d |
 | P0-6 | Node handler `scratch.eval` | 集成 harness | 2d |
 | P0-7 | Event Log audit/trace | 符合 agent-events.md | 1d |
-| P0-8 | Tool Registry 注册 + description | 含示例 | 0.5d |
+| P0-8 | Tool Definitions 注册 + description | 含示例 | 0.5d |
 | P0-9 | Instruction 策略片段 | AGENTS.md / rules | 0.5d |
 | P0-10 | E2E：regex + path 场景 | 自动化测试 | 2d |
 

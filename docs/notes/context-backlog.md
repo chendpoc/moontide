@@ -55,13 +55,13 @@ flowchart LR
 |------|------|------|------|
 | **L1 Pinned** | 固定指令与工具 schema | Instruction State + Tool Definitions + 活跃 Compaction Record（若有） | **不参与** Compaction 压缩；超支时压 L2 或报错 |
 | **L2 Dialogue** | 对话投影 | `messages` 中 user / assistant / tool 可见部分 | prune / tail_window / summary |
-| **L3 Reference** | 外置引用 | Artifact receipt、短引用 | 全文 **never inline**；配额上限 |
-| **L4 Reserved** | 输出预留 | 本轮 max output + thinking 头room | 从 `ModelCapabilities.contextWindow` **先扣减**，再分配 L1–L3 |
+| **L3 Reference** | 外置引用 | `ToolResultSummary`、短引用 | 全文 **never inline**；配额上限 |
+| **L4 Reserved** | 输出预留 | 本轮 max output + thinking 头room | 从 `ModelProfile.contextWindow` **先扣减**，再分配 L1–L3 |
 
 **Composer 填装顺序（概念）：**
 
 ```
-C = ModelCapabilities.contextWindow
+C = ModelProfile.contextWindow
 L4 = reservedOutput + reservedThinking
 available = C - L4
 分配 L1 → L3 → L2（L2 可 Compaction）
@@ -88,7 +88,7 @@ export interface BudgetTierUsage {
 
 | 项 | 说明 |
 |----|------|
-| 依赖 | `ModelCapabilities`、`composeContext()`、`Context Manifest` |
+| 依赖 | `ModelProfile`、`composeContext()`、`Context Manifest` |
 | 建议阶段 | **C2+**（与 Artifact / metrics 一并落地） |
 | CS 类比 | cgroup / DB buffer pool 分账户 |
 
@@ -150,7 +150,7 @@ Compose 时的 **可选实验策略**：
 
 - L1 内容优先进入 `system` **前部**（稳定 prefix，利于 cache）
 - L2 recent tail 固定在 `messages` **末尾**
-- L3 receipt 紧贴相关 tool turn，避免远距离 orphan
+- L3 `ToolResultSummary` 紧贴相关 tool turn，避免远距离 orphan
 
 **Feature flag（示意）：** `OCULA_COMPOSE_PLACEMENT_EXPERIMENT=1`
 
@@ -211,7 +211,7 @@ Compose 时的 **可选实验策略**：
 
 | 手段 | 说明 |
 |------|------|
-| **Artifact + receipt** | 全文在 Artifact Store；投影只保留 receipt |
+| **Artifact + ToolResultSummary** | 全文在 Artifact Store；投影只保留 `ToolResultSummary` |
 | **Content hash（CDC）** | `hash(content) → artifactId`；相同内容 **共用** 一份存储与引用 |
 | **Compose 块去重** | 同一 turn 投影合并 identical `ContentBlock` |
 | **IR 引用** | 对话中「见 Compaction Record `<id>`」而非重复结构化事实 |
@@ -223,7 +223,7 @@ Compose 时的 **可选实验策略**：
 | 项 | 说明 |
 |----|------|
 | 依赖 | C2 Artifact Store |
-| 建议阶段 | C2 基础 receipt；**C3+** content hash |
+| 建议阶段 | C2 基础 `ToolResultSummary`；**C3+** content hash |
 | CS 类比 | 内容寻址存储（rsync block identity） |
 
 ### 7.4 代价与优势
@@ -287,6 +287,7 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | Structured Session IR | 优先 | C4 | C1 Event Log |
 | Priority Placement | Experiment | 任意 | C1 |
 | Intent-scoped Working Set | Backlog | C5+ | C1；可选 IR |
+| Episodic memory（L0–L3） | Backlog | C5+ | Session Log；见 edge-local-models |
 | Compose Dedup / CDC | Backlog | C2–C3+ | C2 Artifact |
 | Compaction Invariants | Deferred | — | — |
 
@@ -299,12 +300,15 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | 文档 | 关系 |
 |------|------|
 | [`context-composer.md`](../spec/context-composer.md) | 主 Spec 与 C0–C6 |
-| [`llm-provider.md`](../spec/llm-provider.md) | `LLMRequest`、`ModelCapabilities` |
+| [`llm-provider.md`](../spec/llm-provider.md) | `LLMRequest`、`ModelProfile` |
 | [`llm-input.md`](../spec/llm-input.md) | 三参数对表 |
 | [`context-analysis.md`](context-analysis.md) | 竞品与 SOTA |
 | [`agent-events.md`](../spec/agent-events.md) | Agent Event Log |
 | [`vision.md`](../product/vision.md) | Bruma 代号 |
 | [`agent.md`](../../agent.md) | 文档用词 |
+| [`session-handoff.md`](session-handoff.md) | 跨 agent 交接与 memory 指针 |
+| [`edge-local-models.md`](edge-local-models.md) | 情景 memory L2–L3、local extract |
+| [`kocoro-architecture.md`](kocoro-architecture.md) | memory bundle pull、ephemeral inject |
 
 ---
 

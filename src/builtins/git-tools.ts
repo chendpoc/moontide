@@ -1,5 +1,5 @@
-import type { ToolDefinition } from "../agent/tools/types.js";
-import { TOOL_NAMES } from "../agent/tools/names.js";
+import type { ToolDefinition } from "../tools/types.js";
+import { TOOL_NAMES } from "../tools/names.js";
 import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "./git.js";
 
 export function defineGitTools(): ToolDefinition[] {

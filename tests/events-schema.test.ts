@@ -6,7 +6,8 @@ import {
   emitDraft,
   getCollectedEvents,
 } from "../src/events/bus.js";
-import { resetRun, newRunId } from "../src/events/run.js";
+import { resetRun } from "../src/events/run.js";
+import { newTimestampedId } from "../src/utils/id.js";
 
 describe("AgentEvent schema", () => {
   beforeEach(() => {
@@ -45,7 +46,7 @@ describe("AgentEvent schema", () => {
 
 describe("run id format", () => {
   it("uses local timestamp plus random suffix", () => {
-    const id = newRunId(new Date(2026, 6, 30, 14, 30, 45));
+    const id = newTimestampedId(new Date(2026, 6, 30, 14, 30, 45));
     expect(id).toMatch(/^20260730-143045-[0-9a-f]{8}$/);
   });
 

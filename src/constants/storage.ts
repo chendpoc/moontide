@@ -2,6 +2,8 @@
 export const DATA_DIR = ".ocula";
 
 export const RUNS_DIR = "runs";
+export const SESSIONS_DIR = "sessions";
+export const ARTIFACTS_DIR = "artifacts";
 export const STATUS_FILE = "status.json";
 export const TMP_DIR = "tmp";
 

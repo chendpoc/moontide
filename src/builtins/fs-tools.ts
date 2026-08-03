@@ -1,6 +1,6 @@
 import { httpFetchEnabled } from "../config.js";
-import type { ToolDefinition } from "../agent/tools/types.js";
-import { TOOL_NAMES } from "../agent/tools/names.js";
+import type { ToolDefinition } from "../tools/types.js";
+import { TOOL_NAMES } from "../tools/names.js";
 import { runEdit, runGlob, runListDir, runRead, runWrite } from "./fs.js";
 import { runBash } from "./bash.js";
 import { runGrep } from "./grep.js";

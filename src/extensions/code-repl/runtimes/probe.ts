@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 import { promisify } from "node:util";
+
+import { joinPath, resolvePath } from "../../../utils/path.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,6 +37,6 @@ export async function resolveCommand(name: string): Promise<string | undefined> 
 }
 
 export function localBin(name: string): string | undefined {
-  const candidate = path.join(process.cwd(), "node_modules", ".bin", name);
+  const candidate = joinPath(resolvePath(process.cwd()), "node_modules", ".bin", name);
   return fs.existsSync(candidate) ? candidate : undefined;
 }

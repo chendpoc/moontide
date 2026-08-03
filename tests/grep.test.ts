@@ -1,12 +1,12 @@
+import fs from "node:fs";
 import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { normalizeGrepMaxResults, runGrep } from "../src/builtins/grep.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 vi.mock("node:child_process", () => ({
   spawn: vi.fn(),
@@ -34,14 +34,14 @@ function mockSpawn(stdout: string, stderr = "", code = 0): void {
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-grep-"));
+  tmpDir = createTmpWorkdir("ocula-grep-");
   setWorkdir(tmpDir);
-  fs.writeFileSync(path.join(tmpDir, "demo.ts"), "export const hello = 1;\n");
+  fs.writeFileSync(joinPath(tmpDir, "demo.ts"), "export const hello = 1;\n");
   vi.mocked(spawn).mockReset();
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
 });
 
 describe("grep tool", () => {
@@ -58,7 +58,7 @@ describe("grep tool", () => {
         JSON.stringify({
           type: "match",
           data: {
-            path: { text: path.join(tmpDir, "demo.ts") },
+            path: { text: joinPath(tmpDir, "demo.ts") },
             lines: { text: "export const hello = 1;\n" },
             line_number: 1,
             submatches: [{ start: 14 }],

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   collectFromResponse,
-  collectFromToolResult,
+  collectFromToolUse,
 } from "../src/extensions/trace/collector.js";
 
 describe("trace collector", () => {
@@ -31,11 +31,12 @@ describe("trace collector", () => {
   });
 
   it("collects tool_result with body and preview", () => {
-    const drafts = collectFromToolResult({
+    const drafts = collectFromToolUse({
       turn: 2,
-      tool_name: "read_file",
-      tool_use_id: "tu_1",
-      output: "file contents",
+      toolName: "read_file",
+      toolUseId: "tu_1",
+      toolInput: { path: "a.ts" },
+      outcome: { status: "succeeded", output: "file contents" },
     });
     expect(drafts[0]?.kind).toBe("tool_result");
     expect(drafts[0]?.payload.body).toBe("file contents");

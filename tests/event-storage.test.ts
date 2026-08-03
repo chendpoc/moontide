@@ -1,6 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -13,6 +11,8 @@ import {
   serializePersistedEvent,
 } from "../src/events/persist.js";
 import type { AgentEvent } from "../src/events/types.js";
+import { dataPath, joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
@@ -36,7 +36,7 @@ function event(
 }
 
 function runsDir(): string {
-  return path.join(tmpDir, ".ocula", RUNS_DIR);
+  return dataPath(tmpDir, RUNS_DIR);
 }
 
 function readJsonl(filePath: string): AgentEvent[] {
@@ -49,11 +49,11 @@ function readJsonl(filePath: string): AgentEvent[] {
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-storage-"));
+  tmpDir = createTmpWorkdir("ocula-storage-");
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
 });
 
 describe("persisted event projection", () => {
@@ -112,7 +112,7 @@ describe("persisted event projection", () => {
       }),
     );
 
-    const activePath = path.join(runsDir(), "run-2.active.jsonl");
+    const activePath = joinPath(runsDir(), "run-2.active.jsonl");
     const raw = fs.readFileSync(activePath, "utf8");
     expect(raw).not.toContain(previousPrompt);
 
@@ -150,7 +150,7 @@ describe("persisted event projection", () => {
       }),
     );
 
-    const activePath = path.join(runsDir(), "run-plugin.active.jsonl");
+    const activePath = joinPath(runsDir(), "run-plugin.active.jsonl");
     const persisted = readJsonl(activePath);
     expect(persisted[0]?.payload).toEqual(failure);
   });
@@ -179,8 +179,8 @@ describe("persisted event projection", () => {
 
 describe("per-run gzip segments", () => {
   it("leaves the legacy event log untouched", () => {
-    const dataDir = path.join(tmpDir, ".ocula");
-    const legacyPath = path.join(dataDir, "events.jsonl");
+    const dataDir = joinPath(tmpDir, ".ocula");
+    const legacyPath = joinPath(dataDir, "events.jsonl");
     fs.mkdirSync(dataDir, { recursive: true });
     fs.writeFileSync(legacyPath, "legacy-content\n");
 
@@ -205,14 +205,14 @@ describe("per-run gzip segments", () => {
     writer.handle(first);
     writer.handle(second);
 
-    const firstArchive = path.join(runsDir(), "rotate-0001.jsonl.gz");
-    const activePath = path.join(runsDir(), "rotate.active.jsonl");
+    const firstArchive = joinPath(runsDir(), "rotate-0001.jsonl.gz");
+    const activePath = joinPath(runsDir(), "rotate.active.jsonl");
     expect(gunzipSync(fs.readFileSync(firstArchive)).toString("utf8")).toBe(firstLine);
     expect(fs.readFileSync(activePath, "utf8")).toBe(secondLine);
 
     writer.finalizeRun("rotate");
 
-    const secondArchive = path.join(runsDir(), "rotate-0002.jsonl.gz");
+    const secondArchive = joinPath(runsDir(), "rotate-0002.jsonl.gz");
     expect(gunzipSync(fs.readFileSync(secondArchive)).toString("utf8")).toBe(secondLine);
     expect(fs.existsSync(activePath)).toBe(false);
   });
@@ -221,23 +221,23 @@ describe("per-run gzip segments", () => {
     fs.mkdirSync(runsDir(), { recursive: true });
     const sealedLine = serializePersistedEvent(event("sealed")).line;
     const activeLine = serializePersistedEvent(event("active")).line;
-    fs.writeFileSync(path.join(runsDir(), "sealed-0001.jsonl.sealed"), sealedLine);
-    fs.writeFileSync(path.join(runsDir(), "sealed-0001.jsonl.gz.tmp"), "partial");
-    fs.writeFileSync(path.join(runsDir(), "active.active.jsonl"), activeLine);
+    fs.writeFileSync(joinPath(runsDir(), "sealed-0001.jsonl.sealed"), sealedLine);
+    fs.writeFileSync(joinPath(runsDir(), "sealed-0001.jsonl.gz.tmp"), "partial");
+    fs.writeFileSync(joinPath(runsDir(), "active.active.jsonl"), activeLine);
 
     new JsonlWriter({ workdir: tmpDir });
 
-    expect(fs.existsSync(path.join(runsDir(), "sealed-0001.jsonl.sealed"))).toBe(false);
-    expect(fs.existsSync(path.join(runsDir(), "sealed-0001.jsonl.gz.tmp"))).toBe(false);
+    expect(fs.existsSync(joinPath(runsDir(), "sealed-0001.jsonl.sealed"))).toBe(false);
+    expect(fs.existsSync(joinPath(runsDir(), "sealed-0001.jsonl.gz.tmp"))).toBe(false);
     expect(
       gunzipSync(
-        fs.readFileSync(path.join(runsDir(), "sealed-0001.jsonl.gz")),
+        fs.readFileSync(joinPath(runsDir(), "sealed-0001.jsonl.gz")),
       ).toString("utf8"),
     ).toBe(sealedLine);
-    expect(fs.existsSync(path.join(runsDir(), "active.active.jsonl"))).toBe(false);
+    expect(fs.existsSync(joinPath(runsDir(), "active.active.jsonl"))).toBe(false);
     expect(
       gunzipSync(
-        fs.readFileSync(path.join(runsDir(), "active-0001.jsonl.gz")),
+        fs.readFileSync(joinPath(runsDir(), "active-0001.jsonl.gz")),
       ).toString("utf8"),
     ).toBe(activeLine);
   });
@@ -259,13 +259,13 @@ describe("per-run gzip segments", () => {
 
     writer.handle(first);
     writer.handle(second);
-    expect(fs.existsSync(path.join(runsDir(), "retry-0001.jsonl.sealed"))).toBe(true);
-    expect(fs.existsSync(path.join(runsDir(), "retry.active.jsonl"))).toBe(true);
+    expect(fs.existsSync(joinPath(runsDir(), "retry-0001.jsonl.sealed"))).toBe(true);
+    expect(fs.existsSync(joinPath(runsDir(), "retry.active.jsonl"))).toBe(true);
 
     new JsonlWriter({ workdir: tmpDir });
 
-    expect(fs.existsSync(path.join(runsDir(), "retry-0001.jsonl.sealed"))).toBe(false);
-    expect(fs.existsSync(path.join(runsDir(), "retry-0001.jsonl.gz"))).toBe(true);
+    expect(fs.existsSync(joinPath(runsDir(), "retry-0001.jsonl.sealed"))).toBe(false);
+    expect(fs.existsSync(joinPath(runsDir(), "retry-0001.jsonl.gz"))).toBe(true);
   });
 
   it("deletes complete runs as a group while preserving active runs", () => {
@@ -278,7 +278,7 @@ describe("per-run gzip segments", () => {
     const compressed = gzipSync(Buffer.from('{"ok":true}\n'));
 
     for (const [index, runId] of ["old", "middle", "new"].entries()) {
-      const filePath = path.join(runsDir(), `${runId}-0001.jsonl.gz`);
+      const filePath = joinPath(runsDir(), `${runId}-0001.jsonl.gz`);
       fs.writeFileSync(filePath, compressed);
       const time = new Date(1_700_000_000_000 + index * 1_000);
       fs.utimesSync(filePath, time, time);
@@ -287,20 +287,20 @@ describe("per-run gzip segments", () => {
     writer.handle(event("finished"));
     writer.finalizeRun("finished");
 
-    expect(fs.existsSync(path.join(runsDir(), "old-0001.jsonl.gz"))).toBe(false);
-    expect(fs.existsSync(path.join(runsDir(), "middle-0001.jsonl.gz"))).toBe(false);
-    expect(fs.existsSync(path.join(runsDir(), "new-0001.jsonl.gz"))).toBe(true);
-    expect(fs.existsSync(path.join(runsDir(), "finished-0001.jsonl.gz"))).toBe(true);
-    expect(fs.existsSync(path.join(runsDir(), "active.active.jsonl"))).toBe(true);
+    expect(fs.existsSync(joinPath(runsDir(), "old-0001.jsonl.gz"))).toBe(false);
+    expect(fs.existsSync(joinPath(runsDir(), "middle-0001.jsonl.gz"))).toBe(false);
+    expect(fs.existsSync(joinPath(runsDir(), "new-0001.jsonl.gz"))).toBe(true);
+    expect(fs.existsSync(joinPath(runsDir(), "finished-0001.jsonl.gz"))).toBe(true);
+    expect(fs.existsSync(joinPath(runsDir(), "active.active.jsonl"))).toBe(true);
   });
 
   it("applies the byte quota to whole completed runs", () => {
     fs.mkdirSync(runsDir(), { recursive: true });
     const oldPart = gzipSync(Buffer.from("old".repeat(500)));
     const newPart = gzipSync(Buffer.from("new".repeat(500)));
-    const oldFirst = path.join(runsDir(), "old-0001.jsonl.gz");
-    const oldSecond = path.join(runsDir(), "old-0002.jsonl.gz");
-    const newest = path.join(runsDir(), "new-0001.jsonl.gz");
+    const oldFirst = joinPath(runsDir(), "old-0001.jsonl.gz");
+    const oldSecond = joinPath(runsDir(), "old-0002.jsonl.gz");
+    const newest = joinPath(runsDir(), "new-0001.jsonl.gz");
     fs.writeFileSync(oldFirst, oldPart);
     fs.writeFileSync(oldSecond, oldPart);
     fs.writeFileSync(newest, newPart);

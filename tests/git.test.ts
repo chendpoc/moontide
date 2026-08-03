@@ -1,13 +1,13 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { executeTool } from "../src/agent/tools/index.js";
+import { executeTool } from "../src/tools/index.js";
 import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/builtins/git.js";
 import { checkPermission } from "../src/agent/pipeline/permission/index.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
@@ -31,18 +31,18 @@ function initRepo(): boolean {
 }
 
 function commitFile(relativePath: string, content: string, message: string): void {
-  fs.writeFileSync(path.join(tmpDir, relativePath), content, "utf8");
+  fs.writeFileSync(joinPath(tmpDir, relativePath), content, "utf8");
   execFileSync("git", ["add", relativePath], { cwd: tmpDir, stdio: "ignore", env: GIT_ENV });
   execFileSync("git", ["commit", "-m", message], { cwd: tmpDir, stdio: "ignore", env: GIT_ENV });
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-git-"));
+  tmpDir = createTmpWorkdir("ocula-git-");
   setWorkdir(tmpDir);
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
 });
 
 describe("git tools", () => {
@@ -72,7 +72,7 @@ describe("git tools", () => {
       return;
     }
     commitFile("README.md", "# demo", "init");
-    fs.writeFileSync(path.join(tmpDir, "README.md"), "# changed", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "README.md"), "# changed", "utf8");
 
     const raw = await runGitStatus();
     const result = JSON.parse(raw) as { status: string; unstaged_count?: number };
@@ -85,7 +85,7 @@ describe("git tools", () => {
       return;
     }
     commitFile("README.md", "# demo", "init");
-    fs.writeFileSync(path.join(tmpDir, "README.md"), "# changed", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "README.md"), "# changed", "utf8");
 
     const raw = await runGitDiff({ stat: true });
     const result = JSON.parse(raw) as { status: string; summary?: string };

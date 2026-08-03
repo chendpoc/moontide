@@ -46,12 +46,12 @@ describe("context metrics", () => {
   it("breaks down system, tools, thinking, and tool results", () => {
     const breakdown = estimateBreakdown(makeSnapshot());
     expect(breakdown.system).toBeGreaterThan(0);
-    expect(breakdown.toolSchemas).toBeGreaterThan(0);
+    expect(breakdown.toolDefinitions).toBeGreaterThan(0);
     expect(breakdown.thinking).toBeGreaterThan(0);
     expect(breakdown.toolResults).toBeGreaterThan(0);
     expect(breakdown.total).toBe(
       breakdown.system +
-        breakdown.toolSchemas +
+        breakdown.toolDefinitions +
         breakdown.user +
         breakdown.assistant +
         breakdown.thinking +

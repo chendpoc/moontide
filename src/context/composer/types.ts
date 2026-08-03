@@ -1,0 +1,65 @@
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+
+import type { ModelProfile } from "../../llm/models/types.js";
+import type { LLMRequest, ToolSchema } from "../../llm/protocol/types.js";
+import type { SessionLogReader } from "../../session/log-reader.js";
+import type {
+  ArtifactStore,
+  CheckpointStore,
+  CompactionRecordStore,
+} from "../stores/index.js";
+import type { InstructionState } from "./system/types.js";
+import type { CompactionPolicy } from "./compaction/policy.js";
+
+/** v1 compose input — loop uses until C1b. */
+export interface ComposeContextInputV1 {
+  turn: number;
+  messages: MessageParam[];
+  system: string;
+}
+
+/** Target compose input. See docs/spec/context-composer.md §10.1. */
+export interface ComposeContextInput {
+  sessionId: string;
+  turn: number;
+  sessionLog: SessionLogReader;
+  instructionState: InstructionState;
+  artifacts: ArtifactStore;
+  compactionRecords: CompactionRecordStore;
+  checkpoints: CheckpointStore;
+  toolDefinitions: ToolSchema[];
+  modelProfile: ModelProfile;
+  compactionPolicy: CompactionPolicy;
+  resumeFromCheckpointId?: string;
+}
+
+export interface ComposedLLMRequest {
+  system: string;
+  messages: MessageParam[];
+  tools: ToolSchema[];
+}
+
+export interface ContextAlert {
+  code: string;
+  message: string;
+}
+
+/** v1 manifest — expanded in C1b. */
+export interface ContextManifest {
+  turn: number;
+  toolDefinitionNames: string[];
+  sessionId?: string;
+  modelProfile?: ModelProfile;
+  estimatedInputTokens?: number;
+  exactInputTokens?: number;
+  includedEntryIds?: string[];
+  excludedEntryIds?: string[];
+  activeCompactionRecordId?: string;
+  resumeCheckpointId?: string;
+  alerts?: ContextAlert[];
+}
+
+export interface ComposedContext {
+  request: ComposedLLMRequest | LLMRequest;
+  manifest: ContextManifest;
+}

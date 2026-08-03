@@ -1,6 +1,6 @@
 import { deepResearchEnabled } from "../../config.js";
-import type { ToolDefinition } from "../../agent/tools/types.js";
-import { TOOL_NAMES } from "../../agent/tools/names.js";
+import type { ToolDefinition } from "../../tools/types.js";
+import { TOOL_NAMES } from "../../tools/names.js";
 import { runDeepResearch } from "./handler.js";
 
 export function defineDeepResearchTool(): ToolDefinition | null {

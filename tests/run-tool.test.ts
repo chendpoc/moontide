@@ -1,6 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LoopContext } from "../src/agent/deps.js";
@@ -8,8 +6,12 @@ import * as permission from "../src/agent/pipeline/permission/index.js";
 import { resetPlugins, setPlugins } from "../src/agent/pipeline/registry.js";
 import { resolveToolUseOutcome, runToolUse } from "../src/agent/pipeline/runTool.js";
 import { setWorkdir } from "../src/config.js";
+import { Session } from "../src/session/session.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
+let testSession: Session;
 
 const denyAllInteraction: LoopContext["userInteraction"] = {
   approveTool: async () => false,
@@ -20,23 +22,24 @@ const denyAllInteraction: LoopContext["userInteraction"] = {
 
 const loopCtx = (interaction = denyAllInteraction): LoopContext => ({
   userInteraction: interaction,
-  isCompactAutoEnabled: () => false,
+  session: testSession,
 });
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-run-tool-"));
+  tmpDir = createTmpWorkdir("ocula-run-tool-");
   setWorkdir(tmpDir);
+  testSession = Session.create(tmpDir);
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
   resetPlugins();
 });
 
 describe("resolveToolUseOutcome", () => {
   it("calls checkPermission exactly once for allow-class tools", async () => {
-    fs.writeFileSync(path.join(tmpDir, "exists.txt"), "hello");
+    fs.writeFileSync(joinPath(tmpDir, "exists.txt"), "hello");
     const spy = vi.spyOn(permission, "checkPermission");
     const outcome = await resolveToolUseOutcome(
       {
@@ -161,7 +164,7 @@ describe("runToolUse", () => {
       },
     ]);
 
-    fs.writeFileSync(path.join(tmpDir, "snapshot.txt"), "original content");
+    fs.writeFileSync(joinPath(tmpDir, "snapshot.txt"), "original content");
 
     const result = await runToolUse(
       {
@@ -193,7 +196,7 @@ describe("runToolUse", () => {
       },
     ]);
 
-    fs.writeFileSync(path.join(tmpDir, "note.txt"), "line one");
+    fs.writeFileSync(joinPath(tmpDir, "note.txt"), "line one");
 
     const result = await runToolUse(
       {

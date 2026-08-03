@@ -1,4 +1,6 @@
-import type { Message, MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+
+import type { ToolSchema } from "../../llm/protocol/types.js";
 
 import type { EventDraft } from "../../events/types.js";
 
@@ -17,7 +19,7 @@ export interface LLMCallRecord {
   request: {
     messages: MessageParam[];
     system: string;
-    tools: Tool[];
+    tools: ToolSchema[];
   };
   outcome: LLMCallOutcome;
 }

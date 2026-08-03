@@ -1,9 +1,10 @@
 import type { Interface } from "node:readline/promises";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+
+import type { AgentSession } from "../../agent/agent-session.js";
 
 export interface ReplCommandContext {
   rl: Interface;
-  getMessages: () => MessageParam[] | null;
+  getAgentSession: () => AgentSession | null;
   resetConversation: () => void;
 }
 

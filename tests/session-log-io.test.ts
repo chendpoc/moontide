@@ -1,0 +1,60 @@
+import fs from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { setWorkdir } from "../src/config.js";
+import { FileSessionLogReader, FileSessionLogWriter } from "../src/session/log.js";
+import { logUserMessage, logAssistantMessage } from "../src/session/log-events.js";
+import { sessionLogPath } from "../src/session/paths.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
+
+let tmpDir = "";
+
+beforeEach(() => {
+  tmpDir = createTmpWorkdir("ocula-session-log-");
+  setWorkdir(tmpDir);
+});
+
+afterEach(() => {
+  removeTmpWorkdir(tmpDir);
+});
+
+describe("session log I/O", () => {
+  it("appends and reads NDJSON entries", async () => {
+    const sessionId = "20260730-120000-test0001";
+    const writer = new FileSessionLogWriter(tmpDir);
+    const reader = new FileSessionLogReader(tmpDir);
+
+    await logUserMessage(writer, sessionId, 1, "hello");
+    await logAssistantMessage(writer, sessionId, 1, [
+      { type: "text", text: "world" },
+    ]);
+
+    const filePath = sessionLogPath(tmpDir, sessionId);
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    const entries = await reader.readAll(sessionId);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.kind).toBe("user_message");
+    expect(entries[1]?.kind).toBe("assistant_message");
+  });
+
+  it("readTail respects afterLogId", async () => {
+    const sessionId = "20260730-120000-test0002";
+    const writer = new FileSessionLogWriter(tmpDir);
+    const reader = new FileSessionLogReader(tmpDir);
+
+    await logUserMessage(writer, sessionId, 1, "one");
+    await logUserMessage(writer, sessionId, 2, "two");
+
+    const all = await reader.readAll(sessionId);
+    const tail = await reader.readTail({
+      sessionId,
+      afterLogId: all[0]!.id,
+    });
+    expect(tail).toHaveLength(1);
+    expect(tail[0]?.kind).toBe("user_message");
+    if (tail[0]?.kind === "user_message") {
+      expect(tail[0].text).toBe("two");
+    }
+  });
+});

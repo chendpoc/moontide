@@ -6,16 +6,15 @@ import chalk from "chalk";
 
 import { continueReplAgent } from "../agent/loop.js";
 import { resetSession } from "../context/sessions.js";
-import { resetRun } from "../events/run.js";
 import { setupEventPipeline } from "../events/setup.js";
 import {
   handleReplCommand,
   resetReplConversation,
   type ReplCommandContext,
 } from "./commands/repl.js";
-import { createReplLoopContext } from "./repl/interaction.js";
+import { createReplUserInteraction } from "./repl/interaction.js";
 import {
-  getReplMessages,
+  getReplAgentSession,
   hasReplSession,
   resetReplSession,
   startReplSession,
@@ -32,11 +31,11 @@ async function main(): Promise<void> {
   console.error("Ocula — type /help for commands\n");
 
   const rl = readline.createInterface({ input, output });
-  const loopCtx = createReplLoopContext(rl);
+  const userInteraction = createReplUserInteraction(rl);
 
   const ctx: ReplCommandContext = {
     rl,
-    getMessages: () => getReplMessages(),
+    getAgentSession: () => getReplAgentSession(),
     resetConversation: () => {
       resetReplConversation();
       turnCount = 0;
@@ -68,18 +67,21 @@ async function main(): Promise<void> {
         startReplSession();
       }
 
-      const messages = ctx.getMessages();
-      if (!messages) {
+      const agentSession = ctx.getAgentSession();
+      if (!agentSession) {
         continue;
       }
 
-      const runId = resetRun();
       setReplPhase("running");
       renderStatusLine();
 
       let reply: string;
       try {
-        ({ reply } = await continueReplAgent(trimmed, messages, loopCtx, runId));
+        ({ reply } = await continueReplAgent(
+          trimmed,
+          agentSession,
+          { userInteraction, session: agentSession.session },
+        ));
       } finally {
         setReplPhase("idle");
         renderStatusLine();

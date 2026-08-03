@@ -1,4 +1,6 @@
-import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+
+import type { ToolSchema } from "../llm/protocol/types.js";
 
 import {
   compactKeepTurns,
@@ -33,7 +35,7 @@ export interface CompactPreview {
 function estimateMessagesTokens(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
 ): number {
   const snapshot = {
     turn: 0,
@@ -128,7 +130,7 @@ function stripThinkingFromAssistant(message: MessageParam): MessageParam {
 export function previewCompact(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): CompactPreview {
   const beforeTokens = estimateMessagesTokens(messages, system, tools);
@@ -145,7 +147,7 @@ export function previewCompact(
 function applyPrune(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
   keepTurns: number,
 ): CompactResult {
   if (messages.length === 0) {
@@ -190,7 +192,7 @@ function applyPrune(
 export function pruneCompact(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): CompactResult {
   return applyPrune(messages, system, tools, keepTurns);
@@ -212,7 +214,7 @@ function formatMessagesForSummary(messages: MessageParam[]): string {
 export async function summarizeCompact(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): Promise<CompactResult> {
   const beforeTokens = estimateMessagesTokens(messages, system, tools);
@@ -260,7 +262,7 @@ export async function summarizeCompact(
 export function computeAutoCompact(
   messages: MessageParam[],
   system: string,
-  tools: Tool[],
+  tools: ToolSchema[],
   enabled: boolean,
 ): CompactResult | null {
   if (!enabled || messages.length === 0) {

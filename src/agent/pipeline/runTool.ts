@@ -1,7 +1,8 @@
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { createToolContext, type LoopContext } from "../deps.js";
-import { executeTool } from "../tools/index.js";
+import { executeTool } from "../../tools/index.js";
+import { summarizeToolResultContent } from "../../session/content-map.js";
 import { notifyPlugins } from "./notify.js";
 import { checkPermission } from "./permission/index.js";
 import {
@@ -60,15 +61,27 @@ export async function runToolUse(
     toolInput: block.input as Record<string, unknown>,
     toolUseId: block.id,
   };
+  await loopCtx.session.appendToolInvocation(
+    turn,
+    block.id,
+    block.name,
+    ctx.toolInput,
+  );
   const outcome = await resolveToolUseOutcome(ctx, loopCtx);
   const modelAppends = await notifyPlugins(
     "onToolUse",
     freezeToolUseRecord({ ...ctx, outcome }),
   );
+  const content = buildModelToolResult(outcome, modelAppends);
+  await loopCtx.session.appendToolOutcome(
+    turn,
+    block.id,
+    summarizeToolResultContent(content),
+  );
   return {
     type: "tool_result",
     tool_use_id: block.id,
-    content: buildModelToolResult(outcome, modelAppends),
+    content,
   };
 }
 

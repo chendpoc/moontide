@@ -1,12 +1,10 @@
 import fs from "node:fs";
-import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import { getWorkdir } from "../../config.js";
 import {
   ACTIVE_EVENTS_SUFFIX,
   ARCHIVE_EVENTS_SUFFIX,
-  DATA_DIR,
   GZIP_LEVEL,
   MAX_ARCHIVE_BYTES,
   MAX_COMPLETED_RUNS,
@@ -15,7 +13,9 @@ import {
   SEGMENT_LIMIT_BYTES,
   TEMP_ARCHIVE_SUFFIX,
 } from "../../constants/storage.js";
+import { appendNdjsonLine, ensureDir } from "../../storage/fs.js";
 import { escapeRegExp } from "../../utils/text.js";
+import { dataPath, joinPath, resolvePath } from "../../utils/path.js";
 import type { EventOutput } from "../bus.js";
 import { serializePersistedEvent } from "../persist.js";
 import type { AgentEvent } from "../types.js";
@@ -67,7 +67,7 @@ export class JsonlWriter implements EventOutput {
   private readonly runRoots = new Map<string, string>();
 
   constructor(options: JsonlWriterOptions = {}) {
-    this.fixedWorkdir = options.workdir ? path.resolve(options.workdir) : undefined;
+    this.fixedWorkdir = options.workdir ? resolvePath(options.workdir) : undefined;
     this.segmentLimitBytes = options.segmentLimitBytes ?? SEGMENT_LIMIT_BYTES;
     this.maxCompletedRuns = options.maxCompletedRuns ?? MAX_COMPLETED_RUNS;
     this.maxArchiveBytes = options.maxArchiveBytes ?? MAX_ARCHIVE_BYTES;
@@ -88,7 +88,7 @@ export class JsonlWriter implements EventOutput {
       this.sealActive(runsDir, event.runId, true);
     }
 
-    fs.appendFileSync(activePath, serialized.line, "utf8");
+    appendNdjsonLine(activePath, serialized.line);
   }
 
   finalizeRun(runId: string): void {
@@ -103,13 +103,13 @@ export class JsonlWriter implements EventOutput {
   }
 
   private ensureStorage(workdir: string): string {
-    const resolved = path.resolve(workdir);
-    const runsDir = path.join(resolved, DATA_DIR, RUNS_DIR);
+    const resolved = resolvePath(workdir);
+    const runsDir = dataPath(resolved, RUNS_DIR);
     if (this.initializedRoots.has(runsDir)) {
       return runsDir;
     }
 
-    fs.mkdirSync(runsDir, { recursive: true });
+    ensureDir(runsDir);
     this.recoverTemporaryFiles(runsDir);
     this.recoverSealedFiles(runsDir);
     this.recoverActiveFiles(runsDir);
@@ -129,7 +129,7 @@ export class JsonlWriter implements EventOutput {
   }
 
   private activePath(runsDir: string, runId: string): string {
-    return path.join(runsDir, `${runId}${ACTIVE_EVENTS_SUFFIX}`);
+    return joinPath(runsDir, `${runId}${ACTIVE_EVENTS_SUFFIX}`);
   }
 
   private nextSegmentIndex(runsDir: string, runId: string): number {
@@ -149,9 +149,9 @@ export class JsonlWriter implements EventOutput {
   private segmentPaths(runsDir: string, runId: string, index: number) {
     const stem = `${runId}-${String(index).padStart(4, "0")}`;
     return {
-      sealed: path.join(runsDir, `${stem}${SEALED_EVENTS_SUFFIX}`),
-      archive: path.join(runsDir, `${stem}${ARCHIVE_EVENTS_SUFFIX}`),
-      temp: path.join(runsDir, `${stem}${TEMP_ARCHIVE_SUFFIX}`),
+      sealed: joinPath(runsDir, `${stem}${SEALED_EVENTS_SUFFIX}`),
+      archive: joinPath(runsDir, `${stem}${ARCHIVE_EVENTS_SUFFIX}`),
+      temp: joinPath(runsDir, `${stem}${TEMP_ARCHIVE_SUFFIX}`),
     };
   }
 
@@ -195,7 +195,7 @@ export class JsonlWriter implements EventOutput {
   private recoverTemporaryFiles(runsDir: string): void {
     for (const fileName of fs.readdirSync(runsDir)) {
       if (fileName.endsWith(TEMP_ARCHIVE_SUFFIX)) {
-        fs.unlinkSync(path.join(runsDir, fileName));
+        fs.unlinkSync(joinPath(runsDir, fileName));
       }
     }
   }
@@ -206,7 +206,7 @@ export class JsonlWriter implements EventOutput {
         continue;
       }
 
-      const sealedPath = path.join(runsDir, fileName);
+      const sealedPath = joinPath(runsDir, fileName);
       const archivePath = sealedPath.slice(0, -SEALED_EVENTS_SUFFIX.length) + ARCHIVE_EVENTS_SUFFIX;
       const tempPath = sealedPath.slice(0, -SEALED_EVENTS_SUFFIX.length) + TEMP_ARCHIVE_SUFFIX;
 
@@ -260,7 +260,7 @@ export class JsonlWriter implements EventOutput {
         continue;
       }
 
-      const filePath = path.join(runsDir, fileName);
+      const filePath = joinPath(runsDir, fileName);
       const stat = fs.statSync(filePath);
       const archive = archives.get(parts.runId) ?? {
         runId: parts.runId,

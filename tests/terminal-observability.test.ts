@@ -46,7 +46,7 @@ function sampleReport(overrides: Partial<ContextReport> = {}): ContextReport {
     percentUsed: 0.9,
     breakdown: {
       system: 100,
-      toolSchemas: 200,
+      toolDefinitions: 200,
       user: 300,
       assistant: 400,
       thinking: 50,

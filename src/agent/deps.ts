@@ -1,9 +1,10 @@
-import { compactAutoDefault, getWorkdir } from "../config.js";
-import type { ToolContext, UserInteraction } from "./tools/types.js";
+import { getWorkdir } from "../config.js";
+import type { ToolContext, UserInteraction } from "../tools/types.js";
+import type { Session } from "../session/session.js";
 
 export interface LoopContext {
   userInteraction: UserInteraction;
-  isCompactAutoEnabled: () => boolean;
+  session: Session;
 }
 
 const denyAllInteraction: UserInteraction = {
@@ -13,10 +14,17 @@ const denyAllInteraction: UserInteraction = {
   },
 };
 
-export function createDefaultLoopContext(): LoopContext {
+export function createDefaultLoopContext(session: Session): LoopContext {
   return {
     userInteraction: denyAllInteraction,
-    isCompactAutoEnabled: () => compactAutoDefault(),
+    session,
+  };
+}
+
+export function createDefaultToolContext(): ToolContext {
+  return {
+    workdir: getWorkdir(),
+    userInteraction: denyAllInteraction,
   };
 }
 

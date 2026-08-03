@@ -1,4 +1,4 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { ToolSchema } from "../llm/protocol/types.js";
 
 /** Injected into tool handlers via ToolContext. */
 export interface UserInteraction {
@@ -25,7 +25,8 @@ export type ToolHandler = (
   ctx: ToolContext,
 ) => string | Promise<string>;
 
+/** Registered tool: protocol schema + handler. */
 export interface ToolDefinition {
-  schema: Tool;
+  schema: ToolSchema;
   handler: ToolHandler;
 }

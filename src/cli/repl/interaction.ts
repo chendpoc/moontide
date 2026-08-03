@@ -1,9 +1,7 @@
 import type readline from "node:readline/promises";
 
-import type { LoopContext } from "../../agent/deps.js";
-import type { UserInteraction } from "../../agent/tools/types.js";
+import type { UserInteraction } from "../../tools/types.js";
 import { truncateOneLine } from "../../utils/text.js";
-import { isCompactAutoEnabled } from "./session.js";
 
 export function createReplUserInteraction(rl: readline.Interface): UserInteraction {
   return {
@@ -45,9 +43,6 @@ export function createReplUserInteraction(rl: readline.Interface): UserInteracti
   };
 }
 
-export function createReplLoopContext(rl: readline.Interface): LoopContext {
-  return {
-    userInteraction: createReplUserInteraction(rl),
-    isCompactAutoEnabled,
-  };
+export function createReplUserInteractionOnly(rl: readline.Interface): UserInteraction {
+  return createReplUserInteraction(rl);
 }

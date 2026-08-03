@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { clampInt } from "../src/utils/number.js";
-import { shortenHomePath } from "../src/utils/path.js";
+import { formatIdTimestamp, newEventId, newTimestampedId } from "../src/utils/id.js";
+import {
+  dataDir,
+  dataPath,
+  isOutsideWorkspace,
+  joinPath,
+  resolveWorkspacePath,
+  shortenHomePath,
+} from "../src/utils/path.js";
 import { escapeRegExp, truncateChars, truncateOneLine } from "../src/utils/text.js";
 import { byteLengthUtf8, truncateUtf8 } from "../src/utils/utf8.js";
 
@@ -51,9 +59,57 @@ describe("utils/number", () => {
   });
 });
 
+describe("utils/id", () => {
+  it("formatIdTimestamp uses local YYYYMMDD-HHmmss", () => {
+    expect(formatIdTimestamp(new Date(2026, 6, 30, 14, 30, 45))).toBe("20260730-143045");
+  });
+
+  it("newTimestampedId appends random hex suffix", () => {
+    const id = newTimestampedId(new Date(2026, 6, 30, 14, 30, 45));
+    expect(id).toMatch(/^20260730-143045-[0-9a-f]{8}$/);
+  });
+
+  it("newEventId returns a UUID", () => {
+    expect(newEventId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+});
+
 describe("utils/path", () => {
+  it("joinPath joins segments cross-platform", () => {
+    expect(joinPath("/tmp", "ocula", "sessions")).toBe("/tmp/ocula/sessions");
+  });
+
+  it("dataDir points at workdir/.ocula", () => {
+    expect(dataDir("/tmp/workspace")).toBe("/tmp/workspace/.ocula");
+  });
+
+  it("dataPath joins under .ocula root", () => {
+    expect(dataPath("/tmp/workspace", "sessions", "abc.jsonl")).toBe(
+      "/tmp/workspace/.ocula/sessions/abc.jsonl",
+    );
+  });
+
   it("shortenHomePath replaces home prefix with tilde", () => {
     expect(shortenHomePath("/Users/me/proj", "/Users/me")).toBe("~/proj");
     expect(shortenHomePath("/tmp/proj", "/Users/me")).toBe("/tmp/proj");
+  });
+
+  it("resolveWorkspacePath resolves relative paths under workdir", () => {
+    expect(resolveWorkspacePath("src/a.ts", "/tmp/workspace")).toBe("/tmp/workspace/src/a.ts");
+  });
+
+  it("resolveWorkspacePath rejects paths that escape workdir", () => {
+    expect(() => resolveWorkspacePath("../etc/passwd", "/tmp/workspace")).toThrow(
+      "Path escapes workspace",
+    );
+  });
+
+  it("isOutsideWorkspace detects absolute and relative escapes", () => {
+    const workdir = "/tmp/workspace";
+    expect(isOutsideWorkspace("src/a.ts", workdir)).toBe(false);
+    expect(isOutsideWorkspace("../outside", workdir)).toBe(true);
+    expect(isOutsideWorkspace("/etc/passwd", workdir)).toBe(true);
   });
 });

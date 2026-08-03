@@ -22,6 +22,15 @@ Provider Preset（1） ──提供──▶ Model（N）
 - **Model routing**（任务 → 选模型 + thinking）是 Ocula 的差异化能力。
 - **Provider routing**（同一 model 在多个 upstream 间竞价 / failover）**不是**本期目标；走 OpenRouter 时 upstream 选择交给网关。
 
+### 1.1 术语（Model 相关，避免混称 catalog）
+
+| 术语 | 含义 | 文档 / 模块 |
+|------|------|-------------|
+| **model 注册表** | Cloud logical model id → 各 Provider Preset 的 vendor model id、contextWindow | 本文 §9.3；实现 `llm/models/registry.ts` |
+| **Provider Preset 表** | 厂商 API 通道配置（baseUrl、adapter、apiKeyEnv） | 本文 §3；实现 `llm/presets/presets.ts` |
+| **本地 model catalog** | Edge 侧 Ocula 签名 GGUF 条目（`ocula/router-v1` 等） | [`edge-local-models.md`](../notes/edge-local-models.md)；与 **model 注册表** 无关 |
+| **Tool Definitions** | 本轮 `LLMRequest.tools`（`ToolSchema[]`） | [`context-composer.md`](context-composer.md) §9.1；[`llm-input.md`](llm-input.md) |
+
 ---
 
 ## 2. 产品原则
@@ -34,7 +43,7 @@ Provider Preset（1） ──提供──▶ Model（N）
 
 ---
 
-## 3. Provider Preset Catalog
+## 3. Provider Preset 表
 
 实现上按 **协议族** 收敛为少量 adapter，不必每个品牌一套 loop。详见 [§8 Adapter 与 Normalize 设计](#8-adapter-与-normalize-设计)。
 
@@ -77,6 +86,20 @@ OpenRouter 在 OpenRouter 命名空间下使用 model 字符串，例如 `anthro
 
 `custom` **不是**第七套 adapter 实现，而是复用已有 adapter + 可变 `baseUrl`。中转站若声称兼容 OpenAI Chat 或 Anthropic Messages，应能直接工作；若有小差异，通过 [§7 compat](#7-低成本保险扩展性约束) 覆盖，而非新增协议族。
 
+### 3.4 本地推理（local-direct，演进候选）
+
+| Preset ID | 定位 | 协议族 | 配置 | 第一版 |
+|-----------|------|--------|------|--------|
+| `local-direct` | 本机 Rust `ocula-infer` sidecar；[本地 model catalog](../notes/edge-local-models.md) GGUF | IPC（UDS + NDJSON）→ 进程内 llama.cpp | `OCULA_LOCAL_INFER=on` + 本地 catalog model id | 否（Phase P1+） |
+
+**与 cloud preset 的区别：**
+
+- **不走 HTTP API** — loop 仍产出 Ocula 协议 `LLMRequest`；`local-direct` adapter 经 UDS 发给 `ocula-infer`，返回 normalized `LLMResponse`。
+- **Model 来源** — 仅 [**Ocula 本地 model catalog**](../notes/edge-local-models.md)（`ocula/router-v1` 等）；用户 **opt-in download**，不提供任意 URL import 或本地 train。
+- **Train** — **Ocula Cloud / CI only**；详见 [`edge-local-models.md`](../notes/edge-local-models.md)。
+
+**与 Model Router 的关系：** Router 决定 **logical tier**（router / general / cloud）；`local-direct` 是 tier 0–2 的 **执行 preset**，与 `deepseek` 等 cloud preset 并列，经同一 `LLMProvider` 出口（[`runLLM.ts`](../../src/agent/pipeline/runLLM.ts)）。
+
 ---
 
 ## 4. 架构
@@ -91,13 +114,13 @@ flowchart TB
   subgraph core [Ocula agent 内核]
     Loop["agent/loop"]
     Context["context/*"]
-    Tools["agent/tools"]
+    Tools["tools"]
   end
 
   subgraph routing [Model 层 — 待实现]
     Router["ModelRouter<br/>任务 → logicalModel + thinkingLevel"]
     Resolver["RouteResolver<br/>logicalModel → preset + vendorModelId"]
-    Catalog["ModelCatalog"]
+    ModelRegistry["model 注册表"]
   end
 
   subgraph llm [src/llm — 目标边界]
@@ -115,8 +138,8 @@ flowchart TB
 
   Manual --> Resolver
   Auto --> Router --> Resolver
-  Router --> Catalog
-  Resolver --> Catalog
+  Router --> ModelRegistry
+  Resolver --> ModelRegistry
   Loop --> Types
   Context --> Types
   Tools --> Types
@@ -134,7 +157,7 @@ flowchart TB
 ```
 用户输入
   → [可选] ModelRouter：任务分类 → logicalModel + thinkingLevel + reason
-  → RouteResolver：查 catalog + env keys → { providerPresetId, vendorModelId }
+  → RouteResolver：查 **model 注册表** + env keys → { providerPresetId, vendorModelId }
   → resolveCapabilities(logicalModel)
   → LLMProvider.chat(LLMRequest)
   → normalize（跨协议语义）→ adapter 翻译协议 → 官方 SDK → HTTP
@@ -225,7 +248,7 @@ Ocula 将 **Harness（loop + 中间态）** 与 **API 适配层（adapter 层）
 |------|------|
 | **`LLMProvider` 唯一入口** | `runLLM` / compact 摘要 / `ping` 均经 `getLLMProvider()`；loop 不见 SDK 类型 |
 | **SDK import 白名单** | `src/agent/**`、`src/context/**` 禁止 import 厂商 SDK；仅 `src/llm/adapters/**` 允许 |
-| **Preset 表驱动** | 新厂商 = `presets.ts` 新行 + catalog route，不改 loop |
+| **Preset 表驱动** | 新厂商 = `presets.ts` 新行 + model 注册表 route，不改 loop |
 | **`custom` 复用 adapter** | 用户选协议族 + `baseUrl`，不新增 adapter 分支 |
 | **compat 外置** | `src/llm/compat/` 按 `presetId` 覆盖 header、model 前缀、tool 格式；默认空表 |
 | **观测字段预留** | `onLLMCall` / JSONL 写入 `providerPresetId`、`vendorModelId`、`routingReason`（见 §9.5） |
@@ -266,17 +289,21 @@ export interface CompatOverrides {
 
 ```
 src/llm/
-  protocol/types.ts       # Ocula Message / Tool / LLMRequest / LLMResponse
+  protocol/types.ts       # Ocula Message / ToolSchema / LLMRequest / LLMResponse
   normalize/
     index.ts              # extractText、handoff 清洗
     openai.ts             # tool_calls round-trip
     gemini.ts             # Gemini 块映射
     stream.ts             # stream chunk 合并（分期）
   provider.ts             # LLMProvider 接口 + getLLMProvider()
-  catalog/
+  presets/
     presets.ts            # ProviderPreset 静态表
-    models.json           # ModelCatalog（可先 TS 常量）
-    resolve.ts            # env + catalog → ResolvedRoute
+  models/
+    registry.ts           # model 注册表（logical id → 各 preset vendor model id）
+    capabilities.ts       # MODEL_ID + env → ModelProfile
+  routing/
+    resolve.ts            # env + model 注册表 → ResolvedRoute
+    types.ts              # RoutingDecision、ResolvedRoute
   adapters/
     anthropic-messages.ts
     openai-chat.ts
@@ -336,7 +363,7 @@ export interface Message {
   content: string | ContentBlock[];
 }
 
-export interface ToolDefinition {
+export interface ToolSchema {
   name: string;
   description: string;
   input_schema: Record<string, unknown>;
@@ -346,7 +373,7 @@ export interface LLMRequest {
   model: string;
   system: string;
   messages: Message[];
-  tools: ToolDefinition[];
+  tools: ToolSchema[];
   maxTokens: number;
   thinkingLevel?: "off" | "low" | "medium" | "high";
   sessionId?: string;
@@ -382,7 +409,7 @@ export interface ProviderPreset {
 }
 ```
 
-### 9.3 Model Catalog（逻辑 model → 各 preset 上的 vendor ID）
+### 9.3 model 注册表（logical model → 各 preset 上的 vendor ID）
 
 Router 选 **逻辑 model**；Resolver 落到具体 preset 与厂商 model 字符串：
 
@@ -417,15 +444,15 @@ Router 选 **逻辑 model**；Resolver 落到具体 preset 与厂商 model 字�
 
 **Resolver 规则：**
 
-1. 若用户显式 `OCULA_PROVIDER=xxx` → 使用该 preset（若 catalog 有对应 route）。
+1. 若用户显式 `OCULA_PROVIDER=xxx` → 使用该 preset（若 model 注册表有对应 route）。
 2. 若自动路由 → 按 `prefer` 顺序，选 **第一个有 API key 的 preset**。
 3. 若仅 `OPENROUTER_API_KEY` → 可走 OpenRouter route。
 4. `OCULA_OPENROUTER_FALLBACK=1`：无官方 key 时自动落到 OpenRouter。
 
-### 9.4 ModelCapabilities
+### 9.4 ModelProfile
 
 ```typescript
-export interface ModelCapabilities {
+export interface ModelProfile {
   logicalModelId: string;
   contextWindow: number;
   maxOutputTokens: number;
@@ -435,7 +462,7 @@ export interface ModelCapabilities {
 }
 ```
 
-来源优先级：catalog → env 覆盖（`OCULA_CONTEXT_LIMIT`）→ default。Context Composer 的预算与 token 策略来自 **ModelCapabilities**；见 [`context-composer.md`](context-composer.md)。
+来源优先级：**model 注册表** → env 覆盖（`OCULA_CONTEXT_LIMIT`）→ default。Context Composer 的预算与 token 策略来自 **ModelProfile**；见 [`context-composer.md`](context-composer.md)。
 
 ### 9.5 RoutingDecision（观测）
 
@@ -471,8 +498,19 @@ export interface RoutingDecision {
 **分期：**
 
 - **v1** — 规则 / 启发式（prompt 长度、文件引用、关键词、`/compact` 状态）
-- **v2** — 可选小模型 classifier 或 cheap routing call
+- **v2** — 可选 **本地** model catalog router（`ocula/router-v1` via `local-direct`）或 cheap cloud routing call；详见 [`edge-local-models.md`](../notes/edge-local-models.md) Tier 0–1
 - **CLI** — `/model auto`、`/model status`、`/thinking high|low|off`
+
+**本地 tier 路由（与 v2 交叉，非阻塞 cloud-only v1）：**
+
+| Tier | 执行 | Preset |
+|------|------|--------|
+| 0 | 零成本启发式 | — |
+| 1 | 意图 / 路由分类 | `local-direct` → `ocula/router-v1` |
+| 2 | 轻量多模态 / 闲聊 | `local-direct` → `ocula/general-v1`（按需加载） |
+| 3+ | coding / 长 reasoning | cloud preset（`deepseek` 等） |
+
+`RoutingDecision` 应记录 `logicalTier`、`preset`、可选 `localCatalogModelId`（仅 `local-direct`）、`routingReason`，供 run JSONL 复盘。
 
 ### Thinking level 与终端 trace 的区别
 
@@ -491,7 +529,7 @@ export interface RoutingDecision {
 
 ```bash
 OCULA_PROVIDER=deepseek    # deepseek|kimi|openai|anthropic|gemini|openrouter|custom
-MODEL_ID=deepseek-v4-pro     # 或 catalog 中的 logical id / vendor id
+MODEL_ID=deepseek-v4-pro     # 或 model 注册表中的 logical id / vendor id
 
 DEEPSEEK_API_KEY=sk-xxx
 # MOONSHOT_API_KEY=...
@@ -535,6 +573,15 @@ OCULA_CONTEXT_LIMIT=1000000
 OCULA_CONTEXT_EXACT=0
 ```
 
+### 11.6 本地推理（演进，见 edge-local-models）
+
+```bash
+OCULA_LOCAL_INFER=on              # ability 总开关；off 时 Router 不选 local tier
+OCULA_LOCAL_ROUTER=ocula/router-v1
+OCULA_LOCAL_GENERAL=ocula/general-v1
+# sidecar 默认 ~/.ocula/infer.sock；本地 model catalog 权重 ~/.ocula/models/
+```
+
 完整示例见仓库根目录 [`.env.example`](../../.env.example)。
 
 ---
@@ -546,10 +593,11 @@ OCULA_CONTEXT_EXACT=0
 | Client | 仅 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts) | `LLMProvider` + `adapters/*` + `normalize/*` |
 | API 适配 | 隐式 DeepSeek → Anthropic SDK | **方案 A**（§5） |
 | Provider | `bootstrap.ts` 将 DeepSeek 映射为 Anthropic env | 显式 `ProviderPreset` + `resolveRoute()` |
-| Model | `MODEL_ID` 字符串 + [`constants/llm.ts`](../../src/constants/llm.ts) 硬编码 context | `ModelCatalog` + `ModelCapabilities` |
+| Model | `MODEL_ID` 字符串 + [`constants/llm.ts`](../../src/constants/llm.ts) 硬编码 context | **model 注册表** + `ModelProfile` |
 | 类型泄漏 | `@anthropic-ai/sdk` 约 17 处 | 仅 `src/llm/adapters/**` |
 | Compact / ping | `compact.ts` 直连 `getClient()` | 经 `LLMProvider` |
 | 路由 | 无 | Model Router + Route Resolver |
+| 本地推理 | 无 | `local-direct` preset + `ocula-infer` sidecar（本地 model catalog GGUF） |
 | 观测 | statusline 仅 `model` | `providerPreset` + `logicalModel` + `routingReason` |
 | custom 中转 | 仅文档级 Anthropic 兼容 env | `custom` preset + compat |
 
@@ -563,12 +611,13 @@ OCULA_CONTEXT_EXACT=0
 |------|------|------|
 | **A** | Ocula 协议类型；SDK import 收到 adapter 白名单 | typecheck + test 全绿，行为不变 |
 | **B** | `LLMProvider`；`runLLM` / compact / ping 统一入口 | mock provider 单测 |
-| **C** | `ModelCatalog` + `ModelCapabilities`；context limit 来自 catalog | 换 MODEL_ID 阈值随之变 |
+| **C** | **model 注册表** + `ModelProfile`；context limit 来自 model 注册表 | 换 MODEL_ID 阈值随之变 |
 | **D** | Preset：`deepseek` + `anthropic` + `openai` 官方 adapter | `.env` 切换 preset 可跑 tool loop |
 | **E** | Preset：`kimi` · `glm`（可选）· `gemini` | 各一家 smoke test |
 | **F** | Preset：`openrouter` + `custom` + compat 骨架 + `session_id` | OR / 中转 / 官方 preset 可切换 |
 | **G** | Model Router v1 + `RoutingDecision` 观测 | `/model auto` + JSONL 可复盘 |
 | **H** | `thinkingLevel` 各 adapter 映射 + ESLint 边界 rule | 与 trace 开关分离可测 |
+| **I** | `local-direct` adapter + `ocula-infer` IPC；本地 model catalog pull CLI | `OCULA_LOCAL_INFER=on` 时 router tier 可本地完成；fallback cloud |
 
 **与 Session Event Log 的顺序：** 先完成 A–C（类型 + Provider + Capabilities），再动 Session Event Log / Context Composer（TODO #6 / Bruma），避免 session 事实存厂商专有类型。
 
@@ -589,12 +638,15 @@ OCULA_CONTEXT_EXACT=0
 |------|------|
 | [`llm-input.md`](llm-input.md) | 一次 LLM 调用的 `system` / `tools` / `messages`；目标产出 `LLMRequest`；Provider 层负责 **谁执行** `chat()` |
 | [`context-composer.md`](context-composer.md) | Session Event Log、Context Composer、Compaction / Checkpoint；产出 `LLMRequest` |
-| [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA；ModelCapabilities 与 Tool Definitions 进入 Composer |
+| [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA；ModelProfile 与 Tool Definitions 进入 Composer |
 | [`vision.md`](../product/vision.md) | 产品名 Ocula；run 观测需 provider + model 字段 |
 | [`agent-events.md`](agent-events.md) | `RoutingDecision` 写入 run event log |
+| [`edge-local-models.md`](../notes/edge-local-models.md) | 本地 model catalog pull、Cloud train only、`ocula-infer` sidecar |
+| [`runtime-multilang.md`](../notes/runtime-multilang.md) | Rust host 监管 infer sidecar 生命周期 |
+| [`kocoro-architecture.md`](../notes/kocoro-architecture.md) | bundle pull 与 sidecar 参考实现 |
 
 ---
 
 ## 15. 一句话
 
-**API 适配方案 A：4 协议族 × 官方 SDK + 自管 normalize；官方六家 + OpenRouter + custom 中转 = Preset Catalog（~20% 覆盖大多数用户）；Ocula 做 Model Routing（任务 + thinking），不做 Provider upstream 路由与长尾怪协议；loop 只认 Ocula 协议与 `LLMProvider`。**
+**API 适配方案 A：4 协议族 × 官方 SDK + 自管 normalize；官方六家 + OpenRouter + custom 中转 + 演进中的 `local-direct` = Provider Preset 表；Ocula 做 Model Routing（任务 + thinking + local tier），不做 Provider upstream 路由与长尾怪协议；loop 只认 Ocula 协议与 `LLMProvider`。**

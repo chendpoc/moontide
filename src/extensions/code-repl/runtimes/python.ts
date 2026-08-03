@@ -1,6 +1,5 @@
-import path from "node:path";
-
 import { pythonPath, venvPath } from "../../../config.js";
+import { joinPath, resolvePath } from "../../../utils/path.js";
 import type { CodeRuntime } from "../types.js";
 import { buildRuntimeEnv } from "./env.js";
 import { probeCommand, resolveCommand } from "./probe.js";
@@ -14,12 +13,12 @@ export const pythonRuntime: CodeRuntime = {
     const configured = pythonPath();
     const candidates = configured
       ? [configured]
-      : [path.join(venvPath() ?? "", "bin", "python"), "python3", "python"].filter(Boolean);
+      : [joinPath(venvPath() ?? "", "bin", "python"), "python3", "python"].filter(Boolean);
 
     for (const candidate of candidates) {
       const cmd =
         candidate.includes("/") || candidate.includes("\\")
-          ? path.resolve(candidate)
+          ? resolvePath(candidate)
           : ((await resolveCommand(candidate)) ?? candidate);
       const probe = await probeCommand(cmd, ["--version"], env);
       if (probe.ok) {

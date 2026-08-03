@@ -1,21 +1,21 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { runBash } from "../src/builtins/bash.js";
 import { runEdit, runListDir, runRead, runWrite, safePath } from "../src/builtins/fs.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-"));
+  tmpDir = createTmpWorkdir("ocula-");
   setWorkdir(tmpDir);
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
 });
 
 describe("tools", () => {
@@ -40,7 +40,7 @@ describe("tools", () => {
   });
 
   it("lists directory entries", () => {
-    fs.mkdirSync(path.join(tmpDir, "src"));
+    fs.mkdirSync(joinPath(tmpDir, "src"));
     runWrite("src/a.ts", "x");
     runWrite("b.txt", "y");
     const listing = runListDir(".");

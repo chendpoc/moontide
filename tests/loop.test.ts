@@ -1,14 +1,17 @@
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentSession } from "../src/agent/agent-session.js";
+import { createDefaultLoopContext } from "../src/agent/deps.js";
 import type { LoopContext } from "../src/agent/deps.js";
+import { createDefaultRunHooks } from "../src/agent/run-hooks.js";
 import { setWorkdir } from "../src/config.js";
-import { agentLoop } from "../src/agent/loop.js";
 import * as llm from "../src/llm/client/anthropic.js";
-import type { UserInteraction } from "../src/agent/tools/types.js";
+import type { UserInteraction } from "../src/tools/types.js";
+import { sessionLogPath } from "../src/session/paths.js";
+import { joinPath } from "../src/utils/path.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
@@ -28,10 +31,13 @@ function assistantMessage(
   };
 }
 
-function loopContext(userInteraction: UserInteraction): LoopContext {
+function runContext(
+  agentSession: AgentSession,
+  userInteraction: UserInteraction,
+): LoopContext {
   return {
     userInteraction,
-    isCompactAutoEnabled: () => false,
+    session: agentSession.session,
   };
 }
 
@@ -43,23 +49,27 @@ const denyAllInteraction: UserInteraction = {
 };
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocula-loop-"));
+  tmpDir = createTmpWorkdir("ocula-agent-run-");
   setWorkdir(tmpDir);
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
 });
 
-describe("agentLoop", () => {
+describe("AgentSession.run", () => {
   it("returns assistant text when stop_reason is end_turn", async () => {
     vi.spyOn(llm, "chat").mockResolvedValue(
       assistantMessage([{ type: "text", text: "Hello from model" }]),
     );
 
-    const messages = [{ role: "user" as const, content: "hi" }];
-    const { reply, turn } = await agentLoop(messages, loopContext(denyAllInteraction));
+    const agentSession = AgentSession.create(tmpDir);
+    const { reply, turn } = await agentSession.run(
+      "hi",
+      runContext(agentSession, denyAllInteraction),
+      createDefaultRunHooks(),
+    );
 
     expect(reply).toBe("Hello from model");
     expect(turn).toBe(1);
@@ -67,7 +77,7 @@ describe("agentLoop", () => {
   });
 
   it("runs tool_use and continues until end_turn", async () => {
-    fs.writeFileSync(path.join(tmpDir, "demo.txt"), "file content", "utf8");
+    fs.writeFileSync(joinPath(tmpDir, "demo.txt"), "file content", "utf8");
 
     vi.spyOn(llm, "chat")
       .mockResolvedValueOnce(
@@ -87,13 +97,18 @@ describe("agentLoop", () => {
         assistantMessage([{ type: "text", text: "Read complete" }]),
       );
 
-    const messages = [{ role: "user" as const, content: "read demo.txt" }];
-    const { reply, turn } = await agentLoop(messages, loopContext(denyAllInteraction));
+    const agentSession = AgentSession.create(tmpDir);
+    const { reply, turn } = await agentSession.run(
+      "read demo.txt",
+      runContext(agentSession, denyAllInteraction),
+      createDefaultRunHooks(),
+    );
 
     expect(reply).toBe("Read complete");
     expect(turn).toBe(2);
     expect(llm.chat).toHaveBeenCalledTimes(2);
-    expect(messages).toHaveLength(4);
+    const log = await agentSession.session.readLog();
+    expect(log.some((r) => r.kind === "tool_outcome")).toBe(true);
   });
 
   it("blocks deny-class tools via Tool Use Module", async () => {
@@ -115,16 +130,18 @@ describe("agentLoop", () => {
         assistantMessage([{ type: "text", text: "Acknowledged deny" }]),
       );
 
-    const messages = [{ role: "user" as const, content: "run bad command" }];
-    await agentLoop(messages, loopContext(denyAllInteraction));
+    const agentSession = AgentSession.create(tmpDir);
+    await agentSession.run(
+      "run bad command",
+      runContext(agentSession, denyAllInteraction),
+      createDefaultRunHooks(),
+    );
 
-    const toolResult = messages[2];
-    expect(toolResult?.role).toBe("user");
-    if (toolResult && Array.isArray(toolResult.content)) {
-      const block = toolResult.content[0];
-      if (block && typeof block === "object" && "content" in block) {
-        expect(String(block.content)).toContain("Permission denied");
-      }
+    const log = await agentSession.session.readLog();
+    const outcome = log.find((r) => r.kind === "tool_outcome");
+    expect(outcome?.kind).toBe("tool_outcome");
+    if (outcome?.kind === "tool_outcome") {
+      expect(outcome.resultSummary.summary).toContain("Permission denied");
     }
   });
 
@@ -152,15 +169,17 @@ describe("agentLoop", () => {
         assistantMessage([{ type: "text", text: "User declined" }]),
       );
 
-    const messages = [{ role: "user" as const, content: "delete foo" }];
-    await agentLoop(messages, loopContext(interaction));
+    const agentSession = AgentSession.create(tmpDir);
+    await agentSession.run(
+      "delete foo",
+      runContext(agentSession, interaction),
+      createDefaultRunHooks(),
+    );
 
-    const toolResult = messages[2];
-    if (toolResult && Array.isArray(toolResult.content)) {
-      const block = toolResult.content[0];
-      if (block && typeof block === "object" && "content" in block) {
-        expect(String(block.content)).toContain("Permission denied by user");
-      }
+    const log = await agentSession.session.readLog();
+    const outcome = log.find((r) => r.kind === "tool_outcome");
+    if (outcome?.kind === "tool_outcome") {
+      expect(outcome.resultSummary.summary).toContain("Permission denied by user");
     }
   });
 
@@ -188,15 +207,35 @@ describe("agentLoop", () => {
         assistantMessage([{ type: "text", text: "Done" }]),
       );
 
-    const messages = [{ role: "user" as const, content: "echo" }];
-    await agentLoop(messages, loopContext(interaction));
+    const agentSession = AgentSession.create(tmpDir);
+    await agentSession.run(
+      "echo",
+      runContext(agentSession, interaction),
+      createDefaultRunHooks(),
+    );
 
-    const toolResult = messages[2];
-    if (toolResult && Array.isArray(toolResult.content)) {
-      const block = toolResult.content[0];
-      if (block && typeof block === "object" && "content" in block) {
-        expect(String(block.content)).toContain("approved");
-      }
+    const log = await agentSession.session.readLog();
+    const outcome = log.find((r) => r.kind === "tool_outcome");
+    if (outcome?.kind === "tool_outcome") {
+      expect(outcome.resultSummary.summary).toContain("approved");
     }
+  });
+
+  it("writes session log during run", async () => {
+    vi.spyOn(llm, "chat").mockResolvedValue(
+      assistantMessage([{ type: "text", text: "Logged reply" }]),
+    );
+
+    const agentSession = AgentSession.create(tmpDir);
+    await agentSession.run(
+      "log me",
+      createDefaultLoopContext(agentSession.session),
+      createDefaultRunHooks(),
+    );
+
+    expect(fs.existsSync(sessionLogPath(tmpDir, agentSession.session.sessionId))).toBe(true);
+    const log = await agentSession.session.readLog();
+    expect(log.some((r) => r.kind === "user_message")).toBe(true);
+    expect(log.some((r) => r.kind === "assistant_message")).toBe(true);
   });
 });
