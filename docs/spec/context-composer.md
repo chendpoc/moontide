@@ -23,6 +23,8 @@ API 适配层 → 厂商 API
 
 **Context Composer** 是唯一允许产出「发给模型的 immutable input」的模块。Harness（`agent/loop`、tool 执行）只 append 会话事实、调用 Composer、再调 `LLMProvider`。
 
+> **Rust R1：** `ocula-composer` + `ocula-session` 已实现 Artifact Store 分级投影、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Log append-only 不变。
+
 ### 1.2 与相关文档的分工
 
 | 文档 | 职责 |

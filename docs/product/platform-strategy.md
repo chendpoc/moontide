@@ -197,5 +197,5 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 ## 10. Status
 
 - **方向已定：** Rust release CLI、MCP L1、可选 Node sidecar L2、不 embed JS runtime。
-- **实现状态：** 仍以 TypeScript CLI 为主；Rust CLI 与 sidecar pack 未 ship。
+- **实现状态：** TypeScript CLI 仍为功能最全的参考实现；**Rust CLI R0 可本地 dev 启动**（`cargo run -p ocula-cli -- --workdir .`），含 `/help`、`/thinking`、`/verbose` 与 stderr trace；sidecar pack 未 ship。
 - **修订：** 随 release 里程碑更新 §5 指标与 §8 阶段。

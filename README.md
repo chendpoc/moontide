@@ -45,15 +45,28 @@ Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
 ## Rust CLI（R0）
 
-Native agent loop（Session JSONL → Composer v1 → LLM → builtins），无 Node 依赖：
+Native agent loop（Session JSONL → Composer v1 → LLM → builtins）：
 
 ```sh
 cargo run -p ocula-cli -- --workdir .
+cargo run -p ocula-cli -- --workdir . --always-allow
 # 或
 cargo build -p ocula-cli --release && ./target/release/ocula
 ```
 
-REPL 命令：`/exit`、`/new`、`/workdir`。需 `.env` 中 `DEEPSEEK_API_KEY`（或 `ANTHROPIC_API_KEY`）。
+启动 banner：`Ocula — type /help for commands`
+
+**REPL 命令：** `/help` · `/thinking` · `/verbose` · `/always-allow on|off|status` · `/new`（别名 `/reset`）· `/workdir` · `/exit`（别名 `q` · `exit`）
+
+**Observability（stderr，不影响 stdout 正文）：**
+
+- `/thinking on` — 每 turn 打印 banner；tool / thinking / result 摘要
+- `/verbose on` — 在 thinking 基础上额外打印 compose 摘要（messages · tools · truncated · artifacts）
+- 环境变量：`OCULA_THINKING=1` · `OCULA_VERBOSE=1`（verbose 开启时 thinking 视为开启）
+
+**权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`/always-allow on` 或 `--always-allow` 或 `OCULA_ALWAYS_ALLOW=1` 自动批准。
+
+需 `.env` 中 `DEEPSEEK_API_KEY`（或 `ANTHROPIC_API_KEY`）。
 
 TypeScript CLI（`pnpm dev`）仍作参考实现与 conformance 对照；release 方向见 [`docs/product/platform-strategy.md`](docs/product/platform-strategy.md)。
 
@@ -209,7 +222,13 @@ Ocula idle · context 12.3% · turn 2
 | `OCULA_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)） |
 | `OCULA_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
 | `OCULA_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
-| `OCULA_COMPACT_AUTO=1` | 默认开启 auto compact |
+| `OCULA_COMPACT_AUTO=1` | compose 超阈值时 prune 旧 turn（默认开启） |
+| `OCULA_TOOL_INLINE_MAX` | 小输出 inline 上限（默认 8192 字节） |
+| `OCULA_TOOL_ARTIFACT_MIN` | ≥ 此大小写入 Artifact Store（默认 8192） |
+| `OCULA_TOOL_PREVIEW_CHARS` | log/投影 preview 长度（默认 500） |
+| `OCULA_TOOL_INLINE_FLOOR` | 动态 inline 预算下限（默认 500） |
+| `OCULA_CONTEXT_LIMIT` | context 字符上限估算（默认 128k） |
+| `OCULA_DEV_TOOL_LEARNING=1` | 注册 `record_tool_hint`，写入 `docs/notes/tool-hints/` |
 | `OCULA_CODE_REPL_*` / `OCULA_PYTHON` / `OCULA_VENV` | code_repl 配置 |
 | `OCULA_CODE_REPL_DISABLED=1` | 禁用 code_repl |
 | `OCULA_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |

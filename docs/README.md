@@ -81,6 +81,8 @@ flowchart TB
 
 **Hook 工程落地** — agent-run-hooks §11+ → agent-run-hooks §1–§10 → [agent-run.ts](../src/agent/agent-run.ts)
 
+**Rust REPL 开发** — 根 [README](../README.md) §Rust CLI → `crates/ocula-cli` · `crates/ocula-observability` · `platform-strategy` §10
+
 ## notes 主题索引
 
 | 主题 | 主文档 | 关联 |
