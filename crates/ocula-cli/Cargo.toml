@@ -14,6 +14,7 @@ clap = { workspace = true, features = ["derive", "env"] }
 dotenvy = { workspace = true }
 ocula-agent = { workspace = true }
 ocula-llm = { workspace = true }
+ocula-observability = { workspace = true }
 ocula-session = { workspace = true }
 ocula-tools = { workspace = true }
 rustyline = { workspace = true }

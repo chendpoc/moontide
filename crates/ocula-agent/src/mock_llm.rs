@@ -61,8 +61,14 @@ pub fn mock_llm(responses: Vec<LlmChatResponse>) -> Arc<dyn LlmClient> {
 mod tests {
     use super::*;
     use crate::AgentSession;
+    use ocula_observability::ObservabilityState;
     use ocula_tools::{AutoApproveInteraction, READ_FILE};
+    use std::sync::Arc;
     use tempfile::tempdir;
+
+    fn test_obs() -> Arc<ObservabilityState> {
+        Arc::new(ObservabilityState::default())
+    }
 
     #[tokio::test]
     async fn end_turn_returns_reply() {
@@ -71,6 +77,7 @@ mod tests {
             dir.path(),
             mock_llm(vec![MockLlmClient::text("Hello from model")]),
             Arc::new(AutoApproveInteraction),
+            test_obs(),
         );
 
         let result = agent.run("hi").await.unwrap();
@@ -94,6 +101,7 @@ mod tests {
                 MockLlmClient::text("done"),
             ]),
             Arc::new(AutoApproveInteraction),
+            test_obs(),
         );
 
         let result = agent.run("read demo.txt").await.unwrap();
@@ -102,5 +110,32 @@ mod tests {
 
         let log = agent.session.read_log().await.unwrap();
         assert!(log.len() >= 4);
+    }
+
+    #[tokio::test]
+    async fn tool_use_with_thinking_trace_enabled() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("demo.txt"), "file content").unwrap();
+
+        let obs = Arc::new(ObservabilityState::default());
+        obs.set_thinking_override(Some(true));
+
+        let agent = AgentSession::new(
+            dir.path(),
+            mock_llm(vec![
+                MockLlmClient::tool_use(
+                    "toolu_1",
+                    READ_FILE,
+                    serde_json::json!({ "path": "demo.txt" }),
+                ),
+                MockLlmClient::text("done"),
+            ]),
+            Arc::new(AutoApproveInteraction),
+            obs,
+        );
+
+        let result = agent.run("read demo.txt").await.unwrap();
+        assert_eq!(result.reply, "done");
+        assert_eq!(result.turn, 2);
     }
 }

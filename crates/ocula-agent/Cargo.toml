@@ -9,6 +9,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 ocula-composer = { workspace = true }
 ocula-llm = { workspace = true }
+ocula-observability = { workspace = true }
 ocula-protocol = { workspace = true }
 ocula-session = { workspace = true }
 ocula-tools = { workspace = true }

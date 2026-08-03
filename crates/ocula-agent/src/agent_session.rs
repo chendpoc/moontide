@@ -3,11 +3,12 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use ocula_llm::LlmClient;
-use ocula_session::Session;
-use ocula_tools::UserInteraction;
+use ocula_observability::ObservabilityState;
+use ocula_session::{ArtifactStore, Session};
+use ocula_tools::{ToolProjectionConfig, UserInteraction};
 
 use crate::agent_run::{AgentRun, LoopContext, RunResult};
-use crate::loop_config::{LoopConfig, NoOpLoopConfig};
+use crate::loop_config::{LoopConfig, PruneLoopConfig};
 
 pub struct AgentSession {
     pub session: Session,
@@ -15,6 +16,9 @@ pub struct AgentSession {
     llm: Arc<dyn LlmClient>,
     interaction: Arc<dyn UserInteraction>,
     loop_config: Arc<dyn LoopConfig>,
+    obs: Arc<ObservabilityState>,
+    projection_config: ToolProjectionConfig,
+    artifact_store: ArtifactStore,
 }
 
 impl AgentSession {
@@ -22,14 +26,18 @@ impl AgentSession {
         workdir: impl Into<PathBuf>,
         llm: Arc<dyn LlmClient>,
         interaction: Arc<dyn UserInteraction>,
+        obs: Arc<ObservabilityState>,
     ) -> Self {
         let workdir = workdir.into();
         Self {
             session: Session::create(&workdir),
-            workdir,
+            workdir: workdir.clone(),
             llm,
             interaction,
-            loop_config: Arc::new(NoOpLoopConfig),
+            loop_config: Arc::new(PruneLoopConfig::default()),
+            obs,
+            projection_config: ToolProjectionConfig::from_env(),
+            artifact_store: ArtifactStore::new(workdir),
         }
     }
 
@@ -40,6 +48,10 @@ impl AgentSession {
 
     pub fn workdir(&self) -> &Path {
         &self.workdir
+    }
+
+    pub fn observability(&self) -> Arc<ObservabilityState> {
+        self.obs.clone()
     }
 
     pub fn reset_session(&mut self) {
@@ -53,6 +65,9 @@ impl AgentSession {
             interaction: self.interaction.clone(),
             llm: self.llm.clone(),
             loop_config: self.loop_config.clone(),
+            obs: self.obs.clone(),
+            projection_config: self.projection_config.clone(),
+            artifact_store: self.artifact_store.clone(),
         };
         AgentRun::new(ctx).execute(user_prompt).await
     }

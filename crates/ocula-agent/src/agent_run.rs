@@ -1,13 +1,13 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_trait::async_trait;
-use ocula_composer::compose_context_v1;
+use ocula_composer::{compose_context, ComposeOptions};
 use ocula_llm::{extract_text, LlmClient};
+use ocula_observability::{ObservabilityState, TraceWriter};
 use ocula_protocol::ContentBlock;
-use ocula_session::Session;
-use ocula_tools::UserInteraction;
+use ocula_session::{ArtifactStore, Session};
+use ocula_tools::{ToolProjectionConfig, UserInteraction};
 
 use crate::loop_config::LoopConfig;
 use crate::prompt::build_system_prompt;
@@ -19,6 +19,9 @@ pub struct LoopContext {
     pub interaction: Arc<dyn UserInteraction>,
     pub llm: Arc<dyn LlmClient>,
     pub loop_config: Arc<dyn LoopConfig>,
+    pub obs: Arc<ObservabilityState>,
+    pub projection_config: ToolProjectionConfig,
+    pub artifact_store: ArtifactStore,
 }
 
 pub struct AgentRun {
@@ -33,20 +36,57 @@ impl AgentRun {
     pub async fn execute(&self, user_prompt: &str) -> Result<RunResult> {
         self.ctx.session.append_user(1, user_prompt).await?;
 
+        let trace = TraceWriter::new(self.ctx.obs.clone());
         let mut run_turn = 0u32;
         loop {
             run_turn += 1;
             let system = build_system_prompt(&self.ctx.workdir);
             let slice = self.ctx.session.log_slice().await?;
-            let mut messages = slice.to_messages(None);
-            messages = self.ctx.loop_config.transform_context(messages);
+            let log = slice.log().to_vec();
 
-            let composed = compose_context_v1(system, messages);
+            let session_id = self.ctx.session.session_id.clone();
+            let loader_store = self.ctx.artifact_store.clone();
+            let artifact_loader: ocula_composer::ArtifactLoader = Arc::new(move |id| {
+                loader_store.get(&session_id, id).ok()
+            });
+
+            let mut compose_opts = ComposeOptions::from_env();
+            compose_opts.config = self.ctx.projection_config.clone();
+            compose_opts.artifact_loader = Some(artifact_loader);
+
+            let mut composed = compose_context(system.clone(), &log, None, &compose_opts);
+            composed.messages = self
+                .ctx
+                .loop_config
+                .transform_context(composed.messages);
+
+            trace.compose_summary(
+                composed.messages.len(),
+                composed.tools.len(),
+                composed.system.len(),
+                composed.truncated_count,
+                composed.artifact_count,
+            );
+            trace.turn_start(run_turn);
+
             let response = self
                 .ctx
                 .llm
                 .chat(&composed.messages, &composed.tools, &composed.system)
                 .await?;
+
+            for block in &response.content {
+                match block {
+                    ContentBlock::Thinking { thinking } => {
+                        trace.thinking(run_turn, thinking);
+                    }
+                    ContentBlock::ToolUse { name, input, .. } => {
+                        let preview = serde_json::to_string(input).unwrap_or_default();
+                        trace.tool_use(run_turn, name, &preview);
+                    }
+                    _ => {}
+                }
+            }
 
             self.ctx
                 .session
@@ -66,6 +106,9 @@ impl AgentRun {
                 &self.ctx.session,
                 &self.ctx.workdir,
                 self.ctx.interaction.clone(),
+                Some(trace.clone()),
+                &self.ctx.artifact_store,
+                &self.ctx.projection_config,
             )
             .await?;
         }
