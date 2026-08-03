@@ -76,12 +76,14 @@ impl Session {
         &self,
         turn: u32,
         tool_use_id: impl Into<String>,
+        artifact_id: Option<String>,
         result_summary: ToolResultSummary,
     ) -> Result<()> {
         self.append_body(
             turn,
             SessionLogBody::ToolOutcome {
                 tool_use_id: tool_use_id.into(),
+                artifact_id,
                 result_summary,
             },
         )

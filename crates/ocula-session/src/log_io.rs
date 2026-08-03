@@ -33,11 +33,12 @@ pub fn build_session_log(session_id: &str, turn: u32, body: SessionLogBody) -> S
         },
         SessionLogBody::ToolOutcome {
             tool_use_id,
+            artifact_id,
             result_summary,
         } => SessionLog::ToolOutcome {
             base,
             tool_use_id,
-            artifact_id: None,
+            artifact_id,
             result_summary,
         },
     }
@@ -187,6 +188,7 @@ mod tests {
             2,
             SessionLogBody::ToolOutcome {
                 tool_use_id: "toolu_1".into(),
+                artifact_id: None,
                 result_summary: ToolResultSummary {
                     summary: "ok".into(),
                     byte_count: 2,

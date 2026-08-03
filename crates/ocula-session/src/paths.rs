@@ -11,3 +11,11 @@ pub fn sessions_dir(workdir: impl AsRef<Path>) -> PathBuf {
 pub fn session_log_path(workdir: impl AsRef<Path>, session_id: &str) -> PathBuf {
     sessions_dir(workdir).join(format!("{session_id}.jsonl"))
 }
+
+pub fn artifacts_dir(workdir: impl AsRef<Path>, session_id: &str) -> PathBuf {
+    data_dir(workdir).join("artifacts").join(session_id)
+}
+
+pub fn artifact_path(workdir: impl AsRef<Path>, session_id: &str, artifact_id: &str) -> PathBuf {
+    artifacts_dir(workdir, session_id).join(artifact_id)
+}

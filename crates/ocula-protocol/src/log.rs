@@ -116,6 +116,7 @@ pub enum SessionLogBody {
     },
     ToolOutcome {
         tool_use_id: String,
+        artifact_id: Option<String>,
         result_summary: ToolResultSummary,
     },
 }

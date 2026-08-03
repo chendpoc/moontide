@@ -14,6 +14,6 @@ impl SessionLogSlice {
     }
 
     pub fn to_messages(&self, up_to_turn: Option<u32>) -> Vec<Message> {
-        ocula_composer::log_to_messages(&self.log, up_to_turn)
+        ocula_composer::log_to_messages(&self.log, up_to_turn, None)
     }
 }
