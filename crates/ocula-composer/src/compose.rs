@@ -3,7 +3,8 @@ use ocula_tools::{tool_definitions, ToolProjectionConfig};
 
 use crate::compaction::prune::{estimate_percent_used, prune_messages};
 use crate::fallback::{
-    apply_truncation_fallback, build_truncation_bundle_message, collect_truncated_in_window,
+    apply_truncation_fallback, build_truncation_bundle_message,
+    build_truncation_strategy_reminder, collect_truncated_in_window,
     remaining_budget_after_messages,
 };
 use crate::log_to_messages::{log_to_messages, ProjectionContext, ArtifactLoader};
@@ -100,6 +101,7 @@ pub fn compose_context(
     let truncated_in_window = collect_truncated_in_window(log, keep_from_turn);
     let truncated_count = truncated_in_window.len() as u32;
 
+    let mut bundle_added = false;
     if truncated_in_window.len() >= 2 {
         if let Some(loader) = &options.artifact_loader {
             let loader_fn = |id: &str| loader(id);
@@ -115,11 +117,19 @@ pub fn compose_context(
             );
             messages = expanded;
             if !changed {
-                if let Some(bundle) = build_truncation_bundle_message(&truncated_in_window, &loader_fn)
+                if let Some(bundle) =
+                    build_truncation_bundle_message(&truncated_in_window, &loader_fn)
                 {
                     messages.push(bundle);
+                    bundle_added = true;
                 }
             }
+        }
+    }
+
+    if !truncated_in_window.is_empty() && !bundle_added {
+        if let Some(reminder) = build_truncation_strategy_reminder(&truncated_in_window) {
+            messages.push(reminder);
         }
     }
 

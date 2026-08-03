@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use ocula_protocol::{ContentBlock, Message, MessageContent, Role, SessionLog, ToolResultSummary};
 use ocula_tools::{
-    preview_chars, truncation_footnote, ToolProjectionConfig,
+    preview_chars, truncation_footnote_for_tool, ToolProjectionConfig,
 };
 
 pub type ArtifactLoader = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
@@ -47,6 +47,12 @@ pub fn log_to_messages(
         .map(|c| c.keep_from_turn)
         .unwrap_or(0);
 
+    let tool_names = if ctx.is_some() {
+        tool_names_from_log(log)
+    } else {
+        HashMap::new()
+    };
+
     let mut messages = Vec::new();
     let mut pending_tool_results: Vec<ContentBlock> = Vec::new();
 
@@ -72,8 +78,13 @@ pub fn log_to_messages(
                 result_summary,
                 ..
             } => {
+                let tool_name = tool_names
+                    .get(tool_use_id)
+                    .map(String::as_str)
+                    .unwrap_or("unknown");
                 let text = project_tool_outcome(
                     record.turn(),
+                    tool_name,
                     tool_use_id,
                     artifact_id.as_deref(),
                     result_summary,
@@ -98,6 +109,7 @@ pub fn log_to_messages(
 
 fn project_tool_outcome(
     turn: u32,
+    tool_name: &str,
     _tool_use_id: &str,
     artifact_id: Option<&str>,
     summary: &ToolResultSummary,
@@ -123,22 +135,24 @@ fn project_tool_outcome(
                 return format!(
                     "{}{}",
                     preview_chars(&full, budget),
-                    format_truncation_suffix(summary.byte_count, Some(id))
+                    format_truncation_suffix(tool_name, summary.byte_count, Some(id))
                 );
             }
         }
     }
 
-    truncation_footnote(summary, artifact_id)
+    truncation_footnote_for_tool(tool_name, summary, artifact_id)
 }
 
-fn format_truncation_suffix(byte_count: u32, artifact_id: Option<&str>) -> String {
+fn format_truncation_suffix(tool_name: &str, byte_count: u32, artifact_id: Option<&str>) -> String {
     let artifact_hint = artifact_id
-        .map(|id| format!("; artifact: {id}; use read_artifact"))
+        .map(|id| format!("; artifact: {id}"))
         .unwrap_or_default();
-    format!(
-        "… [truncated: {byte_count} bytes total{artifact_hint}; prefer narrower tool args]"
-    )
+    let mut suffix = format!(
+        "… [truncated: {byte_count} bytes total{artifact_hint}]"
+    );
+    suffix.push_str(&ocula_tools::format_strategy_lines(tool_name, ""));
+    suffix
 }
 
 fn flush_tool_results(pending: &mut Vec<ContentBlock>, messages: &mut Vec<Message>) {
@@ -254,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn old_turn_shows_footnote_only() {
+    fn old_turn_shows_footnote_with_strategies() {
         let log = vec![
             SessionLog::UserMessage {
                 base: base("e1", 1),
@@ -317,5 +331,6 @@ mod tests {
             .unwrap();
         assert!(first_tool.contains("[truncated:"));
         assert!(first_tool.contains("art_old"));
+        assert!(first_tool.contains("[strategies]"));
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use ocula_protocol::{ContentBlock, Message, MessageContent, Role, SessionLog};
-use ocula_tools::{preview_chars, ToolProjectionConfig};
+use ocula_tools::{format_bundle_strategy_section, preview_chars, ToolProjectionConfig};
 
 use crate::log_to_messages::tool_names_from_log;
 
@@ -119,9 +119,42 @@ pub fn build_truncation_bundle_message(truncated: &[TruncatedOutcome], loader: &
         ));
     }
 
+    let strategy_pairs: Vec<(String, u32)> = truncated
+        .iter()
+        .map(|t| (t.tool_name.clone(), t.byte_count))
+        .collect();
+    let strategy_section = format_bundle_strategy_section(&strategy_pairs);
+    if !strategy_section.is_empty() {
+        lines.push(String::new());
+        lines.push(strategy_section);
+    }
+
     Some(Message {
         role: Role::User,
         content: MessageContent::Text(lines.join("\n")),
+    })
+}
+
+/// Reminder when any truncated tool output exists in the recent window (projection-only).
+pub fn build_truncation_strategy_reminder(truncated: &[TruncatedOutcome]) -> Option<Message> {
+    if truncated.is_empty() {
+        return None;
+    }
+
+    let pairs: Vec<(String, u32)> = truncated
+        .iter()
+        .map(|t| (t.tool_name.clone(), t.byte_count))
+        .collect();
+    let section = format_bundle_strategy_section(&pairs);
+    if section.is_empty() {
+        return None;
+    }
+
+    Some(Message {
+        role: Role::User,
+        content: MessageContent::Text(format!(
+            "[ocula: truncated tool outputs detected — pick a strategy before retrying]\n{section}"
+        )),
     })
 }
 
@@ -226,6 +259,25 @@ mod tests {
                     _ => panic!(),
                 };
                 assert_eq!(b_text, "small");
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn strategy_reminder_for_single_truncated() {
+        let truncated = vec![TruncatedOutcome {
+            tool_use_id: "t1".into(),
+            tool_name: "bash".into(),
+            artifact_id: Some("a1".into()),
+            byte_count: 10000,
+            turn: 1,
+        }];
+        let msg = build_truncation_strategy_reminder(&truncated).unwrap();
+        match msg.content {
+            MessageContent::Text(t) => {
+                assert!(t.contains("[strategies"));
+                assert!(t.contains("bash"));
             }
             _ => panic!(),
         }
