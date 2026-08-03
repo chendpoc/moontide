@@ -2,8 +2,11 @@ use std::fs;
 use std::path::Path;
 
 use glob::glob;
+use serde_json::json;
 
 use crate::path_util::resolve_workspace_path;
+
+const READ_FILE_DEFAULT_LIMIT: u32 = 500;
 
 pub fn run_read(workdir: &Path, file_path: &str, limit: Option<u32>, offset: u32) -> String {
     match resolve_workspace_path(file_path, workdir).and_then(|p| {
@@ -12,18 +15,28 @@ pub fn run_read(workdir: &Path, file_path: &str, limit: Option<u32>, offset: u32
     }) {
         Ok(content) => {
             let lines: Vec<&str> = content.lines().collect();
+            let total_lines = lines.len();
             let start = offset.saturating_sub(1) as usize;
-            let end = limit.map(|l| start + l as usize);
-            let slice: Vec<&str> = match end {
-                Some(e) => lines.get(start..e).unwrap_or(&[]).to_vec(),
-                None => lines.get(start..).unwrap_or(&[]).to_vec(),
-            };
-            let remaining = lines.len().saturating_sub(start + slice.len());
-            let mut out = slice.join("\n");
-            if limit.is_some() && remaining > 0 {
-                out.push_str(&format!("\n... ({remaining} more lines)"));
+            let effective_limit = limit.unwrap_or(READ_FILE_DEFAULT_LIMIT);
+            let end = start + effective_limit as usize;
+            let slice: Vec<&str> = lines.get(start..end.min(total_lines)).unwrap_or(&[]).to_vec();
+            let truncated = end < total_lines || start > 0 && slice.len() < total_lines.saturating_sub(start);
+            let shown = slice.join("\n");
+
+            if limit.is_none() && total_lines <= effective_limit as usize && start == 0 {
+                return shown;
             }
-            out
+
+            json!({
+                "status": "ok",
+                "truncated": truncated || total_lines > slice.len() + start,
+                "lines_shown": slice.len(),
+                "total_lines": total_lines,
+                "offset": offset,
+                "content": shown,
+                "hint": if truncated { "use offset/limit for remaining lines" } else { "" }
+            })
+            .to_string()
         }
         Err(e) => format!("Error: {e}"),
     }
@@ -102,7 +115,8 @@ pub fn run_list_dir(workdir: &Path, relative: &str, recursive: bool) -> String {
 }
 
 fn list_shallow(resolved: &Path, relative: &str) -> String {
-    let mut entries = fs::read_dir(resolved)
+    const MAX: usize = 500;
+    let entries = fs::read_dir(resolved)
         .map(|rd| {
             let mut names: Vec<_> = rd.filter_map(|e| e.ok()).collect();
             names.sort_by_key(|e| e.file_name());
@@ -111,11 +125,13 @@ fn list_shallow(resolved: &Path, relative: &str) -> String {
         .unwrap_or_default();
 
     if entries.is_empty() {
-        return "(empty)".into();
+        return json!({ "status": "ok", "entries": [], "truncated": false }).to_string();
     }
 
-    entries
+    let truncated = entries.len() > MAX;
+    let lines: Vec<String> = entries
         .iter()
+        .take(MAX)
         .filter_map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
             let path = if relative == "." {
@@ -126,24 +142,29 @@ fn list_shallow(resolved: &Path, relative: &str) -> String {
             let kind = if entry.path().is_dir() { "dir" } else { "file" };
             Some(format!("{kind}\t{path}"))
         })
-        .collect::<Vec<_>>()
-        .join("\n")
+        .collect();
+
+    json!({
+        "status": "ok",
+        "entries": lines,
+        "truncated": truncated,
+        "hint": if truncated { "narrow path or disable recursive" } else { "" }
+    })
+    .to_string()
 }
 
 fn list_recursive(resolved: &Path, prefix: &str, depth: u32) -> String {
     const MAX: usize = 500;
     let mut lines = Vec::new();
     collect_entries(resolved, prefix, depth, &mut lines);
-    if lines.is_empty() {
-        "(empty)".into()
-    } else if lines.len() >= MAX {
-        format!(
-            "{}\n... (truncated at {MAX} entries)",
-            lines.join("\n")
-        )
-    } else {
-        lines.join("\n")
-    }
+    let truncated = lines.len() >= MAX;
+    json!({
+        "status": "ok",
+        "entries": lines,
+        "truncated": truncated,
+        "hint": if truncated { "narrow path or reduce depth" } else { "" }
+    })
+    .to_string()
 }
 
 fn collect_entries(dir: &Path, prefix: &str, depth: u32, lines: &mut Vec<String>) {

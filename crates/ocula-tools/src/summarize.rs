@@ -1,26 +1,13 @@
 use ocula_protocol::ToolResultSummary;
 
-const SUMMARY_CHAR_LIMIT: usize = 500;
+use crate::projection::{prepare_tool_outcome, ToolProjectionConfig};
 
+/// Legacy 500-char summary — prefer `prepare_tool_outcome` with config.
 pub fn summarize_tool_result_content(content: &str) -> ToolResultSummary {
-    let (summary, truncated) = truncate_chars(content, SUMMARY_CHAR_LIMIT);
-    let line_count = if content.is_empty() {
-        0
-    } else {
-        content.lines().count() as u32
+    let config = ToolProjectionConfig {
+        artifact_min: usize::MAX,
+        preview_chars: 500,
+        ..ToolProjectionConfig::from_env()
     };
-    ToolResultSummary {
-        summary,
-        byte_count: content.len() as u32,
-        line_count: Some(line_count),
-        truncated: if truncated { Some(true) } else { None },
-    }
-}
-
-fn truncate_chars(text: &str, limit: usize) -> (String, bool) {
-    if text.chars().count() <= limit {
-        return (text.to_string(), false);
-    }
-    let truncated: String = text.chars().take(limit).collect();
-    (truncated, true)
+    prepare_tool_outcome(content, &config).result_summary
 }

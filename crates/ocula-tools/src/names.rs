@@ -9,3 +9,5 @@ pub const GIT_STATUS: &str = "git_status";
 pub const GIT_DIFF: &str = "git_diff";
 pub const GIT_LOG: &str = "git_log";
 pub const GIT_SUMMARY: &str = "git_summary";
+pub const READ_ARTIFACT: &str = "read_artifact";
+pub const RECORD_TOOL_HINT: &str = "record_tool_hint";

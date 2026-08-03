@@ -6,8 +6,7 @@ use std::sync::OnceLock;
 use ocula_protocol::ToolSchema;
 use serde_json::{json, Value};
 
-use crate::builtins;
-use crate::builtins::{git, grep, shell};
+use crate::builtins::{self, git, grep, shell};
 use crate::names;
 use crate::ToolContext;
 
@@ -29,11 +28,14 @@ pub fn get_tool(name: &str) -> Option<ToolDefinition> {
 }
 
 fn registry() -> &'static HashMap<String, ToolDefinition> {
-    REGISTRY.get_or_init(|| {
-        let tools = vec![
+    REGISTRY.get_or_init(build_registry)
+}
+
+fn build_registry() -> HashMap<String, ToolDefinition> {
+        let mut tools = vec![
             tool(
                 names::BASH,
-                "Run a shell command in the workspace.",
+                "Run a shell command in the workspace. Avoid git diff/status — use git_* tools instead.",
                 json!({
                     "type": "object",
                     "properties": { "command": { "type": "string" } },
@@ -256,13 +258,63 @@ fn registry() -> &'static HashMap<String, ToolDefinition> {
                     })
                 },
             ),
+            tool(
+                names::READ_ARTIFACT,
+                "Read full stored tool output by artifact id from the current session.",
+                json!({
+                    "type": "object",
+                    "properties": { "artifact_id": { "type": "string" } },
+                    "required": ["artifact_id"]
+                }),
+                |ctx, input| {
+                    let workdir = ctx.workdir.clone();
+                    let session_id = ctx.session_id.clone();
+                    Box::pin(async move {
+                        builtins::run_read_artifact(
+                            &workdir,
+                            session_id.as_deref(),
+                            input["artifact_id"].as_str().unwrap_or(""),
+                        )
+                    })
+                },
+            ),
         ];
+
+        if builtins::dev_tool_learning_enabled() {
+            tools.push(tool(
+                names::RECORD_TOOL_HINT,
+                "Record a dev note when a tool was used suboptimally (writes docs/notes/tool-hints/).",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "tool_name": { "type": "string" },
+                        "problem": { "type": "string" },
+                        "better_approach": { "type": "string" },
+                        "example": { "type": "string" },
+                        "tags": { "type": "string" }
+                    },
+                    "required": ["tool_name", "problem", "better_approach"]
+                }),
+                |ctx, input| {
+                    let workdir = ctx.workdir.clone();
+                    Box::pin(async move {
+                        builtins::run_record_tool_hint(
+                            &workdir,
+                            input["tool_name"].as_str().unwrap_or(""),
+                            input["problem"].as_str().unwrap_or(""),
+                            input["better_approach"].as_str().unwrap_or(""),
+                            input.get("example").and_then(|v| v.as_str()),
+                            input.get("tags").and_then(|v| v.as_str()),
+                        )
+                    })
+                },
+            ));
+        }
 
         tools
             .into_iter()
             .map(|t| (t.schema.name.clone(), t))
             .collect()
-    })
 }
 
 fn tool(

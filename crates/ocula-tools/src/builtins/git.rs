@@ -4,6 +4,9 @@ use serde_json::json;
 
 use crate::path_util::resolve_workspace_path;
 
+const DIFF_MAX_LINES: usize = 200;
+const DIFF_OUTPUT_LIMIT: usize = 50_000;
+
 pub async fn run_git_status(workdir: &Path) -> String {
     match git_output(workdir, &["status", "-sb"]).await {
         Ok((stdout, stderr, _)) if is_not_git_repo(&stderr) => {
@@ -53,16 +56,59 @@ pub async fn run_git_diff(
             "error": if stderr.trim().is_empty() { stdout.trim() } else { stderr.trim() }
         })
         .to_string(),
-        Ok((stdout, _, _)) => json!({
-            "status": "ok",
-            "summary": if stdout.trim().is_empty() { "(no diff)" } else { stdout.trim() }
-        })
-        .to_string(),
+        Ok((stdout, _, _)) => format_diff_response(stdout, stat),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             json!({ "status": "error", "error": "git is not available on PATH" }).to_string()
         }
         Err(e) => json!({ "status": "error", "error": e.to_string() }).to_string(),
     }
+}
+
+fn format_diff_response(stdout: String, stat: bool) -> String {
+    let trimmed = stdout.trim();
+    if trimmed.is_empty() {
+        return json!({
+            "status": "ok",
+            "summary": "(no diff)",
+            "truncated": false
+        })
+        .to_string();
+    }
+
+    if stat {
+        return json!({
+            "status": "ok",
+            "summary": trimmed,
+            "truncated": false
+        })
+        .to_string();
+    }
+
+    let lines: Vec<&str> = trimmed.lines().collect();
+    let total_lines = lines.len();
+    let over_line_limit = total_lines > DIFF_MAX_LINES;
+    let over_byte_limit = trimmed.len() > DIFF_OUTPUT_LIMIT;
+
+    if over_line_limit || over_byte_limit {
+        let preview_lines = lines.iter().take(DIFF_MAX_LINES).copied().collect::<Vec<_>>();
+        let preview = preview_lines.join("\n");
+        return json!({
+            "status": "ok",
+            "truncated": true,
+            "total_lines": total_lines,
+            "lines_shown": preview_lines.len(),
+            "summary": preview,
+            "hint": "use git_diff with stat=true or path=... for smaller output"
+        })
+        .to_string();
+    }
+
+    json!({
+        "status": "ok",
+        "summary": trimmed,
+        "truncated": false
+    })
+    .to_string()
 }
 
 pub async fn run_git_log(workdir: &Path, n: u32, path: Option<&str>) -> String {

@@ -1,3 +1,5 @@
+pub mod projection;
+mod approval;
 mod builtins;
 mod execute;
 mod names;
@@ -6,11 +8,19 @@ mod permission;
 mod registry;
 mod summarize;
 
+pub use approval::*;
 pub use execute::*;
 pub use names::*;
 pub use permission::*;
 pub use registry::*;
+pub use projection::*;
 pub use summarize::*;
+
+pub fn dev_tool_learning_enabled() -> bool {
+    builtins::dev_tool_learning_enabled()
+}
+
+pub use builtins::{run_read_artifact, run_record_tool_hint};
 
 use ocula_protocol::ToolSchema;
 
@@ -24,15 +34,26 @@ pub fn tool_definitions() -> Vec<ToolSchema> {
 #[derive(Clone)]
 pub struct ToolContext {
     pub workdir: std::path::PathBuf,
+    pub session_id: Option<String>,
 }
 
 impl ToolContext {
     pub fn new(workdir: impl Into<std::path::PathBuf>) -> Self {
         Self {
             workdir: workdir.into(),
+            session_id: None,
+        }
+    }
+
+    pub fn with_session(workdir: impl Into<std::path::PathBuf>, session_id: Option<String>) -> Self {
+        Self {
+            workdir: workdir.into(),
+            session_id,
         }
     }
 }
+
+use std::sync::Arc;
 
 pub struct ApproveToolRequest {
     pub tool_name: String,
@@ -62,11 +83,22 @@ impl UserInteraction for AutoApproveInteraction {
     }
 }
 
-pub struct ReplInteraction;
+pub struct ReplInteraction {
+    always_allow: Arc<AlwaysAllowState>,
+}
+
+impl ReplInteraction {
+    pub fn new(always_allow: Arc<AlwaysAllowState>) -> Self {
+        Self { always_allow }
+    }
+}
 
 #[async_trait::async_trait]
 impl UserInteraction for ReplInteraction {
     async fn approve_tool(&self, request: ApproveToolRequest) -> bool {
+        if self.always_allow.is_enabled() {
+            return true;
+        }
         use std::io::{self, Write};
         print!(
             "Allow tool {} with {:?}? [y/N] ",

@@ -107,10 +107,19 @@ fn parse_rg_json(stdout: &str, max: u32) -> serde_json::Value {
             "text": data["lines"]["text"].as_str().unwrap_or("").trim_end()
         }));
         if matches.len() as u32 >= max {
-            return json!({ "status": "ok", "matches": matches, "truncated": true });
+            return json!({
+                "status": "ok",
+                "matches": matches,
+                "truncated": true,
+                "hint": "narrow pattern/path or lower max_results"
+            });
         }
     }
-    json!({ "status": "ok", "matches": matches, "truncated": false })
+    json!({
+        "status": "ok",
+        "matches": matches,
+        "truncated": false
+    })
 }
 
 async fn try_grep(
@@ -136,7 +145,12 @@ async fn try_grep(
                     if let Some((line_no, text)) = rest.split_once(':') {
                         matches.push(json!({ "file": file, "line": line_no, "text": text }));
                         if matches.len() as u32 >= max {
-                            return json!({ "status": "ok", "matches": matches, "truncated": true });
+                            return json!({
+                                "status": "ok",
+                                "matches": matches,
+                                "truncated": true,
+                                "hint": "narrow pattern/path or lower max_results"
+                            });
                         }
                     }
                 }
