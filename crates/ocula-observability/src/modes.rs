@@ -1,7 +1,7 @@
 use std::env;
 use std::sync::Mutex;
 
-/// REPL observability toggles (aligned with TS `src/events/modes.ts`).
+/// REPL observability toggles (aligned with TS `src/log/modes.ts`).
 pub struct ObservabilityState {
     thinking_override: Mutex<Option<bool>>,
     verbose_override: Mutex<Option<bool>>,

@@ -1,4 +1,4 @@
-//! Terminal theme aligned with TS `src/events/format/format-trace.ts`.
+//! Terminal theme aligned with TS `src/log/format/format-trace.ts`.
 
 use owo_colors::OwoColorize;
 

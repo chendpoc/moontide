@@ -1,6 +1,7 @@
 import { emitDraft } from "../../log/bus.js";
 import { getRunId } from "../../log/run.js";
 import type { EventDraft } from "../../log/types.js";
+import { writeStderrLine } from "../../terminal/write.js";
 import { getPlugins } from "./registry.js";
 import type {
   LLMCallRecord,
@@ -62,9 +63,9 @@ export function logPluginFailure(failure: PluginFailureRecord): void {
     failure.toolName !== undefined
       ? ` turn=${failure.turn} tool=${failure.toolName}`
       : ` turn=${failure.turn}`;
-  console.error(`[plugin:${failure.plugin}] ${failure.hook} failed:${location} ${failure.message}`);
+  writeStderrLine(`[plugin:${failure.plugin}] ${failure.hook} failed:${location} ${failure.message}`);
   if (failure.stack) {
-    console.error(failure.stack);
+    writeStderrLine(failure.stack);
   }
 }
 

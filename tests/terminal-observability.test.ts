@@ -15,7 +15,7 @@ import {
 } from "../src/log/format/terminal.js";
 import { stripAnsi } from "../src/utils/text.js";
 import { StderrRenderer } from "../src/log/outputs/stderr-renderer.js";
-import { setStderrWriterForTest } from "../src/log/outputs/stderr-writer.js";
+import { setStderrWriterForTest } from "../src/terminal/write.js";
 import type { AgentEvent } from "../src/log/types.js";
 import type { ContextReport } from "../src/context/types.js";
 

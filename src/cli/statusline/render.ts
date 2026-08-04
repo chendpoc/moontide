@@ -1,3 +1,4 @@
+import { writeStderrLine } from "../../terminal/write.js";
 import { collectStatusSnapshot } from "./collect.js";
 import { formatStatusLine } from "./format.js";
 import { writeStatusJson } from "./persist.js";
@@ -17,5 +18,5 @@ export function renderStatusLine(): void {
     return;
   }
   lastRendered = line;
-  process.stderr.write(`${line}\n`);
+  writeStderrLine(line);
 }

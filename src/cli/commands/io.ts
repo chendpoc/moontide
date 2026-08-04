@@ -1,7 +1,8 @@
 import { renderStatusLine } from "../statusline/render.js";
+import { writeStderrLine } from "../../terminal/write.js";
 
 export function reply(msg: string): void {
-  process.stderr.write(`${msg}\n`);
+  writeStderrLine(msg);
 }
 
 export function toggle(
