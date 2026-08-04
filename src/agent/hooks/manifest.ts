@@ -1,16 +1,14 @@
 import { resetInstructionStateCache } from "../../instruction-state/index.js";
-import { getWorkdir } from "../../config.js";
-import { appendSessionItemToFile } from "../../extensions/log-sync/file-item.js";
 import {
   createAgentEventDeriveHandler,
   deriveFinalReply,
-} from "../../extensions/log-sync/derive-observer.js";
-import { handleLlmCallMetrics } from "../../extensions/context/hook-module.js";
-import { buildToolUseLogDrafts } from "../../extensions/tool-use-log/module.js";
+} from "../../plugins/builtin/log-sync/derive-observer.js";
+import { handleLlmCallMetrics } from "../../plugins/builtin/context/hook-module.js";
+import { buildToolUseLogDrafts } from "../../plugins/builtin/tool-use-log/module.js";
 import { finalizeRunOutputs } from "../../log/event-hub.js";
 import { getRunId, resetRun } from "../../log/run.js";
 import type { HookErrorPolicy, HookPhase } from "./phases.js";
-import { sidecarHooks, type SidecarHookRegistry } from "./registry.js";
+import type { SidecarHookRegistry } from "../runtime/hook-registry.js";
 
 export type HookRegistrationSpec = {
   phase: HookPhase;
@@ -37,19 +35,6 @@ export function buildDefaultHookManifest(): HookRegistrationSpec[] {
         hooks.on("runFinalize", "finalize-outputs", () => {
           finalizeRunOutputs(getRunId());
         }),
-    },
-    {
-      phase: "sessionItem",
-      name: "file",
-      errorPolicy: "fail-closed",
-      order: 0,
-      register: (hooks, workdir) =>
-        hooks.on(
-          "sessionItem",
-          "file",
-          ({ item }) => appendSessionItemToFile(item, workdir),
-          { errorPolicy: "fail-closed", order: 0 },
-        ),
     },
     {
       phase: "sessionItem",
@@ -83,29 +68,7 @@ export function buildDefaultHookManifest(): HookRegistrationSpec[] {
   ];
 }
 
-const defaultDisposers: Array<() => void> = [];
-
 export function prepareRun(preparedRunId?: string): void {
   resetRun(preparedRunId);
   resetInstructionStateCache();
-}
-
-export function registerDefaultSidecarHooks(workdir = getWorkdir()): void {
-  clearDefaultSidecarHooks();
-  const hooks = sidecarHooks();
-  for (const spec of buildDefaultHookManifest()) {
-    defaultDisposers.push(spec.register(hooks, workdir));
-  }
-}
-
-export function clearDefaultSidecarHooks(): void {
-  for (const dispose of defaultDisposers) {
-    dispose();
-  }
-  defaultDisposers.length = 0;
-}
-
-export function resetSidecarHooks(): void {
-  clearDefaultSidecarHooks();
-  sidecarHooks().clear();
 }

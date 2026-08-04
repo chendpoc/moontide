@@ -32,7 +32,7 @@ describe("SessionTransform", () => {
     ]);
   });
 
-  it("toMessageParams casts messages for SDK boundary", () => {
+  it("toMessageParams mirrors toMessages for adapter boundary", () => {
     const items: SessionItem[] = [base({ kind: "user_message", text: "ping" })];
     const params = SessionTransform.fromItems(items).toMessageParams();
     expect(params).toEqual([{ role: "user", content: "ping" }]);

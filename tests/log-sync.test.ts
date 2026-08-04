@@ -1,27 +1,27 @@
 import fs from "node:fs";
 import { gunzipSync } from "node:zlib";
-import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSession } from "../src/agent/agent-session.js";
-import {
-  registerDefaultSidecarHooks,
-  resetSidecarHooks,
-  sidecarHooks,
-} from "../src/agent/hooks/index.js";
+import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
 import { setWorkdir } from "../src/config.js";
 import { RUNS_DIR } from "../src/constants/storage.js";
-import * as llm from "../src/llm/client/anthropic.js";
-import { resetEventPlatform, setupEventPipeline } from "../src/log/setup.js";
+import { setLLMProvider } from "../src/llm/provider.js";
+import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
+import { resetEventPlatform } from "../src/log/setup.js";
 import { getRunId, resetRun } from "../src/log/run.js";
 import { Session } from "../src/session/session.js";
-import { createAgentEventDeriveHandler } from "../src/extensions/log-sync/index.js";
+import { createAgentEventDeriveHandler } from "../src/plugins/builtin/log-sync/index.js";
 import { sessionLogPath } from "../src/session/paths.js";
 import { dataPath, joinPath } from "../src/utils/path.js";
 import type { UserInteraction } from "../src/tools/types.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
+let chatMock: ReturnType<typeof vi.fn>;
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 const denyAllInteraction: UserInteraction = {
   approveTool: async () => false,
@@ -29,22 +29,6 @@ const denyAllInteraction: UserInteraction = {
     throw new Error("User question prompt is not configured");
   },
 };
-
-function assistantMessage(
-  content: Message["content"],
-  stopReason: Message["stop_reason"] = "end_turn",
-): Message {
-  return {
-    id: "msg_test",
-    type: "message",
-    role: "assistant",
-    model: "test-model",
-    stop_reason: stopReason,
-    stop_sequence: null,
-    usage: { input_tokens: 1, output_tokens: 1 },
-    content,
-  };
-}
 
 function readSealedRunEvents(workdir: string): Array<{ kind: string; channel: string }> {
   const runsDir = dataPath(workdir, RUNS_DIR);
@@ -72,20 +56,23 @@ beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-log-sync-");
   setWorkdir(tmpDir);
   resetRun("run-test");
-  setupEventPipeline();
+  testRuntime = installTestRuntime(tmpDir);
+  setupAgentEventPipeline(testRuntime);
+  chatMock = vi.fn();
+  setLLMProvider(mockLLMProvider(chatMock));
 });
 
 afterEach(() => {
   resetEventPlatform();
+  clearTestRuntime();
   removeTmpWorkdir(tmpDir);
+  setLLMProvider(undefined);
   vi.restoreAllMocks();
 });
 
 describe("session item commit path", () => {
-  it("writes session jsonl via file hook only", async () => {
-    resetSidecarHooks();
-    registerDefaultSidecarHooks(tmpDir);
-    const session = Session.create(tmpDir);
+  it("writes session jsonl via commit port", async () => {
+    const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     await session.appendUser(1, "hello");
 
     expect(fs.existsSync(sessionLogPath(tmpDir, session.sessionId))).toBe(true);
@@ -94,10 +81,9 @@ describe("session item commit path", () => {
   });
 
   it("derives conversation user_prompt from session item", async () => {
-    resetSidecarHooks();
-    sidecarHooks().on("sessionItem", "agent-event-derive", createAgentEventDeriveHandler());
+    testRuntime.hookRegistry.sidecar().on("sessionItem", "agent-event-derive", createAgentEventDeriveHandler());
 
-    const session = Session.create(tmpDir);
+    const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     await session.appendUser(1, "derived prompt");
 
     const activePath = dataPath(tmpDir, RUNS_DIR, `${getRunId()}.active.jsonl`);
@@ -109,14 +95,15 @@ describe("session item commit path", () => {
 
 describe("agent event deduplication", () => {
   it("emits one conversation and trace event per session commit on full run", async () => {
-    vi.spyOn(llm, "chat").mockResolvedValue(
-      assistantMessage([{ type: "text", text: "Hello from model" }]),
+    chatMock.mockResolvedValue(
+      mockLLMResponse([{ type: "text", text: "Hello from model" }]),
     );
 
-    const agentSession = AgentSession.create(tmpDir);
+    const agentSession = AgentSession.create(tmpDir, testRuntime);
     await agentSession.run("hi there", {
       userInteraction: denyAllInteraction,
       session: agentSession.session,
+      runtime: testRuntime,
     });
 
     const events = readSealedRunEvents(tmpDir);
@@ -127,19 +114,20 @@ describe("agent event deduplication", () => {
 
   it("does not duplicate tool trace events when tool loop completes", async () => {
     fs.writeFileSync(joinPath(tmpDir, "demo.txt"), "file content", "utf8");
-    vi.spyOn(llm, "chat")
+    chatMock
       .mockResolvedValueOnce(
-        assistantMessage(
+        mockLLMResponse(
           [{ type: "tool_use", id: "toolu_1", name: "read_file", input: { path: "demo.txt" } }],
           "tool_use",
         ),
       )
-      .mockResolvedValueOnce(assistantMessage([{ type: "text", text: "done reading" }]));
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "done reading" }]));
 
-    const agentSession = AgentSession.create(tmpDir);
+    const agentSession = AgentSession.create(tmpDir, testRuntime);
     await agentSession.run("read demo", {
       userInteraction: { ...denyAllInteraction, approveTool: async () => true },
       session: agentSession.session,
+      runtime: testRuntime,
     });
 
     const events = readSealedRunEvents(tmpDir);

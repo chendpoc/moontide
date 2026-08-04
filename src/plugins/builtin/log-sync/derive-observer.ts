@@ -1,10 +1,10 @@
+import type { HookHandler } from "../../../agent/hooks/types.js";
 import {
   deriveConversationFinal as deriveFinalReply,
   deriveFromSessionItem,
-} from "../../session/item-handlers.js";
-import type { HookHandler } from "../../agent/hooks/types.js";
+} from "./item-derive-handlers.js";
 
-export { deriveFinalReply };
+export { deriveFinalReply, deriveFromSessionItem };
 
 /** Project SessionItem commits into Agent Event Log (fail-open). Sole source for conversation + trace events (C6). */
 export function createAgentEventDeriveHandler(): HookHandler<"sessionItem"> {
@@ -12,5 +12,3 @@ export function createAgentEventDeriveHandler(): HookHandler<"sessionItem"> {
     deriveFromSessionItem(item);
   };
 }
-
-export { deriveFromSessionItem };

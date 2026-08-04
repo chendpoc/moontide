@@ -1,6 +1,3 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
-import { toMessageParams } from "../context/composer/messages/to-message-params.js";
 import type { Message } from "../llm/protocol/types.js";
 import type { Session } from "./session.js";
 import { messagesFromItems } from "./transform/messages-from-items.js";
@@ -45,8 +42,9 @@ export class SessionTransform {
     return messagesFromContext(this.context, options);
   }
 
-  toMessageParams(options?: MessagesFromContextOptions): MessageParam[] {
-    return toMessageParams(this.toMessages(options));
+  /** @deprecated Use toMessages(); protocol messages are already adapter-ready. */
+  toMessageParams(options?: MessagesFromContextOptions): Message[] {
+    return this.toMessages(options);
   }
 
   async saveSession(session: Session, options?: SaveSessionOptions): Promise<void> {
