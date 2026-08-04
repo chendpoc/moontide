@@ -1,12 +1,19 @@
 import { AgentSession } from "../../agent/agent-session.js";
+import { resetSession } from "../../context/sessions.js";
 
 let replAgentSession: AgentSession | null = null;
 
-export function hasReplSession(): boolean {
-  return replAgentSession !== null;
+export function getReplAgentSession(): AgentSession | null {
+  return replAgentSession;
 }
 
-export function getReplAgentSession(): AgentSession | null {
+/** First agent prompt: clear global context snapshot, then create REPL session. */
+export function getOrStartReplSession(): AgentSession {
+  if (replAgentSession) {
+    return replAgentSession;
+  }
+  resetSession();
+  replAgentSession = AgentSession.create();
   return replAgentSession;
 }
 
