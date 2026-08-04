@@ -6,7 +6,7 @@ import { startReplSession, resetReplSession } from "../src/cli/repl/session.js";
 import {
   isThinkingEnabled,
   resetObservabilityOverrides,
-} from "../src/events/modes.js";
+} from "../src/log/modes.js";
 
 const fakeRl = {} as Interface;
 

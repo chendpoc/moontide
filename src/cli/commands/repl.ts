@@ -1,7 +1,9 @@
+import { handleCheckpointCommand } from "./checkpoint.js";
 import { handleCompactCommand } from "./compact.js";
 import { handleHelpCommand } from "./help.js";
 import { handleThinkingCommand, handleVerboseCommand } from "./observability.js";
 import { handleResetCommand } from "./reset.js";
+import { handleResumeCommand } from "./resume.js";
 import { handleStatusCommand } from "./status.js";
 import { parseReplCommand, type ReplCommandContext, type ReplCommandResult } from "./types.js";
 import { handleWorkdirCommand } from "./workdir.js";
@@ -30,6 +32,10 @@ export async function handleReplCommand(
       return handleWorkdirCommand(parsed);
     case "/compact":
       return handleCompactCommand(parsed, ctx);
+    case "/checkpoint":
+      return handleCheckpointCommand(parsed, ctx);
+    case "/resume":
+      return handleResumeCommand(parsed, ctx);
     case "/thinking":
       return handleThinkingCommand(parsed.arg);
     case "/verbose":
