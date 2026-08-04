@@ -40,6 +40,8 @@ type KnownBlockType = ContentBlock["type"];
 interface BlockHandler {
   estimateTokens(block: GenericBlock): TokenSlice;
   toMessageLineDetail(block: GenericBlock, part: TokenSlice): MessageLineDetail;
+  toMessageLabel(block: GenericBlock, part: TokenSlice): string;
+  toMessagePreview(block: GenericBlock, part: TokenSlice): string;
   mapFromSdk?(block: SdkContentBlock): ContentBlock[];
   toTraceDraft?(block: ContentBlock, turn: number): EventDraft | null;
 }
@@ -92,6 +94,12 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
         body: block.text ?? "",
       };
     },
+    toMessageLabel(_block, part) {
+      return `text:${part.assistant}`;
+    },
+    toMessagePreview(block) {
+      return previewText(block.text ?? "");
+    },
     mapFromSdk(block) {
       if (block.type !== "text") {
         return [];
@@ -124,6 +132,12 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
         preview: "(thinking)",
         body: block.thinking ?? "",
       };
+    },
+    toMessageLabel(_block, part) {
+      return `thinking:${part.thinking}`;
+    },
+    toMessagePreview() {
+      return "(thinking)";
     },
     mapFromSdk(block) {
       if (block.type !== "thinking") {
@@ -163,6 +177,12 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
         preview: `tool_use:${toolName}`,
       };
     },
+    toMessageLabel(block) {
+      return `tool_use:${block.name ?? "unknown"}`;
+    },
+    toMessagePreview(block) {
+      return `tool_use:${block.name ?? "unknown"}`;
+    },
     mapFromSdk(block) {
       if (block.type !== "tool_use") {
         return [];
@@ -197,6 +217,12 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
         body: content,
       };
     },
+    toMessageLabel(_block, part) {
+      return `tool_result:${part.toolResults}`;
+    },
+    toMessagePreview(block) {
+      return formatToolResultPreview(block.tool_use_id, blockContentText(block.content));
+    },
   },
 };
 
@@ -225,33 +251,13 @@ export function blockMessageLineDetail(
 }
 
 export function blockMessageLabel(block: GenericBlock, part: TokenSlice): string {
-  switch (block.type) {
-    case "text":
-      return `text:${part.assistant}`;
-    case "thinking":
-      return `thinking:${part.thinking}`;
-    case "tool_use":
-      return `tool_use:${block.name ?? "unknown"}`;
-    case "tool_result":
-      return `tool_result:${part.toolResults}`;
-    default:
-      return block.type ?? "unknown";
-  }
+  const handler = handlerFor(block);
+  return handler?.toMessageLabel(block, part) ?? block.type ?? "unknown";
 }
 
-export function blockMessagePreview(block: GenericBlock, _part: TokenSlice): string {
-  switch (block.type) {
-    case "text":
-      return previewText(block.text ?? "");
-    case "thinking":
-      return "(thinking)";
-    case "tool_use":
-      return `tool_use:${block.name ?? "unknown"}`;
-    case "tool_result":
-      return formatToolResultPreview(block.tool_use_id, blockContentText(block.content));
-    default:
-      return block.type ?? "unknown";
-  }
+export function blockMessagePreview(block: GenericBlock, part: TokenSlice): string {
+  const handler = handlerFor(block);
+  return handler?.toMessagePreview(block, part) ?? block.type ?? "unknown";
 }
 
 export function mapSdkContentBlocks(blocks: SdkContentBlock[]): ContentBlock[] {

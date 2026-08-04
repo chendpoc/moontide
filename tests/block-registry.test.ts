@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  blockMessageLabel,
+  blockMessagePreview,
   estimateBlockTokens,
   mapSdkContentBlocks,
   traceDraftsFromBlocks,
@@ -27,6 +29,13 @@ describe("block-registry", () => {
     expect(mapSdkContentBlocks([{ type: "text", text: "hi", citations: null }])).toEqual([
       { type: "text", text: "hi" },
     ]);
+  });
+
+  it("labels and previews text blocks via handler", () => {
+    const block = { type: "text" as const, text: "hello world" };
+    const part = estimateBlockTokens(block);
+    expect(blockMessageLabel(block, part)).toMatch(/^text:/);
+    expect(blockMessagePreview(block, part)).toContain("hello");
   });
 
   it("derives trace drafts from assistant blocks", () => {
