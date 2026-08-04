@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
 import { runToolUse } from "../src/agent/pipeline/runTool.js";
 import { setWorkdir, artifactSpillThresholdBytes } from "../src/config.js";
 import { FileArtifactStore, maybeSpillToolResult } from "../src/context/stores/index.js";
@@ -16,9 +17,11 @@ let tmpDir = "";
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-artifact-");
   setWorkdir(tmpDir);
+  registerDefaultSidecarHooks(tmpDir);
 });
 
 afterEach(() => {
+  resetSidecarHooks();
   removeTmpWorkdir(tmpDir);
   vi.unstubAllEnvs();
 });

@@ -55,6 +55,6 @@ export class SessionTransform {
 }
 
 export { messagesFromContext, type MessagesFromContextOptions } from "./transform/messages-from-context.js";
-export { messagesFromItems, contextFromItems } from "./transform/messages-from-items.js";
-export { itemsFromMessages, itemsFromContext } from "./transform/items-from-messages.js";
+export { messagesFromItems } from "./transform/messages-from-items.js";
+export { itemsFromMessages } from "./transform/items-from-messages.js";
 export { itemsFromMessage } from "./transform/items-from-message.js";

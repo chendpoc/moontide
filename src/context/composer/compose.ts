@@ -1,23 +1,10 @@
 import { messagesFromContext } from "../../session/transform/messages-from-context.js";
 import { applyCompactionPolicy, applyTailWindow } from "./compaction/apply.js";
-import { buildContextManifest, buildContextManifestV1 } from "./manifest.js";
+import { buildContextManifest } from "./manifest.js";
 import { toMessageParams } from "./messages/to-message-params.js";
 import { buildSystemFromInstructionState } from "./system/build-system.js";
 import { resolveToolDefinitions } from "./tool-definitions/resolve.js";
-import type { ComposedContext, ComposeContextInput, ComposeContextInputV1 } from "./types.js";
-
-/** Compile per-turn LLM input slice (v1: messages + system + Tool Definitions). */
-export function composeContextV1(input: ComposeContextInputV1): ComposedContext {
-  const tools = resolveToolDefinitions();
-  return {
-    request: {
-      system: input.system,
-      messages: input.messages,
-      tools,
-    },
-    manifest: buildContextManifestV1(input, tools),
-  };
-}
+import type { ComposedContext, ComposeContextInput } from "./types.js";
 
 /** Full Context Composer — compile SessionContext messages into LLMRequest + Manifest. */
 export async function composeContext(input: ComposeContextInput): Promise<ComposedContext> {

@@ -4,7 +4,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages
 import type { ToolSchema } from "../../llm/protocol/types.js";
 
 import { chat } from "../../llm/client/anthropic.js";
-import { notifyPlugins } from "./notify.js";
+import { hookDispatcher } from "../hooks/index.js";
 import type { LLMCallOutcome, LLMCallRecord } from "./types.js";
 
 export interface RunLLMInput {
@@ -33,7 +33,7 @@ export async function runLLM(input: RunLLMInput) {
     request: { messages, system, tools },
     outcome,
   };
-  await notifyPlugins("onLLMCall", record);
+  await hookDispatcher.dispatch("llmCall", record);
 
   if (outcome.status === "failed") {
     throw new Error(outcome.error);

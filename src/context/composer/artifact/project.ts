@@ -7,8 +7,3 @@ export function formatToolSummary(summary: ToolResultSummary, artifactId?: strin
   }
   return summary.summary;
 }
-
-/** @deprecated Use formatToolSummary */
-export function projectToolResultSummary(summary: ToolResultSummary): string {
-  return formatToolSummary(summary);
-}

@@ -1,12 +1,10 @@
-import fs from "node:fs";
-
 import { artifactSpillThresholdBytes, getWorkdir } from "../../config.js";
 import type { ArtifactStore } from "../stores/artifact-store.js";
 import { summarizeToolResultContent } from "../../session/content-map.js";
 import { formatToolSummary } from "../composer/artifact/project.js";
 import { artifactPath } from "../../session/paths.js";
 import type { ToolResultSummary } from "../../session/types.js";
-import { ensureDirForFile } from "../../storage/fs.js";
+import { writeText } from "../../utils/fs.js";
 import { newEventId } from "../../utils/id.js";
 import { byteLengthUtf8 } from "../../utils/utf8.js";
 
@@ -36,8 +34,7 @@ export async function maybeSpillToolResult(
 
   const artifactId = newEventId();
   const path = artifactPath(workdir, sessionId, artifactId);
-  ensureDirForFile(path);
-  fs.writeFileSync(path, content, "utf8");
+  writeText(path, content);
 
   const summary = summarizeToolResultContent(content);
   await artifactStore.put({

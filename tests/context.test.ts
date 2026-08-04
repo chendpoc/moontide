@@ -4,7 +4,7 @@ import { buildContextReport } from "../src/context/analyze.js";
 import { formatContext, getSummary } from "../src/context/format.js";
 import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../src/context/metrics.js";
 import { buildSnapshot } from "../src/context/snapshot.js";
-import { resetSession, updateSessionFromSnapshot } from "../src/context/sessions.js";
+import { resetRuntimeStatus, publishContextReport } from "../src/context/runtime-status.js";
 import type { ContextSnapshot } from "../src/context/types.js";
 
 function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot {
@@ -88,9 +88,9 @@ describe("context analyze/format", () => {
   });
 
   it("tracks turn-to-turn delta via session state", () => {
-    resetSession();
+    resetRuntimeStatus();
     const turn1 = buildContextReport(makeSnapshot({ turn: 1 }));
-    updateSessionFromSnapshot(makeSnapshot({ turn: 1 }), turn1);
+    publishContextReport(turn1);
 
     const turn2 = buildContextReport(
       makeSnapshot({

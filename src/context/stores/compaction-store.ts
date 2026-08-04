@@ -1,8 +1,6 @@
-import fs from "node:fs";
-
 import { compactionDir, compactionSavePath } from "../../session/paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
-import { joinPath } from "../../utils/path.js";
+import { listJsonRecords } from "../../storage/list-json.js";
 import type { CompactionSave } from "./compaction-types.js";
 
 export interface CompactionStore {
@@ -19,14 +17,9 @@ export class FileCompactionStore implements CompactionStore {
   }
 
   async list(sessionId: string): Promise<CompactionSave[]> {
-    const dir = compactionDir(this.workdir, sessionId);
-    if (!fs.existsSync(dir)) return [];
-    const saves: CompactionSave[] = [];
-    for (const name of fs.readdirSync(dir)) {
-      if (!name.endsWith(".json")) continue;
-      const save = readJson<CompactionSave>(joinPath(dir, name));
-      if (save) saves.push(save);
-    }
+    const saves = listJsonRecords(compactionDir(this.workdir, sessionId), (filePath) =>
+      readJson<CompactionSave>(filePath),
+    );
     return saves.sort((a, b) => a.createdAtTurn - b.createdAtTurn);
   }
 

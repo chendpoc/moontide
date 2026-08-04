@@ -1,4 +1,4 @@
-import type { ToolUseOutcome, ToolUseRecord } from "./types.js";
+import type { ToolUseContext, ToolUseOutcome, ToolUseRecord } from "./types.js";
 
 const TOOL_ERROR_PREFIX = "Error: ";
 
@@ -20,6 +20,13 @@ export function toolResultContent(outcome: ToolUseOutcome): string {
     case "failed":
       return outcome.error;
   }
+}
+
+/** Read-only snapshot for hook handlers before execution. */
+export function freezeToolUseContext(ctx: ToolUseContext): ToolUseContext {
+  const snapshot = structuredClone(ctx);
+  Object.freeze(snapshot.toolInput);
+  return Object.freeze(snapshot);
 }
 
 /** Read-only snapshot for plugin hooks — structuredClone + shallow freeze, no extra deps. */

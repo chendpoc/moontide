@@ -2,8 +2,6 @@ import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages
 
 import type { ToolSchema } from "../../llm/protocol/types.js";
 
-import type { EventDraft } from "../../log/types.js";
-
 export type ToolUseOutcome =
   | { status: "denied"; reason: string }
   | { status: "rejected"; reason: string }
@@ -32,32 +30,5 @@ export interface ToolUseRecord {
   outcome: ToolUseOutcome;
 }
 
-export type PluginHookResult = {
-  events?: void | EventDraft | EventDraft[];
-  /** Extra text appended to the model-facing tool_result (observation plugins only). */
-  modelAppend?: string;
-};
-
-export type PluginEvents = void | EventDraft | EventDraft[] | PluginHookResult;
-
-export interface AgentPlugin {
-  name: string;
-  /** Hook name uses `LLM` in uppercase (`onLLMCall`, not `onLlmCall`). */
-  onLLMCall?(record: LLMCallRecord): PluginEvents | Promise<PluginEvents>;
-  onToolUse?(record: ToolUseRecord): PluginEvents | Promise<PluginEvents>;
-}
-
-export type PluginHook = "onLLMCall" | "onToolUse";
-
-export interface PluginFailureRecord {
-  plugin: string;
-  hook: PluginHook;
-  turn: number;
-  runId: string;
-  toolName?: string;
-  toolUseId?: string;
-  message: string;
-  stack?: string;
-}
-
+export type ToolUseContext = Omit<ToolUseRecord, "outcome">;
 

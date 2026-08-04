@@ -15,12 +15,11 @@ import {
 } from "../context/compact.js";
 import { composeContext } from "../context/composer/compose.js";
 import { resolveCompactionPolicy, resolveModelProfile } from "../llm/models/resolve.js";
+import { resolveInstructionState } from "../instruction-state/index.js";
 import { getToolDefinitions } from "../tools/index.js";
-import { buildSystemPrompt } from "./prompt.js";
 import { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
 import { AgentRun, type AgentRunComposeOptions } from "./agent-run.js";
-import type { RunHooks } from "./run-hooks.js";
 import { newEventId } from "../utils/id.js";
 
 export interface AgentSessionOpenOptions {
@@ -110,7 +109,7 @@ export class AgentSession {
       sessionId: this.session.sessionId,
       turn,
       sessionMessages: this.session.getMessages(),
-      system: buildSystemPrompt(),
+      system: resolveInstructionState(getWorkdir()).basePrompt,
       tools: getToolDefinitions(),
       keepTurns: policy.keepTurns,
     });
@@ -204,10 +203,9 @@ export class AgentSession {
   async run(
     userPrompt: string,
     ctx: LoopContext,
-    hooks: RunHooks,
   ): Promise<{ reply: string; turn: number }> {
     const loopCtx: LoopContext = { ...ctx, session: this.session, stores: this.stores };
-    return new AgentRun(this.session, this.stores, loopCtx, hooks, this.composeOptions()).execute(
+    return new AgentRun(this.session, this.stores, loopCtx, this.composeOptions()).execute(
       userPrompt,
     );
   }

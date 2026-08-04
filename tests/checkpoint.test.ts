@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
 import { AgentSession } from "../src/agent/agent-session.js";
 import { composeContext } from "../src/context/composer/compose.js";
 import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
@@ -19,9 +20,11 @@ let tmpDir = "";
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-checkpoint-");
   setWorkdir(tmpDir);
+  registerDefaultSidecarHooks(tmpDir);
 });
 
 afterEach(() => {
+  resetSidecarHooks();
   removeTmpWorkdir(tmpDir);
 });
 

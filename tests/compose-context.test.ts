@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { composeContext, composeContextV1 } from "../src/context/composer/compose.js";
+import { composeContext } from "../src/context/composer/compose.js";
 import { applyPrune, applySummary, applyTailWindow } from "../src/context/composer/compaction/apply.js";
 import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
 import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
@@ -22,30 +22,6 @@ function userMessage(id: string, turn: number, text: string, sessionId = "sess-1
     content: text,
   };
 }
-
-describe("composeContextV1", () => {
-  it("includes resolved Tool Definitions in request", () => {
-    const messages = [{ role: "user" as const, content: "hi" }];
-    const composed = composeContextV1({ turn: 1, messages, system: "sys" });
-
-    expect(composed.request.system).toBe("sys");
-    expect(composed.request.messages).toBe(messages);
-    expect(composed.request.tools).toEqual(resolveToolDefinitions());
-  });
-
-  it("records tool names in manifest", () => {
-    const composed = composeContextV1({
-      turn: 2,
-      messages: [],
-      system: "sys",
-    });
-
-    expect(composed.manifest.turn).toBe(2);
-    expect(composed.manifest.toolDefinitionNames).toEqual(
-      resolveToolDefinitions().map((tool) => tool.name),
-    );
-  });
-});
 
 describe("composeContext", () => {
   const baseInput = {

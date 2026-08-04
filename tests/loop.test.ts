@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSession } from "../src/agent/agent-session.js";
 import { createDefaultLoopContext } from "../src/agent/deps.js";
 import type { LoopContext } from "../src/agent/deps.js";
-import { createDefaultRunHooks } from "../src/agent/run-hooks.js";
 import { setWorkdir } from "../src/config.js";
+import { setupEventPipeline, resetEventPlatform } from "../src/log/setup.js";
 import * as llm from "../src/llm/client/anthropic.js";
 import type { UserInteraction } from "../src/tools/types.js";
 import { sessionLogPath } from "../src/session/paths.js";
@@ -51,10 +51,12 @@ const denyAllInteraction: UserInteraction = {
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-agent-run-");
   setWorkdir(tmpDir);
+  setupEventPipeline();
 });
 
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
+  resetEventPlatform();
   vi.restoreAllMocks();
 });
 
@@ -68,7 +70,6 @@ describe("AgentSession.run", () => {
     const { reply, turn } = await agentSession.run(
       "hi",
       runContext(agentSession, denyAllInteraction),
-      createDefaultRunHooks(),
     );
 
     expect(reply).toBe("Hello from model");
@@ -101,13 +102,12 @@ describe("AgentSession.run", () => {
     const { reply, turn } = await agentSession.run(
       "read demo.txt",
       runContext(agentSession, denyAllInteraction),
-      createDefaultRunHooks(),
     );
 
     expect(reply).toBe("Read complete");
     expect(turn).toBe(2);
     expect(llm.chat).toHaveBeenCalledTimes(2);
-    const log = await agentSession.session.readLog();
+    const log = await agentSession.session.readItems();
     expect(log.some((r) => r.kind === "tool_outcome")).toBe(true);
   });
 
@@ -134,10 +134,9 @@ describe("AgentSession.run", () => {
     await agentSession.run(
       "run bad command",
       runContext(agentSession, denyAllInteraction),
-      createDefaultRunHooks(),
     );
 
-    const log = await agentSession.session.readLog();
+    const log = await agentSession.session.readItems();
     const outcome = log.find((r) => r.kind === "tool_outcome");
     expect(outcome?.kind).toBe("tool_outcome");
     if (outcome?.kind === "tool_outcome") {
@@ -173,10 +172,9 @@ describe("AgentSession.run", () => {
     await agentSession.run(
       "delete foo",
       runContext(agentSession, interaction),
-      createDefaultRunHooks(),
     );
 
-    const log = await agentSession.session.readLog();
+    const log = await agentSession.session.readItems();
     const outcome = log.find((r) => r.kind === "tool_outcome");
     if (outcome?.kind === "tool_outcome") {
       expect(outcome.resultSummary.summary).toContain("Permission denied by user");
@@ -211,10 +209,9 @@ describe("AgentSession.run", () => {
     await agentSession.run(
       "echo",
       runContext(agentSession, interaction),
-      createDefaultRunHooks(),
     );
 
-    const log = await agentSession.session.readLog();
+    const log = await agentSession.session.readItems();
     const outcome = log.find((r) => r.kind === "tool_outcome");
     if (outcome?.kind === "tool_outcome") {
       expect(outcome.resultSummary.summary).toContain("approved");
@@ -230,11 +227,10 @@ describe("AgentSession.run", () => {
     await agentSession.run(
       "log me",
       createDefaultLoopContext(agentSession.session),
-      createDefaultRunHooks(),
     );
 
     expect(fs.existsSync(sessionLogPath(tmpDir, agentSession.session.sessionId))).toBe(true);
-    const log = await agentSession.session.readLog();
+    const log = await agentSession.session.readItems();
     expect(log.some((r) => r.kind === "user_message")).toBe(true);
     expect(log.some((r) => r.kind === "assistant_message")).toBe(true);
   });

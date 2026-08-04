@@ -11,13 +11,6 @@ import type {
 import type { InstructionState } from "./system/types.js";
 import type { CompactionPolicy } from "./compaction/policy.js";
 
-/** v1 compose input — loop uses until C1b. */
-export interface ComposeContextInputV1 {
-  turn: number;
-  messages: MessageParam[];
-  system: string;
-}
-
 /** Target compose input. See docs/spec/context-composer.md §10.1. */
 export interface ComposeContextInput {
   sessionId: string;

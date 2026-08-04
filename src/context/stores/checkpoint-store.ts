@@ -1,8 +1,6 @@
-import fs from "node:fs";
-
 import { checkpointPath, checkpointsDir } from "../../session/paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
-import { joinPath } from "../../utils/path.js";
+import { listJsonRecords } from "../../storage/list-json.js";
 import type { Checkpoint } from "./checkpoint-types.js";
 
 export interface CheckpointStore {
@@ -19,14 +17,9 @@ export class FileCheckpointStore implements CheckpointStore {
   }
 
   async list(sessionId: string): Promise<Checkpoint[]> {
-    const dir = checkpointsDir(this.workdir, sessionId);
-    if (!fs.existsSync(dir)) return [];
-    const checkpoints: Checkpoint[] = [];
-    for (const name of fs.readdirSync(dir)) {
-      if (!name.endsWith(".json")) continue;
-      const checkpoint = readJson<Checkpoint>(joinPath(dir, name));
-      if (checkpoint) checkpoints.push(checkpoint);
-    }
+    const checkpoints = listJsonRecords(checkpointsDir(this.workdir, sessionId), (filePath) =>
+      readJson<Checkpoint>(filePath),
+    );
     return checkpoints.sort((a, b) => a.createdAtTurn - b.createdAtTurn);
   }
 

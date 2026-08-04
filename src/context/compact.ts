@@ -12,7 +12,7 @@ import { buildContextReport } from "./analyze.js";
 import { estimateBreakdown } from "./metrics.js";
 import { buildSnapshot } from "./snapshot.js";
 import { extractText, getClient } from "../llm/client/anthropic.js";
-import { buildSystemPrompt } from "../agent/prompt.js";
+import { buildDefaultBasePrompt } from "../agent/prompt.js";
 
 export interface CompactResult {
   messages: MessageParam[];
@@ -191,5 +191,5 @@ export function computeAutoCompact(
 }
 
 export function defaultCompactSystem(): string {
-  return buildSystemPrompt();
+  return buildDefaultBasePrompt();
 }

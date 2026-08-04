@@ -1,18 +1,14 @@
-import { execFile } from "node:child_process";
-import fs from "node:fs";
-import { promisify } from "node:util";
-
 import { codeReplTimeoutMs, getWorkdir } from "../../config.js";
 import { TMP_DIR } from "../../constants/storage.js";
 import { safePath, runWrite } from "../../builtins/fs.js";
+import { ensureDir } from "../../storage/fs.js";
+import { exists, removeFile, writeText } from "../../utils/fs.js";
 import { newEventId } from "../../utils/id.js";
 import { dataPath, extname, joinPath, relativePath } from "../../utils/path.js";
-import { ensureDir } from "../../storage/fs.js";
+import { execFileCollect } from "../../utils/process.js";
 import { buildRuntimeEnv } from "./runtimes/env.js";
 import type { CodeReplInput, CodeReplResult, CodeRuntime, ExecuteContext } from "./types.js";
 import { OUTPUT_LIMIT } from "./types.js";
-
-const execFileAsync = promisify(execFile);
 
 export function pickExtension(runtime: CodeRuntime, filePath?: string): string {
   if (filePath) {
@@ -63,7 +59,7 @@ export function prepareScript(
 
   if (filePath) {
     const absolutePath = safePath(filePath);
-    if (!fs.existsSync(absolutePath)) {
+    if (!exists(absolutePath)) {
       return { error: `file not found: ${filePath}` };
     }
     return { absolutePath, relativePath: filePath, cleanup: false };
@@ -75,7 +71,7 @@ export function prepareScript(
   const fileName = `${newEventId()}${ext}`;
   const absolutePath = joinPath(tmpDir, fileName);
   const scriptRelativePath = relativePath(workdir, absolutePath);
-  fs.writeFileSync(absolutePath, code!, "utf8");
+  writeText(absolutePath, code!);
   return { absolutePath, relativePath: scriptRelativePath, cleanup: !persist };
 }
 
@@ -103,16 +99,16 @@ export async function runPreparedScript(
   const { cmd, args: cmdArgs } = runtime.buildCommand(ctx);
   const start = Date.now();
 
-  try {
-    const { stdout, stderr } = await execFileAsync(cmd, cmdArgs, {
-      cwd: workdir,
-      timeout: timeoutMs,
-      maxBuffer: OUTPUT_LIMIT,
-      encoding: "utf8",
-      env: ctx.env,
-    });
-    const duration_ms = Date.now() - start;
-    const trimmed = truncateOutput(String(stdout ?? ""), String(stderr ?? ""));
+  const collected = await execFileCollect(cmd, cmdArgs, {
+    cwd: workdir,
+    timeout: timeoutMs,
+    maxBuffer: OUTPUT_LIMIT,
+    env: ctx.env,
+  });
+  const duration_ms = Date.now() - start;
+
+  if (!collected.error) {
+    const trimmed = truncateOutput(collected.stdout, collected.stderr);
     const result: CodeReplResult = {
       runtime: resolvedRuntimeId,
       exit_code: 0,
@@ -123,52 +119,32 @@ export async function runPreparedScript(
       ...(trimmed.truncated ? { truncated: true } : {}),
     };
     return JSON.stringify(result);
-  } catch (error) {
-    const duration_ms = Date.now() - start;
-    if (error instanceof Error) {
-      const execError = error as Error & {
-        killed?: boolean;
-        signal?: string;
-        code?: number;
-        stdout?: string;
-        stderr?: string;
-      };
-      if (execError.killed || execError.signal === "SIGTERM") {
-        return JSON.stringify({
-          runtime: resolvedRuntimeId,
-          exit_code: -1,
-          stdout: "",
-          stderr: "",
-          duration_ms,
-          executed_path: script.relativePath,
-          error: `timeout (${timeoutMs}ms)`,
-        } satisfies CodeReplResult);
-      }
-      const trimmed = truncateOutput(
-        String(execError.stdout ?? ""),
-        String(execError.stderr ?? ""),
-      );
-      const result: CodeReplResult = {
-        runtime: resolvedRuntimeId,
-        exit_code: typeof execError.code === "number" ? execError.code : 1,
-        stdout: trimmed.stdout.trim(),
-        stderr: trimmed.stderr.trim() || execError.message,
-        duration_ms,
-        executed_path: script.relativePath,
-        ...(trimmed.truncated ? { truncated: true } : {}),
-      };
-      return JSON.stringify(result);
-    }
+  }
+
+  const execError = collected.error as Error & { killed?: boolean; signal?: string };
+  if (execError.killed || execError.signal === "SIGTERM") {
     return JSON.stringify({
       runtime: resolvedRuntimeId,
-      exit_code: 1,
+      exit_code: -1,
       stdout: "",
-      stderr: String(error),
+      stderr: "",
       duration_ms,
       executed_path: script.relativePath,
-      error: String(error),
+      error: `timeout (${timeoutMs}ms)`,
     } satisfies CodeReplResult);
   }
+
+  const trimmed = truncateOutput(collected.stdout, collected.stderr);
+  const result: CodeReplResult = {
+    runtime: resolvedRuntimeId,
+    exit_code: collected.code ?? 1,
+    stdout: trimmed.stdout.trim(),
+    stderr: trimmed.stderr.trim() || execError.message,
+    duration_ms,
+    executed_path: script.relativePath,
+    ...(trimmed.truncated ? { truncated: true } : {}),
+  };
+  return JSON.stringify(result);
 }
 
 export function cleanupScript(script: PreparedScript): void {
@@ -176,7 +152,7 @@ export function cleanupScript(script: PreparedScript): void {
     return;
   }
   try {
-    fs.unlinkSync(script.absolutePath);
+    removeFile(script.absolutePath);
   } catch {
     // ignore cleanup errors
   }

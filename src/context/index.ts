@@ -23,18 +23,20 @@ export {
 export { buildSnapshot } from "./snapshot.js";
 export {
   getLatestReport,
+  getLastComposedRequest,
   getPreviousEstimated,
-  getSession,
-  resetSession,
+  getRuntimeTurn,
+  publishComposeResult,
+  publishContextReport,
+  resetRuntimeStatus,
   updateLatestReport,
-  updateSessionFromSnapshot,
-} from "./sessions.js";
+} from "./runtime-status.js";
 
 import type { DetailLevel } from "./types.js";
 import { withExactTokens } from "./analyze.js";
 import { formatContext } from "./format.js";
 import { exactTokenCount } from "./metrics.js";
-import { getLatestReport, getSession } from "./sessions.js";
+import { getLatestReport, getLastComposedRequest } from "./runtime-status.js";
 
 export async function inspectContext(
   detail: DetailLevel = "summary",
@@ -46,8 +48,15 @@ export async function inspectContext(
   }
 
   if (exact) {
-    const session = getSession();
-    const exactTokens = await exactTokenCount(session.messages, session.system, session.tools);
+    const composed = getLastComposedRequest();
+    if (!composed) {
+      return "No composed request available yet. Run at least one LLM turn first.";
+    }
+    const exactTokens = await exactTokenCount(
+      composed.messages,
+      composed.system,
+      composed.tools,
+    );
     return formatContext(withExactTokens(report, exactTokens), detail);
   }
 

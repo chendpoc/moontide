@@ -3,92 +3,21 @@ import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/me
 import type { ToolSchema } from "../llm/protocol/types.js";
 
 import { countTokens } from "../llm/client/anthropic.js";
-import { truncateOneLine } from "../utils/text.js";
+import {
+  blockMessageLabel,
+  blockMessageLineDetail,
+  blockMessagePreview,
+  estimateBlockTokens,
+  estimateJsonTokens,
+  estimateTextTokens,
+  type GenericBlock,
+} from "../session/block-registry.js";
 import type {
   ContextSnapshot,
   ContextStructure,
   MessageLine,
-  MessageLineDetail,
   TokenBreakdown,
 } from "./types.js";
-
-const PREVIEW_LIMIT = 48;
-
-type GenericBlock = {
-  type?: string;
-  text?: string;
-  thinking?: string;
-  name?: string;
-  input?: unknown;
-  content?: unknown;
-  tool_use_id?: string;
-};
-
-export function estimateTextTokens(text: string): number {
-  if (!text) {
-    return 0;
-  }
-  return Math.max(1, Math.ceil(text.length / 4));
-}
-
-export function estimateJsonTokens(value: unknown): number {
-  if (value === undefined) {
-    return 0;
-  }
-  return estimateTextTokens(JSON.stringify(value));
-}
-
-function previewText(text: string): string {
-  return truncateOneLine(text, PREVIEW_LIMIT, "...");
-}
-
-function blockContentText(content: unknown): string {
-  if (typeof content === "string") {
-    return content;
-  }
-  return JSON.stringify(content ?? "");
-}
-
-function estimateBlockTokens(block: GenericBlock): {
-  user: number;
-  assistant: number;
-  thinking: number;
-  toolResults: number;
-  toolCalls: number;
-  maxToolResultChars: number;
-} {
-  const empty = {
-    user: 0,
-    assistant: 0,
-    thinking: 0,
-    toolResults: 0,
-    toolCalls: 0,
-    maxToolResultChars: 0,
-  };
-
-  switch (block.type) {
-    case "text":
-      return { ...empty, assistant: estimateTextTokens(block.text ?? "") };
-    case "thinking":
-      return { ...empty, thinking: estimateTextTokens(block.thinking ?? "") };
-    case "tool_use":
-      return {
-        ...empty,
-        assistant: estimateJsonTokens({ type: "tool_use", name: block.name, input: block.input }),
-        toolCalls: 1,
-      };
-    case "tool_result": {
-      const content = blockContentText(block.content);
-      return {
-        ...empty,
-        toolResults: estimateTextTokens(content),
-        maxToolResultChars: content.length,
-      };
-    }
-    default:
-      return { ...empty, assistant: estimateJsonTokens(block) };
-  }
-}
 
 function getMessageBlocks(message: MessageParam): GenericBlock[] {
   if (typeof message.content === "string") {
@@ -96,6 +25,8 @@ function getMessageBlocks(message: MessageParam): GenericBlock[] {
   }
   return message.content as GenericBlock[];
 }
+
+export { estimateTextTokens, estimateJsonTokens } from "../session/block-registry.js";
 
 export function estimateBreakdown(snapshot: ContextSnapshot): TokenBreakdown {
   const breakdown: TokenBreakdown = {
@@ -160,15 +91,6 @@ export function analyzeStructure(snapshot: ContextSnapshot): ContextStructure {
   };
 }
 
-function formatToolResultPreview(toolUseId: string | undefined, content: string): string {
-  const snippet = truncateOneLine(content, PREVIEW_LIMIT, "...");
-  if (!toolUseId) {
-    return snippet;
-  }
-  const shortId = toolUseId.length > 10 ? `${toolUseId.slice(0, 10)}…` : toolUseId;
-  return `${shortId} · ${snippet}`;
-}
-
 export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
   return snapshot.messages.map((message, index) => {
     if (typeof message.content === "string") {
@@ -178,62 +100,30 @@ export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
         role: message.role,
         tokens,
         label: message.role,
-        preview: previewText(message.content),
+        preview: blockMessagePreview({ type: "text", text: message.content }, {
+          user: 0,
+          assistant: tokens,
+          thinking: 0,
+          toolResults: 0,
+          toolCalls: 0,
+          maxToolResultChars: 0,
+        }),
       };
     }
 
     let tokens = 0;
     const labels: string[] = [];
     let preview = "";
-    const details: MessageLineDetail[] = [];
+    const details: MessageLine["details"] = [];
 
     for (const block of getMessageBlocks(message)) {
       const part = estimateBlockTokens(block);
       tokens += part.user + part.assistant + part.thinking + part.toolResults;
-
-      if (block.type === "text") {
-        labels.push(`text:${part.assistant}`);
-        preview ||= previewText(block.text ?? "");
-        details.push({
-          kind: "text",
-          tokens: part.assistant,
-          charCount: (block.text ?? "").length,
-          preview: previewText(block.text ?? ""),
-          body: block.text ?? "",
-        });
-      } else if (block.type === "thinking") {
-        labels.push(`thinking:${part.thinking}`);
-        preview ||= "(thinking)";
-        details.push({
-          kind: "thinking",
-          tokens: part.thinking,
-          charCount: (block.thinking ?? "").length,
-          preview: "(thinking)",
-          body: block.thinking ?? "",
-        });
-      } else if (block.type === "tool_use") {
-        const toolName = block.name ?? "unknown";
-        labels.push(`tool_use:${toolName}`);
-        preview ||= `tool_use:${toolName}`;
-        details.push({
-          kind: "tool_use",
-          tokens: part.assistant,
-          charCount: JSON.stringify({ type: "tool_use", name: block.name, input: block.input }).length,
-          toolName,
-          preview: `tool_use:${toolName}`,
-        });
-      } else if (block.type === "tool_result") {
-        const content = blockContentText(block.content);
-        labels.push(`tool_result:${part.toolResults}`);
-        preview ||= formatToolResultPreview(block.tool_use_id, content);
-        details.push({
-          kind: "tool_result",
-          tokens: part.toolResults,
-          charCount: content.length,
-          toolUseId: block.tool_use_id,
-          preview: previewText(content),
-          body: content,
-        });
+      labels.push(blockMessageLabel(block, part));
+      preview ||= blockMessagePreview(block, part);
+      const detail = blockMessageLineDetail(block, part);
+      if (detail) {
+        details.push(detail);
       }
     }
 

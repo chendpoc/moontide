@@ -1,18 +1,18 @@
-import { resetSession } from "../context/sessions.js";
-import { setupEventPipeline } from "../log/setup.js";
+import { resetRuntimeStatus } from "../context/runtime-status.js";
+import { bootstrapEventPlatform } from "../log/setup.js";
 import { AgentSession } from "./agent-session.js";
 import { createDefaultLoopContext } from "./deps.js";
 import type { LoopContext } from "./deps.js";
-import { createDefaultRunHooks } from "./run-hooks.js";
+import { prepareRun } from "./hooks/index.js";
 
 export async function runAgent(userPrompt: string): Promise<string> {
-  setupEventPipeline();
-  resetSession();
+  await bootstrapEventPlatform();
+  resetRuntimeStatus();
+  prepareRun();
   const agentSession = AgentSession.create();
   const { reply } = await agentSession.run(
     userPrompt,
     createDefaultLoopContext(agentSession.session),
-    createDefaultRunHooks(),
   );
   return reply;
 }
@@ -23,5 +23,6 @@ export async function continueReplAgent(
   loopCtx: LoopContext,
   preparedRunId?: string,
 ): Promise<{ reply: string; turn: number }> {
-  return agentSession.run(userPrompt, loopCtx, createDefaultRunHooks(preparedRunId));
+  prepareRun(preparedRunId);
+  return agentSession.run(userPrompt, loopCtx);
 }

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
 import { AgentSession } from "../src/agent/agent-session.js";
 import { composeContext } from "../src/context/composer/compose.js";
 import {
@@ -11,7 +12,7 @@ import { defaultCompactionPolicy } from "../src/context/composer/compaction/poli
 import { compactionSavePath } from "../src/session/paths.js";
 import { setWorkdir } from "../src/config.js";
 import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
-import { buildSystemPrompt } from "../src/agent/prompt.js";
+import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import type { SessionMessage } from "../src/session/types.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -20,9 +21,11 @@ let tmpDir = "";
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-compact-summary-");
   setWorkdir(tmpDir);
+  registerDefaultSidecarHooks(tmpDir);
 });
 
 afterEach(() => {
+  resetSidecarHooks();
   removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -72,7 +75,7 @@ describe("runSummaryCompaction", () => {
       sessionId: "sess-1",
       turn: 3,
       sessionMessages,
-      system: buildSystemPrompt(),
+      system: buildDefaultBasePrompt(),
       tools: resolveToolDefinitions(),
       keepTurns: 1,
     });

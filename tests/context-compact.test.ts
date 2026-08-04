@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { previewCompact, pruneCompact } from "../src/context/compact.js";
-import { buildSystemPrompt } from "../src/agent/prompt.js";
+import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 
 function longToolResultMessage(): MessageParam[] {
@@ -28,7 +28,7 @@ function longToolResultMessage(): MessageParam[] {
 }
 
 describe("context compact", () => {
-  const system = buildSystemPrompt();
+  const system = buildDefaultBasePrompt();
 
   it("preview shows token reduction for old tool results", () => {
     const messages = longToolResultMessage();

@@ -1,11 +1,11 @@
-import fs from "node:fs";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { safePath } from "../../../builtins/fs.js";
+import { exists, readText } from "../../../utils/fs.js";
+import { dirname, joinPath } from "../../../utils/path.js";
 import { getTemplate, type TemplateDef, type TemplateVarDef } from "./catalog.js";
 
-const BODIES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "bodies");
+const BODIES_DIR = joinPath(dirname(fileURLToPath(import.meta.url)), "bodies");
 
 export interface ExpandSuccess {
   runtime: string;
@@ -145,12 +145,12 @@ export function expandTemplate(templateId: string, rawVars: Record<string, unkno
   }
 
   const { resolvedVars } = resolvedResult;
-  const bodyPath = path.join(BODIES_DIR, def.bodyFile);
-  if (!fs.existsSync(bodyPath)) {
+  const bodyPath = joinPath(BODIES_DIR, def.bodyFile);
+  if (!exists(bodyPath)) {
     return { error: `template body not found: ${def.bodyFile}`, template: def.id };
   }
 
-  const body = fs.readFileSync(bodyPath, "utf8");
+  const body = readText(bodyPath);
   const code = injectVars(body, def, resolvedVars);
   return { runtime: def.runtime, code, resolvedVars };
 }
