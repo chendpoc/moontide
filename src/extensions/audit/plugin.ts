@@ -1,5 +1,5 @@
 import type { AgentPlugin, ToolUseRecord } from "../../agent/pipeline/types.js";
-import type { EventDraft } from "../../events/types.js";
+import type { EventDraft } from "../../log/types.js";
 
 export function auditPlugin(): AgentPlugin {
   return {

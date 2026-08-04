@@ -1,4 +1,4 @@
-import { emitDraft } from "../events/bus.js";
+import { emitDraft } from "../log/bus.js";
 import type { CompactResult } from "./compact.js";
 
 export function emitCompactEvent(

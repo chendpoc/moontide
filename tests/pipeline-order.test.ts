@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { enableTestCollector, disableTestCollector, getCollectedEvents } from "../src/events/bus.js";
-import { resetRun } from "../src/events/run.js";
+import { enableTestCollector, disableTestCollector, getCollectedEvents } from "../src/log/bus.js";
+import { resetRun } from "../src/log/run.js";
 import { resetPlugins, setPlugins } from "../src/agent/pipeline/registry.js";
 import type { LLMCallRecord, ToolUseRecord } from "../src/agent/pipeline/types.js";
 import { notifyPlugins } from "../src/agent/pipeline/notify.js";

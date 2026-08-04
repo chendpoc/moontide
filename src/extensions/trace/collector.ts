@@ -2,7 +2,7 @@ import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages
 
 import type { LLMCallRecord, ToolUseRecord } from "../../agent/pipeline/types.js";
 import { toolResultContent } from "../../agent/pipeline/tool-result.js";
-import type { EventDraft } from "../../events/types.js";
+import type { EventDraft } from "../../log/types.js";
 import { truncateOneLine } from "../../utils/text.js";
 
 function previewInput(input: Record<string, unknown>): string {

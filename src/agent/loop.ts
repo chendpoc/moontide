@@ -1,5 +1,5 @@
 import { resetSession } from "../context/sessions.js";
-import { setupEventPipeline } from "../events/setup.js";
+import { setupEventPipeline } from "../log/setup.js";
 import { AgentSession } from "./agent-session.js";
 import { createDefaultLoopContext } from "./deps.js";
 import type { LoopContext } from "./deps.js";

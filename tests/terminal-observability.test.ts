@@ -6,17 +6,17 @@ import {
   resetObservabilityOverrides,
   setThinkingOverride,
   setVerboseOverride,
-} from "../src/events/modes.js";
+} from "../src/log/modes.js";
 import {
   composeTerminalBlock,
   formatTerminalEventBlock,
   resetTerminalRenderState,
   shouldPrintTerminalEvent,
-} from "../src/events/format/terminal.js";
+} from "../src/log/format/terminal.js";
 import { stripAnsi } from "../src/utils/text.js";
-import { StderrRenderer } from "../src/events/outputs/stderr-renderer.js";
-import { setStderrWriterForTest } from "../src/events/outputs/stderr-writer.js";
-import type { AgentEvent } from "../src/events/types.js";
+import { StderrRenderer } from "../src/log/outputs/stderr-renderer.js";
+import { setStderrWriterForTest } from "../src/log/outputs/stderr-writer.js";
+import type { AgentEvent } from "../src/log/types.js";
 import type { ContextReport } from "../src/context/types.js";
 
 const THINKING_KEY = "OCULA_THINKING";

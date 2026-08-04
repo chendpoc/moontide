@@ -1,5 +1,5 @@
 import { resetSession } from "../../context/sessions.js";
-import { resetRun } from "../../events/run.js";
+import { resetRun } from "../../log/run.js";
 import { renderStatusLine } from "../statusline/render.js";
 import { resetReplSession } from "../repl/session.js";
 import { reply } from "./io.js";

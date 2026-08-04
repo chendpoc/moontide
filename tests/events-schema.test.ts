@@ -5,8 +5,8 @@ import {
   enableTestCollector,
   emitDraft,
   getCollectedEvents,
-} from "../src/events/bus.js";
-import { resetRun } from "../src/events/run.js";
+} from "../src/log/bus.js";
+import { resetRun } from "../src/log/run.js";
 import { newTimestampedId } from "../src/utils/id.js";
 
 describe("AgentEvent schema", () => {

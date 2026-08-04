@@ -1,6 +1,6 @@
-import { emitDraft } from "../../events/bus.js";
-import { getRunId } from "../../events/run.js";
-import type { EventDraft } from "../../events/types.js";
+import { emitDraft } from "../../log/bus.js";
+import { getRunId } from "../../log/run.js";
+import type { EventDraft } from "../../log/types.js";
 import { getPlugins } from "./registry.js";
 import type {
   LLMCallRecord,

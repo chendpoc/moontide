@@ -7,7 +7,7 @@ import {
 } from "../../context/sessions.js";
 import type { ContextReport } from "../../context/types.js";
 import type { AgentPlugin, LLMCallRecord } from "../../agent/pipeline/types.js";
-import type { EventDraft } from "../../events/types.js";
+import type { EventDraft } from "../../log/types.js";
 
 function reportPayload(report: ContextReport): Record<string, unknown> {
   return { report: structuredClone(report) as unknown as Record<string, unknown> };

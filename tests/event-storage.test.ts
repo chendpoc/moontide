@@ -2,15 +2,15 @@ import fs from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { JsonlWriter } from "../src/events/outputs/jsonl.js";
+import { JsonlWriter } from "../src/log/outputs/jsonl.js";
 import {
   MAX_PERSISTED_EVENT_BYTES,
   RUNS_DIR,
 } from "../src/constants/storage.js";
 import {
   serializePersistedEvent,
-} from "../src/events/persist.js";
-import type { AgentEvent } from "../src/events/types.js";
+} from "../src/log/persist.js";
+import type { AgentEvent } from "../src/log/types.js";
 import { dataPath, joinPath } from "../src/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 

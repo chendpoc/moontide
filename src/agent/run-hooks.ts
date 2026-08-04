@@ -1,6 +1,6 @@
-import { emitFinalReply, emitUserPrompt } from "../events/conversation.js";
-import { finalizeRunOutputs } from "../events/bus.js";
-import { getRunId, resetRun } from "../events/run.js";
+import { emitFinalReply, emitUserPrompt } from "../log/conversation.js";
+import { finalizeRunOutputs } from "../log/bus.js";
+import { getRunId, resetRun } from "../log/run.js";
 
 export interface RunHooks {
   onRunStart?(userPrompt: string): void;

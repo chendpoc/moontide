@@ -2,7 +2,7 @@ import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages
 
 import type { ToolSchema } from "../../llm/protocol/types.js";
 
-import type { EventDraft } from "../../events/types.js";
+import type { EventDraft } from "../../log/types.js";
 
 export type ToolUseOutcome =
   | { status: "denied"; reason: string }

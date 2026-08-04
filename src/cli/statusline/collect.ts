@@ -1,6 +1,6 @@
 import { getWorkdir, modelId } from "../../config.js";
 import { getLatestReport, getSession } from "../../context/sessions.js";
-import { getRunId } from "../../events/run.js";
+import { getRunId } from "../../log/run.js";
 import { shortenHomePath } from "../../utils/path.js";
 import type { StatusSnapshot } from "./types.js";
 
