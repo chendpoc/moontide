@@ -1,7 +1,6 @@
-import { spawn } from "node:child_process";
-
 import { getWorkdir } from "../config.js";
 import { clampInt } from "../utils/number.js";
+import { spawnCollect } from "../utils/process.js";
 import { basename, relativePath as workspaceRelativePath } from "../utils/path.js";
 import { safePath } from "./fs.js";
 
@@ -41,28 +40,6 @@ export function normalizeGrepMaxResults(maxResults?: number): number {
 function relativePath(absolutePath: string): string {
   const workdir = getWorkdir();
   return workspaceRelativePath(workdir, absolutePath) || basename(absolutePath);
-}
-
-function spawnCollect(
-  command: string,
-  args: string[],
-  cwd: string,
-): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd });
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk: Buffer | string) => {
-      stdout += String(chunk);
-    });
-    child.stderr?.on("data", (chunk: Buffer | string) => {
-      stderr += String(chunk);
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ stdout, stderr, code });
-    });
-  });
 }
 
 interface RgMatchPayload {
@@ -140,7 +117,7 @@ async function searchWithRg(
     args.splice(1, 0, "-i");
   }
 
-  const { stdout, stderr, code } = await spawnCollect("rg", args, workdir);
+  const { stdout, stderr, code } = await spawnCollect("rg", args, { cwd: workdir });
   if (code !== 0 && code !== 1) {
     return { status: "error", error: stderr.trim() || `rg exited with code ${String(code)}` };
   }
@@ -159,7 +136,7 @@ async function searchWithGrep(
   if (caseInsensitive) {
     args.unshift("-i");
   }
-  const { stdout, stderr, code } = await spawnCollect("grep", args, workdir);
+  const { stdout, stderr, code } = await spawnCollect("grep", args, { cwd: workdir });
   if (code !== 0 && code !== 1) {
     return { status: "error", error: stderr.trim() || `grep exited with code ${String(code)}` };
   }

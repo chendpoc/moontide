@@ -1,6 +1,5 @@
-import { spawn } from "node:child_process";
-
 import { getWorkdir } from "../config.js";
+import { spawnCollect } from "../utils/process.js";
 import { clampInt } from "../utils/number.js";
 import { truncateChars } from "../utils/text.js";
 import { safePath } from "./fs.js";
@@ -43,21 +42,7 @@ export interface GitLogResult {
 }
 
 function spawnGit(args: string[]): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("git", args, { cwd: getWorkdir() });
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk: Buffer | string) => {
-      stdout += String(chunk);
-    });
-    child.stderr?.on("data", (chunk: Buffer | string) => {
-      stderr += String(chunk);
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ stdout, stderr, code });
-    });
-  });
+  return spawnCollect("git", args, { cwd: getWorkdir() });
 }
 
 function isNotGitRepo(stderr: string): boolean {

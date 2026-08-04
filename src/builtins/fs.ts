@@ -1,10 +1,13 @@
-import fs from "node:fs";
-
 import { getWorkdir } from "../config.js";
-import { globSync } from "glob";
-
+import { globFiles } from "../utils/glob.js";
 import {
-  dirname,
+  exists,
+  listDir,
+  lstat,
+  readText,
+  writeText,
+} from "../utils/fs.js";
+import {
   isAbsolutePath,
   joinPath,
   relativePath,
@@ -18,7 +21,7 @@ export function safePath(relative: string): string {
 
 export function runRead(filePath: string, limit?: number, offset = 1): string {
   try {
-    const lines = fs.readFileSync(safePath(filePath), "utf8").split("\n");
+    const lines = readText(safePath(filePath)).split("\n");
     const start = Math.max(0, Math.floor(offset) - 1);
     const end = limit !== undefined ? start + Math.max(0, Math.floor(limit)) : undefined;
     const slice = end !== undefined ? lines.slice(start, end) : lines.slice(start);
@@ -34,9 +37,7 @@ export function runRead(filePath: string, limit?: number, offset = 1): string {
 
 export function runWrite(filePath: string, content: string): string {
   try {
-    const resolved = safePath(filePath);
-    fs.mkdirSync(dirname(resolved), { recursive: true });
-    fs.writeFileSync(resolved, content, "utf8");
+    writeText(safePath(filePath), content);
     return `Wrote ${content.length} bytes to ${filePath}`;
   } catch (error) {
     return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -46,13 +47,13 @@ export function runWrite(filePath: string, content: string): string {
 export function runEdit(filePath: string, oldText: string, newText: string): string {
   try {
     const resolved = safePath(filePath);
-    const text = fs.readFileSync(resolved, "utf8");
+    const text = readText(resolved);
     if (!text.includes(oldText)) {
       return `Error: text not found in ${filePath}`;
     }
     const index = text.indexOf(oldText);
     const updated = text.slice(0, index) + newText + text.slice(index + oldText.length);
-    fs.writeFileSync(resolved, updated, "utf8");
+    writeText(resolved, updated);
     return `Edited ${filePath}`;
   } catch (error) {
     return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -62,7 +63,7 @@ export function runEdit(filePath: string, oldText: string, newText: string): str
 export function runGlob(pattern: string): string {
   try {
     const workdir = getWorkdir();
-    const matches = globSync(pattern, { cwd: workdir, nodir: true }).filter((match) => {
+    const matches = globFiles(pattern, { cwd: workdir, nodir: true }).filter((match) => {
       const resolved = resolvePath(workdir, match);
       const rel = relativePath(workdir, resolved);
       return !rel.startsWith("..") && !isAbsolutePath(rel);
@@ -88,7 +89,7 @@ function listDirEntries(dirPath: string, prefix: string, depth: number, entries:
 
   let names: string[];
   try {
-    names = fs.readdirSync(dirPath).sort();
+    names = listDir(dirPath).sort();
   } catch {
     return;
   }
@@ -99,19 +100,19 @@ function listDirEntries(dirPath: string, prefix: string, depth: number, entries:
     }
     const absolute = joinPath(dirPath, name);
     const relative = prefix ? `${prefix}/${name}` : name;
-    let stat: fs.Stats;
+    let entryStat: ReturnType<typeof lstat>;
     try {
-      stat = fs.lstatSync(absolute);
+      entryStat = lstat(absolute);
     } catch {
       continue;
     }
-    if (stat.isSymbolicLink()) {
+    if (entryStat.isSymbolicLink()) {
       continue;
     }
-    if (stat.isDirectory()) {
+    if (entryStat.isDirectory()) {
       entries.push({ path: relative, kind: "dir" });
       listDirEntries(absolute, relative, depth + 1, entries);
-    } else if (stat.isFile()) {
+    } else if (entryStat.isFile()) {
       entries.push({ path: relative, kind: "file" });
     }
   }
@@ -120,11 +121,11 @@ function listDirEntries(dirPath: string, prefix: string, depth: number, entries:
 export function runListDir(relativePath = ".", recursive = false): string {
   try {
     const resolved = safePath(relativePath);
-    if (!fs.existsSync(resolved)) {
+    if (!exists(resolved)) {
       return `Error: path not found: ${relativePath}`;
     }
-    const stat = fs.lstatSync(resolved);
-    if (!stat.isDirectory()) {
+    const entryStat = lstat(resolved);
+    if (!entryStat.isDirectory()) {
       return `Error: not a directory: ${relativePath}`;
     }
 
@@ -132,9 +133,9 @@ export function runListDir(relativePath = ".", recursive = false): string {
     if (recursive) {
       listDirEntries(resolved, relativePath === "." ? "" : relativePath, 1, entries);
     } else {
-      for (const name of fs.readdirSync(resolved).sort()) {
+      for (const name of listDir(resolved).sort()) {
         const absolute = joinPath(resolved, name);
-        const itemStat = fs.lstatSync(absolute);
+        const itemStat = lstat(absolute);
         if (itemStat.isSymbolicLink()) {
           continue;
         }

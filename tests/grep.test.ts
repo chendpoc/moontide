@@ -10,6 +10,8 @@ import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 vi.mock("node:child_process", () => ({
   spawn: vi.fn(),
+  exec: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 function mockSpawn(stdout: string, stderr = "", code = 0): void {

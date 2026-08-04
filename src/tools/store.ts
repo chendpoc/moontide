@@ -13,6 +13,24 @@ function buildToolMap(tools: ToolDefinition[]): Map<string, ToolDefinition> {
 }
 
 let toolsByName = buildToolMap(registerDefaultTools());
+let pluginTools: ToolDefinition[] = [];
+
+function rebuildToolRegistry(): void {
+  toolsByName = buildToolMap([...registerDefaultTools(), ...pluginTools]);
+}
+
+export function pluginToolName(pluginId: string, toolName: string): string {
+  return `${pluginId}__${toolName}`;
+}
+
+export function addPluginTools(tools: ToolDefinition[]): () => void {
+  pluginTools = [...pluginTools, ...tools];
+  rebuildToolRegistry();
+  return () => {
+    pluginTools = pluginTools.filter((tool) => !tools.includes(tool));
+    rebuildToolRegistry();
+  };
+}
 
 export function getTools(): ToolDefinition[] {
   return [...toolsByName.values()];
@@ -27,5 +45,6 @@ export function setTools(tools: ToolDefinition[]): void {
 }
 
 export function resetTools(): void {
+  pluginTools = [];
   toolsByName = buildToolMap(registerDefaultTools());
 }

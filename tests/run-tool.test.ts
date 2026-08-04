@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LoopContext } from "../src/agent/deps.js";
 import * as permission from "../src/agent/pipeline/permission/index.js";
-import { resetPlugins, setPlugins } from "../src/agent/pipeline/registry.js";
+import { resetSidecarHooks, sidecarHooks } from "../src/agent/hooks/index.js";
 import { resolveToolUseOutcome, runToolUse } from "../src/agent/pipeline/runTool.js";
 import { setWorkdir } from "../src/config.js";
 import { Session } from "../src/session/session.js";
@@ -34,7 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
-  resetPlugins();
+  resetSidecarHooks();
 });
 
 describe("resolveToolUseOutcome", () => {
@@ -152,17 +152,33 @@ describe("resolveToolUseOutcome", () => {
 });
 
 describe("runToolUse", () => {
-  it("passes a frozen hook record that plugins cannot mutate", async () => {
-    setPlugins([
+  it("blocks execution when beforeToolUse decides to block", async () => {
+    sidecarHooks().on("beforeToolUse", "guard", () => ({
+      block: true,
+      reason: "blocked by sidecar hook",
+    }));
+
+    fs.writeFileSync(joinPath(tmpDir, "secret.txt"), "secret");
+
+    const result = await runToolUse(
       {
-        name: "reader",
-        onToolUse(record) {
-          expect(Object.isFrozen(record)).toBe(true);
-          expect(Object.isFrozen(record.outcome)).toBe(true);
-          return [];
-        },
+        type: "tool_use",
+        id: "toolu_block",
+        name: "read_file",
+        input: { path: "secret.txt" },
       },
-    ]);
+      1,
+      loopCtx(),
+    );
+
+    expect(result.content).toContain("blocked by sidecar hook");
+  });
+
+  it("passes a frozen hook record that handlers cannot mutate", async () => {
+    sidecarHooks().on("toolUse", "reader", (record) => {
+      expect(Object.isFrozen(record)).toBe(true);
+      expect(Object.isFrozen(record.outcome)).toBe(true);
+    });
 
     fs.writeFileSync(joinPath(tmpDir, "snapshot.txt"), "original content");
 
@@ -180,21 +196,13 @@ describe("runToolUse", () => {
     expect(result.content).toBe("original content");
   });
 
-  it("appends plugin modelAppend after the core tool result", async () => {
-    setPlugins([
-      {
-        name: "observer",
-        onToolUse() {
-          return { modelAppend: "Note: truncated to 200 lines." };
-        },
-      },
-      {
-        name: "second",
-        onToolUse() {
-          return { modelAppend: "Audit: read allowed." };
-        },
-      },
-    ]);
+  it("appends hook modelAppend after the core tool result", async () => {
+    sidecarHooks().on("toolUse", "observer", () => ({
+      modelAppend: "Note: truncated to 200 lines.",
+    }));
+    sidecarHooks().on("toolUse", "second", () => ({
+      modelAppend: "Audit: read allowed.",
+    }));
 
     fs.writeFileSync(joinPath(tmpDir, "note.txt"), "line one");
 
