@@ -9,9 +9,11 @@ import {
   parseItems,
   readLines,
 } from "./io/index.js";
-import { hookDispatcher } from "../agent/hooks/index.js";
-import { replaceSessionItems } from "../extensions/log-sync/file-item.js";
 import { sessionLogPath } from "./paths.js";
+import {
+  noopSessionItemCommitPort,
+  type SessionItemCommitPort,
+} from "./ports.js";
 import { messagesFromItems } from "./transform/messages-from-items.js";
 import { itemsFromMessage } from "./transform/items-from-message.js";
 import {
@@ -61,20 +63,28 @@ export class Session {
     readonly sessionId: string,
     private readonly reader: FileSessionItemReader,
     context: SessionContext = emptyContext(),
+    private readonly commitPort: SessionItemCommitPort = noopSessionItemCommitPort,
   ) {
     this.messages = [...context.messages];
   }
 
-  static create(workdir = getWorkdir()): Session {
-    return new Session(newSessionId(), new FileSessionItemReader(workdir));
+  static create(
+    workdir = getWorkdir(),
+    commitPort: SessionItemCommitPort = noopSessionItemCommitPort,
+  ): Session {
+    return new Session(newSessionId(), new FileSessionItemReader(workdir), emptyContext(), commitPort);
   }
 
-  static open(sessionId: string, workdir = getWorkdir()): Session {
+  static open(
+    sessionId: string,
+    workdir = getWorkdir(),
+    commitPort: SessionItemCommitPort = noopSessionItemCommitPort,
+  ): Session {
     const reader = new FileSessionItemReader(workdir);
     const items = parseItems(readLines(sessionLogPath(workdir, sessionId)));
     return new Session(sessionId, reader, {
       messages: messagesFromItems(items),
-    });
+    }, commitPort);
   }
 
   getContext(): SessionContext {
@@ -91,10 +101,6 @@ export class Session {
 
   async readItems(): Promise<SessionItem[]> {
     return this.reader.readAll(this.sessionId);
-  }
-
-  async flush(): Promise<void> {
-    // append is synchronous; reserved for buffered writers
   }
 
   async appendUser(turn: number, text: string): Promise<void> {
@@ -225,7 +231,7 @@ export class Session {
     const mode = options?.mode ?? "append-new";
     if (mode === "replace") {
       this.messages = messagesFromItems(items);
-      await replaceSessionItems(this.sessionId, items);
+      await this.commitPort.replaceAll(this.sessionId, items);
       return;
     }
 
@@ -263,12 +269,12 @@ export class Session {
   }
 
   private async pushItem(item: SessionItem): Promise<void> {
-    await hookDispatcher.dispatch("sessionItem", { item });
+    await this.commitPort.onItemCommitted(item);
   }
 
   private async commitItems(items: SessionItem[]): Promise<void> {
     for (const item of items) {
-      await hookDispatcher.dispatch("sessionItem", { item });
+      await this.commitPort.onItemCommitted(item);
     }
   }
 }

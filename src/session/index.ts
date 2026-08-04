@@ -1,7 +1,8 @@
-export { replaceSessionItems } from "../extensions/log-sync/file-item.js";
 export { Session } from "./session.js";
 export { SessionTransform } from "./transform.js";
 export { newSessionId } from "./ids.js";
+export type { SessionItemCommitPort } from "./ports.js";
+export { noopSessionItemCommitPort } from "./ports.js";
 export type {
   AssistantMessageItem,
   CheckpointCreatedItem,
@@ -35,6 +36,7 @@ export {
   FileSessionItemReader,
   FileSessionItemWriter,
   parseItems,
+  replaceSessionItems,
 } from "./io/index.js";
 export {
   itemsFromMessage,

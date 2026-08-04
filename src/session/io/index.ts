@@ -37,6 +37,14 @@ export class FileSessionItemWriter implements SessionItemWriter {
   }
 }
 
+export async function replaceSessionItems(
+  sessionId: string,
+  items: SessionItem[],
+  workdir = getWorkdir(),
+): Promise<void> {
+  await new FileSessionItemWriter(workdir).replaceAll(sessionId, items);
+}
+
 export class FileSessionItemReader implements SessionItemTailReader {
   constructor(private readonly workdir = getWorkdir()) {}
 

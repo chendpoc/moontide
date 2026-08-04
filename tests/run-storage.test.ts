@@ -1,63 +1,60 @@
 import fs from "node:fs";
 import { gunzipSync } from "node:zlib";
-import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSession } from "../src/agent/agent-session.js";
 import { continueReplAgent } from "../src/agent/loop.js";
 import { getWorkdir, setWorkdir } from "../src/config.js";
-import { resetEventPlatform, setupEventPipeline } from "../src/log/setup.js";
-import * as llm from "../src/llm/client/anthropic.js";
+import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
+import { resetEventPlatform } from "../src/log/setup.js";
+import { setLLMProvider } from "../src/llm/provider.js";
 import type { UserInteraction } from "../src/tools/types.js";
 import { dataPath, joinPath } from "../src/utils/path.js";
 import { RUNS_DIR } from "../src/constants/storage.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 let originalWorkdir = "";
+let chatMock: ReturnType<typeof vi.fn>;
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 const interaction: UserInteraction = {
   approveTool: async () => false,
   askQuestion: async () => [],
 };
 
-function assistantMessage(text: string): Message {
-  return {
-    id: `msg_${text}`,
-    type: "message",
-    role: "assistant",
-    model: "test-model",
-    stop_reason: "end_turn",
-    stop_sequence: null,
-    usage: { input_tokens: 10, output_tokens: 2 },
-    content: [{ type: "text", text }],
-  };
-}
-
 beforeEach(() => {
   originalWorkdir = getWorkdir();
   tmpDir = createTmpWorkdir("ocula-run-storage-");
   setWorkdir(tmpDir);
-  setupEventPipeline();
+  testRuntime = installTestRuntime(tmpDir);
+  setupAgentEventPipeline(testRuntime);
+  chatMock = vi.fn();
+  setLLMProvider(mockLLMProvider(chatMock));
 });
 
 afterEach(() => {
   resetEventPlatform();
+  clearTestRuntime();
   setWorkdir(originalWorkdir);
   removeTmpWorkdir(tmpDir);
+  setLLMProvider(undefined);
   vi.restoreAllMocks();
 });
 
 describe("run storage integration", () => {
   it("seals each run and does not carry prior conversation context forward", async () => {
-    vi.spyOn(llm, "chat")
-      .mockResolvedValueOnce(assistantMessage("first reply"))
-      .mockResolvedValueOnce(assistantMessage("second reply"));
+    chatMock
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "first reply" }]))
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "second reply" }]));
 
-    const agentSession = AgentSession.create(tmpDir);
+    const agentSession = AgentSession.create(tmpDir, testRuntime);
     const loopContext = {
       userInteraction: interaction,
       session: agentSession.session,
+      runtime: testRuntime,
     };
 
     await continueReplAgent("first prompt sentinel", agentSession, loopContext);

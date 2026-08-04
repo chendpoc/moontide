@@ -1,76 +1,83 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
+import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
 import { setWorkdir } from "../src/config.js";
 import { Session } from "../src/session/session.js";
 import { sessionLogPath } from "../src/session/paths.js";
 import type { SessionMessage } from "../src/session/types.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-session-");
   setWorkdir(tmpDir);
-  registerDefaultSidecarHooks(tmpDir);
+  testRuntime = installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
-  resetSidecarHooks();
+  clearTestRuntime();
   removeTmpWorkdir(tmpDir);
 });
 
 describe("Session", () => {
+  function session(workdir = tmpDir) {
+    return Session.create(workdir, createSessionCommitPort(workdir, testRuntime));
+  }
+
   it("appendUser and appendAssistant roundtrip via readItems", async () => {
-    const session = Session.create(tmpDir);
+    const s = session();
 
-    await session.appendUser(1, "hello");
-    await session.appendAssistant(1, [{ type: "text", text: "world" }]);
+    await s.appendUser(1, "hello");
+    await s.appendAssistant(1, [{ type: "text", text: "world" }]);
 
-    const log = await session.readItems();
+    const log = await s.readItems();
     expect(log).toHaveLength(2);
     expect(log[0]).toMatchObject({ kind: "user_message", text: "hello", turn: 1 });
     expect(log[1]).toMatchObject({ kind: "assistant_message", turn: 1 });
-    expect(fs.existsSync(sessionLogPath(tmpDir, session.sessionId))).toBe(true);
+    expect(fs.existsSync(sessionLogPath(tmpDir, s.sessionId))).toBe(true);
   });
 
   it("appendToolInvocation and appendToolOutcome persist items", async () => {
-    const session = Session.create(tmpDir);
+    const s = session();
 
-    await session.appendToolInvocation(2, "toolu_1", "read_file", { path: "a.txt" });
-    await session.appendToolOutcome(2, "toolu_1", {
+    await s.appendToolInvocation(2, "toolu_1", "read_file", { path: "a.txt" });
+    await s.appendToolOutcome(2, "toolu_1", {
       summary: "file content",
       byteCount: 12,
     });
 
-    const log = await session.readItems();
+    const log = await s.readItems();
     expect(log.length).toBeGreaterThanOrEqual(2);
     expect(log.some((item) => item.kind === "tool_invocation")).toBe(true);
     expect(log.some((item) => item.kind === "tool_outcome")).toBe(true);
   });
 
   it("Session.open hydrates context for toMessages", async () => {
-    const first = Session.create(tmpDir);
+    const first = session();
     await first.appendUser(1, "one");
 
-    const second = Session.open(first.sessionId, tmpDir);
+    const port = createSessionCommitPort(tmpDir, testRuntime);
+    const second = Session.open(first.sessionId, tmpDir, port);
     expect(second.toMessages()).toEqual([{ role: "user", content: "one" }]);
   });
 
   it("importItems replace rewrites file and syncs context", async () => {
-    const session = Session.create(tmpDir);
-    await session.appendUser(1, "old");
+    const s = session();
+    await s.appendUser(1, "old");
 
-    const items = await session.readItems();
+    const items = await s.readItems();
     const replacement = items.map((item) =>
       item.kind === "user_message" ? { ...item, text: "new" } : item,
     );
 
-    await session.importItems(replacement, { mode: "replace" });
+    await s.importItems(replacement, { mode: "replace" });
 
-    expect(session.toMessages()).toEqual([{ role: "user", content: "new" }]);
-    const onDisk = await session.readItems();
+    expect(s.toMessages()).toEqual([{ role: "user", content: "new" }]);
+    const onDisk = await s.readItems();
     expect(onDisk).toHaveLength(1);
     if (onDisk[0]?.kind === "user_message") {
       expect(onDisk[0].text).toBe("new");
@@ -78,63 +85,63 @@ describe("Session", () => {
   });
 
   it("importItems append-new syncs context with disk", async () => {
-    const session = Session.create(tmpDir);
-    await session.appendUser(1, "first");
+    const s = session();
+    await s.appendUser(1, "first");
 
     const extra = [
       {
         kind: "user_message" as const,
         id: "e-import",
-        sessionId: session.sessionId,
+        sessionId: s.sessionId,
         turn: 2,
         at: "2026-07-31T08:00:00.000Z",
         text: "imported",
       },
     ];
 
-    await session.importItems(extra, { mode: "append-new" });
+    await s.importItems(extra, { mode: "append-new" });
 
-    expect(session.toMessages()).toEqual([
+    expect(s.toMessages()).toEqual([
       { role: "user", content: "first" },
       { role: "user", content: "imported" },
     ]);
-    expect(await session.readItems()).toHaveLength(2);
+    expect(await s.readItems()).toHaveLength(2);
   });
 
   it("getContext returns a detached readonly view", async () => {
-    const session = Session.create(tmpDir);
-    await session.appendUser(1, "hello");
+    const s = session();
+    await s.appendUser(1, "hello");
 
-    const view = session.getContext().messages;
+    const view = s.getContext().messages;
     expect(view).toHaveLength(1);
-    expect(session.getMessages()).toHaveLength(1);
+    expect(s.getMessages()).toHaveLength(1);
 
     // Shallow copy: mutating the returned array must not affect Session.
     (view as SessionMessage[]).push({
       id: "evil",
-      sessionId: session.sessionId,
+      sessionId: s.sessionId,
       turn: 99,
       at: new Date().toISOString(),
       role: "user",
       content: "injected",
     });
-    expect(session.getMessages()).toHaveLength(1);
-    expect(session.toMessages()).toEqual([{ role: "user", content: "hello" }]);
+    expect(s.getMessages()).toHaveLength(1);
+    expect(s.toMessages()).toEqual([{ role: "user", content: "hello" }]);
   });
 
   it("appendAssistant with tool_use roundtrips via toMessages", async () => {
-    const session = Session.create(tmpDir);
-    await session.appendUser(1, "run tool");
-    await session.appendAssistant(1, [
+    const s = session();
+    await s.appendUser(1, "run tool");
+    await s.appendAssistant(1, [
       { type: "text", text: "calling" },
       { type: "tool_use", id: "toolu_1", name: "grep", input: { pattern: "foo" } },
     ]);
-    await session.appendToolOutcome(1, "toolu_1", {
+    await s.appendToolOutcome(1, "toolu_1", {
       summary: "matches: 3",
       byteCount: Buffer.byteLength("matches: 3", "utf8"),
     });
 
-    const messages = session.toMessages();
+    const messages = s.toMessages();
     expect(messages).toEqual([
       { role: "user", content: "run tool" },
       {
