@@ -1,5 +1,6 @@
 import { resolvePath } from "./utils/path.js";
 
+import type { DebugLevel } from "./constants/debug.js";
 import {
   CODE_REPL_DEFAULT_RUNTIME,
   CODE_REPL_TIMEOUT_MS_DEFAULT,
@@ -122,6 +123,18 @@ export function thinkingModeDefault(): boolean {
 
 export function verboseModeDefault(): boolean {
   return envFlag(OCULA_ENV.VERBOSE);
+}
+
+/** Default debug tier from OCULA_DEBUG: off | terminal (1/on) | file. */
+export function debugModeDefault(): DebugLevel {
+  const raw = env(OCULA_ENV.DEBUG)?.toLowerCase();
+  if (!raw || raw === "0" || raw === "false" || raw === "off") {
+    return "off";
+  }
+  if (raw === "file") {
+    return "file";
+  }
+  return "terminal";
 }
 
 export function httpFetchEnabled(): boolean {

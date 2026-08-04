@@ -4,6 +4,11 @@ import {
   deriveFinalReply,
 } from "../../plugins/builtin/log-sync/derive-observer.js";
 import { handleLlmCallMetrics } from "../../plugins/builtin/context/hook-module.js";
+import {
+  handleDebugCompose,
+  handleDebugLlmCall,
+  handleDebugToolUse,
+} from "../../plugins/builtin/context/debug-hook-module.js";
 import { buildToolUseLogDrafts } from "../../plugins/builtin/tool-use-log/module.js";
 import { finalizeRunOutputs } from "../../log/event-hub.js";
 import { getRunId, resetRun } from "../../log/run.js";
@@ -57,6 +62,20 @@ export function buildDefaultHookManifest(): HookRegistrationSpec[] {
         }),
     },
     {
+      phase: "composeComplete",
+      name: "inspect-debug",
+      order: 100,
+      register: (hooks) =>
+        hooks.on("composeComplete", "inspect-debug", handleDebugCompose, { order: 100 }),
+    },
+    {
+      phase: "llmCall",
+      name: "inspect-debug",
+      order: 100,
+      register: (hooks) =>
+        hooks.on("llmCall", "inspect-debug", handleDebugLlmCall, { order: 100 }),
+    },
+    {
       phase: "toolUse",
       name: "tool-use-log",
       order: 0,
@@ -64,6 +83,13 @@ export function buildDefaultHookManifest(): HookRegistrationSpec[] {
         hooks.on("toolUse", "tool-use-log", (record) => buildToolUseLogDrafts(record), {
           order: 0,
         }),
+    },
+    {
+      phase: "toolUse",
+      name: "inspect-debug",
+      order: 100,
+      register: (hooks) =>
+        hooks.on("toolUse", "inspect-debug", handleDebugToolUse, { order: 100 }),
     },
   ];
 }

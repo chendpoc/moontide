@@ -19,6 +19,7 @@ export const OCULA_ENV = {
   TAVILY_API_KEY: "TAVILY_API_KEY",
   THINKING: "THINKING",
   VERBOSE: "VERBOSE",
+  DEBUG: "DEBUG",
   HTTP: "HTTP",
 } as const;
 

@@ -22,6 +22,18 @@ export {
 } from "./metrics.js";
 export { buildSnapshot } from "./snapshot.js";
 export {
+  describeDebugMode,
+  getDebugLevel,
+  isDebugFileEnabled,
+  isDebugTerminalEnabled,
+  parseDebugLevelArg,
+  resetDebugOverride,
+  setDebugOverride,
+} from "./debug-mode.js";
+export type { DebugLevel } from "../constants/debug.js";
+export { emitDebugRecord, type DebugRecord } from "./debug-emit.js";
+export { debugLogPath } from "./debug-file.js";
+export {
   getLatestReport,
   getLastComposedRequest,
   getPreviousEstimated,
