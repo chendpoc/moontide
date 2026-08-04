@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildContextReport } from "../src/context/analyze.js";
-import { formatContext, getSummary } from "../src/context/format.js";
-import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../src/context/metrics.js";
-import { buildSnapshot } from "../src/context/snapshot.js";
-import { resetRuntimeStatus, publishContextReport } from "../src/context/runtime-status.js";
-import type { ContextSnapshot } from "../src/context/types.js";
+import { buildContextReport } from "../src/context-inspect/analyze.js";
+import { formatContext, getSummary } from "../src/context-inspect/format.js";
+import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../src/context-inspect/metrics.js";
+import { buildSnapshot } from "../src/context-inspect/snapshot.js";
+import { resetRuntimeStatus, publishContextReport } from "../src/agent/context-status.js";
+import type { ContextSnapshot } from "../src/context-inspect/types.js";
 
 function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot {
   return {

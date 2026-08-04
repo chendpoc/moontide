@@ -1,12 +1,12 @@
-import { buildContextReport, withUsage } from "../../../context/analyze.js";
-import { buildSnapshot } from "../../../context/snapshot.js";
+import { buildContextReport, withUsage } from "../../../context-inspect/analyze.js";
+import { buildSnapshot } from "../../../context-inspect/snapshot.js";
 import {
   getPreviousEstimated,
   publishContextReport,
   updateLatestReport,
-} from "../../../context/runtime-status.js";
-import type { ContextReport } from "../../../context/types.js";
-import type { LLMCallRecord } from "../../../agent/pipeline/types.js";
+} from "../../../agent/context-status.js";
+import type { ContextReport } from "../../../context-inspect/types.js";
+import type { LLMCallRecord } from "../../../agent/pipeline/index.js";
 import type { EventDraft } from "../../../log/types.js";
 
 function reportPayload(report: ContextReport): Record<string, unknown> {

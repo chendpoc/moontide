@@ -1,4 +1,7 @@
 import type { LLMResponse, Message, ToolSchema } from "../llm/protocol/types.js";
+import type { MessageLineDetail } from "../session/block-registry.js";
+
+export type { MessageLineDetail } from "../session/block-registry.js";
 
 export type DetailLevel = "summary" | "struct" | "breakdown" | "full";
 
@@ -41,17 +44,6 @@ export interface ContextTrend {
   deltaTokens: number;
   cumulativeTokens: number;
 }
-
-export interface MessageLineDetail {
-  kind: "tool_result" | "tool_use" | "text" | "thinking";
-  tokens: number;
-  charCount: number;
-  toolUseId?: string;
-  toolName?: string;
-  preview: string;
-  body?: string;
-}
-
 export interface MessageLine {
   index: number;
   role: string;

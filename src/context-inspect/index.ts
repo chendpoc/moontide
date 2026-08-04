@@ -30,13 +30,13 @@ export {
   publishContextReport,
   resetRuntimeStatus,
   updateLatestReport,
-} from "./runtime-status.js";
+} from "../agent/context-status.js";
 
 import type { DetailLevel } from "./types.js";
 import { withExactTokens } from "./analyze.js";
 import { formatContext } from "./format.js";
 import { exactTokenCount } from "./metrics.js";
-import { getLatestReport, getLastComposedRequest } from "./runtime-status.js";
+import { getLatestReport, getLastComposedRequest } from "../agent/context-status.js";
 
 export async function inspectContext(
   detail: DetailLevel = "summary",

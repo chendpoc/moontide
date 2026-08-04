@@ -1,4 +1,4 @@
-import { inspectContext } from "../../../context/index.js";
+import { inspectContext } from "../../../context-inspect/index.js";
 import { defineTools, type ToolSpec } from "../../../tools/define-tool.js";
 import type { ToolDefinition } from "../../../tools/types.js";
 import { TOOL_NAMES } from "../../../tools/names.js";

@@ -17,7 +17,7 @@ import { stripAnsi } from "../src/utils/text.js";
 import { StderrRenderer } from "../src/log/outputs/stderr-renderer.js";
 import { setStderrWriterForTest } from "../src/terminal/write.js";
 import type { AgentEvent } from "../src/log/types.js";
-import type { ContextReport } from "../src/context/types.js";
+import type { ContextReport } from "../src/context-inspect/types.js";
 
 const THINKING_KEY = "OCULA_THINKING";
 const VERBOSE_KEY = "OCULA_VERBOSE";
