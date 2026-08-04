@@ -1,4 +1,4 @@
-/** Compaction record types. See docs/spec/context-composer.md §6.3. */
+/** Compaction save types. See docs/spec/context-composer.md §6.3. */
 
 export interface SummaryPayload {
   text: string;
@@ -11,11 +11,11 @@ export interface StructuredPayload {
   fileAnchors: string[];
 }
 
-export interface CompactionRecord {
+export interface CompactionSave {
   id: string;
   sessionId: string;
   createdAtTurn: number;
   kind: "summary" | "structured";
-  coversEntryIds: string[];
+  coversItemIds: string[];
   payload: SummaryPayload | StructuredPayload;
 }

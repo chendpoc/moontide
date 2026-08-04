@@ -1,1 +1,7 @@
-export { appendNdjsonLine, ensureDir, ensureDirForFile, writeJsonPretty } from "./fs.js";
+export {
+  appendNdjsonLine,
+  ensureDir,
+  ensureDirForFile,
+  readJson,
+  writeJsonPretty,
+} from "./fs.js";

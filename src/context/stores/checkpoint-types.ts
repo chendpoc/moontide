@@ -4,9 +4,9 @@ export interface Checkpoint {
   id: string;
   sessionId: string;
   createdAtTurn: number;
-  lastEntryId: string;
+  lastItemId: string;
   instructionEpoch: number;
-  activeCompactionRecordId?: string;
+  activeCompactionSaveId?: string;
   composerPolicyVersion?: string;
   label?: string;
 }

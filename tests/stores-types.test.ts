@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { Artifact } from "../src/context/stores/artifact-types.js";
 import type { Checkpoint } from "../src/context/stores/checkpoint-types.js";
-import type { CompactionRecord } from "../src/context/stores/compaction-types.js";
-import { isSessionLog } from "../src/session/log-types.js";
+import type { CompactionSave } from "../src/context/stores/compaction-types.js";
+import { isSessionItem } from "../src/session/types.js";
 
 describe("stores types", () => {
   it("accepts artifact shape", () => {
@@ -19,16 +19,16 @@ describe("stores types", () => {
     expect(artifact.contentType).toBe("text");
   });
 
-  it("accepts compaction record shape", () => {
-    const record: CompactionRecord = {
+  it("accepts compaction save shape", () => {
+    const save: CompactionSave = {
       id: "cmp-1",
       sessionId: "sess-1",
       createdAtTurn: 3,
       kind: "summary",
-      coversEntryIds: ["e1", "e2"],
+      coversItemIds: ["e1", "e2"],
       payload: { text: "summary text" },
     };
-    expect(record.kind).toBe("summary");
+    expect(save.kind).toBe("summary");
   });
 
   it("accepts checkpoint shape", () => {
@@ -36,10 +36,10 @@ describe("stores types", () => {
       id: "chk-1",
       sessionId: "sess-1",
       createdAtTurn: 5,
-      lastEntryId: "e9",
+      lastItemId: "e9",
       instructionEpoch: 1,
     };
-    expect(checkpoint.lastEntryId).toBe("e9");
+    expect(checkpoint.lastItemId).toBe("e9");
   });
 });
 
@@ -65,7 +65,7 @@ describe("session log NDJSON fixture", () => {
     ];
 
     for (const entry of lines) {
-      expect(isSessionLog(entry)).toBe(true);
+      expect(isSessionItem(entry)).toBe(true);
     }
   });
 });
