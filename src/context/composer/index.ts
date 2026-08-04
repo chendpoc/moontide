@@ -4,6 +4,6 @@ export type {
   ComposedContext,
   ComposedLLMRequest,
   ComposeContextInput,
-  ContextAlert,
+  ManifestAlert,
   ContextManifest,
 } from "./types.js";

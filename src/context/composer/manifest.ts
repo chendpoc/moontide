@@ -1,6 +1,6 @@
 import type { ModelProfile } from "../../llm/models/types.js";
 import type { ToolSchema } from "../../llm/protocol/types.js";
-import type { ContextAlert, ContextManifest } from "./types.js";
+import type { ManifestAlert, ContextManifest } from "./types.js";
 
 export interface BuildContextManifestInput {
   sessionId: string;
@@ -14,7 +14,7 @@ export interface BuildContextManifestInput {
   activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
   estimatedInputTokens?: number;
-  alerts?: ContextAlert[];
+  alerts?: ManifestAlert[];
 }
 
 export function buildContextManifest(input: BuildContextManifestInput): ContextManifest {
