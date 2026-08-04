@@ -5,7 +5,7 @@ import type {
   ArtifactStore,
   CheckpointStore,
   CompactionStore,
-} from "../stores/index.js";
+} from "../../session/stores/index.js";
 import type { InstructionState } from "./system/types.js";
 import type { CompactionPolicy } from "./compaction/policy.js";
 
@@ -32,7 +32,7 @@ export interface ComposedLLMRequest {
   tools: ToolSchema[];
 }
 
-export interface ContextAlert {
+export interface ManifestAlert {
   code: string;
   message: string;
 }
@@ -51,7 +51,7 @@ export interface ContextManifest {
   compactionExcludedItemIds?: string[];
   activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
-  alerts?: ContextAlert[];
+  alerts?: ManifestAlert[];
 }
 
 export interface ComposedContext {

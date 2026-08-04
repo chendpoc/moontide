@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
-import { runToolUse } from "../src/agent/pipeline/runTool.js";
+import { runToolUse } from "../src/agent/pipeline/index.js";
 import { setWorkdir, artifactSpillThresholdBytes } from "../src/config.js";
-import { FileArtifactStore, maybeSpillToolResult } from "../src/context/stores/index.js";
+import { FileArtifactStore, maybeSpillToolResult } from "../src/session/stores/index.js";
 import { artifactMetaPath, artifactPath } from "../src/session/paths.js";
 import { Session } from "../src/session/session.js";
 import { parseItems } from "../src/session/io/index.js";

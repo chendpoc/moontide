@@ -6,10 +6,10 @@ import {
   FileCheckpointStore,
   FileCompactionStore,
   createSessionStores,
-} from "../src/context/stores/index.js";
-import type { Artifact } from "../src/context/stores/artifact-types.js";
-import type { Checkpoint } from "../src/context/stores/checkpoint-types.js";
-import type { CompactionSave } from "../src/context/stores/compaction-types.js";
+} from "../src/session/stores/index.js";
+import type { Artifact } from "../src/session/stores/artifact-types.js";
+import type { Checkpoint } from "../src/session/stores/checkpoint-types.js";
+import type { CompactionSave } from "../src/session/stores/compaction-types.js";
 import { artifactMetaPath, checkpointPath, compactionSavePath } from "../src/session/paths.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 

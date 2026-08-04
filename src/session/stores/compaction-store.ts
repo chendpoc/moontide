@@ -1,4 +1,4 @@
-import { compactionDir, compactionSavePath } from "../../session/paths.js";
+import { compactionDir, compactionSavePath } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import { listJsonRecords } from "../../storage/list-json.js";
 import type { CompactionSave } from "./compaction-types.js";

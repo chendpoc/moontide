@@ -1,5 +1,5 @@
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
-import type { CompactionSave } from "../../stores/compaction-types.js";
+import type { CompactionSave } from "../../../session/stores/compaction-types.js";
 import type { SessionMessage } from "../../../session/types.js";
 import type { CompactionPolicy } from "./policy.js";
 import { applyPrune, estimateContextTokens } from "./apply-prune.js";

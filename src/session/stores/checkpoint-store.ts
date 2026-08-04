@@ -1,4 +1,4 @@
-import { checkpointPath, checkpointsDir } from "../../session/paths.js";
+import { checkpointPath, checkpointsDir } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import { listJsonRecords } from "../../storage/list-json.js";
 import type { Checkpoint } from "./checkpoint-types.js";

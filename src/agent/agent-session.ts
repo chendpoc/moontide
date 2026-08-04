@@ -1,9 +1,9 @@
 import { getWorkdir } from "../config.js";
-import type { Checkpoint } from "../context/stores/checkpoint-types.js";
-import { createSessionStores, type SessionStores } from "../context/stores/index.js";
+import type { Checkpoint } from "../session/stores/checkpoint-types.js";
+import { createSessionStores, type SessionStores } from "../session/stores/index.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
 import type { SummaryCompactionResult } from "../context/composer/compaction/run-summary-compaction.js";
-import type { CompactPreview } from "../context/compact.js";
+import type { CompactPreview } from "../context/composer/compaction/operations.js";
 import { resolveCompactionPolicy } from "../llm/models/resolve.js";
 import { getToolDefinitions } from "../tools/index.js";
 import { Session } from "../session/session.js";

@@ -1,4 +1,4 @@
-import type { CompactionSave } from "../../stores/compaction-types.js";
+import type { CompactionSave } from "../../../session/stores/compaction-types.js";
 import type { SessionMessage } from "../../../session/types.js";
 
 /** Replace covered session messages with a summary user message (immutable). */

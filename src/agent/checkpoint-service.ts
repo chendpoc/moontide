@@ -1,5 +1,5 @@
-import type { Checkpoint } from "../context/stores/checkpoint-types.js";
-import type { SessionStores } from "../context/stores/index.js";
+import type { Checkpoint } from "../session/stores/checkpoint-types.js";
+import type { SessionStores } from "../session/stores/index.js";
 import type { Session } from "../session/session.js";
 import { newEventId } from "../utils/id.js";
 

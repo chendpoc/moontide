@@ -1,4 +1,4 @@
-import { artifactMetaPath } from "../../session/paths.js";
+import { artifactMetaPath } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import type { Artifact } from "./artifact-types.js";
 

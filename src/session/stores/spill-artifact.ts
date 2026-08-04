@@ -1,9 +1,9 @@
 import { artifactSpillThresholdBytes, getWorkdir } from "../../config.js";
-import type { ArtifactStore } from "../stores/artifact-store.js";
-import { summarizeToolResultContent } from "../../session/content-map.js";
-import { formatToolSummary } from "../composer/artifact/project.js";
-import { artifactPath } from "../../session/paths.js";
-import type { ToolResultSummary } from "../../session/types.js";
+import type { ArtifactStore } from "./artifact-store.js";
+import { summarizeToolResultContent } from "../content-map.js";
+import { formatToolSummary } from "../tool-summary.js";
+import { artifactPath } from "../paths.js";
+import type { ToolResultSummary } from "../types.js";
 import { writeText } from "../../utils/fs.js";
 import { newEventId } from "../../utils/id.js";
 import { byteLengthUtf8 } from "../../utils/utf8.js";

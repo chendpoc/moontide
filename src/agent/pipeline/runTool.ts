@@ -1,6 +1,6 @@
 import type { ContentBlock } from "../../llm/protocol/types.js";
 
-import { maybeSpillToolResult } from "../../context/stores/spill-artifact.js";
+import { maybeSpillToolResult } from "../../session/stores/spill-artifact.js";
 import { summarizeToolResultContent } from "../../session/content-map.js";
 import { createToolContext, type LoopContext } from "../deps.js";
 import { executeTool } from "../../tools/index.js";

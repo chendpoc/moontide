@@ -2,7 +2,7 @@ import { getWorkdir } from "../config.js";
 import { composeContext } from "../context/composer/compose.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
 import type { ComposedContext } from "../context/composer/types.js";
-import type { SessionStores } from "../context/stores/index.js";
+import type { SessionStores } from "../session/stores/index.js";
 import { resolveModelProfile } from "../llm/models/resolve.js";
 import { resolveInstructionState } from "../instruction-state/index.js";
 import type { ToolSchema } from "../llm/protocol/types.js";
