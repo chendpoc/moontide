@@ -1,5 +1,5 @@
-import type { ComposedContext, ComposedLLMRequest, ContextManifest } from "./composer/types.js";
-import type { ContextReport } from "./types.js";
+import type { ComposedContext, ComposedLLMRequest, ContextManifest } from "../context/composer/types.js";
+import type { ContextReport } from "../context-inspect/types.js";
 
 interface RuntimeContextStatus {
   turn: number;

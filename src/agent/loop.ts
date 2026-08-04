@@ -1,5 +1,5 @@
 import { getWorkdir } from "../config.js";
-import { resetRuntimeStatus } from "../context/runtime-status.js";
+import { resetRuntimeStatus } from "./context-status.js";
 import { bootstrapAgentPlatform } from "../app/bootstrap.js";
 import { AgentSession } from "./agent-session.js";
 import { createDefaultLoopContext } from "./deps.js";

@@ -1,5 +1,5 @@
 import { AgentSession } from "../../agent/agent-session.js";
-import { resetRuntimeStatus } from "../../context/runtime-status.js";
+import { resetRuntimeStatus } from "../../agent/context-status.js";
 
 let replAgentSession: AgentSession | null = null;
 

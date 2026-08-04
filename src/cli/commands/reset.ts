@@ -1,4 +1,4 @@
-import { resetRuntimeStatus } from "../../context/runtime-status.js";
+import { resetRuntimeStatus } from "../../agent/context-status.js";
 import { resetRun } from "../../log/run.js";
 import { renderStatusLine } from "../statusline/render.js";
 import { resetReplSession } from "../repl/session.js";
