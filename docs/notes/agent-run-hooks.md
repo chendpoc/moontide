@@ -1,428 +1,257 @@
-# Agent 运行时 Hook 设计
+# Agent Hook 机制（终局设计）
 
-> **文档性质：** notes（设计讨论，非 Spec）  
-> **问题：** Ocula agent 在运行过程中，扩展点（hooks）应如何划分生命周期、定义语义、注册与卸载？  
-> **当前代码：** Run 级 [`RunHooks`](../../src/agent/run-hooks.ts) + Step 级 [`AgentPlugin`](../../src/agent/pipeline/types.ts)（两套机制并存）；目标形态 **HookRegistry + HookRunner**（未实现）  
-> **平台策略：** Release 与 sidecar 边界见 [`platform-strategy.md`](../product/platform-strategy.md) · Plugin host 见 [`plugin-host.md`](plugin-host.md)
-
----
-
-## 1. 设计目标
-
-Hook 机制应满足：
-
-1. **内核稳定** — `AgentRun` 只表达「写日记 → 拼输入 → 调模型 → 记结果」；扩展逻辑不堆进主文件。
-2. **职责分离** — 改对话事实（Session log）、改观测（Agent events）、改 LLM 输入、拦截 tool，各走明确通道。
-3. **可组合** — 多个扩展（trace、audit、metrics、UI）可独立注册，互不 import。
-4. **可测试** — 测试可关掉观测或注入 spy，而不 mock 整个 loop。
-5. **失败隔离** — 扩展抛错默认不拖垮用户对话（与现有 plugin 行为一致）。
-
-**不是目标：** 用 hook 替代所有模块边界；工具定义、CLI 命令、Slint UI 插件不应硬塞进 agent loop hook 表。
+> **文档性质：** notes（机制设计，非 Spec）  
+> **状态：** 2026-08 定稿 · **代码已迁移**（`HookDispatcher` + `src/agent/hooks/` + default sidecar modules）  
+> **生态兼容：** [`ecosystem-compat.md`](ecosystem-compat.md) · **Plugin host：** [`plugin-host.md`](plugin-host.md) · **平台：** [`platform-strategy.md`](../product/platform-strategy.md)
 
 ---
 
-## 2. 先定生命周期：四个粒度
+## 1. 一词一义
 
-扩展点必须挂在**明确的粒度**上，否则 hook 会重复或遗漏。
-
-```text
-Session          一次 REPL 会话（多个 prompt，同一 sessionId）
-  └── Run        用户按一次 Enter（一个 runId）
-        └── Turn  Run 内一次 LLM 往返（含后续 tool 链，直到 end_turn）
-              └── Step   单次 LLM 调用 或 单次 tool 执行
-```
-
-| 粒度 | 边界 | 典型 hook 用途 | 持久化 |
-|------|------|----------------|--------|
-| **Session** | `/reset` 或新 REPL | 加载记忆、sidecar 预热 | Session Log（`.jsonl`） |
-| **Run** | 每次 `AgentSession.run(prompt)` | runId、user/final 事件、run 归档 | Agent Event Log |
-| **Turn** | `runTurn` 递增 | 上下文 manifest、turn 级 metrics | 可选写 Session |
-| **Step** | 每次 `runLLM` / `runToolUse` | trace、audit、tool_result 追加 | Agent events |
-
-**原则：** Session 级 hook 少而稳；Run / Step 级 hook 多而细。不要把 Session 级逻辑绑在 Run hook 里（例如整段 REPL 只初始化一次的东西）。
-
-相关 Spec：[agent-events](../spec/agent-events.md)（Run 观测）、[context-composer](../spec/context-composer.md)（Session 日记）。
-
----
-
-## 3. Hook 的四种语义（建议统一词汇）
-
-业界（Pi harness、Middleware）常见四类，**注册 API 应让人一眼看出属于哪类**：
-
-| 类型 | 作用 | 返回值 | 典型例子 |
-|------|------|--------|----------|
-| **Observe** | 旁路通知，不改变主流程 | 忽略 | metrics、日志、Slint 刷新 |
-| **Transform** | 顺序改写某次输入/输出 | 合并链式结果 | 改 messages、改 system prompt |
-| **Decide** | 允许 / 拒绝 / 短路 | 第一个 block 生效 | tool 权限、compact cancel |
-| **Around** | 包住整段执行 | 包裹内层 | 超时、重试、trace span |
-
-**实践：**
-
-- **Observe 与 Transform 不要混用一个回调** — 否则无法保证「只读 listener」不意外改状态（Pi 的 `observe` vs `on` 分工）。
-- **Decide 必须文档化 fail-open / fail-closed** — 例如 tool 权限 fail-closed，metrics hook fail-open。
-- **Around 慎用** — 仅用于真正的横切（超时、cancel）；业务逻辑用 Transform / Decide。
-
----
-
-## 4. 什么该用 Hook，什么不该
-
-| 机制 | 适合 | 不适合 |
+| 术语 | 定义 | 禁止指 |
 |------|------|--------|
-| **Hook** | 生命周期上的观测、拦截、改写 | 静态能力注册 |
-| **Registry** | tools、CLI 命令、provider、渲染器 | 每次 run 的时序逻辑 |
-| **Session API** | 对话事实的读写（`append*` / `readLog`） | 观测事件 |
-| **Core loop** | 固定顺序的业务步骤 | 可插拔业务 |
+| **Phase** | 内核固定挂载点（`sessionItem`、`beforeToolUse` …） | 泛称「事件」 |
+| **Hook** | 某 phase 上的扩展逻辑；由 **HookDispatcher** 经 IPC 交给 sidecar / shell | 外部 Plugin 包名 |
+| **Hook handler** | sidecar 内具名回调；`name` 用于日志、排序、dispose | tap、plugin 实例 |
+| **Kernel 模块** | loop 内直接调用（Session 落盘、permission、compose） | Extension、Plugin |
+| **Extension** | 官方 sidecar 内置模块（tool-use-log、log-sync …） | 外部 npm |
+| **Plugin** | 用户安装的 MCP / sidecar 扩展 | tool-use-log、context 等官方模块 |
 
-**Ocula 当前分工（合理部分）：**
-
-- **Registry：** [`tools/store`](../../src/tools/store.ts)、[`AgentPlugin` 注册表](../../src/agent/pipeline/registry.ts)
-- **Session：** 对话唯一事实源
-- **RunHooks：** Run 级观测（events + finalize）
-- **AgentPlugin：** Step 级 LLM / tool 观测
-
-**常见反模式（应避免）：**
-
-- 在 hook 里直接 `messages.push` / `splice` — 应写 Session 或返回 Transform 结果
-- 每个四阶段步骤都加 hook — 主流程变成「钩子驱动」，难以阅读
-- 扩展之间互相 import — 应通过 `HookContext` 上的共享 state 或 event
+**不引入：** Tap、tapable、parallel/waterfall/bail/around 作为对外 API。
 
 ---
 
-## 5. 生命周期与建议 hook 点
+## 2. 设计目标
 
-下面是一张 **完整地图**（含已实施与候选）。实施状态见 §7。
+1. **内核稳定** — loop 只写「Session → compose → LLM → tool」；不出现扩展名。
+2. **Sidecar-first** — 外部扩展不在 Rust/TS loop 内 `import` npm；走 MCP 或 Node Plugin Runtime。
+3. **可组合** — 多 handler 同 phase；`order` 排序；fail-open / fail-closed 按 phase 声明。
+4. **可测试** — in-memory transport mock sidecar；内核只测 dispatch 契约。
+5. **Rust 同构** — phase 名与 dispatch mode 与 TS 一致；实现可换 transport。
+
+**不是目标：** hook 替代 tool registry；VS Code Extension API；Pi/OpenCode 零改 in-process。
+
+---
+
+## 3. 三层机制（仅此三层）
+
+| 层 | 职责 | 代码/文档 |
+|----|------|-----------|
+| **HookDispatcher** | 固定 phase 点 → dispatch → 收集 outcome | [`src/agent/hooks/`](../../src/agent/hooks/) |
+| **Tool registry** | builtin + MCP + sidecar 暴露的 tools | [`tools/store.ts`](../../src/tools/store.ts) · [`plugin-host.md`](plugin-host.md) |
+| **Plugin host** | MCP attach、sidecar spawn、manifest | [`plugin-host.md`](plugin-host.md) |
 
 ```mermaid
-sequenceDiagram
-  participant User
-  participant RunHooks as Run_hooks
-  participant AgentRun
-  participant Session
-  participant Plugins as Step_plugins
-  participant LLM
+flowchart TB
+  Loop["AgentRun / Session"]
+  HD["HookDispatcher"]
+  Sidecar["Node Plugin Runtime"]
+  PH["Plugin host / MCP"]
 
-  User->>AgentRun: prompt
-  AgentRun->>RunHooks: runStart
-  AgentRun->>Session: appendUser
-  loop each turn until end_turn
-    AgentRun->>Session: readLog / buildInput
-    Note over AgentRun: beforeBuildInput transform optional
-    AgentRun->>Plugins: onLLMCall before/after via runLLM
-    AgentRun->>LLM: chat
-    AgentRun->>Session: appendAssistant
-    alt tool_use
-      AgentRun->>Plugins: onToolUse
-      AgentRun->>Session: appendTool*
-    end
-  end
-  AgentRun->>RunHooks: runEnd success only
-  AgentRun->>RunHooks: runFinalize always
+  Loop -->|"dispatch phase"| HD
+  HD <-->|"UDS NDJSON"| Sidecar
+  Loop --> PH
+  PH --> Sidecar
+  PH --> MCP["MCP servers"]
 ```
 
-### Run 级（一次 user prompt）
-
-| Hook | 语义 | 时机 | 当前 |
-|------|------|------|------|
-| `runStart` | Observe | `execute` 开始；分配 runId | `onRunStart` ≈ |
-| `runEnd` | Observe | 成功得到 reply | `onRunEnd` ≈ |
-| `runFinalize` | Observe | `finally`；归档 run | `finalizeRunFromHooks` ≈ |
-| `runError` | Observe | 未捕获错误 | 无 |
-
-### Turn 级（run 内每轮 LLM，候选）
-
-| Hook | 语义 | 时机 | 当前 |
-|------|------|------|------|
-| `beforeBuildInput` | Transform | 拼好 messages 之后、调 LLM 之前 | 无（compact 未来） |
-| `turnStart` / `turnEnd` | Observe | 每 `runTurn` | 无 |
-
-### Step 级（已实施）
-
-| Hook | 语义 | 时机 | 当前 |
-|------|------|------|------|
-| `onLLMCall` | Observe (+ emit events) | 每次 `runLLM` | `AgentPlugin` |
-| `onToolUse` | Observe (+ modelAppend) | 每次 tool | `AgentPlugin` |
-| tool 权限 | Decide | tool 执行前 | [`checkPermission`](../../src/agent/pipeline/permission/index.ts)（内核，非 plugin） |
-
-### Session 级（跨 run，候选 / 扩展）
-
-| Hook | 语义 | 例子 |
-|------|------|------|
-| `sessionStart` / `sessionReset` | Observe | REPL 启动、`/reset` |
-| `sessionBeforeCompact` | Decide | 是否允许 compact |
-
-Session 级更适合 **REPL / 扩展宿主** 注册，不必塞进 `AgentRun.execute`。
+**Plugin Runtime 折中：** 按需 spawn 常驻 Node 进程，插件在 sidecar 内 `import` npm — 语义接近 in-process，边界在 IPC。见 [`runtime-multilang.md`](runtime-multilang.md) §9。
 
 ---
 
-## 6. 注册与上下文：建议实践
+## 4. 生命周期粒度
 
-### 6.1 谁注册、何时注册
-
-| 扩展来源 | 建议注册时机 | 生命周期 |
-|----------|--------------|----------|
-| 内置（trace、audit） | 进程启动时，全局 registry | 随进程 |
-| CLI / REPL | `setupEventPipeline()` 或 REPL 启动 | 随 REPL session |
-| 测试 | 每个 test case `beforeEach` | 用例级 |
-| 第三方扩展（远期） | 扩展加载器 | `clear()` / dispose |
-
-**建议：** Run 级 hook 用 **全局 registry + 命名 tap**（`events`、`metrics`）；测试里 `registry.clear()` 或保存 dispose 函数。  
-**不必** 每次 `run()` 新建整套 hook 对象，除非要 per-run 隔离。
-
-### 6.2 注册 API 形态（推荐演进方向）
-
-统一为 **emit 单入口 + 显式注册**，避免内核散落 `emitUserPrompt`：
-
-```typescript
-// 目标形态（概念，非当前代码）
-
-// 注册：返回 dispose
-const off = agentHooks.on("runStart", "events", (ctx) => {
-  emitUserPrompt(ctx.userPrompt);
-});
-
-// 内核：只 emit
-await agentHooks.emit({ type: "runStart", userPrompt, session, runId });
+```text
+Session   一次 REPL（同一 sessionId）
+  Run     一次 Enter（一个 runId）
+    Turn  run 内一次 LLM 往返（含 tool 链至 end_turn）
+      Step  单次 runLLM 或 runTool
 ```
 
-对比现状：
+Session 级 phase 在 REPL 宿主注册；Run/Step 在 `AgentRun` 内 dispatch。
 
-```typescript
-// 当前：工厂里写死回调
-createDefaultRunHooks() → { onRunStart, onRunEnd }
-```
+---
 
-### 6.3 HookContext（扩展只依赖 facade）
+## 5. Phase 全表
 
-扩展 handler 应接收 **稳定上下文**，而不是 `AgentRun` 内部字段：
+| 粒度 | Phase | mode | 触发点 | 默认 errorPolicy | 执行方 |
+|------|-------|------|--------|------------------|--------|
+| Session | `sessionItem` | observe | `Session.commitItems` | fail-open | sidecar（file + derive） |
+| Turn | `composeComplete` | observe | compose 后 | fail-open | sidecar |
+| Run | `runStart` | observe | `execute` 开头 | fail-open | sidecar |
+| Run | `runEnd` | observe | 成功返回前 | fail-open | sidecar |
+| Run | `runFinalize` | observe | `finally` | fail-open | sidecar |
+| Run | `runError` | observe | catch | fail-open | sidecar |
+| Step | `beforeToolUse` | decide | tool 前 | fail-closed | **内核 permission** + sidecar |
+| Step | `toolUse` | observe | tool 后 | fail-open | sidecar（**tool-use-log**） |
+| Step | `llmCall` | observe | `runLLM` 后 | fail-open | sidecar |
 
-```typescript
-interface RunHookContext {
-  session: Session;
-  runId: string;
-  userInteraction: UserInteraction;
-  signal?: AbortSignal;  // 取消
-  // 可选：turn、runTurn、只读 config
-}
-```
+**mode 语义（写在 phase 元数据，不对 loop 暴露方法名）：**
 
-**实践：** Context 在 run 开始时 `setContext`，facade 方法优于深层 getter 迷宫（Pi 同旨）。
-
-### 6.4 错误策略
-
-| 场景 | 建议 |
+| mode | 行为 |
 |------|------|
-| Observe（metrics、trace） | **continue** — 记日志，不中断对话 |
-| Decide（权限、compact cancel） | **按业务** — tool 权限 fail-closed |
-| Transform | **continue** — 单个 handler 失败跳过，或 abort 本 turn（需文档） |
+| **observe** | 顺序调用全部 handler，不合并返回值 |
+| **transform** | 顺序调用，phase 自带 merge 规则 |
+| **decide** | 顺序调用，首个 block/cancel 短路 |
 
-与 [`notifyPlugins`](../../src/agent/pipeline/notify.ts) 一致：plugin 抛错记 `PluginFailureRecord`，不 stop loop。
-
-### 6.5 卸载
-
-- 每个 `on()` / `observe()` 返回 **dispose**
-- Registry 提供 **`clear()`**（测试、热重载）
-- 借鉴 VS Code `subscriptions`，不借鉴 contribution manifest
+**Around（超时/重试）：** MVP 不做；用内核 `withTimeout` 或远期 `wrap` mode。
 
 ---
 
-## 7. 与当前代码的对照
+## 6. 内核唯一调用方式
 
-| 设计层 | 建议 | 当前实现 | 差距 |
-|--------|------|----------|------|
-| Run Observe | `emit` + `on("runStart")` 等 | `RunHooks` 两个 callback | 缺多 listener、缺 `observe` |
-| Step Observe | 同上或保持 plugin | `AgentPlugin` + 全局 registry | 形态与 Run 不一致 |
-| Transform | `beforeBuildInput` 等 | 无 | compact 未接入 |
-| Decide | tool 权限、未来 compact | 权限在内核 | 可 eventual 迁到 hook |
-| Registry | tools、plugins 分开 | 已分开 | 保持 |
-| 事实源 | Session only | 已迁移 | — |
+Loop / Session **只写一行**：
 
-**当前 Run 流程（简化）：**
-
-```text
-onRunStart → appendUser → [loop: buildInput → runLLM → append/tool] → onRunEnd → finalize
+```typescript
+await dispatcher.dispatch("beforeToolUse", payload);
 ```
 
-代码入口：[`agent-run.ts`](../../src/agent/agent-run.ts) · [`run-hooks.ts`](../../src/agent/run-hooks.ts)
+分派策略由 `PHASE_DEFS[phase].mode` 决定；内核不选 parallel/waterfall/bail。
 
----
+Sidecar 内注册（对用户 Plugin / 官方 Extension 同协议）：
 
-## 8. 推荐演进路径（非承诺）
-
-按风险从小到大：
-
-1. **统一词汇** — 文档与代码注释采用 Observe / Transform / Decide / Around 四类。
-2. **RunHooks → RunHookRegistry** — `on(type, name, handler)` + dispose；默认 listener 注册 `events`。
-3. **补 `runError`** — 失败路径可观测。
-4. **Turn 级** — 仅当 compact / manifest 需要时加 `beforeBuildInput`（Transform）。
-5. **Session 级** — 在 REPL 宿主挂 `sessionStart` / `sessionReset`，不塞进 AgentRun。
-
-**暂不引入：** npm `tapable`（除非 Transform 链复杂度超预期）；VS Code contribution 驱动 loop。
-
----
-
-## 9. 开放问题（设计层）
-
-1. Run 与 Step 是否共用一套 `HookRegistry` 类型，还是两个 registry？
-2. `AgentPlugin` 是否 eventual 改名为 Step hook 并统一 `on("llmCall")` 风格？
-3. Transform 的合并语义是否在 Spec 层写死（类似 Pi 每 event 一份 reduce 规则）？
-4. 扩展来源 metadata（哪个扩展抛错）是否必需 — Pi 用 source scope。
-
-（实现层开放问题见 §14。）
-
----
-
-## 10. 参考
-
-**Ocula 代码：** [agent-run.ts](../../src/agent/agent-run.ts) · [run-hooks.ts](../../src/agent/run-hooks.ts) · [pipeline/types.ts](../../src/agent/pipeline/types.ts)
-
-**Ocula 文档：** [platform-strategy.md](../product/platform-strategy.md) · [plugin-host.md](plugin-host.md) · [session-log-migration.md](session-log-migration.md) · [agent-events.md](../spec/agent-events.md)
-
-**外部：** [Pi AgentHarness hooks](https://github.com/badlogic/pi-mono/blob/main/packages/agent/docs/hooks.md) · [harness-pi hook phases](https://github.com/chasey-myagi/harness-pi/blob/main/packages/core/README.md) · [Pi createLoopConfig](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/harness/agent-harness.ts)
-
----
-
-## 11. 内部架构：四层模型
-
-Loop **不应** 直接 `for (const h of hooks)` 或调用 `runBeforeLLM()`。成熟做法是 **loop 只依赖窄接口**，扩展在外部注册，由 **Runner** 在固定点调用。
-
-```text
-Layer 4  Extension API（对外）
-           api.on("beforeBuildInput", …) · registerTool
-              ↓ 启动时注册
-Layer 3  HookRegistry + HookRunner（机制，只实现一次）
-           parallel / waterfall / bail · dispose · clear
-              ↓ 每次 run 创建 RunHookScope
-Layer 2  LoopConfig 适配器（Harness / AgentRun）
-           transformContext ← runner.waterfall("beforeBuildInput")
-           beforeToolCall   ← runner.bail("beforeToolUse")
-              ↓ 注入
-Layer 1  纯 loop（AgentRun / 未来 runAgentLoop）
-           while { buildInput → llm → recordOutcome }
-           只 call config.xxx 和 emit(AgentEvent)
+```typescript
+sidecar.on("toolUse", "tool-use-log", handler, { order: 0 });
 ```
 
-**两种「事件」分工：**
+---
+
+## 7. 四层模型
+
+```text
+Layer 4  Plugin / Extension（MCP · sidecar SDK · Codex hooks 适配）
+              ↓ attach / activate
+Layer 3  HookDispatcher + Plugin host（机制，只实现一次）
+              ↓ dispatch(phase)
+Layer 2  LoopConfig 适配（AgentRun 薄封装，可选）
+              ↓
+Layer 1  纯 loop（buildInput → llm → recordOutcome）
+```
+
+**AgentEvent vs Hook：**
 
 | 机制 | 用途 |
 |------|------|
-| **AgentEvent + emit** | loop 生命周期事实（`message_end`、`turn_end`）→ Session 持久化、UI tail |
-| **Hook phase + runner** | 扩展改写/拦截（`beforeBuildInput`、tool 权限） |
+| **AgentEvent + emitDraft** | Session 派生 / hook 观测 → JSONL（[`event-hub`](../../src/log/event-hub.ts)） |
+| **Hook phase + dispatch** | 扩展观测 / 改写 / 拦截 |
 
-Pi 对照：Harness 只 `hooks.emit(event)`；`createLoopConfig()` 把 hook 译成 `AgentLoopConfig` 回调（见 §12）。
-
-**反模式：** loop 内 import trace/compact；每种 hook 手写 for 循环；Observe 与 Transform 共用一个 callback。
+**反模式：** loop 内 `for (hooks)`；扩展互 import；在 observe handler 里改 Session 数组（应返回 transform 结果或写 Session API）。
 
 ---
 
-## 12. LoopConfig 与 phase 映射
+## 8. Decide outcome（对齐 Codex）
 
-### 12.1 Ocula phase → Runner 语义
+`beforeToolUse` / Codex `PreToolUse` 共用 outcome 词汇：
 
-| Phase | 语义 | Runner 方法 | fail 策略 |
-|-------|------|-------------|-----------|
-| `runStart` / `runEnd` / `runError` / `runFinalize` | Observe | `parallel` | continue |
-| `turnStart` / `turnEnd` | Observe | `parallel` | continue |
-| `beforeBuildInput` | Transform | `waterfall` | continue（单 tap 失败跳过） |
-| `llmCall` / `toolUse` | Observe | `parallel` | continue（同 [`notifyPlugins`](../../src/agent/pipeline/notify.ts)） |
-| `beforeToolUse` | Decide | `bail` | fail-closed（block） |
+| outcome | 含义 |
+|---------|------|
+| `proceed` | 继续执行 |
+| `block` | 拒绝，带 `reason` |
+| `modify` | 替换 tool 输入（LocalShell 等待定是否禁止） |
 
-注册 API 目标形态（概念）：
-
-```typescript
-const off = agentHooks.on("beforeBuildInput", "compact", handler, { enforce: "pre" });
-```
-
-`enforce: "pre" | "post"` 映射为 tap `stage`（pre = -100，default = 0，post = +100）。
-
-### 12.2 与 Pi `createLoopConfig` 对照
-
-| Pi `AgentLoopConfig` | Ocula phase | 时机 |
-|----------------------|-------------|------|
-| `transformContext(messages)` | `beforeBuildInput`（或 alias `context`） | compose 之后、`chat()` 之前 |
-| `beforeToolCall` | `beforeToolUse` | tool 执行前 |
-| `afterToolCall` | `toolUse`（Observe + patch 合并） | tool 执行后 |
-| `prepareNextTurn` | `turnEnd` + flush + 新 snapshot | 每 turn 结束 save point |
-| `emitHook(before_agent_start)` | Run 头（注入 messages / systemPrompt） | `runStart` 后、loop 前 |
-
-Pi 源码入口：[agent-harness.ts `createLoopConfig`](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/harness/agent-harness.ts)。
-
-### 12.3 Harness 伪代码（目标）
-
-```typescript
-// Layer 2：AgentRun 或 AgentHarness 构造 LoopConfig
-function createLoopConfig(runner: HookRunner, getSnapshot, setSnapshot): LoopConfig {
-  return {
-    transformContext: async (messages) =>
-      runner.waterfall("beforeBuildInput", { messages, runTurn: getSnapshot().runTurn },
-        (acc, r) => r?.messages ?? acc, messages),
-
-    beforeToolCall: async (call) => {
-      const blocked = await runner.bail("beforeToolUse", call);
-      return blocked ? { block: true, reason: blocked.reason } : undefined;
-    },
-
-    afterToolCall: async (record) => {
-      await runner.parallel("toolUse", { type: "toolUse", record });
-      return undefined;
-    },
-
-    prepareNextTurn: async () => {
-      await runner.parallel("turnEnd", { runTurn: getSnapshot().runTurn });
-      setSnapshot(await buildNextSnapshot(getSnapshot()));
-    },
-  };
-}
-```
-
-```typescript
-// Layer 1：loop 正文（无 hook 名字）
-while (true) {
-  let messages = await buildComposedMessages();
-  messages = await config.transformContext?.(messages) ?? messages;
-  const response = await streamLLM(messages, config);
-  // … tools via config.beforeToolCall / afterToolCall …
-  await config.prepareNextTurn?.();
-  if (endTurn) break;
-}
-```
+permission 为 **内核 Decide**，不依赖 sidecar 加载；sidecar handler 可追加 block 理由。
 
 ---
 
-## 13. 迁移路径（TS 实现 →  eventual Rust 同构）
+## 9. 错误策略
 
-与 [`platform-strategy.md`](../product/platform-strategy.md) §8 对齐：TS 先落地 Hook 机制，Rust release 时 **复用 phase 名与语义**，不必复用 TS 类型。
+| mode | 默认 | 示例 |
+|------|------|------|
+| observe | fail-open | metrics、derive 失败记日志 |
+| transform | fail-open | 单 handler 失败跳过 |
+| decide | fail-closed | permission、用户 hook block |
 
-### 13.1 现状 → 目标
+记录：`HookFailureRecord`（扩展 `source`、`phase`、`name`）。
 
-| 现状 | 目标 |
+---
+
+## 10. 与当前代码对照
+
+| 模块 | 位置 |
 |------|------|
-| [`RunHooks`](../../src/agent/run-hooks.ts) 两个 callback | registry taps：`runStart` / `runEnd` / `runFinalize` |
-| [`createDefaultRunHooks()`](../../src/agent/run-hooks.ts) | `registerDefaultAgentHooks()` 进程启动一次 |
-| [`notifyPlugins`](../../src/agent/pipeline/notify.ts) | `runner.parallel("llmCall" \| "toolUse", …)` |
-| [`checkPermission`](../../src/agent/pipeline/permission/index.ts) 在内核 | 默认 `beforeToolUse` tap `"permission"` |
-| [`agent-run.ts`](../../src/agent/agent-run.ts) 直接 `this.hooks.onRunStart` | `runScope.emitParallel("runStart", …)` |
+| HookDispatcher | [`src/agent/hooks/dispatcher.ts`](../../src/agent/hooks/dispatcher.ts) |
+| default sidecar 注册 | [`src/agent/hooks/defaults.ts`](../../src/agent/hooks/defaults.ts) |
+| Session 派生 | [`src/extensions/log-sync/`](../../src/extensions/log-sync/) |
+| tool-use-log | [`src/extensions/tool-use-log/`](../../src/extensions/tool-use-log/) |
+| permission（内核 decide） | [`src/agent/pipeline/permission/`](../../src/agent/pipeline/permission/) |
+| Agent Event fan-out | [`src/log/event-hub.ts`](../../src/log/event-hub.ts) |
 
-### 13.2 推荐 PR 顺序（风险从小到大）
+**已删除：** RunHooks、AgentPlugin、pipeline/registry、session/observe、extensions/audit。
 
-1. **HookRunner + agentHooks.on** — parallel/waterfall/bail；测试用 `clear()`。
-2. **RunHooks → 默认 taps** — `events` tap 替代 `createDefaultRunHooks`。
-3. **AgentPlugin → 同一 registry** — `llmCall` / `toolUse` phase；保留 `parsePluginEvents` 行为。
-4. **`runError` + `runFinalize` phase** — 失败路径可观测。
-5. **`beforeBuildInput`** — compact 接入；compose 之后 waterfall。
-6. **（可选）抽 `runAgentLoop.ts`** — `AgentRun` 只做 Harness；与 Pi 双层一致。
-7. **Rust CLI** — 同 phase 表；TS 作 conformance tests。
-
-### 13.3 Node sidecar 注意
-
-若扩展跑在 **Node sidecar**（见 [`platform-strategy.md`](../product/platform-strategy.md) L2 与 [`plugin-host.md`](plugin-host.md) §9），in-process Transform 变为 **IPC RPC**：handler 看不到共享对象引用；Observer 看不到 Transform 中间态（与 Pi `observe` 限制同旨）。可能需额外 phase（如 `afterBuildInput`）或 sidecar 内完成 compact 后以结果 RPC 返回。
+**C6 派生不变量：** 一次 `commitSessionItem` → `sessionItem` → file + agent-event-derive；conversation/trace **不**在 step 级重复 emit。
 
 ---
 
-## 14. 开放问题（实现层）
+## 11. 架构选型摘要
 
-1. Run 与 Step 是否共用一套 `HookRegistry`（推荐：**一个 registry，按 phase 分派**）？
-2. Sidecar IPC 下 Transform 的合并与超时/取消语义是否在 Spec 写死？
-3. Rust release 时 hook 错误策略：TS 为 Observe continue；Harness 级 hook throw 是否统一为可配置 `errorMode`（Pi 建议 default `continue`）？
-4. `AgentEvent` 订阅与 Hook phase 是否暴露给 UI sidecar 同一 NDJSON 流，还是双通道？
+| 选项 | 结论 |
+|------|------|
+| webpack/tapable | **不用** — phase 太少，类型矩阵过重 |
+| in-process HookRegistry 给外部 Plugin | **不用** — 与 Rust release 冲突 |
+| Pi-lite phase 表 + 单入口 `dispatch` | **采用** |
+| Node sidecar Plugin Runtime | **采用** — npm 在 sidecar 内 |
+| MCP 优先接 tool | **采用** — 见 [`ecosystem-compat.md`](ecosystem-compat.md) |
 
-（设计层问题见 §9。）
+---
+
+## 12. 模块布局（已实现）
+
+```text
+src/agent/hooks/
+  phases.ts · types.ts · dispatcher.ts · failures.ts
+  registry.ts · defaults.ts · parse-events.ts · index.ts
+
+src/log/
+  event-hub.ts     — emitDraft / subscribe / setOutputs
+  outputs/jsonl.ts · outputs/stderr-renderer.ts
+
+src/extensions/
+  tool-use-log/ · log-sync/ · context/hook-module.ts
+
+src/plugin-host/sidecar/
+  bridge.ts · process-transport.ts · run-sidecar.ts · protocol.ts
+
+src/plugin-sdk/
+  define.ts — defineSidecarPlugin · listSidecarHooks
+```
+
+TS harness：`in-process` + **stdio pipe** transport；终局 UDS 与 Rust 同 NDJSON 协议。
+
+---
+
+## 13. 非目标
+
+- npm `tapable`、HookMap、interceptors
+- Rust loop 内 embed V8
+- VS Code / Pi / OpenCode in-process 零改
+- 用 Hook 注册 tools / CLI commands
+
+---
+
+## 15. 命名：`tool-use-log`（原 audit）
+
+| 层 | 名字 | 说明 |
+|----|------|------|
+| Extension 目录 | `src/extensions/tool-use-log/` | kebab-case |
+| sidecar 模块 / handler `name` | `tool-use-log` | 注册 id |
+| Agent Event **`channel`** | `tool_use_log` | JSON 字段 snake_case |
+| Event **`kind`** | `tool_use` | 不变 |
+| 终端 / verbose 前缀 | `tool_use_log/` | 替代原 `audit/` |
+
+**为何不用 `audit`：** 易与安全合规、企业审计混淆；本机制仅 **observe 每次 tool 调用**（toolName、输入摘要、状态），写入 Agent Event Log。
+
+**迁移：** 已完成 — `extensions/audit/` 已删；channel 统一为 `tool_use_log`。
+
+---
+
+## 14. 相关文档
+
+| 文档 | 关系 |
+|------|------|
+| [`ecosystem-compat.md`](ecosystem-compat.md) | P0/P1/P2 兼容承诺 |
+| [`plugin-host.md`](plugin-host.md) | MCP + sidecar attach |
+| [`platform-strategy.md`](../product/platform-strategy.md) | L1/L2/L3、非目标 |
+| [`agent-events.md`](../spec/agent-events.md) | Run 观测 Spec |
+| [`context-window-roadmap.md`](context-window-roadmap.md) | #2 迁移任务 |
+
+**外部参考：** [Pi hooks](https://github.com/badlogic/pi-mono/blob/main/packages/agent/docs/hooks.md) · [Codex hooks](https://developers.openai.com/codex/hooks)
