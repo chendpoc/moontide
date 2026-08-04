@@ -23,6 +23,7 @@ export type HookRegistrationSpec = {
   register: (hooks: SidecarHookRegistry, workdir: string) => () => void;
 };
 
+/** Built-in hook registrations (log-sync derive, context metrics, inspect-debug, tool-use-log). */
 export function buildDefaultHookManifest(): HookRegistrationSpec[] {
   return [
     {
