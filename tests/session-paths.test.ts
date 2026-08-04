@@ -7,6 +7,7 @@ import {
   checkpointsDir,
   compactionDir,
   compactionRecordPath,
+  compactionSavePath,
   sessionLogPath,
   sessionsDir,
 } from "../src/session/paths.js";
@@ -31,6 +32,9 @@ describe("session paths", () => {
     );
     expect(compactionDir(workdir, sessionId)).toBe(
       `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/compaction`,
+    );
+    expect(compactionSavePath(workdir, sessionId, "cmp-1")).toBe(
+      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/compaction/cmp-1.json`,
     );
     expect(compactionRecordPath(workdir, sessionId, "cmp-1")).toBe(
       `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/compaction/cmp-1.json`,

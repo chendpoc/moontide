@@ -26,12 +26,29 @@ export function compactionDir(workdir: string, sessionId: string): string {
   return joinPath(sessionsDir(workdir), sessionId, "compaction");
 }
 
+export function compactionSavePath(
+  workdir: string,
+  sessionId: string,
+  compactionSaveId: string,
+): string {
+  return joinPath(compactionDir(workdir, sessionId), `${compactionSaveId}.json`);
+}
+
+/** @deprecated Use compactionSavePath */
 export function compactionRecordPath(
   workdir: string,
   sessionId: string,
   compactionRecordId: string,
 ): string {
-  return joinPath(compactionDir(workdir, sessionId), `${compactionRecordId}.json`);
+  return compactionSavePath(workdir, sessionId, compactionRecordId);
+}
+
+export function artifactMetaPath(
+  workdir: string,
+  sessionId: string,
+  artifactId: string,
+): string {
+  return joinPath(artifactsDir(workdir, sessionId), `${artifactId}.meta.json`);
 }
 
 export function checkpointsDir(workdir: string, sessionId: string): string {

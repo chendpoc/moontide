@@ -2,8 +2,8 @@ import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { FileSessionLogReader, FileSessionLogWriter } from "../src/session/log.js";
-import { logUserMessage, logAssistantMessage } from "../src/session/log-events.js";
+import { FileSessionItemReader, FileSessionItemWriter } from "../src/session/io/index.js";
+import { Session } from "../src/session/session.js";
 import { sessionLogPath } from "../src/session/paths.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -18,35 +18,40 @@ afterEach(() => {
   removeTmpWorkdir(tmpDir);
 });
 
-describe("session log I/O", () => {
+describe("session item I/O", () => {
   it("appends and reads NDJSON entries", async () => {
     const sessionId = "20260730-120000-test0001";
-    const writer = new FileSessionLogWriter(tmpDir);
-    const reader = new FileSessionLogReader(tmpDir);
+    const session = new Session(
+      sessionId,
+      new FileSessionItemWriter(tmpDir),
+      new FileSessionItemReader(tmpDir),
+    );
 
-    await logUserMessage(writer, sessionId, 1, "hello");
-    await logAssistantMessage(writer, sessionId, 1, [
-      { type: "text", text: "world" },
-    ]);
+    await session.appendUser(1, "hello");
+    await session.appendAssistant(1, [{ type: "text", text: "world" }]);
 
     const filePath = sessionLogPath(tmpDir, sessionId);
     expect(fs.existsSync(filePath)).toBe(true);
 
-    const entries = await reader.readAll(sessionId);
+    const entries = await session.readItems();
     expect(entries).toHaveLength(2);
     expect(entries[0]?.kind).toBe("user_message");
     expect(entries[1]?.kind).toBe("assistant_message");
   });
 
-  it("readTail respects afterLogId", async () => {
+  it("readTail respects afterItemId", async () => {
     const sessionId = "20260730-120000-test0002";
-    const writer = new FileSessionLogWriter(tmpDir);
-    const reader = new FileSessionLogReader(tmpDir);
+    const reader = new FileSessionItemReader(tmpDir);
+    const session = new Session(
+      sessionId,
+      new FileSessionItemWriter(tmpDir),
+      reader,
+    );
 
-    await logUserMessage(writer, sessionId, 1, "one");
-    await logUserMessage(writer, sessionId, 2, "two");
+    await session.appendUser(1, "one");
+    await session.appendUser(2, "two");
 
-    const all = await reader.readAll(sessionId);
+    const all = await session.readItems();
     const tail = await reader.readTail({
       sessionId,
       afterLogId: all[0]!.id,

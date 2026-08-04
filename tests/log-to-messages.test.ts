@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import { logToMessages } from "../src/context/composer/messages/log-to-messages.js";
-import type { SessionLog } from "../src/session/log-types.js";
+import type { SessionItem } from "../src/session/types.js";
 
-function base(over: Partial<SessionLog> & Pick<SessionLog, "kind">): SessionLog {
+function base(over: Partial<SessionItem> & Pick<SessionItem, "kind">): SessionItem {
   return {
     id: "e1",
     sessionId: "sess-1",
     turn: 1,
     at: "2026-07-31T08:00:00.000Z",
     ...over,
-  } as SessionLog;
+  } as SessionItem;
 }
 
 describe("logToMessages", () => {
   it("replays user then assistant text", () => {
-    const log: SessionLog[] = [
+    const log: SessionItem[] = [
       base({ id: "e1", kind: "user_message", text: "hi" }),
       base({
         id: "e2",
@@ -31,7 +31,7 @@ describe("logToMessages", () => {
   });
 
   it("merges tool_outcome into a user message with tool_result blocks", () => {
-    const log: SessionLog[] = [
+    const log: SessionItem[] = [
       base({ id: "e1", kind: "user_message", text: "read file" }),
       base({
         id: "e2",
@@ -86,7 +86,7 @@ describe("logToMessages", () => {
   });
 
   it("ignores tool_invocation when assistant already has tool_use", () => {
-    const log: SessionLog[] = [
+    const log: SessionItem[] = [
       base({
         id: "e2",
         kind: "assistant_message",
@@ -115,7 +115,7 @@ describe("logToMessages", () => {
   });
 
   it("respects upToTurn", () => {
-    const log: SessionLog[] = [
+    const log: SessionItem[] = [
       base({ id: "e1", kind: "user_message", text: "turn1", turn: 1 }),
       base({ id: "e2", kind: "user_message", text: "turn2", turn: 2 }),
     ];
@@ -126,7 +126,7 @@ describe("logToMessages", () => {
   });
 
   it("combines multiple tool outcomes into one user message", () => {
-    const log: SessionLog[] = [
+    const log: SessionItem[] = [
       base({
         id: "e2",
         kind: "assistant_message",

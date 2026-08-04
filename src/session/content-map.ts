@@ -1,7 +1,7 @@
 import type { ContentBlock as SdkContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
 import type { ContentBlock } from "../llm/protocol/types.js";
-import type { ToolResultSummary } from "./log-types.js";
+import type { ToolResultSummary } from "./types.js";
 import { truncateChars } from "../utils/text.js";
 import { byteLengthUtf8 } from "../utils/utf8.js";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isSessionLog, type SessionLog } from "../src/session/log-types.js";
+import { isSessionItem, type SessionItem } from "../src/session/types.js";
 
 const BASE = {
   id: "entry-1",
@@ -9,7 +9,7 @@ const BASE = {
   at: "2026-07-31T08:00:00.000Z",
 };
 
-const FIXTURES: SessionLog[] = [
+const FIXTURES: SessionItem[] = [
   { ...BASE, kind: "user_message", text: "hello" },
   {
     ...BASE,
@@ -56,18 +56,18 @@ const FIXTURES: SessionLog[] = [
 ];
 
 describe("session log types", () => {
-  it("parses NDJSON fixtures into SessionLog union", () => {
+  it("parses NDJSON fixtures into SessionItem union", () => {
     for (const fixture of FIXTURES) {
       const line = JSON.stringify(fixture);
       const parsed: unknown = JSON.parse(line);
-      expect(isSessionLog(parsed)).toBe(true);
+      expect(isSessionItem(parsed)).toBe(true);
       expect(parsed).toEqual(fixture);
     }
   });
 
   it("rejects invalid kinds", () => {
-    expect(isSessionLog({ ...BASE, kind: "trace" })).toBe(false);
-    expect(isSessionLog(null)).toBe(false);
-    expect(isSessionLog("user_message")).toBe(false);
+    expect(isSessionItem({ ...BASE, kind: "trace" })).toBe(false);
+    expect(isSessionItem(null)).toBe(false);
+    expect(isSessionItem("user_message")).toBe(false);
   });
 });

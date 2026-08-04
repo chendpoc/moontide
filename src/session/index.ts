@@ -1,38 +1,69 @@
 export { Session } from "./session.js";
-export { SessionLogSlice } from "./log-slice.js";
+export { SessionTransform } from "./transform.js";
 export { newSessionId } from "./ids.js";
 export type {
-  AssistantMessageLog,
-  CheckpointCreatedLog,
-  CompactionEventLog,
+  AssistantMessageItem,
+  CheckpointCreatedItem,
+  CompactionItem,
   CompactionKind,
-  RoutingLog,
+  RoutingItem,
+  SessionContext,
+  SessionItem,
+  SessionItemBase,
+  SessionItemBody,
+  SessionItemKind,
+  SessionMessage,
+  ToolInvocationItem,
+  ToolOutcomeItem,
+  ToolResultSummary,
+  UserMessageItem,
   SessionLog,
   SessionLogBase,
   SessionLogBody,
   SessionLogKind,
+  UserMessageLog,
+  AssistantMessageLog,
   ToolInvocationLog,
   ToolOutcomeLog,
-  ToolResultSummary,
-  UserMessageLog,
-} from "./log-types.js";
-export { isSessionLog } from "./log-types.js";
-export type { SessionLogReader, SessionLogReadOptions, SessionLogTailReader } from "./log-reader.js";
-export type { SessionLogWriter } from "./log-writer.js";
+  CompactionEventLog,
+  CheckpointCreatedLog,
+  RoutingLog,
+} from "./types.js";
 export {
+  isSessionItem,
+  isNonMessageSessionItem,
+  isSessionLog,
+  NON_MESSAGE_ITEM_KINDS,
+} from "./types.js";
+export type {
+  SessionItemReader,
+  SessionItemReadOptions,
+  SessionItemTailReader,
+  SessionLogReader,
+  SessionLogReadOptions,
+  SessionLogTailReader,
+} from "./io/reader.js";
+export type { SessionItemWriter, SessionLogWriter } from "./io/writer.js";
+export {
+  buildSessionItem,
   buildSessionLog,
+  FileSessionItemReader,
+  FileSessionItemWriter,
   FileSessionLogReader,
   FileSessionLogWriter,
-} from "./log.js";
+  parseItems,
+} from "./io/index.js";
 export {
-  logAssistantMessage,
-  logCompaction,
-  logToolInvocation,
-  logToolOutcome,
-  logUserMessage,
-  summarizeToolResultContent,
-} from "./log-events.js";
-export { mapSdkContentBlocks, userMessageText } from "./content-map.js";
+  contextFromItems,
+  itemsFromContext,
+  itemsFromMessage,
+  itemsFromMessages,
+  messagesFromContext,
+  messagesFromItems,
+} from "./transform/index.js";
+export type { MessagesFromContextOptions } from "./transform/messages-from-context.js";
+export type { SaveSessionMode, SaveSessionOptions } from "./transform.js";
+export { mapSdkContentBlocks, userMessageText, summarizeToolResultContent } from "./content-map.js";
 export {
   artifactPath,
   artifactsDir,
@@ -40,7 +71,12 @@ export {
   checkpointsDir,
   compactionDir,
   compactionRecordPath,
+  compactionSavePath,
+  artifactMetaPath,
   dataDir,
   sessionLogPath,
   sessionsDir,
 } from "./paths.js";
+
+/** @deprecated Use SessionTransform */
+export { SessionTransform as SessionLogSlice } from "./transform.js";
