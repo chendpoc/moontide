@@ -14,11 +14,11 @@
 | **MCP client** | 实现 [Model Context Protocol](https://modelcontextprotocol.io/) 的客户端：`tools/list`、`tools/call`；传输为 stdio 或 Streamable HTTP | 权限决策（交给 Capability Broker） |
 | **Capability Broker** | 系统能力入口：读文件、spawn 进程、网络、Desktop 审批 UI；见 [`runtime-multilang.md`](runtime-multilang.md) §4 | MCP 协议解析 |
 | **Sidecar supervisor** | 对 **Node sidecar**（L2 Ocula Plugin SDK）的 spawn、handshake、健康检查、cancel、重启；见 [`runtime-multilang.md`](runtime-multilang.md) §5 | MCP server 通用监管（由 Plugin host 内的 MCP client 连接管理承担） |
-| **Tool registry** | 当前 session 可见的 tool 定义集合（builtin + MCP + sidecar 暴露）；Composer 投影为 `LLMRequest.tools` | tool 执行逻辑 |
+| **Tool registry** | 当前 session 可见的 tool 定义集合（builtin + MCP + sidecar 暴露）；Composer 解析为 `LLMRequest.tools` | tool 执行逻辑 |
 
 **一词一义：** 本文不使用未定义的「Broker」总称。历史对话中的「Extension Broker」= 本文 **Plugin host** + **MCP client** +（Desktop 下）**Capability Broker** 的组合，落盘时拆开写。
 
-**当前代码：** TS 原型仅有 [`src/tools/store.ts`](../../src/tools/store.ts)（registry）与 [`src/agent/pipeline/permission/`](../../src/agent/pipeline/permission/)（权限）；**Plugin host 与 MCP client 尚未实现**。
+**当前代码：** TS harness 已实现 [`src/plugin-host/`](../../src/plugin-host/)（manifest · `kind: sidecar` attach · in-process + stdio transport）与 [`src/tools/store.ts`](../../src/tools/store.ts)；**MCP client 尚未实现**。
 
 ---
 
@@ -69,6 +69,8 @@ Loop **不出现** MCP、sidecar、attach 等扩展名；与 [`agent-run-hooks.m
 ---
 
 ## 4. 扩展层（对齐 platform-strategy）
+
+兼容承诺见 [`ecosystem-compat.md`](ecosystem-compat.md)。
 
 | 层 | 机制 | Plugin host 职责 |
 |----|------|------------------|
@@ -296,5 +298,11 @@ TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`src/tools/st
 ## 15. Status
 
 - **方向：** Plugin host + MCP client 双 attach 模式（startup assembly / runtime attach）；Capability Broker 与 Sidecar supervisor 职责分离。
-- **实现：** 未开始；TS 仅有 tool store 与 permission 雏形。
-- **下一步：** R2 前将 manifest 字段 stabilise 为 Spec 或 ADR；Rust 先 port registry 接口与 MCP client stub。
+- **TS harness（已实现）：**
+  - [`src/plugin-host/`](../../src/plugin-host/) — manifest 解析 · `kind: sidecar` attach
+  - [`src/plugin-host/sidecar/`](../../src/plugin-host/sidecar/) — **stdio pipe IPC**（`process-transport` · `bridge` · NDJSON 协议）
+  - [`src/plugin-sdk/`](../../src/plugin-sdk/) — `defineSidecarPlugin` · hook 注册
+  - [`src/tools/store.ts`](../../src/tools/store.ts) — tool registry 合并
+  - default sidecar：tool-use-log、log-sync、context metrics（见 [`agent-run-hooks.md`](agent-run-hooks.md)）
+- **未实现：** MCP client（R2）· Rust Plugin host · UDS transport（终局，与 TS 同协议）
+- **下一步：** R2 MCP client stub；manifest 字段 stabilise 为 Spec 或 ADR
