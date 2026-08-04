@@ -38,7 +38,7 @@
 | 层 | 职责 | 代码/文档 |
 |----|------|-----------|
 | **HookDispatcher** | 固定 phase 点 → dispatch → 收集 outcome | [`src/agent/hooks/`](../../src/agent/hooks/) |
-| **Tool registry** | builtin + MCP + sidecar 暴露的 tools | [`tools/store.ts`](../../src/tools/store.ts) · [`plugin-host.md`](plugin-host.md) |
+| **Tool registry** | builtin + MCP + sidecar 暴露的 tools | [`ToolRegistry`](../../src/agent/runtime/tool-registry.ts) · [`plugin-host.md`](plugin-host.md) |
 | **Plugin host** | MCP attach、sidecar spawn、manifest | [`plugin-host.md`](plugin-host.md) |
 
 ```mermaid
@@ -171,8 +171,8 @@ permission 为 **内核 Decide**，不依赖 sidecar 加载；sidecar handler �
 |------|------|
 | HookDispatcher | [`src/agent/hooks/dispatcher.ts`](../../src/agent/hooks/dispatcher.ts) |
 | default sidecar 注册 | [`src/agent/hooks/defaults.ts`](../../src/agent/hooks/defaults.ts) |
-| Session 派生 | [`src/extensions/log-sync/`](../../src/extensions/log-sync/) |
-| tool-use-log | [`src/extensions/tool-use-log/`](../../src/extensions/tool-use-log/) |
+| Session 派生 | [`src/plugins/builtin/log-sync/`](../../src/plugins/builtin/log-sync/) |
+| tool-use-log | [`src/plugins/builtin/tool-use-log/`](../../src/plugins/builtin/tool-use-log/) |
 | permission（内核 decide） | [`src/agent/pipeline/permission/`](../../src/agent/pipeline/permission/) |
 | Agent Event fan-out | [`src/log/event-hub.ts`](../../src/log/event-hub.ts) |
 
@@ -205,7 +205,7 @@ src/log/
   event-hub.ts     — emitDraft / subscribe / setOutputs
   outputs/jsonl.ts · outputs/stderr-renderer.ts
 
-src/extensions/
+src/plugins/builtin/
   tool-use-log/ · log-sync/ · context/hook-module.ts
 
 src/plugin-host/sidecar/
@@ -232,7 +232,7 @@ TS harness：`in-process` + **stdio pipe** transport；终局 UDS 与 Rust 同 N
 
 | 层 | 名字 | 说明 |
 |----|------|------|
-| Extension 目录 | `src/extensions/tool-use-log/` | kebab-case |
+| Built-in plugin 目录 | `src/plugins/builtin/tool-use-log/` | kebab-case |
 | sidecar 模块 / handler `name` | `tool-use-log` | 注册 id |
 | Agent Event **`channel`** | `tool_use_log` | JSON 字段 snake_case |
 | Event **`kind`** | `tool_use` | 不变 |

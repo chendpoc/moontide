@@ -53,12 +53,12 @@ messages.create({ model, system, messages, tools, max_tokens })
 | 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
 | Tool name | API schema | **有** | 各 `ToolDefinition.schema.name` | |
-| Tool description | 每个 tool 一段 | **有** | [`builtins/fs-tools.ts`](../../src/builtins/fs-tools.ts) 等 | grep / code_repl 较详细 |
+| Tool description | 每个 tool 一段 | **有** | [`tools/builtins/*-tools.ts`](../../src/tools/builtins/) 等 | grep / code_repl 较详细 |
 | input_schema | JSON Schema | **有** | 同上 | |
 | 按配置启用/禁用 | 未启用不传 API | **部分** | `http_fetch` / `code_repl` / `deep_research` 条件注册 | [`register-defaults.ts`](../../src/tools/register-defaults.ts) |
 | Lazy / deferred 加载 | 先给名字，详情按需读 | **无** | 每 turn 全量 `getToolDefinitions()` | |
 | 稳定排序（cache） | 固定 tool 顺序 | **部分** | `resolveToolDefinitions()` 按 `name` 字典序 | 未显式做 cache breakpoint |
-| Extension prompt 进 tool desc | code_repl 动态拼 runtime/template | **有** | [`extensions/code-repl/index.ts`](../../src/extensions/code-repl/index.ts) | 与 system 重复列举 templates |
+| Built-in plugin prompt 进 tool desc | code_repl 动态拼 runtime/template | **有** | [`plugins/builtin/code-repl/index.ts`](../../src/plugins/builtin/code-repl/index.ts) | 与 system 重复列举 templates |
 
 **结论：** Tool 层基本齐全；缺 lazy load、与 system 的去重/单一真相源。
 

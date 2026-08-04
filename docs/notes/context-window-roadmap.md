@@ -14,7 +14,7 @@
 |---|--------|------|------|
 | **1** | **runtime-status** | 运行时观测缓存，删 `sessions.ts` 镜像 | **done** |
 | **2** | **Hook 机制终局** | `HookDispatcher` + sidecar phase；删 RunHooks/AgentPlugin/observe registry | **done** |
-| **3** | **Session Observe（C6）** | file 落盘、Agent Event 派生、dedup | **done** |
+| **3** | **Session Observe（C6）** | commit port 落盘、Agent Event 派生、dedup | **done** |
 | **4** | **instruction-state** | `load/resolve` + compose 接入；AGENTS.md / rules | **done** |
 | **5** | **LLM Provider 完善** | 协议 → Provider → model registry（C0 A–C） | **进行中** |
 | **6** | **Legacy / deprecated 清理** | 删 `@deprecated` alias、utils 抽离、event-hub 改名 | **done**（TS harness） |
@@ -40,6 +40,18 @@ flowchart TD
 
 ---
 
+## 架构修复（与 #5 并行）
+
+与功能轨独立的 **架构修复 PR 序列**，详见 [`architecture-remediation.md`](architecture-remediation.md)。
+
+| Phase | 内容 | 与六件事关系 |
+|-------|------|--------------|
+| **A P0** | §1 Session port、§10 Writer、§2 LLM Provider | §2 **即** #5 A–C |
+| **B P1** | §3–§7、§9、§16 + 规范单测 | 独立 PR 序列 |
+| **C P2** | §8、§11–§13、§15 | backlog 之后 |
+
+---
+
 ## 开发者快速入口
 
 ### 阅读顺序
@@ -57,7 +69,7 @@ flowchart TD
 |---|----------|------|
 | **1** | [`context/runtime-status.ts`](../../src/context/runtime-status.ts) | manifest/report 缓存 |
 | **2** | [`agent/hooks/`](../../src/agent/hooks/) | phases · dispatcher · registry · defaults |
-| **3** | [`extensions/log-sync/`](../../src/extensions/log-sync/) · [`tool-use-log/`](../../src/extensions/tool-use-log/) | SessionItem → AgentEvent |
+| **3** | [`plugins/builtin/log-sync/`](../../src/plugins/builtin/log-sync/) · [`tool-use-log/`](../../src/plugins/builtin/tool-use-log/) | SessionItem → AgentEvent |
 | **4** | [`instruction-state/`](../../src/instruction-state/) | load · resolve · epoch |
 | **5** | [`llm/protocol/`](../../src/llm/protocol/) · [`llm/routing/`](../../src/llm/routing/) | Provider A–C 待完善 |
 | **6** | [`utils/`](../../src/utils/) · [`storage/`](../../src/storage/) | 基础设施抽离；`log/event-hub.ts` |
@@ -93,7 +105,7 @@ Sidecar transport：**stdio pipe IPC**（非 HTTP）；终局 UDS 见 [`plugin-h
 
 | Observer | 实现 |
 |----------|------|
-| file 落盘 | `sessionItem` → `log-sync/file-item` |
+| Item 落盘 | Harness `SessionItemCommitPort` → `FileSessionItemWriter` |
 | Agent Event 派生 | `sessionItem` → `log-sync/derive-observer` |
 | context metrics | `llmCall` → context sidecar |
 | tool use log | `toolUse` → tool-use-log sidecar |
@@ -165,6 +177,7 @@ src/instruction-state/
 
 | 文档 | 关系 |
 |------|------|
+| [architecture-remediation.md](architecture-remediation.md) | Phase A–C 架构修复 |
 | [context-composer.md](../spec/context-composer.md) | C0–C6 Spec |
 | [agent-run-hooks.md](agent-run-hooks.md) | Hook 生命周期 |
 | [utils-infrastructure.md](utils-infrastructure.md) | fs / process / event-hub |

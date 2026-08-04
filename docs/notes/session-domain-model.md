@@ -22,6 +22,7 @@
 Agent appendUser/Assistant/Tool → SessionContext.messages（内存）
                                  ↓ itemsFromMessages（write-through）
                               Session Item Log (.ocula/sessions/<id>.jsonl)
+                                 ↑ 计划：commit 经 SessionItemCommitPort（Harness 注入），非 Session 内 hook
 
 Agent appendCompactionItem / appendCheckpointItem / appendRoutingItem
   → Session Item Log only（+ Store 按需）
@@ -35,15 +36,15 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 
 ## 模块
 
-| 路径 | 职责 |
-|------|------|
-| [`src/session/session.ts`](../../src/session/session.ts) | 持有 `messages[]`，`append*`，增量落盘 |
-| [`src/session/transform/`](../../src/session/transform/) | `messagesFromItems` · `itemsFromMessages` · `messagesFromContext` |
-| [`src/session/item-handlers.ts`](../../src/session/item-handlers.ts) | `applyItemToMessages` · `deriveFromSessionItem`（Item → Message / Agent Event） |
-| [`src/session/io/`](../../src/session/io/) | SessionItem ↔ jsonl |
-| [`src/context/stores/`](../../src/context/stores/) | CompactionSave / Checkpoint / Artifact FS stores |
-| [`src/context/composer/`](../../src/context/composer/) | **`composeContext`** — 唯一 LLM 输入出口 |
-| [`src/log/`](../../src/log/) | **Agent Event Log**（与 Session Item Log 严格区分） |
+| 路径 | 职责 | 计划变更 |
+|------|------|----------|
+| [`src/session/session.ts`](../../src/session/session.ts) | 持有 `messages[]`，`append*`，经 port 落盘 | **`SessionItemCommitPort`**（[架构修复 §1](architecture-remediation.md) · 已实现） |
+| [`src/session/transform/`](../../src/session/transform/) | `messagesFromItems` · `itemsFromMessages` · `messagesFromContext` | — |
+| [`src/session/item-handlers.ts`](../../src/session/item-handlers.ts) | `applyItemToMessages`（materialize） | derive 已迁至 `plugins/builtin/log-sync/`（[§3](architecture-remediation.md)） |
+| [`src/session/io/`](../../src/session/io/) | SessionItem ↔ jsonl；`FileSessionItemWriter` | Writer 由 Harness port 调用（[§10](architecture-remediation.md)） |
+| [`src/context/stores/`](../../src/context/stores/) | CompactionSave / Checkpoint / Artifact FS stores | 目标 **`session/stores/`** |
+| [`src/context/composer/`](../../src/context/composer/) | **`composeContext`** — 唯一 LLM 输入出口 | — |
+| [`src/log/`](../../src/log/) | **Agent Event Log**（与 Session Item Log 严格区分） | — |
 
 ## Invariant
 
@@ -60,6 +61,7 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 | 文档 | 关系 |
 |------|------|
 | [`context-composer.md`](../spec/context-composer.md) | 主 Spec（C0–C6） |
+| [`architecture-remediation.md`](architecture-remediation.md) | Session port · Phase A–C |
 | [`context-window-roadmap.md`](context-window-roadmap.md) | 六件事；#5 Provider 进行中 |
 | [`session-log-migration.md`](session-log-migration.md) | C1 迁移策略 |
 | [`agent-run-hooks.md`](agent-run-hooks.md) | #2–#3 Session Observe（**done**） |

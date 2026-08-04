@@ -16,11 +16,11 @@ ocula/
 │   ├── bootstrap.ts     # env / provider 初始化
 │   ├── agent/           # agent-run、loop、hooks、pipeline（runLLM / runTool）
 │   ├── instruction-state/  # AGENTS.md / rules → InstructionState
-│   ├── plugin-host/     # manifest · sidecar attach · stdio IPC
+│   ├── plugins/
+│   │   └── builtin/     # built-in plugins：log-sync、code-repl、context、deep-research
+│   ├── plugin-host/     # external plugins：manifest · sidecar attach · stdio IPC
 │   ├── plugin-sdk/      # defineSidecarPlugin
-│   ├── builtins/        # fs、git、grep、bash、http_fetch 等原生 tool
-│   ├── extensions/      # tool-use-log、log-sync、code-repl、context、deep-research
-│   ├── tools/           # registry · execute · definitions
+│   ├── tools/           # registry · execute · definitions · builtins/
 │   ├── session/         # Session Item Log 读写
 │   ├── llm/             # protocol · routing · models · client
 │   ├── cli/             # REPL 实现：commands、repl、statusline
@@ -184,7 +184,7 @@ Ocula idle · context 12.3% · turn 2
 
 ### 新增 extension tool 模板（`deep_research`）
 
-1. 在 `src/extensions/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）
+1. 在 `src/plugins/builtin/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）；core tool 实现放 `src/tools/builtins/`
 2. 在 [`register-defaults.ts`](src/tools/register-defaults.ts) 条件注册
 3. 在 [`permission/index.ts`](src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
 

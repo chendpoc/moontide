@@ -32,7 +32,7 @@ flowchart TB
   end
 
   subgraph domain [业务层]
-    agent[agent/ · builtins/]
+    agent[agent/ · tools/builtins/]
     context[context/ · log/]
     plugin[plugin-host/]
   end
@@ -68,7 +68,7 @@ flowchart TB
 |------|----------|------------|
 | [`utils/fs.ts`](../../src/utils/fs.ts) | `readText` · `writeText` · `exists` · `readLines` · `listDir` · `stat` · `renameFile` | storage、builtins、jsonl、manifest |
 | [`utils/process.ts`](../../src/utils/process.ts) | `spawnCollect` · `execFileCollect` · `execShell` | grep、git、bash、code-repl |
-| [`utils/glob.ts`](../../src/utils/glob.ts) | `globFiles` | instruction-state、builtins/fs |
+| [`utils/glob.ts`](../../src/utils/glob.ts) | `globFiles` | instruction-state、tools/builtins/fs |
 | [`utils/compress.ts`](../../src/utils/compress.ts) | `gzipBuffer` · `gunzipBuffer` | log/outputs/jsonl |
 | [`utils/hash.ts`](../../src/utils/hash.ts) | `sha256Hex` · `sha256UInt32Be` | instruction-state epoch |
 | [`utils/tmp.ts`](../../src/utils/tmp.ts) | `createTmpDir` · `removeTmpDir` | tests、code-repl tmp script |
@@ -88,7 +88,7 @@ flowchart TB
 | `setOutputs(outputs)` | 注册 JsonlWriter、StderrRenderer |
 | `subscribe(listener)` | 测试 / 扩展监听 |
 
-Hook observe 返回值中的 `EventDraft` 由 `HookDispatcher` 统一 `emitDraft`；Session 派生见 `extensions/log-sync/`。
+Hook observe 返回值中的 `EventDraft` 由 `HookDispatcher` 统一 `emitDraft`；Session 派生见 `plugins/builtin/log-sync/`。
 
 Spec：[`agent-events.md`](../spec/agent-events.md)
 

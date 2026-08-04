@@ -128,6 +128,8 @@ flowchart TB
 - Session Event Log 为权威；Agent Event Log 可从其 **派生** 或 **双写** 观测字段。
 - 第一版实现可并存；不得以 Agent Event Log 反向覆盖 Session Event Log。
 
+**Session Item 提交边界（计划修复）：** [`Session`](../../src/session/session.ts) **不得** `import agent/hooks`。Item 产生后通过注入的 **`SessionItemCommitPort`** 通知外界；**Harness**（`AgentSession.create`）注入 port：先 `FileSessionItemWriter` 落盘，再 `sessionItem` hook **仅 derive** Agent Event（**删除** manifest 中的 `sessionItem/file` handler）。port 注入 Harness 后，Session **零** `agent/` import。
+
 详见 [`agent-events.md`](agent-events.md)。
 
 ---
@@ -369,7 +371,62 @@ export interface Checkpoint {
 
 ## 10. Context Composer
 
-### 10.1 接口（TypeScript 已实现）
+### 10.1 Context Window 显式组装
+
+**定位：** Context Composer 是 **context window 的唯一显式组装器**——把组成一次 LLM 请求的全部切片列清、按固定顺序 compile 成 **`LLMRequest` + Context Manifest**。各切片由独立模块**产出**；Composer **拥有组装顺序与 Manifest**，不拥有各模块的实现。
+
+厂商 API 顶层只有 **`system` + `tools` + `messages`**（另加 `max_tokens` 等）。Ocula 侧全部内容落入这三参数，无隐藏「第 4 参数」；详见 [`llm-input.md`](llm-input.md)。
+
+#### 组装切片表
+
+| 切片 | 用户可见内容 | API 落点 | 输入模块 | Composer 步骤 |
+|------|--------------|----------|----------|---------------|
+| **S1 身份与策略** | 「You are Ocula…」、workdir、tool 选用策略 | `system` 首段 | [`instruction-state`](../../src/instruction-state/) → `basePrompt`（[`prompt.ts`](../../src/agent/prompt.ts)） | `buildSystemFromInstructionState` |
+| **S2 项目规则** | `AGENTS.md`、`.ocula/rules/*.md` | `system` 中段 | `instruction-state` → `projectRules` | 同上 |
+| **S3 用户偏好 / skills** | 个人 `agent.md`、skills（远期） | `system` 尾段 | `instruction-state` → `userMemory` / skills（**接口预留**） | 同上 |
+| **T 工具表** | 各 tool 的 name · description · schema | `tools[]` | [`tools/`](../../src/tools/) → `ToolSchema[]` | 传入或 `resolveToolDefinitions()` |
+| **M 对话时间线** | 各 turn：user prompt、assistant、tool_use、tool_result | `messages[]` | [`session/`](../../src/session/) → `SessionMessage[]` | `messagesFromContext` |
+| **M′ 压缩与窗口** | summary 注入、prune、checkpoint tail | `messages[]`（编译规则） | Session State Stores + `CompactionPolicy` | `applyTailWindow` · `applySummary` · `applyPrune` |
+| **M″ 大 tool 引用** | Artifact 全文 vs `ToolResultSummary` | `messages[]` 内 `tool_result` 文本 | Artifact Store + Item Log | materialize 时已格式化；compose 不读全文 |
+
+**一轮 user prompt** 是 **M 时间线末尾的 `role: user` 条目**，不是独立 API 字段。
+
+#### 组装流水线（目标可读性）
+
+```mermaid
+flowchart LR
+  subgraph inputs [各模块产出]
+    IS["instruction-state"]
+    TD["tools"]
+    SM["session.messages"]
+    ST["session/stores"]
+    MP["ModelProfile"]
+  end
+
+  subgraph compose ["composeContext"]
+    SYS["slice.system S1–S3"]
+    TOOLS["slice.tools T"]
+    MSG["slice.messages M+M'+M''"]
+    OUT["LLMRequest"]
+    MAN["Context Manifest"]
+  end
+
+  IS --> SYS
+  TD --> TOOLS
+  SM --> MSG
+  ST --> MSG
+  MP --> MSG
+  SYS --> OUT
+  TOOLS --> OUT
+  MSG --> OUT
+  OUT --> MAN
+```
+
+**Harness 职责：** 收集上表输入，调用 **`composeContext` 一次**；**不在** `agent-run` 内自行拼接 `system` 或重复 resolve tools。Manifest 远期应能按切片审计（各段来源、token 估算、compaction 排除了哪些 item id）。
+
+**`src/context/` 边界：** 目录收敛为 **Composer 专用**（`composer/` 及 Manifest 类型）；Session State Stores 归 `session/stores/`；Harness 运行时缓存（`runtime-status` 等）归 `agent/` 或 `cli/`。Composer **不**负责 Session Item 落盘或 Agent Event derive——见 §4。
+
+### 10.2 接口（TypeScript 已实现）
 
 ```typescript
 export interface ComposeContextInput {
@@ -397,7 +454,7 @@ export function composeContext(input: ComposeContextInput): Promise<ComposedCont
 
 **流水线：** `messages` → `messagesFromContext` → `applyTailWindow`（resume）→ `applySummary` / `applyPrune` → `toMessageParams` + Instruction State → `LLMRequest`
 
-### 10.2 Context Manifest
+### 10.3 Context Manifest
 
 ```typescript
 export interface ContextManifest {
@@ -416,7 +473,7 @@ export interface ContextManifest {
 
 - 供 statusline、Agent Event Log、`inspect_context`、远期 Fleet（TODO #12）解释「为何丢 context」。
 
-### 10.3 Loop 目标形态
+### 10.4 Loop 目标形态
 
 ```
 AgentRun:

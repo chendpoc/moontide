@@ -34,6 +34,7 @@ flowchart TB
     RM[runtime-multilang]
     PH[plugin-host]
     SP[scratchpad]
+    AFP[architecture-remediation]
   end
 
   V --> CC
@@ -51,6 +52,9 @@ flowchart TB
   CWR --> CC
   CWR --> AR
   SDM --> CC
+  AFP --> CC
+  AFP --> SDM
+  CWR --> AFP
   SLM --> CWR
   CC --> LP
   CC --> LI
@@ -71,13 +75,15 @@ flowchart TB
 |------|------|------|
 | [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
-| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
+| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
 ## 阅读路径
 
 **新人** — vision → plan → context-composer → llm-provider → llm-input
 
 **改 agent hook / 观测** — agent-run-hooks（phase · sidecar dispatch）→ ecosystem-compat（MCP/Codex 兼容）→ agent-events（Spec）
+
+**改模块边界 / 架构修复** — [agent.md](../agent.md) §2 → [architecture-remediation](notes/architecture-remediation.md) → [context-composer](spec/context-composer.md) §4/§10.1 → [session-domain-model](notes/session-domain-model.md)
 
 **接 MCP / 外部 Plugin** — ecosystem-compat → plugin-host → platform-strategy
 
@@ -105,6 +111,7 @@ flowchart TB
 | Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | plugin-host · runtime-multilang · kocoro-architecture · agent-run-hooks |
 | 插件与 MCP 集成 | [plugin-host](notes/plugin-host.md) | platform-strategy · runtime-multilang · scratchpad |
 | Context 开发计划 | [context-window-roadmap](notes/context-window-roadmap.md) | 六件事；**#5 Provider 进行中** |
+| 架构修复计划 | [architecture-remediation](notes/architecture-remediation.md) | Phase A–C；与 #5 并行 |
 | Utils / storage 分层 | [utils-infrastructure](notes/utils-infrastructure.md) | fs · process · event-hub · storage |
 | Session 域模型 | [session-domain-model](notes/session-domain-model.md) | SessionContext / Item / compose 数据流 |
 | Session 迁移 | [session-log-migration](notes/session-log-migration.md) | C1a/C1b；链到 #1 runtime-status |
@@ -130,6 +137,7 @@ flowchart TB
 | [agent-run-hooks](notes/agent-run-hooks.md) | Agent 运行时 hook：生命周期、四类语义、注册实践与 §11+ 工程落地 |
 | [context-analysis](notes/context-analysis.md) | 竞品 context window 架构对比 |
 | [context-window-roadmap](notes/context-window-roadmap.md) | **当前开发计划**：六件事（#1–#4、#6 done · #5 进行中） |
+| [architecture-remediation](notes/architecture-remediation.md) | **架构修复计划**：16 项 review · Phase A–C |
 | [utils-infrastructure](notes/utils-infrastructure.md) | Utils / storage 分层、event-hub、import 约束 |
 | [session-domain-model](notes/session-domain-model.md) | Session 类型、模块职责与 compose 数据流 |
 | [session-log-migration](notes/session-log-migration.md) | C1 双写 → compose 迁移策略 |
