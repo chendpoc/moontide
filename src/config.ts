@@ -5,6 +5,7 @@ import {
   CODE_REPL_TIMEOUT_MS_DEFAULT,
   COMPACT_KEEP_TURNS_DEFAULT,
   COMPACT_THRESHOLD_DEFAULT,
+  ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT,
   CONTEXT_LIMITS,
   DEFAULT_MODEL,
   DEEPSEEK_ANTHROPIC_BASE_URL,
@@ -76,6 +77,14 @@ export function compactThreshold(): number {
 
 export function compactAutoDefault(): boolean {
   return envFlag(OCULA_ENV.COMPACT_AUTO);
+}
+
+export function artifactSpillThresholdBytes(): number {
+  const n = Number(
+    env(OCULA_ENV.ARTIFACT_SPILL_THRESHOLD_BYTES)
+      ?? String(ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT),
+  );
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT;
 }
 
 export function codeReplDefaultRuntime(): string {

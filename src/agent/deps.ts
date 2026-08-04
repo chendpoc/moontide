@@ -1,10 +1,12 @@
 import { getWorkdir } from "../config.js";
+import type { SessionStores } from "../context/stores/index.js";
 import type { ToolContext, UserInteraction } from "../tools/types.js";
 import type { Session } from "../session/session.js";
 
 export interface LoopContext {
   userInteraction: UserInteraction;
   session: Session;
+  stores?: SessionStores;
 }
 
 const denyAllInteraction: UserInteraction = {

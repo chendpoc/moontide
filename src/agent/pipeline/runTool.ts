@@ -1,8 +1,9 @@
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
+import { maybeSpillToolResult } from "../../context/stores/spill-artifact.js";
+import { summarizeToolResultContent } from "../../session/content-map.js";
 import { createToolContext, type LoopContext } from "../deps.js";
 import { executeTool } from "../../tools/index.js";
-import { summarizeToolResultContent } from "../../session/content-map.js";
 import { notifyPlugins } from "./notify.js";
 import { checkPermission } from "./permission/index.js";
 import {
@@ -61,23 +62,36 @@ export async function runToolUse(
     toolInput: block.input as Record<string, unknown>,
     toolUseId: block.id,
   };
-  await loopCtx.session.appendToolInvocation(
-    turn,
-    block.id,
-    block.name,
-    ctx.toolInput,
-  );
   const outcome = await resolveToolUseOutcome(ctx, loopCtx);
   const modelAppends = await notifyPlugins(
     "onToolUse",
     freezeToolUseRecord({ ...ctx, outcome }),
   );
-  const content = buildModelToolResult(outcome, modelAppends);
-  await loopCtx.session.appendToolOutcome(
-    turn,
-    block.id,
-    summarizeToolResultContent(content),
-  );
+  const rawContent = buildModelToolResult(outcome, modelAppends);
+
+  let content = rawContent;
+  if (loopCtx.stores) {
+    const spilled = await maybeSpillToolResult(
+      loopCtx.session.sessionId,
+      block.id,
+      rawContent,
+      loopCtx.stores.artifacts,
+    );
+    content = spilled.content;
+    await loopCtx.session.appendToolOutcome(
+      turn,
+      block.id,
+      spilled.summary,
+      spilled.artifactId,
+    );
+  } else {
+    await loopCtx.session.appendToolOutcome(
+      turn,
+      block.id,
+      summarizeToolResultContent(rawContent),
+    );
+  }
+
   return {
     type: "tool_result",
     tool_use_id: block.id,

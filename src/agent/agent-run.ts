@@ -1,10 +1,13 @@
 import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { composeContextV1 } from "../context/composer/compose.js";
+import { composeContext } from "../context/composer/compose.js";
+import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
 import type { ComposedLLMRequest } from "../context/composer/types.js";
+import type { SessionStores } from "../context/stores/index.js";
 import { extractText } from "../llm/client/anthropic.js";
+import { resolveModelProfile } from "../llm/models/resolve.js";
+import { getToolDefinitions } from "../tools/index.js";
 import { mapSdkContentBlocks } from "../session/content-map.js";
-import { SessionLogSlice } from "../session/log-slice.js";
 import type { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
 import { buildSystemPrompt } from "./prompt.js";
@@ -12,19 +15,32 @@ import { runLLM } from "./pipeline/runLLM.js";
 import { runToolUses } from "./pipeline/runTool.js";
 import { finalizeRunFromHooks, type RunHooks } from "./run-hooks.js";
 
+export interface AgentRunComposeOptions {
+  resumeFromCheckpointId?: string;
+  activeCompactionSaveId?: string;
+  getCompactionPolicy: () => CompactionPolicy;
+  onAfterCompose?: () => void;
+}
+
 export class AgentRun {
   private readonly session: Session;
+  private readonly stores: SessionStores;
   private readonly loopCtx: LoopContext;
   private readonly hooks: RunHooks;
+  private readonly composeOptions: AgentRunComposeOptions;
 
   constructor(
     session: Session,
+    stores: SessionStores,
     loopCtx: LoopContext,
     hooks: RunHooks,
+    composeOptions: AgentRunComposeOptions,
   ) {
     this.session = session;
+    this.stores = stores;
     this.loopCtx = loopCtx;
     this.hooks = hooks;
+    this.composeOptions = composeOptions;
   }
 
   async execute(userPrompt: string): Promise<{ reply: string; turn: number }> {
@@ -53,10 +69,24 @@ export class AgentRun {
   }
 
   private async buildInput(runTurn: number): Promise<ComposedLLMRequest> {
-    const system = buildSystemPrompt();
-    const slice = await SessionLogSlice.fromSession(this.session);
-    const messages = slice.toMessageParams();
-    const composed = composeContextV1({ turn: runTurn, messages, system });
+    const composed = await composeContext({
+      sessionId: this.session.sessionId,
+      turn: runTurn,
+      messages: this.session.getMessages(),
+      instructionState: {
+        basePrompt: buildSystemPrompt(),
+        epoch: 1,
+      },
+      artifactStore: this.stores.artifacts,
+      compactionStore: this.stores.compaction,
+      checkpointStore: this.stores.checkpoints,
+      toolDefinitions: getToolDefinitions(),
+      modelProfile: resolveModelProfile(),
+      compactionPolicy: this.composeOptions.getCompactionPolicy(),
+      resumeFromCheckpointId: this.composeOptions.resumeFromCheckpointId,
+      activeCompactionSaveId: this.composeOptions.activeCompactionSaveId,
+    });
+    this.composeOptions.onAfterCompose?.();
     return composed.request as ComposedLLMRequest;
   }
 
