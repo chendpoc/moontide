@@ -16,7 +16,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 | API 参数 | 含义 | Ocula 谁组装 | 现状 |
 |----------|------|----------------|------|
-| `system` | 静态/半静态指令 | [`src/agent/loop.ts`](../../src/agent/loop.ts) → `buildSystemPrompt()` | 有，每 turn 重建 |
+| `system` | 静态/半静态指令 | [`composeContext`](../../src/context/composer/compose.ts) → `buildSystemFromInstructionState` | 有，每 turn 由 Instruction State 组装 |
 | `tools` | 工具名 + description + schema | [`src/tools/index.ts`](../../src/tools/index.ts) → `getToolDefinitions()` | 有，按 config 动态注册 |
 | `messages` | 对话时间线 | REPL / `runAgent` 创建数组，`loop.ts` append | 有，**单一可变数组** |
 | `max_tokens` | 单次输出上限 | [`src/constants/llm.ts`](../../src/constants/llm.ts) `DEFAULT_MAX_TOKENS=8000` | 有，与 context 预算分开 |
@@ -39,12 +39,12 @@ messages.create({ model, system, messages, tools, max_tokens })
 | 工作区路径 | cwd / workdir | **有** | `prompt.ts` → `getWorkdir()` | 动态注入 |
 | 全局 tool 选用策略 | prefer read_file over bash 等 | **有** | `prompt.ts` L8–11 | 与部分 tool description 重复 |
 | Extension 使用说明 | code_repl runtime、templates | **有（混在 system）** | `prompt.ts` L14–23 | code_repl schema 里也有长 description |
-| 项目规则 | `AGENTS.md` / `CLAUDE.md` | **无** | — | 未读 repo 指令文件 |
-| 用户偏好 / 长期记忆 | `~/.ocula/` 或 MEMORY.md，每轮 re-inject | **无** | — | 远期 **Instruction State**（[`context-composer.md`](context-composer.md)） |
+| 项目规则 | `AGENTS.md` / `CLAUDE.md` / `.ocula/rules/*.md` | **有** | [`instruction-state/load.ts`](../../src/instruction-state/load.ts) | 经 `resolveInstructionState` → compose |
+| 用户偏好 / 长期记忆 | `~/.ocula/` 或 MEMORY.md，每轮 re-inject | **无** | — | `InstructionState.userMemory` 接口预留 |
 | 权限 / 审批提示 | "bash 可能需用户确认" | **无** | permission 在 [`runTool.ts`](../../src/agent/pipeline/runTool.ts) 执行层 | 模型不可见 |
 | 压缩摘要 | 通常放 **messages**，不是 system | — | `/compact summary` 进 messages | 见 §4 |
 
-**结论：** 今天 `system` ≈ 手写 [`prompt.ts`](../../src/agent/prompt.ts) 一整块；无 project rules / personal memory 独立来源。
+**结论：** `system` = `buildDefaultBasePrompt` + project rules（[`instruction-state/`](../../src/instruction-state/)）；无 personal memory 文件源。
 
 ---
 
@@ -74,9 +74,9 @@ messages.create({ model, system, messages, tools, max_tokens })
 | Assistant tool 调用 | `tool_use` blocks | **有** | 模型返回，原样 push | |
 | Tool 执行结果 | `role: user` + `tool_result` | **有** | [`runToolUses`](../../src/agent/pipeline/runTool.ts) | 大输出 spill → summary |
 | Thinking（若模型支持） | assistant thinking block | **有（若 API 返回）** | compose `applyPrune` 可 strip | [`apply-prune.ts`](../../src/context/composer/compaction/apply-prune.ts) |
-| 旧对话 LLM 摘要 | synthetic user message | **有** | `/compact summary` → **CompactionSave** | compose `applySummary` 投影 |
+| 旧对话 LLM 摘要 | synthetic user message | **有** | `/compact summary` → **CompactionSave** | compose `applySummary` 注入摘要 |
 | 大 tool 输出外置 + 短引用 | artifact 文件 + `ToolResultSummary` | **有** | Artifact spill + `formatToolSummary` | 默认 8KB 阈值 |
-| 完整归档 vs 发给模型 | Session Item Log 与投影分离 | **有** | SessionContext + `composeContext` | 见 [`context-composer.md`](context-composer.md) |
+| 完整归档 vs 发给模型 | Session Item Log 与 LLM input 分离 | **有** | SessionContext + `composeContext` | 见 [`context-composer.md`](context-composer.md) |
 | 多模态（图片等） | message content blocks | **无** | 仅 string / tool blocks | |
 
 ### 当前数据流
@@ -109,9 +109,9 @@ flowchart LR
 
 | 项 | 作用 | Ocula |
 |----|------|---------|
-| Context 用量估算 | 决定是否 compact | **有** — [`src/context/`](../../src/context/) metrics + context plugin |
-| Event JSONL | 观测 / UI tail | **有** — 与发给模型的 messages **不是同一份** |
-| `sessions.ts` | inspect_context / statusline | **有** — 存 messages **引用**，非 Session Event Log |
+| Context 用量估算 | 决定是否 compact | **有** — [`context/metrics`](../../src/context/metrics.ts) + context sidecar hook |
+| Event JSONL | 观测 / UI tail | **有** — [`log/event-hub`](../../src/log/event-hub.ts) fan-out；与 LLM messages **分离** |
+| `runtime-status.ts` | inspect_context / statusline | **有** — 仅 manifest/report，不镜像 messages |
 | Model context limit | 预算阈值 | **有但可能过时** — [`constants/llm.ts`](../../src/constants/llm.ts) 128K（DeepSeek 官方 1M） |
 | Provider / Model 选型 | 谁发 HTTP、用哪个 model | **未分层** — 目标见 [`llm-provider.md`](llm-provider.md)（API 适配方案 A：`LLMProvider` + adapter） |
 | adapter / normalize | SDK 与协议翻译 | **未分层** — 目标见 [`llm-provider.md` §5–§8](llm-provider.md#5-api-适配选型方案-a) |
@@ -122,10 +122,11 @@ flowchart LR
 
 | 优先级 | 缺口 | 今天表现 | 建议方向（Ocula 演进，未实现） |
 |--------|------|----------|----------------------------------|
-| P0 | messages 一物两用 | ~~loop 原地 splice~~ | **done** — `composeContext` 投影 |
-| P0 | 无 project / memory 注入 | 仅 `prompt.ts` | **Instruction State** 接口就绪；文件源 pending |
+| P0 | messages 一物两用 | ~~loop 原地 splice~~ | **done** — `composeContext` 编译 |
+| P0 | 无 project / memory 注入 | ~~仅 `prompt.ts`~~ | **done** — project rules 经 instruction-state；userMemory 仍 pending |
 | P1 | tool 输出全量进 messages | ~~大 read 全文~~ | **done** — Artifact spill + summary |
-| P1 | instruction 可被 compact 间接丢 | summary 只摘要对话 | Instruction State 每轮重建（`prompt.ts`） |
+| P1 | `sessions.ts` 镜像 messages | ~~statusline 读引用~~ | **done** — `runtime-status.ts` |
+| P1 | instruction 可被 compact 间接丢 | summary 只摘要对话 | **done** — Instruction State 每轮 `resolveInstructionState` 重建 |
 | P2 | Compaction 与恢复未分层 | — | **done** — CompactionSave / Checkpoint / `/compact` |
 | P2 | context limit 128K | 与 DeepSeek 1M 不一致 | **model 注册表** + `ModelProfile`，见 [`llm-provider.md`](llm-provider.md) |
 | P2 | Provider / Model 绑 Anthropic SDK | 仅 DeepSeek compat | API 适配方案 A：Preset + `LLMProvider` + 4 协议族 adapter，见 [`llm-provider.md`](llm-provider.md) |
@@ -134,14 +135,15 @@ flowchart LR
 
 ## 8. 一句话总结
 
-**Ocula 今天已覆盖：** `system`（`prompt.ts` / Instruction State）+ `tools` + `messages`（经 **`composeContext`** 投影）；大 tool 输出 **Artifact spill**；**CompactionSave** summary；**Checkpoint** resume。
+**Ocula 今天已覆盖：** `system`（Instruction State：`prompt.ts` + `AGENTS.md` / rules）+ `tools` + `messages`（经 **`composeContext`** 编译）；大 tool 输出 **Artifact spill**；**CompactionSave** summary；**Checkpoint** resume；**runtime-status** 观测缓存。
 
-**尚未覆盖：** `AGENTS.md` 文件源 Instruction State、`read_artifact` tool、Provider 分层——见 [`context-composer.md`](context-composer.md) C3/C6。
+**尚未覆盖：** personal memory 文件源、`read_artifact` tool、Provider A–C 分层 — 见 [`context-window-roadmap.md`](../notes/context-window-roadmap.md) **#5**。
 
 ---
 
 ## 相关文档
 
+- [`context-window-roadmap.md`](../notes/context-window-roadmap.md) — 当前六件事执行计划
 - [`context-composer.md`](context-composer.md) — Session Event Log、Context Composer、Compaction / Checkpoint
 - [`context-backlog.md`](../notes/context-backlog.md) — Context 演进特性（分账、IR、实验与 Deferred）
 - [`llm-provider.md`](llm-provider.md) — API 适配方案 A、Provider Preset、`LLMRequest`、`ModelProfile`

@@ -20,9 +20,14 @@ flowchart TB
   end
 
   subgraph notes["notes/"]
+    CWR[context-window-roadmap]
     AR[agent-run-hooks]
+    UI[utils-infrastructure]
+    EC[ecosystem-compat]
     CA[context-analysis]
     CB[context-backlog]
+    SDM[session-domain-model]
+    SLM[session-log-migration]
     EL[edge-local-models]
     KO[kocoro-architecture]
     SH[session-handoff]
@@ -35,11 +40,18 @@ flowchart TB
   V --> PS
   PS --> RM
   PS --> AR
+  AR --> EC
+  PH --> EC
   PS --> PH
   PH --> RM
   PH -.-> AE
   P --> AE
   AR -.-> AE
+  CWR --> UI
+  CWR --> CC
+  CWR --> AR
+  SDM --> CC
+  SLM --> CWR
   CC --> LP
   CC --> LI
   LP --> LI
@@ -59,15 +71,17 @@ flowchart TB
 |------|------|------|
 | [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
-| [`notes/`](notes/) | 参考 / 候选 | [agent-run-hooks](notes/agent-run-hooks.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
+| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
 ## 阅读路径
 
 **新人** — vision → plan → context-composer → llm-provider → llm-input
 
-**改 agent hook / 观测** — agent-run-hooks（生命周期与注册）→ agent-events（Spec）
+**改 agent hook / 观测** — agent-run-hooks（phase · sidecar dispatch）→ ecosystem-compat（MCP/Codex 兼容）→ agent-events（Spec）
 
-**改 context** — context-composer（主 Spec）→ context-backlog（演进候选）→ context-analysis（行业背景）
+**接 MCP / 外部 Plugin** — ecosystem-compat → plugin-host → platform-strategy
+
+**改 context** — [context-window-roadmap](notes/context-window-roadmap.md)（**当前开发计划 · #5 Provider 进行中**）→ [session-domain-model](notes/session-domain-model.md)（类型/数据流）→ context-composer（主 Spec）→ agent-run-hooks（Session/Turn Observe）→ [utils-infrastructure](notes/utils-infrastructure.md) → context-backlog（C6+ 演进）→ context-analysis（行业背景）
 
 **跨 agent 交接** — session-handoff（产品讨论）→ context-composer（Session Log / Composer）→ vision（Zephyr 远期）
 
@@ -90,6 +104,10 @@ flowchart TB
 | Agent hook 设计 | [agent-run-hooks](notes/agent-run-hooks.md) | agent-events · session-log-migration · platform-strategy |
 | Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | plugin-host · runtime-multilang · kocoro-architecture · agent-run-hooks |
 | 插件与 MCP 集成 | [plugin-host](notes/plugin-host.md) | platform-strategy · runtime-multilang · scratchpad |
+| Context 开发计划 | [context-window-roadmap](notes/context-window-roadmap.md) | 六件事；**#5 Provider 进行中** |
+| Utils / storage 分层 | [utils-infrastructure](notes/utils-infrastructure.md) | fs · process · event-hub · storage |
+| Session 域模型 | [session-domain-model](notes/session-domain-model.md) | SessionContext / Item / compose 数据流 |
+| Session 迁移 | [session-log-migration](notes/session-log-migration.md) | C1a/C1b；链到 #1 runtime-status |
 | Context 演进 | [context-backlog](notes/context-backlog.md) | context-composer · context-analysis |
 | 跨 agent 交接 | [session-handoff](notes/session-handoff.md) | context-composer · vision（Zephyr） |
 | Edge 本地推理 | [edge-local-models](notes/edge-local-models.md) | llm-provider · runtime-multilang · kocoro-architecture |
@@ -111,7 +129,11 @@ flowchart TB
 | [agent-events](spec/agent-events.md) | Agent Event Log（run 级 JSONL）schema |
 | [agent-run-hooks](notes/agent-run-hooks.md) | Agent 运行时 hook：生命周期、四类语义、注册实践与 §11+ 工程落地 |
 | [context-analysis](notes/context-analysis.md) | 竞品 context window 架构对比 |
-| [context-backlog](notes/context-backlog.md) | Context 演进特性候选（非实现承诺） |
+| [context-window-roadmap](notes/context-window-roadmap.md) | **当前开发计划**：六件事（#1–#4、#6 done · #5 进行中） |
+| [utils-infrastructure](notes/utils-infrastructure.md) | Utils / storage 分层、event-hub、import 约束 |
+| [session-domain-model](notes/session-domain-model.md) | Session 类型、模块职责与 compose 数据流 |
+| [session-log-migration](notes/session-log-migration.md) | C1 双写 → compose 迁移策略 |
+| [context-backlog](notes/context-backlog.md) | Context 演进特性候选（C6+ 之后，非实现承诺） |
 | [edge-local-models](notes/edge-local-models.md) | Edge 小模型：catalog pull、Cloud train only、`ocula-infer` |
 | [kocoro-architecture](notes/kocoro-architecture.md) | Kocoro/Shannon 架构参考与 Ocula 对照 |
 | [session-handoff](notes/session-handoff.md) | 跨 agent 会话交接：价值、分层方案、业界 gap |

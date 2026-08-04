@@ -20,8 +20,16 @@
 
 - [ ] **5. 虚拟人物**
 
-- [ ] **6. Session — Bruma**
-  - **Session Event Log**（`.ocula/sessions/<sessionId>.jsonl`）作为会话事实源；Spec 见 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)，演进特性见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)
+- [ ] **6. Session — Context Window 后续（C6+）**
+  - C1–C6 **done**（TS harness）
+  - 开发计划（六件事）：[`docs/notes/context-window-roadmap.md`](docs/notes/context-window-roadmap.md)
+    1. ~~runtime-status~~ **done**
+    2. ~~Hook/Plugin 内核机制~~ **done** — HookDispatcher + sidecar
+    3. ~~Session Observe~~ **done** — log-sync · event-hub
+    4. ~~instruction-state~~ **done**
+    5. **LLM Provider A–C** — **进行中**
+    6. ~~legacy / deprecated 清理 + utils 抽离~~ **done**
+  - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/notes/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/notes/context-backlog.md)
 
 - [ ] **7. Feature 基线性能测试套件**
   - 自动化测试完善

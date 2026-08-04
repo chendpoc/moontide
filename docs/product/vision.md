@@ -5,7 +5,7 @@
 > Doc Map：[`docs/README.md`](../README.md) · 任务清单：[`TODO.md`](../../TODO.md)
 
 本仓库交付的是 **Ocula** — 最小可用的 coding agent CLI + Slint sidecar。  
-**Ocula** 来自 *oculus*（眼 / 观测），与 AgentEvent、trace、audit 等观测语义一致。
+**Ocula** 来自 *oculus*（眼 / 观测），与 AgentEvent、trace、tool use log 等观测语义一致。
 
 文档、代码、CLI、配置目录（`.ocula/`）、环境变量（`OCULA_*`）统一使用 **Ocula**。不使用下文**保留产品名**或**组件代号**指称当前产品或实现模块。
 
@@ -73,7 +73,7 @@ flowchart TB
 
 ### 备忘（非现行规格）
 
-- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 `LLMRequest` 投影。Spec：[`context-composer.md`](../spec/context-composer.md)；在 Ocula 中由 `src/context/` 等模块逐步演进。
+- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 **`LLMRequest` 编译产物**。Spec：[`context-composer.md`](../spec/context-composer.md)；在 Ocula 中由 `src/context/` 等模块逐步演进。
 - **MoonTide / Tide / Fleet / Buoy** — 桌面 shell 与 panel 设想，见 [`TODO.md`](../../TODO.md)。
 - **Zephyr** — 跨 Cursor / Claude Code / Codex 等工具的会话管理与迁移，远期。
 - **Lyra** — 曾为 harness 候选名；若未来单独发产品线再启用，当前 harness 即 **Ocula**。

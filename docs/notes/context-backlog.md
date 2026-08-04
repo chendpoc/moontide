@@ -1,7 +1,7 @@
 # Ocula Context Window 特性 Backlog
 
 > Context Composer **演进特性**候选：优先级、设计要点、代价与阶段。  
-> **非实现承诺** — 选型与排期以 [`context-composer.md`](../spec/context-composer.md) 主路径（C0–C6）为准。
+> **非实现承诺** — 当前主路径见 [`context-window-roadmap.md`](context-window-roadmap.md)（六件事）；C6+ 之后择项见本文。
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 顺序 | 文档 | 内容 |
 |------|------|------|
+| 0 | [`context-window-roadmap.md`](context-window-roadmap.md) | **当前开发计划**（六件事） |
 | 1 | [`context-composer.md`](../spec/context-composer.md) | 已定 Spec：Session Event Log、State Stores、Composer、Compaction / Checkpoint |
 | 2 | **本文** | 分账、Structured IR、实验 Compose、backlog 特性、Deferred 项 |
 | 3 | [`context-analysis.md`](context-analysis.md) | 行业 SOTA 与 CS 类比背景 |
@@ -54,7 +55,7 @@ flowchart LR
 | Tier | 名称 | 内容 | 策略 |
 |------|------|------|------|
 | **L1 Pinned** | 固定指令与工具 schema | Instruction State + Tool Definitions + 活跃 Compaction Record（若有） | **不参与** Compaction 压缩；超支时压 L2 或报错 |
-| **L2 Dialogue** | 对话投影 | `messages` 中 user / assistant / tool 可见部分 | prune / tail_window / summary |
+| **L2 Dialogue** | 对话层 compose 输入 | `messages` 中 user / assistant / tool 可见部分 | prune / tail_window / summary |
 | **L3 Reference** | 外置引用 | `ToolResultSummary`、短引用 | 全文 **never inline**；配额上限 |
 | **L4 Reserved** | 输出预留 | 本轮 max output + thinking 头room | 从 `ModelProfile.contextWindow` **先扣减**，再分配 L1–L3 |
 
@@ -211,9 +212,9 @@ Compose 时的 **可选实验策略**：
 
 | 手段 | 说明 |
 |------|------|
-| **Artifact + ToolResultSummary** | 全文在 Artifact Store；投影只保留 `ToolResultSummary` |
+| **Artifact + ToolResultSummary** | 全文在 Artifact Store；compose 默认只含 `ToolResultSummary` |
 | **Content hash（CDC）** | `hash(content) → artifactId`；相同内容 **共用** 一份存储与引用 |
-| **Compose 块去重** | 同一 turn 投影合并 identical `ContentBlock` |
+| **Compose 块去重** | 同一 turn compose 输入合并 identical `ContentBlock` |
 | **IR 引用** | 对话中「见 Compaction Record `<id>`」而非重复结构化事实 |
 
 **CDC ≠ CPU L1 cache：** CDC 是 **内容相同只存一份**；recent working set（热 tail）是 **时间局部性**，二者可并用。
@@ -243,7 +244,7 @@ Compose 时的 **可选实验策略**：
 
 | | **When（触发）** | **Validate（验证）** |
 |---|------------------|----------------------|
-| 关注点 | 何时执行 Compaction | Compaction **之后** 投影是否仍合法 |
+| 关注点 | 何时执行 Compaction | Compaction **之后** compose 产出是否仍合法 |
 | 第一版 | token 压力 / 阈值（沿用 [`compact.ts`](../../src/context/compact.ts) 思路） | **不做** |
 | 远期示例 | 分级压力 | instruction 已注入；tool 配对完整；tier 未越界；失败 → mechanical fallback |
 
@@ -266,9 +267,9 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 
 | 历史实践 | Ocula 映射 |
 |----------|--------------|
-| 虚拟内存 / working set | Session Event Log + Composer 投影 |
+| 虚拟内存 / working set | Session Event Log + Composer 编译 |
 | WAL + snapshot | Checkpoint + immutable `LLMRequest` |
-| 日志结构存储 + segment GC | append-only log；Compaction 整理 **投影** |
+| 日志结构存储 + segment GC | append-only log；Compaction 整理 **compose 规则** |
 | 编译 IR | Structured Compaction Record |
 | 内容寻址 | Artifact CDC |
 | cgroup 分账 | Context Budget Tiers L1–L4 |

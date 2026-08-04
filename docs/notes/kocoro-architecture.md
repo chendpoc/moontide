@@ -189,7 +189,7 @@ Infer **不要**进 WASM；沙箱 **不要**扛 GB 权重。
 | 3 | Small-tier preflight before main LLM | Model Router v2：0.8B 本地做 intent / memory intent | [edge-local-models.md](edge-local-models.md)、[llm-provider.md](../spec/llm-provider.md) §10 |
 | 4 | `runLLM` 是唯一 LLM 出口 | 已实现 seam；cloud / local-direct 都走 `LLMProvider` | [`runLLM.ts`](../../src/agent/pipeline/runLLM.ts) |
 | 5 | Tool spill 三层 budget | 对齐 tool artifact + prune；避免 `messages[]` splice 丢事实 | [context-composer.md](../spec/context-composer.md) |
-| 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 投影一致 | [llm-input.md](../spec/llm-input.md) |
+| 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 解析一致 | [llm-input.md](../spec/llm-input.md) |
 | 7 | Daemon HTTP + SSE 本地 API | 远期：Ocula daemon 模式（IM / 自动化），不只 REPL | [runtime-multilang.md](runtime-multilang.md) |
 | 8 | Desktop reverse RPC for TCC | Slint host UDS：审批 UI、系统 API broker | `ui/` Rust、`runtime-multilang.md` |
 | 9 | Capability token on handshake | WS/IPC 版本协商；避免 UI 与 engine 耦合 | [agent-events.md](../spec/agent-events.md) 观测字段扩展 |

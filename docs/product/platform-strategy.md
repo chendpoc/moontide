@@ -80,10 +80,12 @@ flowchart TB
 
 ## 4. 三层扩展互操作
 
+兼容分层（P0/P1/P2）见 [`ecosystem-compat.md`](../notes/ecosystem-compat.md)。
+
 | 层 | 机制 | 用户需 Node？ | 兼容承诺 |
 |----|------|---------------|----------|
 | **L1 MCP** | Rust MCP client；配置 stdio / HTTP server | stdio 时通常要（`npx`）或 remote HTTP | 与 Codex/Claude **工具 server 生态**对齐 |
-| **L2 Ocula Plugin SDK** | 可选 **Node sidecar**；TS 插件 + hook | sidecar pack 或 PATH 有 node | **Ocula 自有协议**；承载 trace/audit/code-repl 等 |
+| **L2 Ocula Plugin SDK** | 可选 **Node sidecar**；TS 插件 + hook | sidecar pack 或 PATH 有 node | **Ocula 自有协议**；承载 tool-use-log / context / code-repl 等 |
 | **L3 Adapter** | `pi-compat` / 社区包装 | 视 adapter | **不承诺** OpenCode/Pi 插件零改即用 |
 
 **「无缝 npm 生态」的诚实定义：**
@@ -174,7 +176,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 
 **TS 仓库角色：** R0 之前与并行期 — 参考实现、测试金标准、sidecar 宿主；release 二进制以 Rust 为准。
 
-**Hook 内核：** 见 [`agent-run-hooks.md`](../notes/agent-run-hooks.md) §11+（LoopConfig + HookRunner，与 Pi `createLoopConfig` 对齐）。
+**Hook 内核：** 见 [`agent-run-hooks.md`](../notes/agent-run-hooks.md)（HookDispatcher + phase · sidecar-first）。
 
 ---
 

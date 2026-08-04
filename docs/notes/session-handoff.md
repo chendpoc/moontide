@@ -83,13 +83,13 @@
 | **Session Event Log** | `.ocula/sessions/<id>.jsonl` — append-only 事实源 |
 | **Compaction Record** | structured / summary 压缩产物 |
 | **Checkpoint** | 某 turn 可恢复快照 |
-| **Context Composer** | 按目标 agent 窗口与用途做**投影**，非整包塞入 |
+| **Context Composer** | 按目标 agent 窗口与用途**编译 LLMRequest**，非整包塞入 |
 
 跨 agent 共享的理想形态：
 
 ```mermaid
 flowchart LR
-  A["Session A\nEvent Log"] --> C["Context Composer\n按 consumer 投影"]
+  A["Session A\nEvent Log"] --> C["Context Composer\n按 consumer 编译"]
   C --> B1["Agent B: 实现\nbrief + 最近 N turn"]
   C --> B2["Agent C: 审查\决策链 + 关键 tool 结果"]
   C --> B3["Agent D: 迁移\n结构化 export"]
@@ -110,14 +110,14 @@ export interface StructuredPayload {
 
 OpenCode V2 compaction checkpoint 含 objective、blocked work、next move、relevant files，是业界最接近 explicit handoff 的内部形态（见 [`context-analysis.md`](context-analysis.md) § OpenCode V2）。
 
-### 4.3 外部对话（如 ChatGPT）：Import → Normalize → Project
+### 4.3 外部对话（如 ChatGPT）：Import → Normalize → Compile
 
 ```
 ChatGPT export (JSON)
     → 归一化为 SessionLogEntry
     → 可选：自动 compaction / 提取 brief
     → 新 session 或 attach 到当前 session 的「外部上下文」槽
-    → Composer 只投影相关 slice
+    → Composer 只编译相关 slice
 ```
 
 用户侧 UX 候选：
@@ -147,7 +147,7 @@ P0 覆盖约 80% 痛点；P1/P2 依赖 Session Event Log + Composer 落地。
 ## 6. 设计原则
 
 1. **Share ≠ Dump** — 默认 brief + 引用；全量 transcript 按需拉取
-2. **Fact vs Projection 分离** — Session Log 是事实；给不同 agent 看的是不同投影（Composer invariant）
+2. **Fact vs Compile 分离** — Session Log 是事实；给不同 agent 的是不同 **LLMRequest 编译产物**（Composer invariant）
 3. **Redaction 默认开启** — export / handoff 时脱敏 API key、PII
 4. **显式消费意图** — 「继续干活」vs「审查」vs「迁移」产出不同 brief 模板
 5. **指针优于复制** — `@session:abc#turn-42`、`docs/plan.md` 优于重复粘贴长文本
@@ -181,7 +181,7 @@ Codex、Claude Code、Cursor 核心 loop：
 ```
 
 工程投入集中在 compact、resume、tool output 截断/归档 — 延续**同一条工作线**。  
-「Session A 编译成 Agent B 能读的投影」需 consumer model/tools/instructions 参与，复杂度跳档。
+「Session A 编译成 Agent B 能读的 LLMRequest」需 consumer model/tools/instructions 参与，复杂度跳档。
 
 **2. 商业 — 跨产品 share = 迁移，非 retention**
 
@@ -243,7 +243,7 @@ Multi-agent 工作流未成为主流前，friction 不足以驱动平台投入�
 
 1. **不必等 Codex** — 其优化目标是单 agent coding loop，非 cross-agent knowledge transfer
 2. **P0 即可差异化** — handoff brief + session export + `@session:id` 选择性 attach；不必等完整 Zephyr
-3. **架构走对路** — Session Event Log 是 share 前提；Composer 按 consumer 投影是实现；与 compaction/resume 共用基础设施
+3. **架构走对路** — Session Event Log 是 share 前提；Composer 按 consumer 编译是实现；与 compaction/resume 共用基础设施
 4. **命名** — 内部：checkpoint / successor brief / fork context；用户侧：「交接」「引用会话」「attach context」比泛化「share」更准
 
 ---
@@ -252,7 +252,7 @@ Multi-agent 工作流未成为主流前，friction 不足以驱动平台投入�
 
 | 文档 | 关系 |
 |------|------|
-| [`context-composer.md`](../spec/context-composer.md) | Session Event Log、Compaction Record、Checkpoint、Composer 投影 — handoff 的实现基础 |
+| [`context-composer.md`](../spec/context-composer.md) | Session Event Log、Compaction Record、Checkpoint、Composer 编译 — handoff 的实现基础 |
 | [`context-analysis.md`](context-analysis.md) | 竞品 resume / compaction / subagent 对比 |
 | [`context-backlog.md`](context-backlog.md) | 演进特性排期；handoff 可作为 Backlog 独立 feature |
 | [`vision.md`](../product/vision.md) | Zephyr = 跨产品迁移远期方向 |

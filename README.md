@@ -1,6 +1,6 @@
 # Ocula
 
-**Ocula** — /AH-kyoo-lah/ · 最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / audit 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
+**Ocula** — /AH-kyoo-lah/ · 最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / tool-use-log 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
 
 当前开发优先级与非目标见 [`docs/product/plan.md`](docs/product/plan.md)。设计文档索引见 [`docs/README.md`](docs/README.md)（Doc Map）。
 
@@ -14,13 +14,20 @@ ocula/
 ├── src/
 │   ├── main.ts          # 进程入口（REPL）
 │   ├── bootstrap.ts     # env / provider 初始化
-│   ├── agent/           # loop、prompt、pipeline（runLLM / runTool）、tools
+│   ├── agent/           # agent-run、loop、hooks、pipeline（runLLM / runTool）
+│   ├── instruction-state/  # AGENTS.md / rules → InstructionState
+│   ├── plugin-host/     # manifest · sidecar attach · stdio IPC
+│   ├── plugin-sdk/      # defineSidecarPlugin
 │   ├── builtins/        # fs、git、grep、bash、http_fetch 等原生 tool
-│   ├── extensions/      # audit、code-repl、context、trace、deep-research
-│   ├── llm/             # client、healthcheck（`pnpm run ping`）
+│   ├── extensions/      # tool-use-log、log-sync、code-repl、context、deep-research
+│   ├── tools/           # registry · execute · definitions
+│   ├── session/         # Session Item Log 读写
+│   ├── llm/             # protocol · routing · models · client
 │   ├── cli/             # REPL 实现：commands、repl、statusline
-│   ├── log/             # AgentEvent bus、orchestrator、JSONL writer
-│   ├── context/         # metrics、sessions、compact
+│   ├── log/             # event-hub、JSONL writer、stderr renderer
+│   ├── context/         # composer、stores、runtime-status、compact
+│   ├── storage/         # fs 约定 · list-json
+│   ├── utils/           # fs · process · glob · compress · hash · tmp · path
 │   └── constants/       # storage、llm、env 等常量
 ├── scripts/
 │   └── cursor-statusline.ts
@@ -104,7 +111,7 @@ pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
 | `conversation` | user_prompt、final |
 | `trace` | thinking、tool_use、tool_result |
 | `context` | metrics_pre、metrics_post、context_compact |
-| `audit` | tool 审计 |
+| `tool_use_log` | 每次 tool 调用记录（toolName、状态） |
 
 Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文件模式一致）。
 
@@ -123,13 +130,13 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 |------|-------------|----------|
 | **off（默认）** | 无 trace/context 噪音 | — |
 | **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULA_THINKING=1` |
-| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ audit/conversation `EVENT` 标记 | `/verbose on` 或 `OCULA_VERBOSE=1` |
+| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ tool_use_log/conversation `EVENT` 标记 | `/verbose on` 或 `OCULA_VERBOSE=1` |
 
 run event log **始终写入**；thinking/verbose 只控制 stderr 是否同步打印美化块。
 
 ```sh
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
-/verbose on     # 完整 debug：context 盒 + audit + conversation
+/verbose on     # 完整 debug：context 盒 + tool_use_log + conversation
 /thinking status
 ```
 
@@ -149,15 +156,15 @@ Ocula idle · context 12.3% · turn 2
 | `/reset` | 清空 session（messages + metrics） |
 | `/status` | verbose statusline + auto-compact 状态 |
 | `/workdir [path]` | 查看或切换 workspace |
-| `/compact` | prune 旧 tool_result（写 compaction Item，下轮 compose 投影） |
+| `/compact` | prune 旧 tool_result（写 compaction Item，下轮 compose 编译） |
 | `/compact preview` | dry-run token 估算 |
-| `/compact summary` | LLM 摘要 → **CompactionSave** + compose 投影（额外 API） |
+| `/compact summary` | LLM 摘要 → **CompactionSave** + compose 编译（额外 API） |
 | `/compact auto on\|off` | 超阈值自动 prune（compose 内，不写 Item Log） |
 | `/checkpoint [label]` | 创建 Checkpoint 快照 |
 | `/checkpoint list` | 列出当前 session 的 Checkpoint |
 | `/resume <checkpoint-id>` | 恢复可见消息窗口（Item Log 不删） |
 | `/thinking on\|off\|status` | 调用链 trace（thinking / tool / result） |
-| `/verbose on\|off\|status` | 完整 debug trace（含 context / audit） |
+| `/verbose on\|off\|status` | 完整 debug trace（含 context / tool_use_log） |
 
 ### 工具
 
@@ -230,7 +237,7 @@ Ocula idle · context 12.3% · turn 2
 | `OCULA_COMPACT_AUTO=1` | compose 超阈值时 prune 旧 turn（默认开启） |
 | `OCULA_TOOL_INLINE_MAX` | 小输出 inline 上限（默认 8192 字节） |
 | `OCULA_TOOL_ARTIFACT_MIN` | ≥ 此大小写入 Artifact Store（默认 8192） |
-| `OCULA_TOOL_PREVIEW_CHARS` | log/投影 preview 长度（默认 500） |
+| `OCULA_TOOL_PREVIEW_CHARS` | log / compose preview 长度（默认 500） |
 | `OCULA_TOOL_INLINE_FLOOR` | 动态 inline 预算下限（默认 500） |
 | `OCULA_CONTEXT_LIMIT` | context 字符上限估算（默认 128k） |
 | `OCULA_DEV_TOOL_LEARNING=1` | 注册 `record_tool_hint`，写入 `docs/notes/tool-hints/` |

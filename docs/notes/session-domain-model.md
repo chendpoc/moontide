@@ -39,6 +39,7 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 |------|------|
 | [`src/session/session.ts`](../../src/session/session.ts) | 持有 `messages[]`，`append*`，增量落盘 |
 | [`src/session/transform/`](../../src/session/transform/) | `messagesFromItems` · `itemsFromMessages` · `messagesFromContext` |
+| [`src/session/item-handlers.ts`](../../src/session/item-handlers.ts) | `applyItemToMessages` · `deriveFromSessionItem`（Item → Message / Agent Event） |
 | [`src/session/io/`](../../src/session/io/) | SessionItem ↔ jsonl |
 | [`src/context/stores/`](../../src/context/stores/) | CompactionSave / Checkpoint / Artifact FS stores |
 | [`src/context/composer/`](../../src/context/composer/) | **`composeContext`** — 唯一 LLM 输入出口 |
@@ -52,4 +53,14 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 4. jsonl schema 不变（含 legacy 字段 `compactionRecordId`）；新 TS/Manifest 用 `CompactionSave`、`coversItemIds`、`lastItemId`、`activeCompactionSaveId`。
 5. 超大 tool 输出（默认 >8KB，`OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES`）→ **ArtifactStore** + Item Log `tool_outcome.artifactId`；模型只见 `formatToolSummary`。
 6. **Checkpoint** 快照：`/checkpoint` + `/resume`；内存 `messages` 截到 `lastItemId`。
-7. **`/compact summary`** → **CompactionSave** + `compaction` Item；compose 经 `applySummary` 投影。
+7. **`/compact summary`** → **CompactionSave** + `compaction` Item；compose 经 `applySummary` 注入摘要。
+
+## 相关文档
+
+| 文档 | 关系 |
+|------|------|
+| [`context-composer.md`](../spec/context-composer.md) | 主 Spec（C0–C6） |
+| [`context-window-roadmap.md`](context-window-roadmap.md) | 六件事；#5 Provider 进行中 |
+| [`session-log-migration.md`](session-log-migration.md) | C1 迁移策略 |
+| [`agent-run-hooks.md`](agent-run-hooks.md) | #2–#3 Session Observe（**done**） |
+| [`utils-infrastructure.md`](utils-infrastructure.md) | utils / storage / event-hub 分层 |

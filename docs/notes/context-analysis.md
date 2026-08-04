@@ -8,7 +8,7 @@ flowchart LR
     I["Instruction State<br/>不可被摘要替代"] --> C
     A["Artifact Store<br/>完整 tool outputs"] --> C
     TD["Tool Definitions + ModelProfile"] --> C
-    C --> P["LLMRequest<br/>本次调用的临时投影"]
+    C --> P["LLMRequest<br/>Composer 编译产物"]
     C --> M["Context Manifest<br/>选择、丢弃、预算原因"]
     P --> L["LLM via API 适配层"]
     L --> SEL
@@ -17,7 +17,7 @@ flowchart LR
 也就是说：
 
 - Session history 是 source of truth（Ocula：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)）。
-- Model context 只是针对某次请求编译出来的 ephemeral projection（**LLMRequest**）。
+- Model context 只是针对某次请求 **compile** 出来的 ephemeral 产物（**LLMRequest**）。
 - System instructions、permissions、用户约束不能依赖 conversation summary 存活。
 - 大型 tool output 应先变成可寻址 artifact，而不是直接塞进 summary。
 - Compaction 是有验证、有恢复能力的状态转换，不是对 `messages[]` 随手 `splice()`。
@@ -42,7 +42,7 @@ flowchart LR
 |---|---|---|---|
 | Claude Code | 完整 JSONL transcript；稳定 prompt prefix；先清旧 tool outputs，再 summary compaction；root instructions 和 auto-memory 重新注入；subagent context 隔离 | 分层 prompt cache、progressive tool/skill loading、instruction reinjection | 最新源码不可审计；summary 仍然有损；path-scoped rules 在 compaction 后需要重新触发加载 |
 | Codex CLI | `ContextManager` 独占 model-visible history；每次构建完整逻辑 prompt；remote opaque compaction 或 local summary；replacement checkpoint 可恢复 | Context ownership、server usage 优先、checkpoint/resume、保守 incremental request reuse | proactive check 尚不包含即将加入的大输入；部分 persistence 路径不是严格事务 |
-| OpenCode V2 | durable event state；checkpoint + recent tail；独立 instruction epochs；prompt cache diagnostics | Instruction state 不依赖 conversation summary，是最有价值的新设计之一 | 仍是 beta；文档声称按最终 projected request 估算，但当前源码主要读取最近 provider usage，存在 docs/source drift |
+| OpenCode V2 | durable event state；checkpoint + recent tail；独立 instruction epochs；prompt cache diagnostics | Instruction state 不依赖 conversation summary，是最有价值的新设计之一 | 仍是 beta；文档声称按最终 compiled request 估算，但当前源码主要读取最近 provider usage，存在 docs/source drift |
 | CodeWhale | model-aware threshold；cache-aligned compaction；固定保留最近消息、path/error/patch anchors；subagent 可 fresh/fork | 对 DeepSeek prefix cache、工作集和 tool pair 的工程化处理较深入 | 默认 live history 会被 summary 替换，没有 Reasonix 那样强的原始归档；机制较多，复杂度偏高 |
 | Reasonix | provider 实际 token 驱动；50/60/80/90% 分级压力；compaction 前归档原始消息；revisioned event log；summary + anchors + tail | 当前几者中 recovery、traceability 和 compaction fallback 最完整 | 社区项目、变化快；memory/compaction/cache/recovery 子系统较重，不适合整体照搬 |
 
@@ -72,7 +72,7 @@ Codex 是目前最适合做源码级参考的实现。
 它的 `ContextManager`：
 
 - 独占 model-visible history，并通过 copy-on-write snapshot 避免随意共享可变数组。
-- 写入时已经对大型 tool/function outputs 做截断投影。
+- 写入时已经对大型 tool/function outputs 做截断与 **ToolResultSummary**。
 - 发送请求前规范化 tool call/result 配对及媒体内容。
 - 优先使用 provider 返回的实际 token usage，本地估算只是补充。
 - Remote Compaction V2 成功后产生 opaque compaction item，再和近期真实用户消息组合成 replacement history。
@@ -130,7 +130,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 2. Instructions、permissions、current task constraints 独立于 summary。
 3. 先减少 tool/schema/output 压力，再做 conversation summary。
 4. Structured checkpoint + recent verbatim tail，而不是 summary-only。
-5. 使用 provider actual usage；估算 projected next request，并预留 output/reasoning/tool headroom。
+5. 使用 provider actual usage；估算下一轮 compile 后的 LLMRequest 体量，并预留 output/reasoning/tool headroom。
 6. 保持确定性的 prefix 顺序，但把 cache 当优化，不当 correctness boundary。
 7. 完整 tool result 存进可寻址 artifact；prompt 中只放 `ToolResultSummary`、preview 和重读方式。
 8. Compaction replacement 必须 validate，再进行原子持久化和 active-state 切换。
@@ -153,19 +153,22 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 
 ## 对 Ocula 的具体判断
 
-当前实现是合格的 prototype，但还不是可持续的 context architecture：
+> **注（2026-08）：** C1–C5 已落地（`composeContext` 编译、Artifact spill、CompactionSave、Checkpoint 等）。  
+> 下文部分 bullet 为迁移前诊断；**当前 pending 与执行顺序**见 [`context-window-roadmap.md`](context-window-roadmap.md)。
 
-- [`agent/loop.ts`](../../src/agent/loop.ts) 让 loop 直接持有并原地修改 `messages[]`。
-- [`compact.ts`](../../src/context/compact.ts) 的 auto compact 只缩减旧 tool results 和 thinking；manual summary 使用通用 prompt，并把每条消息序列化后截到 4,000 字符。
-- [`snapshot.ts`](../../src/context/snapshot.ts) 与 [`sessions.ts`](../../src/context/sessions.ts) 保存的是原数组引用，不是真正 snapshot。
-- [`constants/llm.ts`](../../src/constants/llm.ts) 仍把 DeepSeek V4 设为 128K，与当前官方 1M 不一致。
+| 诊断项 | 迁移前 | 现状 |
+|--------|--------|------|
+| loop 原地修改 `messages[]` | 是 | **done** — compose 编译 |
+| auto / manual compact | 仅缩 tool/thinking；summary 截 4K | **done** — CompactionSave + Stores |
+| `sessions.ts` 持 messages 引用 | 是 | **done** — `runtime-status.ts` |
+| model profile 128K | 与 DeepSeek 1M 不一致 | **#5 进行中** — Provider C |
 
-建议保持克制，按这个顺序推进：
+建议保持克制，按这个顺序推进（**背景参考**；当前执行顺序以 [roadmap](context-window-roadmap.md) 为准）：
 
-1. 修正 model profile，并区分 previous actual usage、projected next-input size、reserved output。Model Profile 对应 **ModelProfile**（[`llm-provider.md`](../spec/llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](../spec/context-composer.md)。
+1. 修正 model profile，并区分 previous actual usage、下一轮 compile 输入体量、reserved output。Model Profile 对应 **ModelProfile**（[`llm-provider.md`](../spec/llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](../spec/context-composer.md)。
 2. 增加 **Context Composer** Module，让所有 LLM 请求只能从这里获得 `LLMRequest` 与 Manifest（Spec：[`context-composer.md`](../spec/context-composer.md)）。
 3. 把 system/project/runtime instruction state 移出 conversation compaction。
-4. 给 tool result 增加 full artifact + bounded prompt projection；先解决最大的 context 消耗来源。
+4. 给 tool result 增加 full artifact + compose 时 bounded 的 prompt 片段；先解决最大的 context 消耗来源。
 5. 再实现 structured checkpoint + 最近完整 turns，验证成功后才替换 active context。
 6. 建立多次 compaction、约束存活、exact path/error recall、tool pair、overflow、crash/resume、cache hit、latency/cost 测试。
 7. 只有这些指标证明有必要，再考虑 graph、vector memory 或后台 compaction。

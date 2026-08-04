@@ -1,6 +1,6 @@
 # Truncated tool output — recovery strategies
 
-When projection truncates a tool result, Ocula injects `[strategies]` into the tool result footnote and may add a synthetic user reminder before the next LLM turn.
+When Composer truncates a tool result during compile, Ocula injects `[strategies]` into the tool result footnote and may add a synthetic user reminder before the next LLM turn.
 
 ## Decision flow
 
