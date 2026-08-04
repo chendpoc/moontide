@@ -6,7 +6,7 @@ export default tseslint.config(
     ignores: [
       "dist/**",
       "node_modules/**",
-      "src/extensions/code-repl/templates/bodies/**",
+      "src/plugins/builtin/code-repl/templates/bodies/**",
     ],
   },
   eslint.configs.recommended,

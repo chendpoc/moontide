@@ -10,5 +10,5 @@
     "scripts/**/*.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["node_modules", "dist", "src/extensions/code-repl/templates/bodies"]
+  "exclude": ["node_modules", "dist", "src/plugins/builtin/code-repl/templates/bodies"]
 }
