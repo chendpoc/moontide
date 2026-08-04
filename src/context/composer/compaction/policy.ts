@@ -1,4 +1,4 @@
-import type { CompactionKind } from "../../../session/log-types.js";
+import type { CompactionKind } from "../../../session/types.js";
 
 /** Compaction projection policy. See docs/spec/context-composer.md §7. */
 export interface CompactionPolicy {
@@ -6,6 +6,8 @@ export interface CompactionPolicy {
   thresholdPercent: number;
   keepTurns: number;
   defaultKind: CompactionKind;
+  /** One-shot manual prune via `/compact prune`. */
+  forcePrune?: boolean;
 }
 
 export const defaultCompactionPolicy: CompactionPolicy = {

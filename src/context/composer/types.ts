@@ -2,11 +2,11 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages
 
 import type { ModelProfile } from "../../llm/models/types.js";
 import type { LLMRequest, ToolSchema } from "../../llm/protocol/types.js";
-import type { SessionLogReader } from "../../session/log-reader.js";
+import type { SessionMessage } from "../../session/types.js";
 import type {
   ArtifactStore,
   CheckpointStore,
-  CompactionRecordStore,
+  CompactionStore,
 } from "../stores/index.js";
 import type { InstructionState } from "./system/types.js";
 import type { CompactionPolicy } from "./compaction/policy.js";
@@ -22,15 +22,17 @@ export interface ComposeContextInputV1 {
 export interface ComposeContextInput {
   sessionId: string;
   turn: number;
-  sessionLog: SessionLogReader;
+  messages: readonly SessionMessage[];
   instructionState: InstructionState;
-  artifacts: ArtifactStore;
-  compactionRecords: CompactionRecordStore;
-  checkpoints: CheckpointStore;
+  artifactStore: ArtifactStore;
+  compactionStore: CompactionStore;
+  checkpointStore: CheckpointStore;
   toolDefinitions: ToolSchema[];
   modelProfile: ModelProfile;
   compactionPolicy: CompactionPolicy;
   resumeFromCheckpointId?: string;
+  /** Active summary compaction (overridden by checkpoint on resume). */
+  activeCompactionSaveId?: string;
 }
 
 export interface ComposedLLMRequest {
@@ -52,9 +54,9 @@ export interface ContextManifest {
   modelProfile?: ModelProfile;
   estimatedInputTokens?: number;
   exactInputTokens?: number;
-  includedEntryIds?: string[];
-  excludedEntryIds?: string[];
-  activeCompactionRecordId?: string;
+  includedItemIds?: string[];
+  excludedItemIds?: string[];
+  activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
   alerts?: ContextAlert[];
 }

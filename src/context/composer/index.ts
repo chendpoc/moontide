@@ -1,5 +1,5 @@
 export { composeContext, composeContextV1 } from "./compose.js";
-export { buildContextManifestV1 } from "./manifest.js";
+export { buildContextManifest, buildContextManifestV1 } from "./manifest.js";
 export type {
   ComposedContext,
   ComposedLLMRequest,
