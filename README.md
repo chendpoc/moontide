@@ -17,15 +17,16 @@ ocula/
 │   ├── agent/           # agent-run、loop、hooks、pipeline（runLLM / runTool）
 │   ├── instruction-state/  # AGENTS.md / rules → InstructionState
 │   ├── plugins/
-│   │   └── builtin/     # built-in plugins：log-sync、code-repl、context、deep-research
+│   │   └── builtin/     # built-in plugins：log-sync、code-repl、context、session-persistence、deep-research
 │   ├── plugin-host/     # external plugins：manifest · sidecar attach · stdio IPC
 │   ├── plugin-sdk/      # defineSidecarPlugin
 │   ├── tools/           # registry · execute · definitions · builtins/
-│   ├── session/         # Session Item Log 读写
+│   ├── session/         # Session Item Log · stores/ · paths
+│   ├── context-inspect/ # 观测：metrics · format · debug emit
 │   ├── llm/             # protocol · routing · models · client
-│   ├── cli/             # REPL 实现：commands、repl、statusline
+│   ├── cli/             # REPL：commands、repl、statusline、session-persistence-glue
 │   ├── log/             # event-hub、JSONL writer、stderr renderer
-│   ├── context/         # composer、stores、runtime-status、compact
+│   ├── context/         # composer/（Context Composer 专用）
 │   ├── storage/         # fs 约定 · list-json
 │   ├── utils/           # fs · process · glob · compress · hash · tmp · path
 │   └── constants/       # storage、llm、env 等常量
@@ -126,6 +127,24 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 | **`.ocula/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
 | **`.ocula/sessions/<sessionId>.jsonl`** | Session Item Log（每条消息 append，**exit 后仍在**） |
 | **`.ocula/sessions/index.json`** | session 书签索引（exit / reset 自动 save；`/save` 显式写入） |
+| **`.ocula/debug/<runId>.jsonl`** | `/debug file` 全量 compose/llm/tool（无 Agent Event 截断） |
+
+### Session 持久化与恢复
+
+对话正文 **实时 append** 到 Session Item Log；**exit 不丢对话**。Index 书签便于跨重启发现 session（详见 [`docs/notes/session-persistence.md`](docs/notes/session-persistence.md)）。
+
+| 概念 | 说明 |
+|------|------|
+| **Item Log** | 事实源；每条 user/assistant/tool 即时落盘 |
+| **Index** | 元数据书签；`exit` / `/reset` 静默 upsert；`/save` 显式写入 |
+| **Checkpoint** | 同 session 内某 turn 快照；配合 `/resume <checkpoint-id>` |
+| **跨 session 恢复** | `/resume session <session-id>` 加载历史 REPL session |
+
+启动时若有历史 session，stderr 打印：
+
+```
+Last session: 20260804-195300-a1b2c3d4 · resume with /resume session 20260804-195300-a1b2c3d4
+```
 
 ### Thinking / Verbose / Debug（调试观测，**默认关闭**）
 
@@ -137,7 +156,7 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 | **debug terminal** | 无截断全量 compose / llm_call / tool_use JSON → stderr | `/debug on` 或 `OCULA_DEBUG=1` |
 | **debug file** | terminal + 同上全量写入 `.ocula/debug/<runId>.jsonl` | `/debug file` 或 `OCULA_DEBUG=file` |
 
-run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。
+run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。Debug 与 verbose 差异见 [`docs/notes/context-inspect-debug.md`](docs/notes/context-inspect-debug.md)。
 
 ```sh
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
@@ -161,7 +180,7 @@ Ocula idle · context 12.3% · turn 2
 | 命令 | 作用 |
 |------|------|
 | `/help` | 命令列表 |
-| `/reset` | 清空 session（messages + metrics） |
+| `/reset` | 清空内存 session（auto-save 旧 session 到 index，换新 sessionId） |
 | `/status` | verbose statusline + auto-compact 状态 |
 | `/workdir [path]` | 查看或切换 workspace |
 | `/compact` | prune 旧 tool_result（写 compaction Item，下轮 compose 编译） |
@@ -173,7 +192,7 @@ Ocula idle · context 12.3% · turn 2
 | `/save` | 将当前 session 写入 index（输出 sessionId） |
 | `/save list` | 列出已保存 / 磁盘上的 session |
 | `/resume <checkpoint-id>` | 同 session 内恢复可见消息窗口 |
-| `/resume session <session-id>` | 跨 REPL 重启加载历史 session |
+| `/resume session <session-id> [checkpoint-id]` | 跨 REPL 重启加载历史 session |
 | `/thinking on\|off\|status` | 调用链 trace（thinking / tool / result） |
 | `/verbose on\|off\|status` | 美化摘要 trace（含 context / tool_use_log，有截断） |
 | `/debug on\|terminal\|file\|off\|status` | 全量无截断 compose/llm/tool（terminal → stderr；file 额外落盘） |
@@ -220,7 +239,7 @@ Ocula idle · context 12.3% · turn 2
 { "template": "git_summary", "vars": { "log_n": 5 } }
 ```
 
-跨 prompt 对话会**保留 messages**；对话正文自动写入 `.ocula/sessions/<sessionId>.jsonl`。`exit` / `/reset` 前会静默更新 `index.json`；启动时若有历史 session 会打印 `Last session: … · resume with /resume session …`。`/reset` 开始新 session（旧文件仍保留）。
+跨 prompt 对话会**保留 messages**；详见上文 [Session 持久化与恢复](#session-持久化与恢复)。
 
 ## Cursor CLI Statusline
 

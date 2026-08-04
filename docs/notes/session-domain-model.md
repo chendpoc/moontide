@@ -44,6 +44,8 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 | [`src/session/io/`](../../src/session/io/) | SessionItem ↔ jsonl；`FileSessionItemWriter` | Writer 由 Harness port 调用（[§10](architecture-remediation.md)） |
 | [`src/context/stores/`](../../src/context/stores/) | CompactionSave / Checkpoint / Artifact FS stores | 目标 **`session/stores/`** |
 | [`src/context/composer/`](../../src/context/composer/) | **`composeContext`** — 唯一 LLM 输入出口 | — |
+| [`src/plugins/builtin/session-persistence/`](../../src/plugins/builtin/session-persistence/) | Session Index · `/save` · `/resume session` · exit auto-save | — |
+| [`src/context-inspect/`](../../src/context-inspect/) | context 观测 · `/debug` emit | — |
 | [`src/log/`](../../src/log/) | **Agent Event Log**（与 Session Item Log 严格区分） | — |
 
 ## Invariant
@@ -53,8 +55,9 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 3. Compaction **不 splice** Item Log / `messages`；只改 Composer 输出（`applyPrune` / `applySummary` / `applyTailWindow`）。
 4. jsonl schema 不变（含 legacy 字段 `compactionRecordId`）；新 TS/Manifest 用 `CompactionSave`、`coversItemIds`、`lastItemId`、`activeCompactionSaveId`。
 5. 超大 tool 输出（默认 >8KB，`OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES`）→ **ArtifactStore** + Item Log `tool_outcome.artifactId`；模型只见 `formatToolSummary`。
-6. **Checkpoint** 快照：`/checkpoint` + `/resume`；内存 `messages` 截到 `lastItemId`。
+6. **Checkpoint** 快照：`/checkpoint` + `/resume <checkpoint-id>`（同 session）；跨 REPL 加载用 `/resume session <session-id>` — 见 [session-persistence.md](session-persistence.md)。
 7. **`/compact summary`** → **CompactionSave** + `compaction` Item；compose 经 `applySummary` 注入摘要。
+8. **Session Index** — `exit` / `/reset` / `/save` 维护 `.ocula/sessions/index.json`；Item Log 仍为事实源。
 
 ## 相关文档
 
@@ -64,5 +67,7 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 | [`architecture-remediation.md`](architecture-remediation.md) | Session port · Phase A–C |
 | [`context-window-roadmap.md`](context-window-roadmap.md) | 六件事；#5 Provider 进行中 |
 | [`session-log-migration.md`](session-log-migration.md) | C1 迁移策略 |
+| [`session-persistence.md`](session-persistence.md) | Index 书签 · `/save` · `/resume session` |
+| [`context-inspect-debug.md`](context-inspect-debug.md) | `/debug` 分级全量 dump |
 | [`agent-run-hooks.md`](agent-run-hooks.md) | #2–#3 Session Observe（**done**） |
 | [`utils-infrastructure.md`](utils-infrastructure.md) | utils / storage / event-hub 分层 |

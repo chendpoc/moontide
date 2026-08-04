@@ -100,6 +100,7 @@ flowchart TB
 |------|------|--------|-----------------|
 | **Agent Event Log** | 单次 run 的观测事件（trace、metrics、tool use log） | 是 | `.ocula/runs/<runId>.jsonl` |
 | **Session Item Log** | 整场 session 的 append-only 事实 | 是 | `.ocula/sessions/<sessionId>.jsonl` |
+| **Session Index** | REPL session 书签（可发现性元数据，非事实源） | 是 | `.ocula/sessions/index.json` |
 | **Instruction State** | 拼进 `LLMRequest.system` 的规则与 prompt 来源 | 部分（文件源） | 内存 + `AGENTS.md` / `.ocula/rules`（远期） |
 | **Artifact Store** | 大 tool 输出全文 | 是 | `.ocula/artifacts/<sessionId>/<artifactId>` + `<id>.meta.json` |
 | **CompactionSave** | summary / structured 压缩的持久产物 | 是 | `.ocula/sessions/<sessionId>/compaction/<id>.json` |
@@ -297,7 +298,8 @@ export interface Checkpoint {
 
 - **路径：** `.ocula/sessions/<sessionId>/checkpoints/<id>.json`
 - **用途：** resume、debug、fork；**不**等同于 CompactionSave
-- **CLI：** `/checkpoint [label]` · `/checkpoint list` · `/resume <id>`
+- **CLI：** `/checkpoint [label]` · `/checkpoint list` · `/resume <checkpoint-id>`（同 session 内）
+- **跨 session：** `/resume session <session-id>` · `/save` · `/save list` — 见 [session-persistence.md](../notes/session-persistence.md)
 - **恢复：** 内存 `messages` 截到 `lastItemId`；Item Log 继续 append-only；`composeContext({ resumeFromCheckpointId })`
 
 ---

@@ -33,5 +33,5 @@
 
 ## CLI 双轨
 
-- **TypeScript**（`pnpm dev`）：完整 REPL、Agent Event JSONL、statusline、built-in plugins。
+- **TypeScript**（`pnpm dev`）：完整 REPL、Agent Event JSONL、Session Item Log + Index（`/save` · `/resume session`）、statusline、built-in plugins；observability 含 `/thinking`、`/verbose`、`/debug`。
 - **Rust R0**（`cargo run -p ocula-cli -- --workdir .`）：native loop + Session JSONL + builtins；observability 为 stderr trace（`/thinking`、`/verbose`），无 Agent Event pipeline。
