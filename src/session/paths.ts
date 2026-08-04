@@ -14,6 +14,10 @@ export function sessionLogPath(workdir: string, sessionId: string): string {
   return joinPath(sessionsDir(workdir), `${sessionId}.jsonl`);
 }
 
+export function sessionIndexPath(workdir: string): string {
+  return joinPath(sessionsDir(workdir), "index.json");
+}
+
 export function artifactsDir(workdir: string, sessionId: string): string {
   return dataPath(workdir, ARTIFACTS_DIR, sessionId);
 }
