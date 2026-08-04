@@ -22,6 +22,10 @@ export function startReplSession(): AgentSession {
   return replAgentSession;
 }
 
+export function setReplAgentSession(session: AgentSession | null): void {
+  replAgentSession = session;
+}
+
 export function resetReplSession(): void {
   replAgentSession = null;
 }

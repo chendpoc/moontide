@@ -1,10 +1,13 @@
 import { handleCheckpointCommand } from "./checkpoint.js";
 import { handleCompactCommand } from "./compact.js";
 import { handleHelpCommand } from "./help.js";
+import { handleDebugCommand } from "./debug.js";
 import { handleThinkingCommand, handleVerboseCommand } from "./observability.js";
 import { handleResetCommand } from "./reset.js";
 import { handleResumeCommand } from "./resume.js";
 import { handleStatusCommand } from "./status.js";
+import { handleSaveCommand } from "../../plugins/builtin/session-persistence/index.js";
+import { createSessionPersistenceDeps } from "../session-persistence-glue.js";
 import type { ParsedReplCommand, ReplCommandContext, ReplCommandResult } from "./types.js";
 import { handleWorkdirCommand } from "./workdir.js";
 
@@ -54,8 +57,13 @@ export const REPL_COMMANDS: ReplCommandSpec[] = [
   },
   {
     name: "/resume",
-    helpLine: "/resume <checkpoint-id>",
+    helpLine: "/resume <checkpoint-id> · /resume session <session-id>",
     handler: (parsed, ctx) => handleResumeCommand(parsed, ctx),
+  },
+  {
+    name: "/save",
+    helpLine: "/save · /save list",
+    handler: (parsed, ctx) => handleSaveCommand(parsed, createSessionPersistenceDeps(ctx)),
   },
   {
     name: "/thinking",
@@ -66,6 +74,11 @@ export const REPL_COMMANDS: ReplCommandSpec[] = [
     name: "/verbose",
     helpLine: "/verbose on|off  (call chain & debug trace)",
     handler: (parsed) => handleVerboseCommand(parsed.arg),
+  },
+  {
+    name: "/debug",
+    helpLine: "/debug on|terminal|file|off  (full compose/llm/tool dumps)",
+    handler: (parsed) => handleDebugCommand(parsed.arg),
   },
 ];
 

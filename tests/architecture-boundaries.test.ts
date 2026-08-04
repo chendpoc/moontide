@@ -50,6 +50,21 @@ describe("architecture boundaries (structural invariants)", () => {
     expect(source).not.toMatch(/from\s+["'].*agent\/hooks/);
   });
 
+  it("context-inspect/ does not import agent/pipeline/", () => {
+    const pipelineImport = /from\s+["'].*agent\/pipeline/;
+    const offenders = scanTsFiles(repoPath("src/context-inspect"), pipelineImport);
+    expect(offenders).toEqual([]);
+  });
+
+  it("plugins/builtin/session-persistence does not import cli/", () => {
+    const cliImport = /from\s+["'].*cli\//;
+    const offenders = scanTsFiles(
+      repoPath("src/plugins/builtin/session-persistence"),
+      cliImport,
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it("plugins/builtin does not import plugins/host or plugins/sdk", () => {
     const hostImport = /from\s+["'].*plugins\/host/;
     const sdkImport = /from\s+["'].*plugins\/sdk/;

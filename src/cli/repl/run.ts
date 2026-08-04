@@ -17,11 +17,16 @@ import {
   resetReplConversation,
   type ReplCommandContext,
 } from "../commands/repl.js";
+import { createReplSessionPersistenceDeps } from "../session-persistence-glue.js";
 import { setReplPhase } from "../statusline/collect.js";
 import { renderStatusLine } from "../statusline/render.js";
 import { resolveReplLine } from "./dispatch.js";
 import { createReplUserInteraction } from "./interaction.js";
 import { getOrStartReplSession, getReplAgentSession, resetReplSession } from "./session.js";
+import {
+  autoSaveSession,
+  printStartupHint,
+} from "../../plugins/builtin/session-persistence/index.js";
 
 async function runAgentTurn(
   prompt: string,
@@ -49,6 +54,7 @@ export async function runRepl(): Promise<void> {
   await bootstrapAgentPlatform(getWorkdir(), getAgentRuntime());
 
   writeStderrLine("Ocula — type /help for commands");
+  printStartupHint(getWorkdir());
   writeStderrLine("");
 
   const rl = readline.createInterface({ input, output });
@@ -87,6 +93,7 @@ export async function runRepl(): Promise<void> {
       writeStdoutLine("");
     }
   } finally {
+    autoSaveSession(createReplSessionPersistenceDeps());
     rl.close();
     resetReplSession();
     teardownAgentPlatform(getAgentRuntime());

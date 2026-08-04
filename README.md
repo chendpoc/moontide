@@ -65,13 +65,14 @@ cargo build -p ocula-cli --release && ./target/release/ocula
 
 启动 banner：`Ocula — type /help for commands`
 
-**REPL 命令：** `/help` · `/thinking` · `/verbose` · `/always-allow on|off|status` · `/new`（别名 `/reset`）· `/workdir` · `/exit`（别名 `q` · `exit`）
+**REPL 命令：** `/help` · `/thinking` · `/verbose` · `/debug` · `/save` · `/resume` · `/always-allow on|off|status` · `/new`（别名 `/reset`）· `/workdir` · `/exit`（别名 `q` · `exit`）
 
 **Observability（stderr，不影响 stdout 正文）：**
 
 - `/thinking on` — 每 turn 打印 banner；tool / thinking / result 摘要
 - `/verbose on` — 在 thinking 基础上额外打印 compose 摘要（messages · tools · truncated · artifacts）
-- 环境变量：`OCULA_THINKING=1` · `OCULA_VERBOSE=1`（verbose 开启时 thinking 视为开启）
+- `/debug on|terminal|file` — **无截断全量** compose / llm_call / tool_use（terminal → stderr；file 额外落盘 `.ocula/debug/<runId>.jsonl`）
+- 环境变量：`OCULA_THINKING=1` · `OCULA_VERBOSE=1`（verbose 开启时 thinking 视为开启）· `OCULA_DEBUG=1|terminal|file`
 
 **权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`/always-allow on` 或 `--always-allow` 或 `OCULA_ALWAYS_ALLOW=1` 自动批准。
 
@@ -120,24 +121,31 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 | 输出 | 内容 |
 |------|------|
 | **stdout** | 每轮 agent 最终 reply |
-| **stderr** | statusline、prompt、分隔线；**thinking/verbose 开启时**实时 trace/context |
+| **stderr** | statusline、prompt、分隔线；**thinking/verbose/debug 开启时**实时 trace/context |
 | **`.ocula/runs/<runId>.active.jsonl`** | 当前 run 的实时结构化事件 |
 | **`.ocula/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
+| **`.ocula/sessions/<sessionId>.jsonl`** | Session Item Log（每条消息 append，**exit 后仍在**） |
+| **`.ocula/sessions/index.json`** | session 书签索引（exit / reset 自动 save；`/save` 显式写入） |
 
-### Thinking / Verbose（调试观测，**默认关闭**）
+### Thinking / Verbose / Debug（调试观测，**默认关闭**）
 
 | 模式 | stderr 展示 | 开启方式 |
 |------|-------------|----------|
 | **off（默认）** | 无 trace/context 噪音 | — |
 | **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULA_THINKING=1` |
-| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ tool_use_log/conversation `EVENT` 标记 | `/verbose on` 或 `OCULA_VERBOSE=1` |
+| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ tool_use_log/conversation `EVENT` 标记（**有截断**） | `/verbose on` 或 `OCULA_VERBOSE=1` |
+| **debug terminal** | 无截断全量 compose / llm_call / tool_use JSON → stderr | `/debug on` 或 `OCULA_DEBUG=1` |
+| **debug file** | terminal + 同上全量写入 `.ocula/debug/<runId>.jsonl` | `/debug file` 或 `OCULA_DEBUG=file` |
 
-run event log **始终写入**；thinking/verbose 只控制 stderr 是否同步打印美化块。
+run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。
 
 ```sh
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
-/verbose on     # 完整 debug：context 盒 + tool_use_log + conversation
+/verbose on     # 美化摘要 trace（context 盒 + tool_use_log + conversation，有截断）
+/debug on       # 全量无截断 debug（compose / llm / tool → stderr）
+/debug file     # 额外落盘 .ocula/debug/<runId>.jsonl
 /thinking status
+/debug status
 ```
 
 ### Statusline
@@ -162,9 +170,13 @@ Ocula idle · context 12.3% · turn 2
 | `/compact auto on\|off` | 超阈值自动 prune（compose 内，不写 Item Log） |
 | `/checkpoint [label]` | 创建 Checkpoint 快照 |
 | `/checkpoint list` | 列出当前 session 的 Checkpoint |
-| `/resume <checkpoint-id>` | 恢复可见消息窗口（Item Log 不删） |
+| `/save` | 将当前 session 写入 index（输出 sessionId） |
+| `/save list` | 列出已保存 / 磁盘上的 session |
+| `/resume <checkpoint-id>` | 同 session 内恢复可见消息窗口 |
+| `/resume session <session-id>` | 跨 REPL 重启加载历史 session |
 | `/thinking on\|off\|status` | 调用链 trace（thinking / tool / result） |
-| `/verbose on\|off\|status` | 完整 debug trace（含 context / tool_use_log） |
+| `/verbose on\|off\|status` | 美化摘要 trace（含 context / tool_use_log，有截断） |
+| `/debug on\|terminal\|file\|off\|status` | 全量无截断 compose/llm/tool（terminal → stderr；file 额外落盘） |
 
 ### 工具
 
@@ -208,7 +220,7 @@ Ocula idle · context 12.3% · turn 2
 { "template": "git_summary", "vars": { "log_n": 5 } }
 ```
 
-跨 prompt 对话会**保留 messages**；`/reset` 开始新会话。
+跨 prompt 对话会**保留 messages**；对话正文自动写入 `.ocula/sessions/<sessionId>.jsonl`。`exit` / `/reset` 前会静默更新 `index.json`；启动时若有历史 session 会打印 `Last session: … · resume with /resume session …`。`/reset` 开始新 session（旧文件仍保留）。
 
 ## Cursor CLI Statusline
 
@@ -247,7 +259,8 @@ Ocula idle · context 12.3% · turn 2
 | `OCULA_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
 | `OCULA_HTTP=0` | 禁用 `http_fetch` tool（默认启用且需 ask） |
 | `OCULA_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
-| `OCULA_VERBOSE=1` | 默认开启 verbose 模式（完整 chalk debug trace；**默认 off**） |
+| `OCULA_VERBOSE=1` | 默认开启 verbose 模式（美化摘要 trace；**默认 off**） |
+| `OCULA_DEBUG=1\|terminal\|file` | 默认 debug 档：无截断全量 compose/llm/tool（terminal → stderr；file 额外落盘 `.ocula/debug/`；**默认 off**） |
 
 ## 开发与质量
 

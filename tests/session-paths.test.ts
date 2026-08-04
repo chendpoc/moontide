@@ -9,6 +9,7 @@ import {
   compactionSavePath,
   compactionSavePath,
   sessionLogPath,
+  sessionIndexPath,
   sessionsDir,
 } from "../src/session/paths.js";
 
@@ -21,6 +22,7 @@ describe("session paths", () => {
     expect(sessionLogPath(workdir, sessionId)).toBe(
       `/tmp/ocula-workspace/.ocula/sessions/${sessionId}.jsonl`,
     );
+    expect(sessionIndexPath(workdir)).toBe("/tmp/ocula-workspace/.ocula/sessions/index.json");
   });
 
   it("builds artifact and store subpaths", () => {

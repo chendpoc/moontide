@@ -2,23 +2,30 @@ import { describe, expect, it, afterEach } from "vitest";
 import type { Interface } from "node:readline/promises";
 
 import { handleReplCommand } from "../src/cli/commands/repl.js";
-import { startReplSession, resetReplSession } from "../src/cli/repl/session.js";
+import { resetReplConversation } from "../src/cli/commands/reset.js";
+import { getReplAgentSession, resetReplSession, startReplSession } from "../src/cli/repl/session.js";
 import {
   isThinkingEnabled,
   resetObservabilityOverrides,
 } from "../src/log/modes.js";
+import {
+  getDebugLevel,
+  resetDebugOverride,
+  setDebugOverride,
+} from "../src/context-inspect/debug-mode.js";
 
 const fakeRl = {} as Interface;
 
 const emptyCtx = {
   rl: fakeRl,
   getAgentSession: () => null,
-  resetConversation: () => {},
+  resetConversation: resetReplConversation,
 };
 
 describe("repl commands", () => {
   afterEach(() => {
     resetObservabilityOverrides();
+    resetDebugOverride();
     resetReplSession();
   });
 
@@ -36,6 +43,19 @@ describe("repl commands", () => {
   it("reports verbose status", async () => {
     const result = await handleReplCommand("/verbose status", emptyCtx);
     expect(result).toBe("handled");
+  });
+
+  it("toggles debug mode", async () => {
+    const result = await handleReplCommand("/debug file", emptyCtx);
+    expect(result).toBe("handled");
+    expect(getDebugLevel()).toBe("file");
+  });
+
+  it("resets debug override on /reset", async () => {
+    setDebugOverride("file");
+    const result = await handleReplCommand("/reset", emptyCtx);
+    expect(result).toBe("handled");
+    expect(getDebugLevel()).toBe("off");
   });
 
   it("does not treat non-commands as handled", async () => {
@@ -62,5 +82,32 @@ describe("repl commands", () => {
       resetConversation: () => {},
     });
     expect(result).toBe("handled");
+  });
+
+  it("saves active session to index", async () => {
+    const agentSession = startReplSession();
+    await agentSession.session.appendUser(1, "hello");
+    const result = await handleReplCommand("/save", {
+      rl: fakeRl,
+      getAgentSession: () => agentSession,
+      resetConversation: resetReplConversation,
+    });
+    expect(result).toBe("handled");
+  });
+
+  it("loads session via /resume session", async () => {
+    const agentSession = startReplSession();
+    await agentSession.session.appendUser(1, "hello");
+    const sessionId = agentSession.session.sessionId;
+    resetReplSession();
+
+    const result = await handleReplCommand(`/resume session ${sessionId}`, {
+      rl: fakeRl,
+      getAgentSession: getReplAgentSession,
+      resetConversation: resetReplConversation,
+    });
+    expect(result).toBe("handled");
+    expect(getReplAgentSession()?.session.sessionId).toBe(sessionId);
+    expect(getReplAgentSession()?.session.getMessages()).toHaveLength(1);
   });
 });
