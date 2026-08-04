@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
 import { AgentSession } from "../src/agent/agent-session.js";
 import { composeContext } from "../src/context/composer/compose.js";
 import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
@@ -13,24 +12,26 @@ import {
 import { setWorkdir } from "../src/config.js";
 import { checkpointPath } from "../src/session/paths.js";
 import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-checkpoint-");
   setWorkdir(tmpDir);
-  registerDefaultSidecarHooks(tmpDir);
+  testRuntime = installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
-  resetSidecarHooks();
+  clearTestRuntime();
   removeTmpWorkdir(tmpDir);
 });
 
 describe("AgentSession checkpoint", () => {
   it("creates checkpoint and writes item log marker", async () => {
-    const agent = AgentSession.create(tmpDir);
+    const agent = AgentSession.create(tmpDir, testRuntime);
     await agent.session.appendUser(1, "hello");
     await agent.session.appendUser(2, "follow up");
 
@@ -45,7 +46,7 @@ describe("AgentSession checkpoint", () => {
   });
 
   it("resume truncates visible messages without deleting item log", async () => {
-    const agent = AgentSession.create(tmpDir);
+    const agent = AgentSession.create(tmpDir, testRuntime);
     await agent.session.appendUser(1, "first");
     const firstId = agent.session.getMessages()[0]!.id;
     await agent.session.appendUser(2, "second");
@@ -67,12 +68,11 @@ describe("AgentSession checkpoint", () => {
   });
 
   it("composeContext respects resumeFromCheckpointId", async () => {
-    const agent = AgentSession.create(tmpDir);
+    const agent = AgentSession.create(tmpDir, testRuntime);
     await agent.session.appendUser(1, "a");
     await agent.session.appendUser(2, "b");
     const checkpoint = await agent.createCheckpoint(2);
     await agent.session.appendUser(3, "c");
-    await agent.resume(checkpoint.id);
 
     const composed = await composeContext({
       sessionId: agent.session.sessionId,
@@ -82,7 +82,7 @@ describe("AgentSession checkpoint", () => {
       artifactStore: createStubArtifactStore(),
       compactionStore: createStubCompactionStore(),
       checkpointStore: new FileCheckpointStore(tmpDir),
-      toolDefinitions: resolveToolDefinitions(),
+      toolDefinitions: resolveToolDefinitions(testRuntime),
       modelProfile: {
         logicalModelId: "test",
         contextWindow: 200_000,
@@ -95,12 +95,16 @@ describe("AgentSession checkpoint", () => {
       resumeFromCheckpointId: checkpoint.id,
     });
 
-    expect(composed.manifest.includedItemIds).toHaveLength(2);
+    expect(composed.manifest.sourceItemIds).toHaveLength(3);
+    expect(composed.manifest.compiledMessageItemIds).toHaveLength(2);
+    expect(composed.manifest.checkpointExcludedItemIds).toEqual([
+      agent.session.getMessages()[2]!.id,
+    ]);
     expect(composed.manifest.resumeCheckpointId).toBe(checkpoint.id);
   });
 
   it("open with resumeFromCheckpointId hydrates truncated messages", async () => {
-    const agent = AgentSession.create(tmpDir);
+    const agent = AgentSession.create(tmpDir, testRuntime);
     await agent.session.appendUser(1, "one");
     await agent.session.appendUser(2, "two");
     const checkpoint = await agent.createCheckpoint(2);

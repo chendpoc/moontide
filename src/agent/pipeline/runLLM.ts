@@ -1,25 +1,19 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
-import type { ToolSchema } from "../../llm/protocol/types.js";
-
-import { chat } from "../../llm/client/anthropic.js";
-import { hookDispatcher } from "../hooks/index.js";
+import type { LLMRequest, LLMResponse } from "../../llm/protocol/types.js";
+import { getLLMProvider } from "../../llm/provider.js";
+import type { AgentRuntime } from "../runtime/index.js";
 import type { LLMCallOutcome, LLMCallRecord } from "./types.js";
 
-export interface RunLLMInput {
+export interface RunLLMInput extends LLMRequest {
   turn: number;
-  messages: MessageParam[];
-  system: string;
-  tools: ToolSchema[];
+  runtime: AgentRuntime;
 }
 
-export async function runLLM(input: RunLLMInput) {
-  const { turn, messages, system, tools } = input;
+export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
+  const { turn, runtime, ...request } = input;
 
   let outcome: LLMCallOutcome;
   try {
-    const response = await chat(messages, tools as Tool[], system);
+    const response = await getLLMProvider().chat(request);
     outcome = { status: "succeeded", response };
   } catch (err) {
     outcome = {
@@ -30,10 +24,10 @@ export async function runLLM(input: RunLLMInput) {
 
   const record: LLMCallRecord = {
     turn,
-    request: { messages, system, tools },
+    request,
     outcome,
   };
-  await hookDispatcher.dispatch("llmCall", record);
+  await runtime.hooks.dispatch("llmCall", record);
 
   if (outcome.status === "failed") {
     throw new Error(outcome.error);

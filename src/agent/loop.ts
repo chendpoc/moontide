@@ -1,18 +1,21 @@
+import { getWorkdir } from "../config.js";
 import { resetRuntimeStatus } from "../context/runtime-status.js";
-import { bootstrapEventPlatform } from "../log/setup.js";
+import { bootstrapAgentPlatform } from "../app/bootstrap.js";
 import { AgentSession } from "./agent-session.js";
 import { createDefaultLoopContext } from "./deps.js";
 import type { LoopContext } from "./deps.js";
 import { prepareRun } from "./hooks/index.js";
+import { getAgentRuntime } from "./runtime/index.js";
 
 export async function runAgent(userPrompt: string): Promise<string> {
-  await bootstrapEventPlatform();
+  const runtime = getAgentRuntime();
+  await bootstrapAgentPlatform(getWorkdir(), runtime);
   resetRuntimeStatus();
   prepareRun();
-  const agentSession = AgentSession.create();
+  const agentSession = AgentSession.create(getWorkdir(), runtime);
   const { reply } = await agentSession.run(
     userPrompt,
-    createDefaultLoopContext(agentSession.session),
+    createDefaultLoopContext(agentSession.session, runtime),
   );
   return reply;
 }

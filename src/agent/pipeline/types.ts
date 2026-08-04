@@ -1,6 +1,4 @@
-import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
-import type { ToolSchema } from "../../llm/protocol/types.js";
+import type { LLMRequest, LLMResponse } from "../../llm/protocol/types.js";
 
 export type ToolUseOutcome =
   | { status: "denied"; reason: string }
@@ -9,16 +7,12 @@ export type ToolUseOutcome =
   | { status: "failed"; error: string };
 
 export type LLMCallOutcome =
-  | { status: "succeeded"; response: Message }
+  | { status: "succeeded"; response: LLMResponse }
   | { status: "failed"; error: string };
 
 export interface LLMCallRecord {
   turn: number;
-  request: {
-    messages: MessageParam[];
-    system: string;
-    tools: ToolSchema[];
-  };
+  request: LLMRequest;
   outcome: LLMCallOutcome;
 }
 
@@ -31,4 +25,3 @@ export interface ToolUseRecord {
 }
 
 export type ToolUseContext = Omit<ToolUseRecord, "outcome">;
-

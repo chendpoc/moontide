@@ -1,8 +1,7 @@
-import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { ContentBlock } from "../../llm/protocol/types.js";
 
 import { maybeSpillToolResult } from "../../context/stores/spill-artifact.js";
 import { summarizeToolResultContent } from "../../session/content-map.js";
-import { hookDispatcher } from "../hooks/index.js";
 import { createToolContext, type LoopContext } from "../deps.js";
 import { executeTool } from "../../tools/index.js";
 import { checkPermission } from "./permission/index.js";
@@ -24,13 +23,14 @@ export async function resolveToolUseOutcome(
   ctx: ToolUseContext,
   loopCtx: LoopContext,
 ): Promise<ToolUseOutcome> {
+  const { runtime } = loopCtx;
   try {
-    const decision = checkPermission(ctx.toolName, ctx.toolInput);
+    const decision = checkPermission(ctx.toolName, ctx.toolInput, runtime);
     if (decision === "deny") {
       return { status: "denied", reason: `Permission denied: ${ctx.toolName}` };
     }
 
-    const blocked = await hookDispatcher.dispatch("beforeToolUse", freezeToolUseContext(ctx));
+    const blocked = await runtime.hooks.dispatch("beforeToolUse", freezeToolUseContext(ctx));
     if (blocked?.block) {
       return { status: "denied", reason: blocked.reason };
     }
@@ -71,7 +71,10 @@ export async function runToolUse(
   };
   const outcome = await resolveToolUseOutcome(ctx, loopCtx);
   const record: ToolUseRecord = { ...ctx, outcome };
-  const { modelAppends } = await hookDispatcher.dispatch("toolUse", freezeToolUseRecord(record));
+  const { modelAppends } = await loopCtx.runtime.hooks.dispatch(
+    "toolUse",
+    freezeToolUseRecord(record),
+  );
   const rawContent = buildModelToolResult(outcome, modelAppends);
 
   let content = rawContent;

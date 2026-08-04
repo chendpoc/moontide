@@ -3,25 +3,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
+import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
 import { runToolUse } from "../src/agent/pipeline/runTool.js";
 import { setWorkdir, artifactSpillThresholdBytes } from "../src/config.js";
 import { FileArtifactStore, maybeSpillToolResult } from "../src/context/stores/index.js";
 import { artifactMetaPath, artifactPath } from "../src/session/paths.js";
 import { Session } from "../src/session/session.js";
 import { parseItems } from "../src/session/io/index.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-artifact-");
   setWorkdir(tmpDir);
-  registerDefaultSidecarHooks(tmpDir);
+  testRuntime = installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
-  resetSidecarHooks();
+  clearTestRuntime();
   removeTmpWorkdir(tmpDir);
   vi.unstubAllEnvs();
 });
@@ -57,7 +59,7 @@ describe("runToolUse artifact spill", () => {
   it("writes tool_outcome with artifactId for large results", async () => {
     vi.stubEnv("OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
 
-    const session = Session.create(tmpDir);
+    const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     const stores = { artifacts: new FileArtifactStore(tmpDir) };
     const bigOutput = "y".repeat(500);
 
@@ -72,6 +74,7 @@ describe("runToolUse artifact spill", () => {
 
     const result = await runToolUse(block, 1, {
       session,
+      runtime: testRuntime,
       stores: {
         artifacts: stores.artifacts,
         compaction: { get: async () => undefined, list: async () => [], save: async () => {} },
@@ -97,13 +100,13 @@ describe("runToolUse artifact spill", () => {
 describe("session reload preserves artifact reference", () => {
   it("hydrates tool_result with artifact hint from item log", async () => {
     vi.stubEnv("OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
-    const session = Session.create(tmpDir);
+    const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     const store = new FileArtifactStore(tmpDir);
     const content = "z".repeat(400);
     const spilled = await maybeSpillToolResult(session.sessionId, "tu-1", content, store, tmpDir);
     await session.appendToolOutcome(1, "tu-1", spilled.summary, spilled.artifactId);
 
-    const reopened = Session.open(session.sessionId, tmpDir);
+    const reopened = Session.open(session.sessionId, tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     const messages = reopened.getMessages();
     const toolMessage = messages.find(
       (message) =>

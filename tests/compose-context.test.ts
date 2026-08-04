@@ -11,6 +11,7 @@ import {
 } from "../src/context/stores/index.js";
 import type { CompactionSave } from "../src/context/stores/compaction-types.js";
 import type { SessionMessage } from "../src/session/types.js";
+import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 function userMessage(id: string, turn: number, text: string, sessionId = "sess-1"): SessionMessage {
   return {
@@ -24,6 +25,7 @@ function userMessage(id: string, turn: number, text: string, sessionId = "sess-1
 }
 
 describe("composeContext", () => {
+  installTestRuntime();
   const baseInput = {
     sessionId: "sess-1",
     turn: 3,
@@ -31,7 +33,7 @@ describe("composeContext", () => {
     artifactStore: createStubArtifactStore(),
     compactionStore: createStubCompactionStore(),
     checkpointStore: createStubCheckpointStore(),
-    toolDefinitions: resolveToolDefinitions(),
+    toolDefinitions: resolveToolDefinitions(getTestRuntime()),
     modelProfile: {
       logicalModelId: "claude-test",
       contextWindow: 200_000,
@@ -43,7 +45,7 @@ describe("composeContext", () => {
     compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
   };
 
-  it("composes messages and records includedItemIds", async () => {
+  it("composes messages and records compiledMessageItemIds", async () => {
     const messages = [
       userMessage("e1", 1, "hello"),
       userMessage("e2", 2, "follow up"),
@@ -52,7 +54,8 @@ describe("composeContext", () => {
     const composed = await composeContext({ ...baseInput, messages });
 
     expect(composed.request.system).toContain("system rules");
-    expect(composed.manifest.includedItemIds).toEqual(["e1", "e2"]);
+    expect(composed.manifest.sourceItemIds).toEqual(["e1", "e2"]);
+    expect(composed.manifest.compiledMessageItemIds).toEqual(["e1", "e2"]);
     expect(composed.request.messages).toHaveLength(2);
   });
 });
@@ -102,7 +105,7 @@ describe("compaction apply helpers", () => {
       { role: "user" as const, content: "second question" },
     ];
 
-    const result = applyPrune(messages, "sys", resolveToolDefinitions(), 1, "claude-test");
+    const result = applyPrune(messages, "sys", resolveToolDefinitions(getTestRuntime()), 1, "claude-test");
     expect(result.changed).toBe(true);
     expect(result.afterTokens).toBeLessThan(result.beforeTokens);
   });

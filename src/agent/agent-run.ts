@@ -1,15 +1,14 @@
-import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
+import { modelId } from "../config.js";
+import { DEFAULT_MAX_TOKENS } from "../constants/llm.js";
 import { composeContext } from "../context/composer/compose.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
 import type { ComposedLLMRequest } from "../context/composer/types.js";
 import { publishComposeResult } from "../context/runtime-status.js";
-import { hookDispatcher } from "./hooks/index.js";
 import type { SessionStores } from "../context/stores/index.js";
-import { extractText } from "../llm/client/anthropic.js";
+import { extractText } from "../llm/normalize/extract-text.js";
+import type { LLMResponse } from "../llm/protocol/types.js";
 import { resolveModelProfile } from "../llm/models/resolve.js";
 import { getToolDefinitions } from "../tools/index.js";
-import { mapSdkContentBlocks } from "../session/content-map.js";
 import type { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
 import { getWorkdir } from "../config.js";
@@ -43,7 +42,8 @@ export class AgentRun {
   }
 
   async execute(userPrompt: string): Promise<{ reply: string; turn: number }> {
-    await hookDispatcher.dispatch("runStart", { userPrompt });
+    const { runtime } = this.loopCtx;
+    await runtime.hooks.dispatch("runStart", { userPrompt });
     try {
       await this.recordUser(1, userPrompt);
       let runTurn = 0;
@@ -54,15 +54,15 @@ export class AgentRun {
         const done = await this.recordOutcome(runTurn, response);
         if (done) {
           const result = { reply: done.reply, turn: runTurn };
-          await hookDispatcher.dispatch("runEnd", result);
+          await runtime.hooks.dispatch("runEnd", result);
           return result;
         }
       }
     } catch (error) {
-      await hookDispatcher.dispatch("runError", { error });
+      await runtime.hooks.dispatch("runError", { error });
       throw error;
     } finally {
-      await hookDispatcher.dispatch("runFinalize", {});
+      await runtime.hooks.dispatch("runFinalize", {});
     }
   }
 
@@ -79,14 +79,14 @@ export class AgentRun {
       artifactStore: this.stores.artifacts,
       compactionStore: this.stores.compaction,
       checkpointStore: this.stores.checkpoints,
-      toolDefinitions: getToolDefinitions(),
+      toolDefinitions: getToolDefinitions(this.loopCtx.runtime),
       modelProfile: resolveModelProfile(),
       compactionPolicy: this.composeOptions.getCompactionPolicy(),
       resumeFromCheckpointId: this.composeOptions.resumeFromCheckpointId,
       activeCompactionSaveId: this.composeOptions.activeCompactionSaveId,
     });
     publishComposeResult(composed);
-    await hookDispatcher.dispatch("composeComplete", { composed });
+    await this.loopCtx.runtime.hooks.dispatch("composeComplete", { composed });
     this.composeOptions.onAfterCompose?.();
     return composed.request as ComposedLLMRequest;
   }
@@ -94,6 +94,9 @@ export class AgentRun {
   private async callModel(runTurn: number, input: ComposedLLMRequest) {
     return runLLM({
       turn: runTurn,
+      runtime: this.loopCtx.runtime,
+      model: modelId(),
+      maxTokens: DEFAULT_MAX_TOKENS,
       messages: input.messages,
       system: input.system,
       tools: input.tools,
@@ -102,11 +105,11 @@ export class AgentRun {
 
   private async recordOutcome(
     runTurn: number,
-    response: Message,
+    response: LLMResponse,
   ): Promise<{ reply: string } | undefined> {
-    await this.session.appendAssistant(runTurn, mapSdkContentBlocks(response.content));
+    await this.session.appendAssistant(runTurn, response.content);
 
-    if (response.stop_reason !== "tool_use") {
+    if (response.stopReason !== "tool_use") {
       return { reply: extractText(response.content) };
     }
 

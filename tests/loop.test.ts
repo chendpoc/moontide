@@ -1,35 +1,23 @@
 import fs from "node:fs";
-import type { Message } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSession } from "../src/agent/agent-session.js";
 import { createDefaultLoopContext } from "../src/agent/deps.js";
 import type { LoopContext } from "../src/agent/deps.js";
 import { setWorkdir } from "../src/config.js";
-import { setupEventPipeline, resetEventPlatform } from "../src/log/setup.js";
-import * as llm from "../src/llm/client/anthropic.js";
+import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
+import { resetEventPlatform } from "../src/log/setup.js";
+import { setLLMProvider } from "../src/llm/provider.js";
 import type { UserInteraction } from "../src/tools/types.js";
 import { sessionLogPath } from "../src/session/paths.js";
 import { joinPath } from "../src/utils/path.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
-
-function assistantMessage(
-  content: Message["content"],
-  stopReason: Message["stop_reason"] = "end_turn",
-): Message {
-  return {
-    id: "msg_test",
-    type: "message",
-    role: "assistant",
-    model: "test-model",
-    stop_reason: stopReason,
-    stop_sequence: null,
-    usage: { input_tokens: 1, output_tokens: 1 },
-    content,
-  };
-}
+let chatMock: ReturnType<typeof vi.fn>;
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 function runContext(
   agentSession: AgentSession,
@@ -38,6 +26,7 @@ function runContext(
   return {
     userInteraction,
     session: agentSession.session,
+    runtime: agentSession.runtime,
   };
 }
 
@@ -51,19 +40,24 @@ const denyAllInteraction: UserInteraction = {
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-agent-run-");
   setWorkdir(tmpDir);
-  setupEventPipeline();
+  testRuntime = installTestRuntime(tmpDir);
+  setupAgentEventPipeline(testRuntime);
+  chatMock = vi.fn();
+  setLLMProvider(mockLLMProvider(chatMock));
 });
 
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
   resetEventPlatform();
+  clearTestRuntime();
+  setLLMProvider(undefined);
   vi.restoreAllMocks();
 });
 
 describe("AgentSession.run", () => {
   it("returns assistant text when stop_reason is end_turn", async () => {
-    vi.spyOn(llm, "chat").mockResolvedValue(
-      assistantMessage([{ type: "text", text: "Hello from model" }]),
+    chatMock.mockResolvedValue(
+      mockLLMResponse([{ type: "text", text: "Hello from model" }]),
     );
 
     const agentSession = AgentSession.create(tmpDir);
@@ -74,15 +68,15 @@ describe("AgentSession.run", () => {
 
     expect(reply).toBe("Hello from model");
     expect(turn).toBe(1);
-    expect(llm.chat).toHaveBeenCalledTimes(1);
+    expect(chatMock).toHaveBeenCalledTimes(1);
   });
 
   it("runs tool_use and continues until end_turn", async () => {
     fs.writeFileSync(joinPath(tmpDir, "demo.txt"), "file content", "utf8");
 
-    vi.spyOn(llm, "chat")
+    chatMock
       .mockResolvedValueOnce(
-        assistantMessage(
+        mockLLMResponse(
           [
             {
               type: "tool_use",
@@ -95,7 +89,7 @@ describe("AgentSession.run", () => {
         ),
       )
       .mockResolvedValueOnce(
-        assistantMessage([{ type: "text", text: "Read complete" }]),
+        mockLLMResponse([{ type: "text", text: "Read complete" }]),
       );
 
     const agentSession = AgentSession.create(tmpDir);
@@ -106,15 +100,15 @@ describe("AgentSession.run", () => {
 
     expect(reply).toBe("Read complete");
     expect(turn).toBe(2);
-    expect(llm.chat).toHaveBeenCalledTimes(2);
+    expect(chatMock).toHaveBeenCalledTimes(2);
     const log = await agentSession.session.readItems();
     expect(log.some((r) => r.kind === "tool_outcome")).toBe(true);
   });
 
   it("blocks deny-class tools via Tool Use Module", async () => {
-    vi.spyOn(llm, "chat")
+    chatMock
       .mockResolvedValueOnce(
-        assistantMessage(
+        mockLLMResponse(
           [
             {
               type: "tool_use",
@@ -127,7 +121,7 @@ describe("AgentSession.run", () => {
         ),
       )
       .mockResolvedValueOnce(
-        assistantMessage([{ type: "text", text: "Acknowledged deny" }]),
+        mockLLMResponse([{ type: "text", text: "Acknowledged deny" }]),
       );
 
     const agentSession = AgentSession.create(tmpDir);
@@ -150,9 +144,9 @@ describe("AgentSession.run", () => {
       approveTool: async () => false,
     };
 
-    vi.spyOn(llm, "chat")
+    chatMock
       .mockResolvedValueOnce(
-        assistantMessage(
+        mockLLMResponse(
           [
             {
               type: "tool_use",
@@ -165,7 +159,7 @@ describe("AgentSession.run", () => {
         ),
       )
       .mockResolvedValueOnce(
-        assistantMessage([{ type: "text", text: "User declined" }]),
+        mockLLMResponse([{ type: "text", text: "User declined" }]),
       );
 
     const agentSession = AgentSession.create(tmpDir);
@@ -187,9 +181,9 @@ describe("AgentSession.run", () => {
       approveTool: async () => true,
     };
 
-    vi.spyOn(llm, "chat")
+    chatMock
       .mockResolvedValueOnce(
-        assistantMessage(
+        mockLLMResponse(
           [
             {
               type: "tool_use",
@@ -202,7 +196,7 @@ describe("AgentSession.run", () => {
         ),
       )
       .mockResolvedValueOnce(
-        assistantMessage([{ type: "text", text: "Done" }]),
+        mockLLMResponse([{ type: "text", text: "Done" }]),
       );
 
     const agentSession = AgentSession.create(tmpDir);
@@ -219,14 +213,14 @@ describe("AgentSession.run", () => {
   });
 
   it("writes session log during run", async () => {
-    vi.spyOn(llm, "chat").mockResolvedValue(
-      assistantMessage([{ type: "text", text: "Logged reply" }]),
+    chatMock.mockResolvedValue(
+      mockLLMResponse([{ type: "text", text: "Logged reply" }]),
     );
 
-    const agentSession = AgentSession.create(tmpDir);
+    const agentSession = AgentSession.create(tmpDir, testRuntime);
     await agentSession.run(
       "log me",
-      createDefaultLoopContext(agentSession.session),
+      createDefaultLoopContext(agentSession.session, testRuntime),
     );
 
     expect(fs.existsSync(sessionLogPath(tmpDir, agentSession.session.sessionId))).toBe(true);

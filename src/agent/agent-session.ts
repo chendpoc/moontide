@@ -1,26 +1,18 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
 import { getWorkdir } from "../config.js";
 import type { Checkpoint } from "../context/stores/checkpoint-types.js";
 import { createSessionStores, type SessionStores } from "../context/stores/index.js";
-import {
-  runSummaryCompaction,
-  type SummaryCompactionResult,
-} from "../context/composer/compaction/run-summary-compaction.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
-import {
-  defaultCompactSystem,
-  previewCompact,
-  type CompactPreview,
-} from "../context/compact.js";
-import { composeContext } from "../context/composer/compose.js";
-import { resolveCompactionPolicy, resolveModelProfile } from "../llm/models/resolve.js";
-import { resolveInstructionState } from "../instruction-state/index.js";
+import type { SummaryCompactionResult } from "../context/composer/compaction/run-summary-compaction.js";
+import type { CompactPreview } from "../context/compact.js";
+import { resolveCompactionPolicy } from "../llm/models/resolve.js";
 import { getToolDefinitions } from "../tools/index.js";
 import { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
 import { AgentRun, type AgentRunComposeOptions } from "./agent-run.js";
-import { newEventId } from "../utils/id.js";
+import { CheckpointService } from "./checkpoint-service.js";
+import { CompactionService } from "./compaction-service.js";
+import { createSessionCommitPort } from "./session-commit-port.js";
+import { getAgentRuntime, type AgentRuntime } from "./runtime/index.js";
 
 export interface AgentSessionOpenOptions {
   resumeFromCheckpointId?: string;
@@ -29,6 +21,9 @@ export interface AgentSessionOpenOptions {
 export class AgentSession {
   readonly session: Session;
   readonly stores: SessionStores;
+  readonly runtime: AgentRuntime;
+  private readonly compaction: CompactionService;
+  private readonly checkpoints: CheckpointService;
   private resumeFromCheckpointId?: string;
   private activeCompactionSaveId?: string;
   private forcePrune = false;
@@ -37,36 +32,61 @@ export class AgentSession {
   private constructor(
     session: Session,
     stores: SessionStores,
+    runtime: AgentRuntime,
     resumeFromCheckpointId?: string,
   ) {
     this.session = session;
     this.stores = stores;
+    this.runtime = runtime;
     this.resumeFromCheckpointId = resumeFromCheckpointId;
+    this.compaction = new CompactionService(session, stores, getToolDefinitions(runtime), {
+      getPolicy: () => this.getCompactionPolicy(),
+      getActiveCompactionSaveId: () => this.activeCompactionSaveId,
+      setActiveCompactionSaveId: (id) => {
+        this.activeCompactionSaveId = id;
+      },
+      getResumeCheckpointId: () => this.resumeFromCheckpointId,
+      setForcePrune: (value) => {
+        this.forcePrune = value;
+      },
+    });
+    this.checkpoints = new CheckpointService(session, stores, {
+      getActiveCompactionSaveId: () => this.activeCompactionSaveId,
+      setActiveCompactionSaveId: (id) => {
+        this.activeCompactionSaveId = id;
+      },
+      setResumeCheckpointId: (id) => {
+        this.resumeFromCheckpointId = id;
+      },
+    });
   }
 
-  static create(workdir = getWorkdir()): AgentSession {
-    return new AgentSession(Session.create(workdir), createSessionStores(workdir));
+  static create(workdir = getWorkdir(), runtime = getAgentRuntime()): AgentSession {
+    const commitPort = createSessionCommitPort(workdir, runtime);
+    return new AgentSession(Session.create(workdir, commitPort), createSessionStores(workdir), runtime);
   }
 
   static async open(
     sessionId: string,
     workdir = getWorkdir(),
     options: AgentSessionOpenOptions = {},
+    runtime = getAgentRuntime(),
   ): Promise<AgentSession> {
     const stores = createSessionStores(workdir);
-    const session = Session.open(sessionId, workdir);
+    const commitPort = createSessionCommitPort(workdir, runtime);
+    const session = Session.open(sessionId, workdir, commitPort);
 
     if (options.resumeFromCheckpointId) {
       const checkpoint = await stores.checkpoints.get(sessionId, options.resumeFromCheckpointId);
       if (checkpoint) {
         session.truncateMessages(checkpoint.lastItemId);
-        const agent = new AgentSession(session, stores, options.resumeFromCheckpointId);
+        const agent = new AgentSession(session, stores, runtime, options.resumeFromCheckpointId);
         agent.activeCompactionSaveId = checkpoint.activeCompactionSaveId;
         return agent;
       }
     }
 
-    return new AgentSession(session, stores);
+    return new AgentSession(session, stores, runtime);
   }
 
   getCompactionPolicy(): CompactionPolicy {
@@ -104,96 +124,19 @@ export class AgentSession {
   }
 
   async runSummaryCompaction(turn: number): Promise<SummaryCompactionResult> {
-    const policy = this.getCompactionPolicy();
-    const result = await runSummaryCompaction({
-      sessionId: this.session.sessionId,
-      turn,
-      sessionMessages: this.session.getMessages(),
-      system: resolveInstructionState(getWorkdir()).basePrompt,
-      tools: getToolDefinitions(),
-      keepTurns: policy.keepTurns,
-    });
-
-    await this.stores.compaction.save(result.save);
-    await this.session.appendCompactionItem(
-      turn,
-      result.beforeTokens,
-      result.afterTokens,
-      "summary",
-      result.save.id,
-    );
-    this.activeCompactionSaveId = result.save.id;
-    return result;
+    return this.compaction.runSummary(turn);
   }
 
   async runPruneCompaction(turn: number): Promise<CompactPreview> {
-    const composed = await composeContext({
-      sessionId: this.session.sessionId,
-      turn,
-      messages: this.session.getMessages(),
-      instructionState: { basePrompt: defaultCompactSystem(), epoch: 1 },
-      artifactStore: this.stores.artifacts,
-      compactionStore: this.stores.compaction,
-      checkpointStore: this.stores.checkpoints,
-      toolDefinitions: getToolDefinitions(),
-      modelProfile: resolveModelProfile(),
-      compactionPolicy: { ...this.getCompactionPolicy(), autoEnabled: false },
-      activeCompactionSaveId: this.activeCompactionSaveId,
-      resumeFromCheckpointId: this.resumeFromCheckpointId,
-    });
-
-    const preview = previewCompact(
-      composed.request.messages as MessageParam[],
-      composed.request.system,
-      composed.request.tools,
-      this.getCompactionPolicy().keepTurns,
-    );
-
-    if (!preview.wouldChange) {
-      return preview;
-    }
-
-    await this.session.appendCompactionItem(
-      turn,
-      preview.beforeTokens,
-      preview.afterTokens,
-      "prune",
-    );
-    this.forcePrune = true;
-    return preview;
+    return this.compaction.runPrunePreview(turn);
   }
 
   async createCheckpoint(turn: number, label?: string): Promise<Checkpoint> {
-    const lastMessage = this.session.getMessages().at(-1);
-    if (!lastMessage) {
-      throw new Error("Cannot create checkpoint: session has no messages");
-    }
-
-    const checkpoint: Checkpoint = {
-      id: newEventId(),
-      sessionId: this.session.sessionId,
-      createdAtTurn: turn,
-      lastItemId: lastMessage.id,
-      instructionEpoch: 1,
-      activeCompactionSaveId: this.activeCompactionSaveId,
-      label,
-    };
-
-    await this.stores.checkpoints.save(checkpoint);
-    await this.session.appendCheckpointItem(turn, checkpoint.id);
-    return checkpoint;
+    return this.checkpoints.create(turn, label);
   }
 
   async resume(checkpointId: string): Promise<boolean> {
-    const checkpoint = await this.stores.checkpoints.get(this.session.sessionId, checkpointId);
-    if (!checkpoint) {
-      return false;
-    }
-
-    this.session.truncateMessages(checkpoint.lastItemId);
-    this.resumeFromCheckpointId = checkpointId;
-    this.activeCompactionSaveId = checkpoint.activeCompactionSaveId;
-    return true;
+    return this.checkpoints.resume(checkpointId);
   }
 
   getResumeCheckpointId(): string | undefined {
@@ -204,9 +147,16 @@ export class AgentSession {
     userPrompt: string,
     ctx: LoopContext,
   ): Promise<{ reply: string; turn: number }> {
-    const loopCtx: LoopContext = { ...ctx, session: this.session, stores: this.stores };
+    const loopCtx: LoopContext = {
+      ...ctx,
+      session: this.session,
+      stores: this.stores,
+      runtime: this.runtime,
+    };
     return new AgentRun(this.session, this.stores, loopCtx, this.composeOptions()).execute(
       userPrompt,
     );
   }
 }
+
+export type { SummaryCompactionResult };
