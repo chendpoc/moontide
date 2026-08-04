@@ -21,6 +21,6 @@ export {
   describeObservabilityModes,
   resetObservabilityOverrides,
 } from "./modes.js";
-export { setupEventPipeline, bootstrapEventPlatform, teardownEventPlatform, refreshEventOutputs, resetEventPlatform } from "./setup.js";
+export { configureOutputs, refreshEventOutputs, resetEventPlatform } from "./setup.js";
 export { finalizeEvent, getRunId, resetRun } from "./run.js";
 export type { AgentEvent, EventDraft } from "./types.js";

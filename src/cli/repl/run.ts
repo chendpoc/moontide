@@ -3,7 +3,9 @@ import { stdin as input, stdout as output } from "node:process";
 
 import { continueReplAgent } from "../../agent/loop.js";
 import type { AgentSession } from "../../agent/agent-session.js";
-import { bootstrapEventPlatform, teardownEventPlatform } from "../../log/setup.js";
+import { getWorkdir } from "../../config.js";
+import { bootstrapAgentPlatform, teardownAgentPlatform } from "../../app/bootstrap.js";
+import { getAgentRuntime } from "../../agent/runtime/index.js";
 import type { UserInteraction } from "../../tools/types.js";
 import {
   replPrompt,
@@ -33,6 +35,7 @@ async function runAgentTurn(
     const { reply } = await continueReplAgent(prompt, agentSession, {
       userInteraction,
       session: agentSession.session,
+      runtime: agentSession.runtime,
     });
     return reply;
   } finally {
@@ -43,7 +46,7 @@ async function runAgentTurn(
 
 /** Interactive REPL loop (readline, slash commands, agent turns). */
 export async function runRepl(): Promise<void> {
-  await bootstrapEventPlatform();
+  await bootstrapAgentPlatform(getWorkdir(), getAgentRuntime());
 
   writeStderrLine("Ocula — type /help for commands");
   writeStderrLine("");
@@ -86,6 +89,6 @@ export async function runRepl(): Promise<void> {
   } finally {
     rl.close();
     resetReplSession();
-    teardownEventPlatform();
+    teardownAgentPlatform(getAgentRuntime());
   }
 }
