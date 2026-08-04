@@ -106,7 +106,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | Sidecar | **可选**；未安装时 MVP 完整 | 见 [`runtime-multilang.md` §9](../notes/runtime-multilang.md) |
 | Desktop 主 Bundle | **≤ 20MB**（Slint + Rust Host，**不含 Node**） | Node runtime pack 按需下载 |
 
-当前实现仍为 **TypeScript + `node dist/cli/main.js`**；上表为 **Rust release 验收门槛**。
+当前实现仍为 **TypeScript + `node dist/main.js`**；上表为 **Rust release 验收门槛**。
 
 ---
 

@@ -12,11 +12,13 @@ ocula/
 ├── Cargo.toml           # workspace
 ├── docs/                # 设计 Spec 与 Doc Map（product / spec / notes）
 ├── src/
+│   ├── main.ts          # 进程入口（REPL）
+│   ├── bootstrap.ts     # env / provider 初始化
 │   ├── agent/           # loop、prompt、pipeline（runLLM / runTool）、tools
 │   ├── builtins/        # fs、git、grep、bash、http_fetch 等原生 tool
 │   ├── extensions/      # audit、code-repl、context、trace、deep-research
 │   ├── llm/             # client、healthcheck（`pnpm run ping`）
-│   ├── cli/             # REPL 入口、commands、statusline
+│   ├── cli/             # REPL 实现：commands、repl、statusline
 │   ├── log/             # AgentEvent bus、orchestrator、JSONL writer
 │   ├── context/         # metrics、sessions、compact
 │   └── constants/       # storage、llm、env 等常量
