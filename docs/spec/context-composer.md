@@ -21,8 +21,9 @@ LLMRequest + Context Manifest
 API 适配层 → 厂商 API
 ```
 
-**Context Composer** 是唯一允许产出「发给模型的 immutable input」的模块。Harness（`agent/loop`、tool 执行）只 append 会话事实、调用 Composer、再调 `LLMProvider`。
+**Context Composer** 是唯一允许产出「发给模型的 immutable input」的模块。Harness（`agent/loop`、tool 执行）只 mutate **SessionContext**（内存）、append **SessionItem**（jsonl）、经 **SessionTransform** 转为协议 `Message[]`，再调用 Composer 与 `LLMProvider`。
 
+> **TypeScript（2026）：** 运行时真相为 [`SessionContext`](../notes/session-domain-model.md)（`{ messages }` only）；**Session Item Log** 存 `SessionItem`；**Context Composer**（`composeContext`）为唯一 LLM 输入出口；Agent 观测在 [`src/log`](../../src/log/)。  
 > **Rust R1：** `ocula-composer` + `ocula-session` 已实现 Artifact Store 分级投影、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Log append-only 不变。
 
 ### 1.2 与相关文档的分工
@@ -33,11 +34,11 @@ API 适配层 → 厂商 API
 | [`llm-input.md`](llm-input.md) | `system` / `tools` / `messages` 对表与现状缺口 |
 | [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA 与竞品参考 |
 | [`agent-events.md`](agent-events.md) | **Agent Event Log**（run 级观测） |
-| 本文 | **Session Event Log**、Session State Stores、Composer、Manifest |
+| 本文 | **Session Item Log**、Session State Stores、Composer、Manifest |
 
 ### 1.3 设计 Invariant（五条）
 
-1. **Session Event Log append-only** — 不 `splice` 删历史；compact 只改投影，不改事实。
+1. **Session Item Log append-only** — 不 `splice` 删历史；compact 只改投影，不改事实。
 2. **投影 immutable** — 每 turn 新建 `LLMRequest`；adapter 只读，不 mutate Composer 产出。
 3. **Instruction State 独立于对话摘要** — `system` 每轮从 Instruction State 重建，不依赖 summary 记得规则。
 4. **Compaction ≠ Checkpoint** — 前者调整 context 预算投影；后者保存可恢复快照；互不必然伴随。
@@ -51,13 +52,13 @@ API 适配层 → 厂商 API
 flowchart TB
   subgraph logs [Logs]
     AEL["Agent Event Log — run"]
-    SEL["Session Event Log — session"]
+    SEL["Session Item Log — session"]
   end
 
   subgraph SSS [Session State Stores]
     IS["Instruction State"]
     AS["Artifact Store"]
-    CR["Compaction Record"]
+    CR["CompactionSave"]
     CP["Checkpoint"]
   end
 
@@ -86,29 +87,29 @@ flowchart TB
 | 术语 | 定义 | 持久化 | 典型路径 / 模块 |
 |------|------|--------|-----------------|
 | **Agent Event Log** | 单次 run 的观测事件（trace、metrics、audit） | 是 | `.ocula/runs/<runId>.jsonl` |
-| **Session Event Log** | 整场 session 的 append-only 事实 | 是 | `.ocula/sessions/<sessionId>.jsonl` |
+| **Session Item Log** | 整场 session 的 append-only 事实 | 是 | `.ocula/sessions/<sessionId>.jsonl` |
 | **Instruction State** | 拼进 `LLMRequest.system` 的规则与 prompt 来源 | 部分（文件源） | 内存 + `AGENTS.md` / `.ocula/rules`（远期） |
-| **Artifact Store** | 大 tool 输出全文 | 是 | `.ocula/artifacts/<sessionId>/<artifactId>` |
-| **Compaction Record** | summary / structured 压缩的持久产物 | 是 | `.ocula/sessions/<sessionId>/compaction/<id>.json` |
+| **Artifact Store** | 大 tool 输出全文 | 是 | `.ocula/artifacts/<sessionId>/<artifactId>` + `<id>.meta.json` |
+| **CompactionSave** | summary / structured 压缩的持久产物 | 是 | `.ocula/sessions/<sessionId>/compaction/<id>.json` |
 | **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.ocula/sessions/<sessionId>/checkpoints/<id>.json` |
-| **Compaction** | 调整 Composer 投影策略的操作（过程） | 事件写入 Session Event Log | — |
+| **Compaction** | 调整 Composer 投影策略的操作（过程） | 事件写入 Session Item Log | — |
 | **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | [`tools/`](../../src/tools/) `getToolDefinitions()` → Composer |
-| **ModelProfile** | context 上限、token 计数策略等 | model 注册表 + env | [`llm-provider.md` §9.4](llm-provider.md#94-modelcapabilities) |
-| **Context Composer** | 编译 `LLMRequest` + `Context Manifest` | 否 | 目标：`src/context/composer/` |
-| **Context Manifest** | 本轮投影决策与预算说明 | 可选持久 / 观测 | 随 turn 写入 Agent Event Log 或内存 |
-| **Bruma** | vision **保留产品名**，指 Session 事实为 source of truth 的远期产品线方向 | — | 本 repo 实现与 Spec 用 **Session Event Log**；Bruma 不作模块代号 |
+| **ModelProfile** | context 上限、token 计数策略等 | model 注册表 + env | [`llm/models/resolve.ts`](../../src/llm/models/resolve.ts) |
+| **Context Composer** | 编译 `LLMRequest` + `Context Manifest` | 否 | [`src/context/composer/`](../../src/context/composer/) |
+| **Context Manifest** | 本轮投影决策与预算说明 | 可选持久 / 观测 | compose 产出；statusline / inspect |
+| **Bruma** | vision **保留产品名** | — | 本 repo 实现与 Spec 用 **Session Item Log** |
 
 ---
 
-## 4. Agent Event Log 与 Session Event Log
+## 4. Agent Event Log 与 Session Item Log
 
-| | **Agent Event Log** | **Session Event Log** |
+| | **Agent Event Log** | **Session Item Log** |
 |---|---------------------|------------------------|
 | **Scope** | 单次 **run** | 整场 **session**（可跨多个 run） |
 | **路径** | `.ocula/runs/<runId>.active.jsonl` | `.ocula/sessions/<sessionId>.jsonl` |
 | **职责** | trace、context metrics、audit、UI tail | **source of truth**：user、assistant、tool、compaction、checkpoint 等事实 |
 | **是否 append-only** | 是（按 run 分段压缩） | 是 |
-| **与模型 input 关系** | 观测镜像；**不是**唯一事实源 | 事实源；Composer **读取**后投影，不整包等于 `LLMRequest` |
+| **与模型 input 关系** | 观测镜像；**不是**唯一事实源 | 事实源；Composer 读 **SessionContext.messages** + Stores 投影 |
 
 **关系（目标）：**
 
@@ -239,16 +240,15 @@ export interface Artifact {
 - **Session Event Log：** `tool_outcome` 只存 `artifactId` + `resultSummary`（`ToolResultSummary`）；全文在 Artifact Store。
 - **Composer：** 默认只投影 `resultSummary`；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
 
-### 6.3 Compaction Record
+### 6.3 CompactionSave
 
 ```typescript
-export interface CompactionRecord {
+export interface CompactionSave {
   id: string;
   sessionId: string;
   createdAtTurn: number;
   kind: "summary" | "structured";
-  coversEntryIds: string[];
-  /** summary 类：自由文本；structured 类：结构化字段 */
+  coversItemIds: string[];
   payload: SummaryPayload | StructuredPayload;
 }
 
@@ -260,9 +260,11 @@ export interface StructuredPayload {
 }
 ```
 
-- **路径：** `.ocula/sessions/<sessionId>/compaction/<id>.json`
-- **何时写入：** 仅 **summary / structured** 类 Compaction 需要；**prune / tail_window** 不需要 Compaction Record。
-- **Composer：** 投影旧对话时引用最新适用的 Compaction Record + 最近 tail 条目。
+- **路径：** `.ocula/sessions/<sessionId>/compaction/<id>.json`（`compactionSavePath`）
+- **何时写入：** 仅 **summary / structured** 类 Compaction（`/compact summary` → `runSummaryCompaction`）
+- **prune / tail_window：** 只写 Session Item Log 的 `compaction` 行，**不**写 CompactionSave
+- **Composer：** `applySummary` 引用 `activeCompactionSaveId`；Manifest 含 `coversItemIds`
+- **legacy jsonl：** `compaction` Item 仍用字段名 `compactionRecordId`（磁盘 schema 不变）
 
 ### 6.4 Checkpoint
 
@@ -271,17 +273,18 @@ export interface Checkpoint {
   id: string;
   sessionId: string;
   createdAtTurn: number;
-  lastEntryId: string;
+  lastItemId: string;
   instructionEpoch: number;
-  activeCompactionRecordId?: string;
+  activeCompactionSaveId?: string;
   composerPolicyVersion?: string;
   label?: string;
 }
 ```
 
 - **路径：** `.ocula/sessions/<sessionId>/checkpoints/<id>.json`
-- **用途：** resume、debug、fork；**不**等同于 Compaction Record。
-- **触发（示例）：** user turn 结束、用户命令、run 结束；与是否刚 Compaction **无必然关系**。
+- **用途：** resume、debug、fork；**不**等同于 CompactionSave
+- **CLI：** `/checkpoint [label]` · `/checkpoint list` · `/resume <id>`
+- **恢复：** 内存 `messages` 截到 `lastItemId`；Item Log 继续 append-only；`composeContext({ resumeFromCheckpointId })`
 
 ---
 
@@ -296,18 +299,20 @@ export interface Checkpoint {
 
 ### 7.2 Compaction 类型
 
-| 类型 | 行为 | 需要 Compaction Record |
+| 类型 | 行为 | 需要 CompactionSave |
 |------|------|------------------------|
-| **prune** | 旧 tool 结果只投影 `resultSummary` / 占位 | 否 |
-| **tail_window** | 只投影最近 N 轮 user turn 起的条目 | 否 |
-| **summary** | LLM 生成摘要并注入投影 | 是 |
+| **prune** | 旧 tool 结果 shrink / strip thinking（`applyPrune`） | 否 |
+| **tail_window** | 只投影最近 N 轮（`applyTailWindow` / Checkpoint resume） | 否 |
+| **summary** | LLM 摘要注入投影（`applySummary` + CompactionSave） | 是 |
 
-### 7.3 与 today `/compact` 的对照
+### 7.3 `/compact` 命令（已实现）
 
-| 今天 [`compact.ts`](../../src/context/compact.ts) | 目标 |
-|------------------------------------------------|------|
-| auto compact：`splice` 旧 tool_result | **prune** 投影；Session Event Log 不变 |
-| `/compact summary`：摘要塞进 `messages[]` | 写 **Compaction Record** + `compaction` 事件；Composer 引用 |
+| 命令 | 行为 |
+|------|------|
+| `/compact` / `/compact prune` | 写 `compaction` Item；下轮 compose **forcePrune** |
+| `/compact preview` | dry-run token 估算（经 `composeContext`） |
+| `/compact summary` | LLM 摘要 → **CompactionSave** + `compaction` Item；激活 `activeCompactionSaveId` |
+| `/compact auto on\|off` | REPL 级 auto-prune 开关（超阈值 compose 内 prune，不写 Item Log） |
 
 ---
 
@@ -330,7 +335,7 @@ export interface Checkpoint {
 
 ### 8.3 恢复（目标行为）
 
-加载 Checkpoint → Composer 从 `lastEntryId` / `activeCompactionRecordId` / `instructionEpoch` 重建输入态 → 继续 append Session Event Log。
+加载 Checkpoint → 内存 `messages` 截到 `lastItemId` → Composer 读 `activeCompactionSaveId` / `instructionEpoch` → 继续 append Session Item Log。
 
 ---
 
@@ -352,30 +357,33 @@ export interface Checkpoint {
 
 ## 10. Context Composer
 
-### 10.1 接口（目标）
+### 10.1 接口（TypeScript 已实现）
 
 ```typescript
 export interface ComposeContextInput {
   sessionId: string;
   turn: number;
-  sessionLog: SessionLogReader;
+  messages: readonly SessionMessage[];
   instructionState: InstructionState;
-  artifacts: ArtifactStore;
-  compactionRecords: CompactionRecordStore;
-  checkpoints: CheckpointStore;
+  artifactStore: ArtifactStore;
+  compactionStore: CompactionStore;
+  checkpointStore: CheckpointStore;
   toolDefinitions: ToolSchema[];
   modelProfile: ModelProfile;
   compactionPolicy: CompactionPolicy;
   resumeFromCheckpointId?: string;
+  activeCompactionSaveId?: string;
 }
 
 export interface ComposedContext {
-  request: LLMRequest;
+  request: ComposedLLMRequest;
   manifest: ContextManifest;
 }
 
-export function composeContext(input: ComposeContextInput): ComposedContext;
+export function composeContext(input: ComposeContextInput): Promise<ComposedContext>;
 ```
+
+**流水线：** `messages` → `messagesFromContext` → `applyTailWindow`（resume）→ `applySummary` / `applyPrune` → `toMessageParams` + Instruction State → `LLMRequest`
 
 ### 10.2 Context Manifest
 
@@ -386,9 +394,9 @@ export interface ContextManifest {
   modelProfile: ModelProfile;
   estimatedInputTokens: number;
   exactInputTokens?: number;
-  includedEntryIds: string[];
-  excludedEntryIds: string[];
-  activeCompactionRecordId?: string;
+  includedItemIds: string[];
+  excludedItemIds: string[];
+  activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
   alerts: ContextAlert[];
 }
@@ -399,28 +407,26 @@ export interface ContextManifest {
 ### 10.3 Loop 目标形态
 
 ```
-agentLoop:
+AgentRun:
   turn += 1
-  composed = composeContext(...)
+  composed = composeContext({ messages: session.getMessages(), stores, … })
   response = runLLM(composed.request)
-  append assistant / tool entries to Session Event Log
-  （不再 splice 共享 messages[]）
+  append assistant / tool to SessionContext + Session Item Log
+  （不 splice messages[]）
 ```
 
 ---
 
 ## 11. 现状 vs 目标
 
-| 项 | 现状 | 目标 |
-|----|------|------|
-| 会话事实 | 可变 `MessageParam[]` in [`loop.ts`](../../src/agent/loop.ts) | **Session Event Log** append-only |
-| API 输入 | 同一数组直接 `runLLM` | **Composer** → `LLMRequest` |
-| Compact | [`compact.ts`](../../src/context/compact.ts) `splice` | **Compaction** 事件 + 投影；可选 **Compaction Record** |
-| Session 内存 | [`sessions.ts`](../../src/context/sessions.ts) 存 messages 引用 | 存 Manifest / log 指针 |
-| 观测 | **Agent Event Log** | 保留；与 Session Event Log 职责分离 |
-| 大 tool 输出 | 全文 in tool_result | **Artifact Store** + `ToolResultSummary` |
-| system 规则 | 仅 `prompt.ts` | **Instruction State** |
-| 恢复 | `/reset` 清空 | **Checkpoint** resume（远期） |
+| 项 | 现状（2026 TS） | 远期 |
+|----|-----------------|------|
+| 会话事实 | **Session Item Log** append-only + 内存 `SessionContext.messages` | — |
+| API 输入 | **`composeContext`** → `LLMRequest` | Instruction State 文件源 |
+| Compact | **Compaction** 事件 + compose 投影；summary → **CompactionSave** | structured compaction |
+| 大 tool 输出 | **ArtifactStore** spill（默认 8KB）+ `formatToolSummary` | `read_artifact` tool |
+| 恢复 | **`/checkpoint` / `/resume`** | fork / Fleet |
+| 观测 | **Agent Event Log** | 与 Session Item Log 派生优化（C6） |
 
 ---
 
@@ -428,15 +434,15 @@ agentLoop:
 
 > **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（Ocula 协议 + `LLMProvider` + `ModelProfile`）。
 
-| 阶段 | 内容 | 验收 |
+| 阶段 | 内容 | 状态 |
 |------|------|------|
-| **C0** | Provider A–C | `LLMRequest` 类型边界就绪 |
-| **C1** | Session Event Log 写入 + Composer 骨架；**prune** 投影 | 行为接近 today auto compact，但不 `splice` |
-| **C2** | Artifact Store + `tool_outcome.resultSummary` | 大 read 不全文进投影 |
-| **C3** | Instruction State（`AGENTS.md` / rules） | system 与 summary 解耦 |
-| **C4** | Compaction Record + summary Compaction | `/compact summary` 迁移 |
-| **C5** | Checkpoint 持久化与 resume | 跨 REPL 续 session |
-| **C6** | Agent Event Log 与 Session Event Log 同步策略优化 | 观测与事实一致或可推导 |
+| **C0** | Provider A–C | 部分 |
+| **C1** | Session Item Log + Composer **prune** 投影 | **done** |
+| **C2** | Artifact Store + spill | **done** |
+| **C3** | Instruction State（`AGENTS.md` / rules） | 接口就绪 |
+| **C4** | CompactionSave + `/compact summary` | **done** |
+| **C5** | Checkpoint + resume | **done** |
+| **C6** | Agent Event Log 与 Session Item Log 同步优化 | pending |
 
 ---
 
@@ -456,7 +462,7 @@ agentLoop:
 
 ## 14. 一句话
 
-**Session Event Log 存事实；Session State Stores 存指令、产物、压缩与快照；Context Composer 每轮编译 immutable `LLMRequest` + Context Manifest；Compaction 管投影预算，Checkpoint 管恢复——二者独立。**
+**Session Item Log 存事实；Session State Stores 存 CompactionSave / Checkpoint / Artifact；Context Composer 每轮编译 immutable `LLMRequest` + Context Manifest；Compaction 管投影预算，Checkpoint 管恢复——二者独立。**
 
 ---
 

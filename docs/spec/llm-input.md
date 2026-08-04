@@ -72,24 +72,23 @@ messages.create({ model, system, messages, tools, max_tokens })
 | 用户输入（后续轮） | messages 末尾 append | **有** | `continueReplAgent` push | 不是独立 API 字段 |
 | Assistant 文本 | `role: assistant` text | **有** | loop push `response.content` | |
 | Assistant tool 调用 | `tool_use` blocks | **有** | 模型返回，原样 push | |
-| Tool 执行结果 | `role: user` + `tool_result` | **有** | [`runToolUses`](../../src/agent/pipeline/runTool.ts) | 全文进 content 字符串 |
-| Thinking（若模型支持） | assistant thinking block | **有（若 API 返回）** | trace 采集；compact 可 strip | [`compact.ts`](../../src/context/compact.ts) |
-| 旧对话 LLM 摘要 | synthetic user message | **部分** | `/compact summary` → `summarizeCompact` | auto compact **只用 prune**，不用 summary |
-| 大 tool 输出外置 + 短引用 | artifact 文件 + `ToolResultSummary` | **无** | 仅 `[compact: …]` 占位 | |
-| 完整归档 vs 发给模型 | Session Event Log 与投影分离 | **无** | 同一 `messages[]` 被 splice | TODO #6；见 [`context-composer.md`](context-composer.md) |
+| Tool 执行结果 | `role: user` + `tool_result` | **有** | [`runToolUses`](../../src/agent/pipeline/runTool.ts) | 大输出 spill → summary |
+| Thinking（若模型支持） | assistant thinking block | **有（若 API 返回）** | compose `applyPrune` 可 strip | [`apply-prune.ts`](../../src/context/composer/compaction/apply-prune.ts) |
+| 旧对话 LLM 摘要 | synthetic user message | **有** | `/compact summary` → **CompactionSave** | compose `applySummary` 投影 |
+| 大 tool 输出外置 + 短引用 | artifact 文件 + `ToolResultSummary` | **有** | Artifact spill + `formatToolSummary` | 默认 8KB 阈值 |
+| 完整归档 vs 发给模型 | Session Item Log 与投影分离 | **有** | SessionContext + `composeContext` | 见 [`context-composer.md`](context-composer.md) |
 | 多模态（图片等） | message content blocks | **无** | 仅 string / tool blocks | |
 
 ### 当前数据流
 
 ```mermaid
 flowchart LR
-  REPL["REPL / runAgent"] --> MsgArr["messages MessageParam[]"]
-  MsgArr --> Compact["computeAutoCompact splice"]
-  Compact --> RunLLM["runLLM chat"]
-  RunLLM --> PushAsst["push assistant"]
-  PushAsst --> RunTool["runToolUses"]
-  RunTool --> PushUser["push tool_result"]
-  PushUser --> MsgArr
+  REPL["REPL / AgentSession"] --> SC["SessionContext.messages"]
+  SC --> Compose["composeContext"]
+  Compose --> RunLLM["runLLM chat"]
+  RunLLM --> Append["append assistant / tool"]
+  Append --> SC
+  SC --> SIL["Session Item Log jsonl"]
 ```
 
 ---
@@ -101,7 +100,7 @@ flowchart LR
 | 1 | system prompt | `system` | **有** — `prompt.ts` |
 | 2 | tool description | `tools[].description` + `input_schema` | **有** — 各 tool 注册 |
 | 3 | personal memory prompt | 并入 `system`（每轮从文件拼） | **无** |
-| 4 | session history | 整个 `messages[]` | **有** — 但可变、可 splice |
+| 4 | session history | `SessionContext` → compose → `messages[]` | **有** — append-only 内存 + Item Log |
 | 5 | user input | `messages` 最新 user 条目 | **有** — 不是独立参数 |
 
 ---
@@ -123,11 +122,11 @@ flowchart LR
 
 | 优先级 | 缺口 | 今天表现 | 建议方向（Ocula 演进，未实现） |
 |--------|------|----------|----------------------------------|
-| P0 | messages 一物两用 | loop 原地 `splice` | Session Event Log append-only + **Context Composer** → `LLMRequest` |
-| P0 | 无 project / memory 注入 | 仅 `prompt.ts` | **Instruction State** → 拼 system |
-| P1 | tool 输出全量进 messages | 大 read 全文进 tool_result | **Artifact Store** + `ToolResultSummary` |
-| P1 | instruction 可被 compact 间接丢 | summary 只摘要 messages | Instruction State 每轮重建，不参与 summary |
-| P2 | Compaction 与恢复未分层 | prune 或 generic summary | **Compaction** 与 **Checkpoint** 独立；见 context-composer |
+| P0 | messages 一物两用 | ~~loop 原地 splice~~ | **done** — `composeContext` 投影 |
+| P0 | 无 project / memory 注入 | 仅 `prompt.ts` | **Instruction State** 接口就绪；文件源 pending |
+| P1 | tool 输出全量进 messages | ~~大 read 全文~~ | **done** — Artifact spill + summary |
+| P1 | instruction 可被 compact 间接丢 | summary 只摘要对话 | Instruction State 每轮重建（`prompt.ts`） |
+| P2 | Compaction 与恢复未分层 | — | **done** — CompactionSave / Checkpoint / `/compact` |
 | P2 | context limit 128K | 与 DeepSeek 1M 不一致 | **model 注册表** + `ModelProfile`，见 [`llm-provider.md`](llm-provider.md) |
 | P2 | Provider / Model 绑 Anthropic SDK | 仅 DeepSeek compat | API 适配方案 A：Preset + `LLMProvider` + 4 协议族 adapter，见 [`llm-provider.md`](llm-provider.md) |
 
@@ -135,9 +134,9 @@ flowchart LR
 
 ## 8. 一句话总结
 
-**Ocula 今天已覆盖：** `system`（手写）+ `tools`（完整 schema）+ `messages`（user / assistant / tool_result 循环）。
+**Ocula 今天已覆盖：** `system`（`prompt.ts` / Instruction State）+ `tools` + `messages`（经 **`composeContext`** 投影）；大 tool 输出 **Artifact spill**；**CompactionSave** summary；**Checkpoint** resume。
 
-**尚未覆盖：** Instruction State、Session Event Log 与 `LLMRequest` 投影分离、Artifact Store、Compaction 与 Checkpoint——见 [`context-composer.md`](context-composer.md) 与 [`vision.md`](../product/vision.md)（保留代号 Bruma）。
+**尚未覆盖：** `AGENTS.md` 文件源 Instruction State、`read_artifact` tool、Provider 分层——见 [`context-composer.md`](context-composer.md) C3/C6。
 
 ---
 

@@ -17,7 +17,7 @@ ocula/
 │   ├── extensions/      # audit、code-repl、context、trace、deep-research
 │   ├── llm/             # client、healthcheck（`pnpm run ping`）
 │   ├── cli/             # REPL 入口、commands、statusline
-│   ├── events/          # AgentEvent bus、orchestrator、JSONL writer
+│   ├── log/             # AgentEvent bus、orchestrator、JSONL writer
 │   ├── context/         # metrics、sessions、compact
 │   └── constants/       # storage、llm、env 等常量
 ├── scripts/
@@ -147,10 +147,13 @@ Ocula idle · context 12.3% · turn 2
 | `/reset` | 清空 session（messages + metrics） |
 | `/status` | verbose statusline + auto-compact 状态 |
 | `/workdir [path]` | 查看或切换 workspace |
-| `/compact` | prune 旧 tool_result（7a） |
+| `/compact` | prune 旧 tool_result（写 compaction Item，下轮 compose 投影） |
 | `/compact preview` | dry-run token 估算 |
-| `/compact summary` | LLM 摘要压缩（7b，额外 API） |
-| `/compact auto on\|off` | 超阈值自动 prune（7c） |
+| `/compact summary` | LLM 摘要 → **CompactionSave** + compose 投影（额外 API） |
+| `/compact auto on\|off` | 超阈值自动 prune（compose 内，不写 Item Log） |
+| `/checkpoint [label]` | 创建 Checkpoint 快照 |
+| `/checkpoint list` | 列出当前 session 的 Checkpoint |
+| `/resume <checkpoint-id>` | 恢复可见消息窗口（Item Log 不删） |
 | `/thinking on\|off\|status` | 调用链 trace（thinking / tool / result） |
 | `/verbose on\|off\|status` | 完整 debug trace（含 context / audit） |
 

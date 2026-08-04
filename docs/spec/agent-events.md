@@ -9,7 +9,7 @@ Ocula 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session E
 | Scope | 单次 run | 整场 session |
 | Path | `.ocula/runs/<runId>.active.jsonl` | `.ocula/sessions/<sessionId>.jsonl` |
 | 职责 | trace、metrics、audit、UI tail | 会话事实 source of truth |
-| Schema | 本文 + `src/events/types.ts` | [`context-composer.md` §5](context-composer.md#5-session-event-log--条目-spec) |
+| Schema | 本文 + `src/log/types.ts` | [`context-composer.md` §5](context-composer.md#5-session-event-log--条目-spec) |
 
 ---
 
@@ -29,7 +29,7 @@ workdir/.ocula/runs/<runId>-0001.jsonl.gz
 The final active segment is also compressed when the run completes. Compressed
 segments are lossless archives; the desktop UI only tails the active JSONL.
 
-TypeScript source: [`src/events/types.ts`](../../src/events/types.ts).
+TypeScript source: [`src/log/types.ts`](../../src/log/types.ts).
 
 ## Core fields
 
