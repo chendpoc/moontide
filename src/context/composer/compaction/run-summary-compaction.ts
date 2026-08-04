@@ -1,10 +1,7 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
-import type { ToolSchema } from "../../../llm/protocol/types.js";
+import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
 import { summarizeCompact, type CompactResult } from "../../compact.js";
 import type { CompactionSave } from "../../stores/compaction-types.js";
 import { messagesFromContext } from "../../../session/transform/messages-from-context.js";
-import { toMessageParams } from "../messages/to-message-params.js";
 import type { SessionMessage } from "../../../session/types.js";
 import { newEventId } from "../../../utils/id.js";
 
@@ -45,7 +42,7 @@ export function coversItemIdsForKeepFrom(
   return covered;
 }
 
-function extractSummaryText(messages: MessageParam[]): string {
+function extractSummaryText(messages: Message[]): string {
   const first = messages[0];
   if (!first || first.role !== "user") {
     return "";
@@ -59,9 +56,7 @@ function extractSummaryText(messages: MessageParam[]): string {
 export async function runSummaryCompaction(
   input: SummaryCompactionInput,
 ): Promise<SummaryCompactionResult> {
-  const messageParams = toMessageParams(
-    messagesFromContext({ messages: input.sessionMessages }),
-  );
+  const messageParams = messagesFromContext({ messages: input.sessionMessages });
   const compactResult: CompactResult = await summarizeCompact(
     messageParams,
     input.system,

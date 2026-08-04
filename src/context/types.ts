@@ -1,15 +1,14 @@
-import type { ToolSchema } from "../llm/protocol/types.js";
-import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { LLMResponse, Message, ToolSchema } from "../llm/protocol/types.js";
 
 export type DetailLevel = "summary" | "struct" | "breakdown" | "full";
 
 export interface ContextSnapshot {
   turn: number;
-  messages: MessageParam[];
+  messages: Message[];
   system: string;
   tools: ToolSchema[];
   modelId: string;
-  response?: Message;
+  response?: LLMResponse;
 }
 
 export interface TokenBreakdown {

@@ -1,7 +1,5 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
 import type { ModelProfile } from "../../llm/models/types.js";
-import type { LLMRequest, ToolSchema } from "../../llm/protocol/types.js";
+import type { LLMRequest, Message, ToolSchema } from "../../llm/protocol/types.js";
 import type { SessionMessage } from "../../session/types.js";
 import type {
   ArtifactStore,
@@ -30,7 +28,7 @@ export interface ComposeContextInput {
 
 export interface ComposedLLMRequest {
   system: string;
-  messages: MessageParam[];
+  messages: Message[];
   tools: ToolSchema[];
 }
 
@@ -47,8 +45,10 @@ export interface ContextManifest {
   modelProfile?: ModelProfile;
   estimatedInputTokens?: number;
   exactInputTokens?: number;
-  includedItemIds?: string[];
-  excludedItemIds?: string[];
+  sourceItemIds?: string[];
+  checkpointExcludedItemIds?: string[];
+  compiledMessageItemIds?: string[];
+  compactionExcludedItemIds?: string[];
   activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
   alerts?: ContextAlert[];

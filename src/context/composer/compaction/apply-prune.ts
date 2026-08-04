@@ -1,5 +1,3 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
 import { estimateBreakdown } from "../../metrics.js";
 
@@ -22,7 +20,7 @@ function estimateMessagesTokens(
 ): number {
   const snapshot = {
     turn: 0,
-    messages: messages as MessageParam[],
+    messages,
     system,
     tools,
     modelId,

@@ -7,8 +7,10 @@ export interface BuildContextManifestInput {
   turn: number;
   modelProfile: ModelProfile;
   tools: ToolSchema[];
-  includedItemIds: string[];
-  excludedItemIds?: string[];
+  sourceItemIds: string[];
+  checkpointExcludedItemIds?: string[];
+  compiledMessageItemIds: string[];
+  compactionExcludedItemIds?: string[];
   activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
   estimatedInputTokens?: number;
@@ -21,8 +23,10 @@ export function buildContextManifest(input: BuildContextManifestInput): ContextM
     sessionId: input.sessionId,
     modelProfile: input.modelProfile,
     toolDefinitionNames: input.tools.map((tool) => tool.name),
-    includedItemIds: input.includedItemIds,
-    excludedItemIds: input.excludedItemIds,
+    sourceItemIds: input.sourceItemIds,
+    checkpointExcludedItemIds: input.checkpointExcludedItemIds,
+    compiledMessageItemIds: input.compiledMessageItemIds,
+    compactionExcludedItemIds: input.compactionExcludedItemIds,
     activeCompactionSaveId: input.activeCompactionSaveId,
     resumeCheckpointId: input.resumeCheckpointId,
     estimatedInputTokens: input.estimatedInputTokens,
