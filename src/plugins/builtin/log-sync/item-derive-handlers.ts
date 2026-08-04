@@ -1,5 +1,5 @@
 import type { SessionItem, SessionItemKind } from "../../../session/types.js";
-import { formatToolSummary } from "../../../context/composer/artifact/project.js";
+import { formatToolSummary } from "../../../session/tool-summary.js";
 import { emitDraft } from "../../../log/event-hub.js";
 import { traceDraftsFromBlocks } from "../../../session/block-registry.js";
 import { truncateOneLine } from "../../../utils/text.js";

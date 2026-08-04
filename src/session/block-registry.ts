@@ -1,11 +1,21 @@
 import type { ContentBlock as SdkContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import type { MessageLineDetail } from "../context/types.js";
 import type { ContentBlock } from "../llm/protocol/types.js";
 import type { EventDraft } from "../log/types.js";
 import { truncateOneLine } from "../utils/text.js";
 
 const PREVIEW_LIMIT = 48;
+
+/** Per-block detail for context inspection / token breakdown. */
+export interface MessageLineDetail {
+  kind: "tool_result" | "tool_use" | "text" | "thinking";
+  tokens: number;
+  charCount: number;
+  toolUseId?: string;
+  toolName?: string;
+  preview: string;
+  body?: string;
+}
 
 export type GenericBlock = {
   type?: string;

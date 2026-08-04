@@ -1,5 +1,5 @@
 import type { ContentBlock } from "../llm/protocol/types.js";
-import { formatToolSummary } from "../context/composer/artifact/project.js";
+import { formatToolSummary } from "./tool-summary.js";
 import type { SessionItem, SessionItemKind, SessionMessage } from "./types.js";
 import { newEventId } from "../utils/id.js";
 

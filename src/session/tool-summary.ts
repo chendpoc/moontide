@@ -1,5 +1,5 @@
 /** Format tool outcome summaries for LLM context (C2). */
-import type { ToolResultSummary } from "../../../session/types.js";
+import type { ToolResultSummary } from "./types.js";
 
 export function formatToolSummary(summary: ToolResultSummary, artifactId?: string): string {
   if (artifactId) {

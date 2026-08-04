@@ -1,4 +1,4 @@
-import { formatToolSummary } from "../context/composer/artifact/project.js";
+import { formatToolSummary } from "./tool-summary.js";
 import { getWorkdir } from "../config.js";
 import type { ContentBlock } from "../llm/protocol/types.js";
 import type { Message } from "../llm/protocol/types.js";
