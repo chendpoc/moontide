@@ -1,13 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ComposedContext } from "../src/context/composer/types.js";
-import {
-  HookObserverError,
-  hookDispatcher,
-  resetSidecarHooks,
-  sidecarHooks,
-} from "../src/agent/hooks/index.js";
+import { HookObserverError } from "../src/agent/hooks/index.js";
 import type { SessionItem } from "../src/session/types.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 function userItem(): SessionItem {
   return {
@@ -36,22 +32,30 @@ function composedFixture(): ComposedContext {
 }
 
 describe("sidecar hook registry", () => {
+  beforeEach(() => {
+    installTestRuntime();
+  });
+
+  afterEach(() => {
+    clearTestRuntime();
+  });
+
   it("dispatches session items to registered handlers", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     const onItem = vi.fn();
-    sidecarHooks().on("sessionItem", "memory", ({ item }) => {
+    runtime.hookRegistry.sidecar().on("sessionItem", "memory", ({ item }) => {
       onItem(item);
     });
 
-    await hookDispatcher.dispatch("sessionItem", { item: userItem() });
+    await runtime.hooks.dispatch("sessionItem", { item: userItem() });
 
     expect(onItem).toHaveBeenCalledWith(userItem());
   });
 
   it("continues on fail-open handler errors", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     const second = vi.fn();
-    sidecarHooks().on(
+    runtime.hookRegistry.sidecar().on(
       "sessionItem",
       "noisy",
       () => {
@@ -59,19 +63,19 @@ describe("sidecar hook registry", () => {
       },
       { errorPolicy: "fail-open" },
     );
-    sidecarHooks().on("sessionItem", "memory", ({ item }) => {
+    runtime.hookRegistry.sidecar().on("sessionItem", "memory", ({ item }) => {
       second(item);
     });
 
     await expect(
-      hookDispatcher.dispatch("sessionItem", { item: userItem() }),
+      runtime.hooks.dispatch("sessionItem", { item: userItem() }),
     ).resolves.toBeUndefined();
     expect(second).toHaveBeenCalledOnce();
   });
 
   it("throws on fail-closed handler errors", async () => {
-    resetSidecarHooks();
-    sidecarHooks().on(
+    const runtime = installTestRuntime();
+    runtime.hookRegistry.sidecar().on(
       "sessionItem",
       "file",
       () => {
@@ -81,37 +85,37 @@ describe("sidecar hook registry", () => {
     );
 
     await expect(
-      hookDispatcher.dispatch("sessionItem", { item: userItem() }),
+      runtime.hooks.dispatch("sessionItem", { item: userItem() }),
     ).rejects.toBeInstanceOf(HookObserverError);
   });
 
   it("dispose removes a handler", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     const onItem = vi.fn();
-    const dispose = sidecarHooks().on("sessionItem", "memory", ({ item }) => {
+    const dispose = runtime.hookRegistry.sidecar().on("sessionItem", "memory", ({ item }) => {
       onItem(item);
     });
     dispose();
 
-    await hookDispatcher.dispatch("sessionItem", { item: userItem() });
+    await runtime.hooks.dispatch("sessionItem", { item: userItem() });
 
     expect(onItem).not.toHaveBeenCalled();
   });
 
   it("clear removes all handlers", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     const onItem = vi.fn();
     const onCompose = vi.fn();
-    sidecarHooks().on("sessionItem", "memory", ({ item }) => {
+    runtime.hookRegistry.sidecar().on("sessionItem", "memory", ({ item }) => {
       onItem(item);
     });
-    sidecarHooks().on("composeComplete", "metrics", () => {
+    runtime.hookRegistry.sidecar().on("composeComplete", "metrics", () => {
       onCompose();
     });
-    sidecarHooks().clear();
+    runtime.hookRegistry.clear();
 
-    await hookDispatcher.dispatch("sessionItem", { item: userItem() });
-    await hookDispatcher.dispatch("composeComplete", { composed: composedFixture() });
+    await runtime.hooks.dispatch("sessionItem", { item: userItem() });
+    await runtime.hooks.dispatch("composeComplete", { composed: composedFixture() });
 
     expect(onItem).not.toHaveBeenCalled();
     expect(onCompose).not.toHaveBeenCalled();
@@ -119,15 +123,23 @@ describe("sidecar hook registry", () => {
 });
 
 describe("composeComplete hooks", () => {
+  beforeEach(() => {
+    installTestRuntime();
+  });
+
+  afterEach(() => {
+    clearTestRuntime();
+  });
+
   it("notifies compose handlers after compose", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     const onComposeComplete = vi.fn();
-    sidecarHooks().on("composeComplete", "metrics", ({ composed }) => {
+    runtime.hookRegistry.sidecar().on("composeComplete", "metrics", ({ composed }) => {
       onComposeComplete(composed);
     });
     const composed = composedFixture();
 
-    await hookDispatcher.dispatch("composeComplete", { composed });
+    await runtime.hooks.dispatch("composeComplete", { composed });
 
     expect(onComposeComplete).toHaveBeenCalledWith(composed);
   });

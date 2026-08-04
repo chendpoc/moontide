@@ -11,13 +11,7 @@ export type {
   StepObserveResult,
   ToolUseContext,
 } from "./types.js";
-export { sidecarHooks, getHookRegistrations } from "./registry.js";
-export { HookDispatcher, HookObserverError, hookDispatcher } from "./dispatcher.js";
+export { HookDispatcher, HookObserverError } from "./dispatcher.js";
 export { logHookFailure, emitHookError, toHookFailureRecord } from "./failures.js";
 export { parseStepObserveResult } from "./parse-events.js";
-export {
-  clearDefaultSidecarHooks,
-  prepareRun,
-  registerDefaultSidecarHooks,
-  resetSidecarHooks,
-} from "./defaults.js";
+export { buildDefaultHookManifest, prepareRun } from "./defaults.js";

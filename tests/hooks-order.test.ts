@@ -1,22 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { enableTestCollector, disableTestCollector, getCollectedEvents } from "../src/log/event-hub.js";
 import { resetRun } from "../src/log/run.js";
-import {
-  hookDispatcher,
-  resetSidecarHooks,
-  sidecarHooks,
-} from "../src/agent/hooks/index.js";
 import type { LLMCallRecord, ToolUseRecord } from "../src/agent/pipeline/types.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 describe("hook handler order", () => {
+  beforeEach(() => {
+    installTestRuntime();
+  });
+
+  afterEach(() => {
+    clearTestRuntime();
+  });
+
   it("invokes llmCall handlers in registration order", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     const order: string[] = [];
-    sidecarHooks().on("llmCall", "first", () => {
+    runtime.hookRegistry.sidecar().on("llmCall", "first", () => {
       order.push("first");
     });
-    sidecarHooks().on("llmCall", "second", () => {
+    runtime.hookRegistry.sidecar().on("llmCall", "second", () => {
       order.push("second");
     });
 
@@ -25,21 +29,29 @@ describe("hook handler order", () => {
       request: { messages: [], system: "", tools: [] },
       outcome: { status: "failed", error: "test" },
     };
-    await hookDispatcher.dispatch("llmCall", record);
+    await runtime.hooks.dispatch("llmCall", record);
     expect(order).toEqual(["first", "second"]);
   });
 });
 
 describe("hook handler errors", () => {
+  beforeEach(() => {
+    installTestRuntime();
+  });
+
+  afterEach(() => {
+    clearTestRuntime();
+  });
+
   it("does not stop subsequent toolUse handlers when one throws", async () => {
-    resetSidecarHooks();
+    const runtime = installTestRuntime();
     resetRun();
     enableTestCollector();
     const seen: string[] = [];
-    sidecarHooks().on("toolUse", "throws", () => {
+    runtime.hookRegistry.sidecar().on("toolUse", "throws", () => {
       throw new Error("trace blew up");
     });
-    sidecarHooks().on("toolUse", "after", () => {
+    runtime.hookRegistry.sidecar().on("toolUse", "after", () => {
       seen.push("after");
     });
 
@@ -50,7 +62,7 @@ describe("hook handler errors", () => {
       toolUseId: "tu_1",
       outcome: { status: "succeeded", output: "ok" },
     };
-    await hookDispatcher.dispatch("toolUse", record);
+    await runtime.hooks.dispatch("toolUse", record);
 
     expect(seen).toEqual(["after"]);
     const errors = getCollectedEvents().filter((e) => e.kind === "plugin_error");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineTools, resolveToolManifest } from "../src/tools/define-tool.js";
+import { defineTools, resolveToolManifest, validateToolSpec } from "../src/tools/define-tool.js";
 import type { ToolDefinition } from "../src/tools/types.js";
 
 describe("defineTools", () => {
@@ -10,6 +10,7 @@ describe("defineTools", () => {
         name: "echo",
         description: "echo",
         input_schema: { type: "object", properties: {} },
+        permission: { kind: "fixed", decision: "allow" },
         run: () => "ok",
       },
     ]);
@@ -24,6 +25,7 @@ describe("defineTools", () => {
         name: "off",
         description: "off",
         input_schema: { type: "object", properties: {} },
+        permission: { kind: "fixed", decision: "deny" },
         enabled: () => false,
         run: () => "nope",
       },
@@ -32,11 +34,31 @@ describe("defineTools", () => {
   });
 });
 
+describe("validateToolSpec", () => {
+  it("rejects path permission without matching schema field", () => {
+    expect(() =>
+      validateToolSpec({
+        name: "bad",
+        description: "bad",
+        input_schema: { type: "object", properties: {} },
+        permission: { kind: "path", field: "path" },
+        run: () => "",
+      }),
+    ).toThrow(/requires input_schema.properties.path/);
+  });
+});
+
 describe("resolveToolManifest", () => {
   it("skips optional null factories", () => {
     const tools = resolveToolManifest([
       {
-        factory: () => [{ schema: { name: "a", description: "a", input_schema: {} }, handler: () => "" }],
+        factory: () => [
+          {
+            schema: { name: "a", description: "a", input_schema: {} },
+            handler: () => "",
+            permission: { kind: "fixed", decision: "allow" },
+          },
+        ],
       },
       { factory: (): ToolDefinition[] | null => null, optional: true },
     ]);

@@ -1,4 +1,12 @@
 import type { ToolSchema } from "../llm/protocol/types.js";
+import type { AgentRuntime } from "../agent/runtime/index.js";
+
+export type PermissionDecision = "allow" | "deny" | "ask";
+
+export type ToolPermissionRule =
+  | { kind: "fixed"; decision: PermissionDecision }
+  | { kind: "bash"; field: "command" }
+  | { kind: "path"; field: "path" };
 
 /** Injected into tool handlers via ToolContext. */
 export interface UserInteraction {
@@ -18,6 +26,8 @@ export interface UserInteraction {
 export interface ToolContext {
   workdir: string;
   userInteraction: UserInteraction;
+  /** Present when invoked via agent harness; sidecar plugins may omit. */
+  runtime?: AgentRuntime;
 }
 
 export type ToolHandler = (
@@ -25,8 +35,9 @@ export type ToolHandler = (
   ctx: ToolContext,
 ) => string | Promise<string>;
 
-/** Registered tool: protocol schema + handler. */
+/** Registered tool: protocol schema + handler + permission rule. */
 export interface ToolDefinition {
   schema: ToolSchema;
   handler: ToolHandler;
+  permission: ToolPermissionRule;
 }

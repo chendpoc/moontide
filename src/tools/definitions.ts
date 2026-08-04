@@ -1,7 +1,6 @@
 import type { ToolSchema } from "../llm/protocol/types.js";
-import { getTools } from "./store.js";
+import type { AgentRuntime } from "../agent/runtime/index.js";
 
-/** Tool Definitions snapshot for this turn (`LLMRequest.tools`). */
-export function getToolDefinitions(): ToolSchema[] {
-  return getTools().map((tool) => tool.schema);
+export function getToolDefinitions(runtime: AgentRuntime): ToolSchema[] {
+  return runtime.tools.getToolSchemas();
 }

@@ -1,8 +1,2 @@
-export {
-  buildDefaultHookManifest,
-  clearDefaultSidecarHooks,
-  prepareRun,
-  registerDefaultSidecarHooks,
-  resetSidecarHooks,
-  type HookRegistrationSpec,
-} from "./manifest.js";
+export { buildDefaultHookManifest, prepareRun } from "./manifest.js";
+export type { HookRegistrationSpec } from "./manifest.js";

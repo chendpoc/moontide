@@ -1,4 +1,5 @@
 import { emitDraft } from "../../log/event-hub.js";
+import type { HookRegistry } from "../runtime/hook-registry.js";
 import type { HookPhase } from "./phases.js";
 import { PHASE_DEFS } from "./phases.js";
 import {
@@ -7,10 +8,6 @@ import {
   toHookFailureRecord,
 } from "./failures.js";
 import { parseStepObserveResult } from "./parse-events.js";
-import {
-  getHookRegistrations,
-  resolveRegistrationErrorPolicy,
-} from "./registry.js";
 import type {
   HookContextMap,
   HookDispatchResultMap,
@@ -52,6 +49,8 @@ async function invokeHandler(
 }
 
 export class HookDispatcher {
+  constructor(private readonly registry: HookRegistry) {}
+
   async dispatch<P extends HookPhase>(
     phase: P,
     ctx: HookContextMap[P],
@@ -77,28 +76,33 @@ export class HookDispatcher {
         ? (ctx as LLMCallRecord | ToolUseRecord)
         : undefined;
 
-    for (const entry of getHookRegistrations(phase)) {
-      await invokeHandler(phase, entry.name, resolveRegistrationErrorPolicy(entry), async () => {
-        try {
-          const result = await entry.handler(ctx as HookContextMap[HookPhase]);
-          const parsed = parseStepObserveResult(result as StepObserveResult);
-          for (const draft of parsed.drafts) {
-            emitDraft({
-              ...draft,
-              turn: draft.turn ?? record?.turn,
-            });
+    for (const entry of this.registry.getRegistrations(phase)) {
+      await invokeHandler(
+        phase,
+        entry.name,
+        this.registry.resolveRegistrationErrorPolicy(entry),
+        async () => {
+          try {
+            const result = await entry.handler(ctx as HookContextMap[HookPhase]);
+            const parsed = parseStepObserveResult(result as StepObserveResult);
+            for (const draft of parsed.drafts) {
+              emitDraft({
+                ...draft,
+                turn: draft.turn ?? record?.turn,
+              });
+            }
+            if (phase === "toolUse" && parsed.modelAppend) {
+              modelAppends.push(parsed.modelAppend);
+            }
+          } catch (err) {
+            if (this.registry.resolveRegistrationErrorPolicy(entry) === "fail-closed") {
+              throw err;
+            }
+            logHookFailure(toHookFailureRecord(phase, entry.name, err, record));
+            emitHookError(phase, entry.name, record, err);
           }
-          if (phase === "toolUse" && parsed.modelAppend) {
-            modelAppends.push(parsed.modelAppend);
-          }
-        } catch (err) {
-          if (resolveRegistrationErrorPolicy(entry) === "fail-closed") {
-            throw err;
-          }
-          logHookFailure(toHookFailureRecord(phase, entry.name, err, record));
-          emitHookError(phase, entry.name, record, err);
-        }
-      });
+        },
+      );
     }
 
     if (phase === "toolUse") {
@@ -111,14 +115,14 @@ export class HookDispatcher {
     phase: P,
     ctx: HookContextMap[P],
   ): Promise<HookDispatchResultMap[P]> {
-    for (const entry of getHookRegistrations(phase)) {
+    for (const entry of this.registry.getRegistrations(phase)) {
       try {
         const result = await entry.handler(ctx as HookContextMap[HookPhase]);
         if (result && typeof result === "object" && "block" in result && result.block) {
           return result as HookDispatchResultMap[P];
         }
       } catch (err) {
-        if (resolveRegistrationErrorPolicy(entry) === "fail-closed") {
+        if (this.registry.resolveRegistrationErrorPolicy(entry) === "fail-closed") {
           throw new HookObserverError(entry.name, phase, err);
         }
         const record = phase === "beforeToolUse" ? (ctx as ToolUseContext) : (ctx as ToolUseRecord);
@@ -133,12 +137,15 @@ export class HookDispatcher {
     phase: P,
     ctx: HookContextMap[P],
   ): Promise<void> {
-    for (const entry of getHookRegistrations(phase)) {
-      await invokeHandler(phase, entry.name, resolveRegistrationErrorPolicy(entry), async () => {
-        await entry.handler(ctx as HookContextMap[HookPhase]);
-      });
+    for (const entry of this.registry.getRegistrations(phase)) {
+      await invokeHandler(
+        phase,
+        entry.name,
+        this.registry.resolveRegistrationErrorPolicy(entry),
+        async () => {
+          await entry.handler(ctx as HookContextMap[HookPhase]);
+        },
+      );
     }
   }
 }
-
-export const hookDispatcher = new HookDispatcher();
