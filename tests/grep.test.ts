@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { normalizeGrepMaxResults, runGrep } from "../src/builtins/grep.js";
+import { normalizeGrepMaxResults, runGrep } from "../src/tools/builtins/grep.js";
 import { joinPath } from "../src/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 

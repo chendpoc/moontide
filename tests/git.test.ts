@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { executeTool } from "../src/tools/index.js";
-import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/builtins/git.js";
+import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/tools/builtins/git.js";
 import { checkPermission } from "../src/agent/pipeline/permission/index.js";
 import { joinPath } from "../src/utils/path.js";
+import { clearTestRuntime, getTestRuntime, installTestRuntime, testToolContext } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
@@ -39,10 +40,12 @@ function commitFile(relativePath: string, content: string, message: string): voi
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-git-");
   setWorkdir(tmpDir);
+  installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
+  clearTestRuntime();
 });
 
 describe("git tools", () => {
@@ -124,7 +127,7 @@ describe("git tools", () => {
     }
     commitFile("README.md", "# demo", "init");
 
-    const raw = await executeTool("git_status", {});
+    const raw = await executeTool("git_status", {}, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { status: string; branch?: string; porcelain?: string };
     expect(result.status).toBe("ok");
     expect(result.branch).toBeTruthy();
@@ -146,26 +149,26 @@ describe("git tools", () => {
 
 describe("git permissions", () => {
   it("allows native git_status", () => {
-    expect(checkPermission("git_status", {})).toBe("allow");
+    expect(checkPermission("git_status", {}, getTestRuntime())).toBe("allow");
   });
 
   it("allows native git_diff", () => {
-    expect(checkPermission("git_diff", { stat: true })).toBe("allow");
+    expect(checkPermission("git_diff", { stat: true }, getTestRuntime())).toBe("allow");
   });
 
   it("allows native git_log", () => {
-    expect(checkPermission("git_log", { n: 5 })).toBe("allow");
+    expect(checkPermission("git_log", { n: 5 }, getTestRuntime())).toBe("allow");
   });
 
   it("asks for bash git status", () => {
-    expect(checkPermission("bash", { command: "git status -sb" })).toBe("ask");
+    expect(checkPermission("bash", { command: "git status -sb" }, getTestRuntime())).toBe("ask");
   });
 
   it("asks for bash git diff", () => {
-    expect(checkPermission("bash", { command: "git diff --stat" })).toBe("ask");
+    expect(checkPermission("bash", { command: "git diff --stat" }, getTestRuntime())).toBe("ask");
   });
 
   it("allows bash git commit", () => {
-    expect(checkPermission("bash", { command: "git commit -m 'x'" })).toBe("allow");
+    expect(checkPermission("bash", { command: "git commit -m 'x'" }, getTestRuntime())).toBe("allow");
   });
 });

@@ -1,13 +1,13 @@
-import type { ToolDefinition } from "../tools/types.js";
-import { TOOL_NAMES } from "../tools/names.js";
+import { defineTools, type ToolSpec } from "../define-tool.js";
+import type { ToolDefinition } from "../types.js";
+import { TOOL_NAMES } from "../names.js";
 
-export function defineAskUserQuestionTool(): ToolDefinition {
-  return {
-    schema: {
-      name: TOOL_NAMES.ASK_USER_QUESTION,
-      description:
-        "Ask the user structured multiple-choice questions and wait for answers. Use when runtime or environment is ambiguous.",
-      input_schema: {
+const ASK_USER_QUESTION_SPEC: ToolSpec = {
+  name: TOOL_NAMES.ASK_USER_QUESTION,
+  description:
+    "Ask the user structured multiple-choice questions and wait for answers. Use when runtime or environment is ambiguous.",
+  permission: { kind: "fixed", decision: "allow" },
+  input_schema: {
         type: "object",
         properties: {
           title: { type: "string", description: "Optional form title." },
@@ -37,8 +37,7 @@ export function defineAskUserQuestionTool(): ToolDefinition {
         },
         required: ["questions"],
       },
-    },
-    handler: async (input, ctx) => {
+  run: async (input, ctx) => {
       const title = input.title !== undefined ? String(input.title) : undefined;
       const rawQuestions = input.questions;
       if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
@@ -70,5 +69,8 @@ export function defineAskUserQuestionTool(): ToolDefinition {
         });
       }
     },
-  };
+};
+
+export function defineAskUserQuestionTool(): ToolDefinition {
+  return defineTools([ASK_USER_QUESTION_SPEC])[0]!;
 }

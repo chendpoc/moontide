@@ -3,15 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LoopContext } from "../src/agent/deps.js";
 import * as permission from "../src/agent/pipeline/permission/index.js";
-import { resetSidecarHooks, sidecarHooks } from "../src/agent/hooks/index.js";
 import { resolveToolUseOutcome, runToolUse } from "../src/agent/pipeline/runTool.js";
 import { setWorkdir } from "../src/config.js";
 import { Session } from "../src/session/session.js";
 import { joinPath } from "../src/utils/path.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 let testSession: Session;
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 const denyAllInteraction: LoopContext["userInteraction"] = {
   approveTool: async () => false,
@@ -23,18 +24,20 @@ const denyAllInteraction: LoopContext["userInteraction"] = {
 const loopCtx = (interaction = denyAllInteraction): LoopContext => ({
   userInteraction: interaction,
   session: testSession,
+  runtime: testRuntime,
 });
 
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-run-tool-");
   setWorkdir(tmpDir);
+  testRuntime = installTestRuntime(tmpDir);
   testSession = Session.create(tmpDir);
 });
 
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
-  resetSidecarHooks();
+  clearTestRuntime();
 });
 
 describe("resolveToolUseOutcome", () => {
@@ -52,7 +55,7 @@ describe("resolveToolUseOutcome", () => {
     );
 
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith("read_file", { path: "exists.txt" });
+    expect(spy).toHaveBeenCalledWith("read_file", { path: "exists.txt" }, testRuntime);
     expect(outcome).toEqual({ status: "succeeded", output: "hello" });
   });
 
@@ -116,7 +119,7 @@ describe("resolveToolUseOutcome", () => {
     }
   });
 
-  it("returns failed for unknown tools", async () => {
+  it("returns denied for unknown tools", async () => {
     const outcome = await resolveToolUseOutcome(
       {
         turn: 1,
@@ -128,8 +131,8 @@ describe("resolveToolUseOutcome", () => {
     );
 
     expect(outcome).toEqual({
-      status: "failed",
-      error: "Unknown tool: not_a_real_tool",
+      status: "denied",
+      reason: "Permission denied: not_a_real_tool",
     });
   });
 
@@ -153,7 +156,7 @@ describe("resolveToolUseOutcome", () => {
 
 describe("runToolUse", () => {
   it("blocks execution when beforeToolUse decides to block", async () => {
-    sidecarHooks().on("beforeToolUse", "guard", () => ({
+    testRuntime.hookRegistry.sidecar().on("beforeToolUse", "guard", () => ({
       block: true,
       reason: "blocked by sidecar hook",
     }));
@@ -175,7 +178,7 @@ describe("runToolUse", () => {
   });
 
   it("passes a frozen hook record that handlers cannot mutate", async () => {
-    sidecarHooks().on("toolUse", "reader", (record) => {
+    testRuntime.hookRegistry.sidecar().on("toolUse", "reader", (record) => {
       expect(Object.isFrozen(record)).toBe(true);
       expect(Object.isFrozen(record.outcome)).toBe(true);
     });
@@ -197,10 +200,10 @@ describe("runToolUse", () => {
   });
 
   it("appends hook modelAppend after the core tool result", async () => {
-    sidecarHooks().on("toolUse", "observer", () => ({
+    testRuntime.hookRegistry.sidecar().on("toolUse", "observer", () => ({
       modelAppend: "Note: truncated to 200 lines.",
     }));
-    sidecarHooks().on("toolUse", "second", () => ({
+    testRuntime.hookRegistry.sidecar().on("toolUse", "second", () => ({
       modelAppend: "Audit: read allowed.",
     }));
 

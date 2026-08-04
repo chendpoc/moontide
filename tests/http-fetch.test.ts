@@ -4,7 +4,7 @@ import {
   normalizeMaxBytes,
   runHttpFetch,
   validateFetchUrl,
-} from "../src/builtins/http-fetch.js";
+} from "../src/tools/builtins/http-fetch.js";
 
 describe("http_fetch", () => {
   beforeEach(() => {

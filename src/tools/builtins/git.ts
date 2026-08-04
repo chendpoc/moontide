@@ -1,7 +1,7 @@
-import { getWorkdir } from "../config.js";
-import { spawnCollect } from "../utils/process.js";
-import { clampInt } from "../utils/number.js";
-import { truncateChars } from "../utils/text.js";
+import { getWorkdir } from "../../config.js";
+import { spawnCollect } from "../../utils/process.js";
+import { clampInt } from "../../utils/number.js";
+import { truncateChars } from "../../utils/text.js";
 import { safePath } from "./fs.js";
 
 const OUTPUT_LIMIT = 50_000;

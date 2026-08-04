@@ -1,5 +1,5 @@
-import { httpFetchEnabled } from "../config.js";
-import { clampInt } from "../utils/number.js";
+import { httpFetchEnabled } from "../../config.js";
+import { clampInt } from "../../utils/number.js";
 
 export interface HttpFetchInput {
   url: string;

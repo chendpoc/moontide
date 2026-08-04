@@ -1,5 +1,5 @@
-import { getWorkdir } from "../config.js";
-import { execShell } from "../utils/process.js";
+import { getWorkdir } from "../../config.js";
+import { execShell } from "../../utils/process.js";
 
 export async function runBash(command: string): Promise<string> {
   const result = await execShell(command, {

@@ -1,23 +1,9 @@
-import { TOOL_NAMES } from "../../../tools/names.js";
+import type { AgentRuntime } from "../../runtime/index.js";
 import { isOutsideWorkspace } from "../../../utils/path.js";
+import type { PermissionDecision, ToolPermissionRule } from "../../../tools/types.js";
 import { checkBashCommand } from "./patterns.js";
 
-export type Decision = "allow" | "deny" | "ask";
-
-type ToolRule =
-  | { kind: "fixed"; decision: Decision }
-  | { kind: "bash"; field: "command" }
-  | { kind: "path"; field: "path" };
-
-const TOOL_RULES: Record<string, ToolRule> = {
-  [TOOL_NAMES.BASH]: { kind: "bash", field: "command" },
-  [TOOL_NAMES.READ_FILE]: { kind: "path", field: "path" },
-  [TOOL_NAMES.WRITE_FILE]: { kind: "path", field: "path" },
-  [TOOL_NAMES.EDIT_FILE]: { kind: "path", field: "path" },
-  [TOOL_NAMES.CODE_REPL]: { kind: "fixed", decision: "allow" },
-  [TOOL_NAMES.DEEP_RESEARCH]: { kind: "fixed", decision: "ask" },
-  [TOOL_NAMES.HTTP_FETCH]: { kind: "fixed", decision: "ask" },
-};
+export type Decision = PermissionDecision;
 
 function checkWorkspacePath(filePath: string): Decision {
   if (!filePath || !isOutsideWorkspace(filePath)) {
@@ -26,7 +12,7 @@ function checkWorkspacePath(filePath: string): Decision {
   return "ask";
 }
 
-function applyToolRule(rule: ToolRule, toolInput: Record<string, unknown>): Decision {
+function applyToolRule(rule: ToolPermissionRule, toolInput: Record<string, unknown>): Decision {
   switch (rule.kind) {
     case "fixed":
       return rule.decision;
@@ -41,9 +27,13 @@ function applyToolRule(rule: ToolRule, toolInput: Record<string, unknown>): Deci
 export function checkPermission(
   toolName: string,
   toolInput: Record<string, unknown>,
+  runtime: AgentRuntime,
 ): Decision {
-  const rule = TOOL_RULES[toolName];
-  return rule ? applyToolRule(rule, toolInput) : "allow";
+  const tool = runtime.tools.getTool(toolName);
+  if (!tool) {
+    return "deny";
+  }
+  return applyToolRule(tool.permission, toolInput);
 }
 
 export { escapesWorkspace, isOutsideWorkspace } from "../../../utils/path.js";

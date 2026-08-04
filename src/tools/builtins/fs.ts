@@ -1,19 +1,19 @@
-import { getWorkdir } from "../config.js";
-import { globFiles } from "../utils/glob.js";
+import { getWorkdir } from "../../config.js";
+import { globFiles } from "../../utils/glob.js";
 import {
   exists,
   listDir,
   lstat,
   readText,
   writeText,
-} from "../utils/fs.js";
+} from "../../utils/fs.js";
 import {
   isAbsolutePath,
   joinPath,
   relativePath,
   resolvePath,
   resolveWorkspacePath,
-} from "../utils/path.js";
+} from "../../utils/path.js";
 
 export function safePath(relative: string): string {
   return resolveWorkspacePath(relative);
