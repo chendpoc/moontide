@@ -51,8 +51,8 @@ export function buildContextReport(
     alerts: buildAlerts(percentUsed),
     usage: snapshot.response?.usage
       ? {
-          inputTokens: snapshot.response.usage.input_tokens,
-          outputTokens: snapshot.response.usage.output_tokens,
+          inputTokens: snapshot.response.usage.inputTokens,
+          outputTokens: snapshot.response.usage.outputTokens,
         }
       : undefined,
   };

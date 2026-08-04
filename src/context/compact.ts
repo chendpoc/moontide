@@ -1,5 +1,3 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
 import type { Message, ToolSchema } from "../llm/protocol/types.js";
 
 import {
@@ -11,11 +9,12 @@ import { applyPrune } from "./composer/compaction/apply-prune.js";
 import { buildContextReport } from "./analyze.js";
 import { estimateBreakdown } from "./metrics.js";
 import { buildSnapshot } from "./snapshot.js";
-import { extractText, getClient } from "../llm/client/anthropic.js";
+import { extractText } from "../llm/normalize/extract-text.js";
+import { getLLMProvider } from "../llm/provider.js";
 import { buildDefaultBasePrompt } from "../agent/prompt.js";
 
 export interface CompactResult {
-  messages: MessageParam[];
+  messages: Message[];
   beforeTokens: number;
   afterTokens: number;
   truncatedToolResults: number;
@@ -32,7 +31,7 @@ export interface CompactPreview {
 }
 
 function estimateMessagesTokens(
-  messages: MessageParam[],
+  messages: Message[],
   system: string,
   tools: ToolSchema[],
 ): number {
@@ -46,7 +45,7 @@ function estimateMessagesTokens(
   return estimateBreakdown(snapshot).total;
 }
 
-function findKeepFromIndex(messages: MessageParam[], keepTurns: number): number {
+function findKeepFromIndex(messages: Message[], keepTurns: number): number {
   let userTurns = 0;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
@@ -66,7 +65,7 @@ function findKeepFromIndex(messages: MessageParam[], keepTurns: number): number 
 }
 
 export function previewCompact(
-  messages: MessageParam[],
+  messages: Message[],
   system: string,
   tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
@@ -83,20 +82,14 @@ export function previewCompact(
 }
 
 export function pruneCompact(
-  messages: MessageParam[],
+  messages: Message[],
   system: string,
   tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): CompactResult {
-  const pruned = applyPrune(
-    messages as Message[],
-    system,
-    tools,
-    keepTurns,
-    modelId(),
-  );
+  const pruned = applyPrune(messages, system, tools, keepTurns, modelId());
   return {
-    messages: pruned.messages as MessageParam[],
+    messages: pruned.messages,
     beforeTokens: pruned.beforeTokens,
     afterTokens: pruned.afterTokens,
     truncatedToolResults: pruned.truncatedToolResults,
@@ -105,7 +98,7 @@ export function pruneCompact(
   };
 }
 
-function formatMessagesForSummary(messages: MessageParam[]): string {
+function formatMessagesForSummary(messages: Message[]): string {
   return messages
     .map((message, index) => {
       const role = message.role;
@@ -119,7 +112,7 @@ function formatMessagesForSummary(messages: MessageParam[]): string {
 }
 
 export async function summarizeCompact(
-  messages: MessageParam[],
+  messages: Message[],
   system: string,
   tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
@@ -133,7 +126,7 @@ export async function summarizeCompact(
     return pruneCompact(messages, system, tools, keepTurns);
   }
 
-  const response = await getClient().messages.create({
+  const response = await getLLMProvider().chat({
     model: modelId(),
     system:
       "Summarize the conversation excerpt for context compression. Preserve tasks, decisions, file paths, and open questions. Be concise.",
@@ -143,11 +136,12 @@ export async function summarizeCompact(
         content: formatMessagesForSummary(head),
       },
     ],
-    max_tokens: 2000,
+    tools: [],
+    maxTokens: 2000,
   });
 
   const summary = extractText(response.content);
-  const summaryMessage: MessageParam = {
+  const summaryMessage: Message = {
     role: "user",
     content: `[Session summary — older turns compressed]\n${summary}`,
   };
@@ -167,7 +161,7 @@ export async function summarizeCompact(
 
 /** Pure: decide whether auto-compact should run and compute the pruned messages. */
 export function computeAutoCompact(
-  messages: MessageParam[],
+  messages: Message[],
   system: string,
   tools: ToolSchema[],
   enabled: boolean,

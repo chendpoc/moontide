@@ -1,32 +1,20 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type {
   ContentBlock,
   MessageParam,
   Tool,
 } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { apiKey, baseUrl, modelId } from "../../config.js";
 import { DEFAULT_MAX_TOKENS } from "../../constants/llm.js";
+import { modelId } from "../../config.js";
+import {
+  anthropicMessagesCountTokens,
+  anthropicMessagesRawChat,
+  getClient,
+} from "../adapters/anthropic-messages.js";
+import { extractText } from "../normalize/extract-text.js";
+import type { LLMRequest } from "../protocol/types.js";
 
-let client: Anthropic | undefined;
-
-export function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({ apiKey: apiKey(), baseURL: baseUrl() });
-  }
-  return client;
-}
-
-export function extractText(content: string | ContentBlock[]): string {
-  if (typeof content === "string") {
-    return content.trim();
-  }
-  return content
-    .filter((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text")
-    .map((block) => block.text)
-    .join("\n")
-    .trim();
-}
+export { extractText, getClient };
 
 export async function chat(
   messages: MessageParam[],
@@ -34,13 +22,7 @@ export async function chat(
   system: string,
   maxTokens = DEFAULT_MAX_TOKENS,
 ) {
-  return getClient().messages.create({
-    model: modelId(),
-    system,
-    messages,
-    tools,
-    max_tokens: maxTokens,
-  });
+  return anthropicMessagesRawChat(messages, tools, system, maxTokens);
 }
 
 export async function countTokens(
@@ -48,11 +30,14 @@ export async function countTokens(
   tools: Tool[],
   system: string,
 ): Promise<number> {
-  const result = await getClient().messages.countTokens({
+  const request: LLMRequest = {
     model: modelId(),
     system,
-    messages,
-    tools,
-  });
-  return result.input_tokens;
+    messages: messages as LLMRequest["messages"],
+    tools: tools as LLMRequest["tools"],
+    maxTokens: DEFAULT_MAX_TOKENS,
+  };
+  return anthropicMessagesCountTokens(request);
 }
+
+export type { ContentBlock, MessageParam, Tool };

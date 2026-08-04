@@ -5,6 +5,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages
 import { previewCompact, pruneCompact } from "../src/context/compact.js";
 import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import { getToolDefinitions } from "../src/tools/index.js";
+import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 function longToolResultMessage(): MessageParam[] {
   const big = "x".repeat(5000);
@@ -28,11 +29,13 @@ function longToolResultMessage(): MessageParam[] {
 }
 
 describe("context compact", () => {
+  installTestRuntime();
+  const runtime = getTestRuntime();
   const system = buildDefaultBasePrompt();
 
   it("preview shows token reduction for old tool results", () => {
     const messages = longToolResultMessage();
-    const preview = previewCompact(messages, system, getToolDefinitions(), 1);
+    const preview = previewCompact(messages, system, getToolDefinitions(runtime), 1);
     expect(preview.wouldChange).toBe(true);
     expect(preview.afterTokens).toBeLessThan(preview.beforeTokens);
     expect(preview.truncatedToolResults).toBeGreaterThan(0);
@@ -40,7 +43,7 @@ describe("context compact", () => {
 
   it("prune mutates tool results in older turns", () => {
     const messages = longToolResultMessage();
-    const result = pruneCompact(messages, system, getToolDefinitions(), 1);
+    const result = pruneCompact(messages, system, getToolDefinitions(runtime), 1);
     expect(result.changed).toBe(true);
     expect(result.afterTokens).toBeLessThan(result.beforeTokens);
     const firstUserTool = result.messages[2];
@@ -54,7 +57,7 @@ describe("context compact", () => {
   });
 
   it("returns unchanged for empty messages", () => {
-    const result = pruneCompact([], system, getToolDefinitions());
+    const result = pruneCompact([], system, getToolDefinitions(runtime));
     expect(result.changed).toBe(false);
   });
 });

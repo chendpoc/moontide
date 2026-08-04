@@ -1,5 +1,3 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
 import {
   defaultCompactSystem,
   previewCompact,
@@ -20,7 +18,7 @@ async function buildComposePreview(agentSession: NonNullable<ReturnType<ReplComm
     artifactStore: agentSession.stores.artifacts,
     compactionStore: agentSession.stores.compaction,
     checkpointStore: agentSession.stores.checkpoints,
-    toolDefinitions: getToolDefinitions(),
+    toolDefinitions: getToolDefinitions(agentSession.runtime),
     modelProfile: resolveModelProfile(),
     compactionPolicy: { ...agentSession.getCompactionPolicy(), autoEnabled: false },
     activeCompactionSaveId: agentSession.getActiveCompactionSaveId(),
@@ -66,7 +64,7 @@ export async function handleCompactCommand(
   if (arg === "preview") {
     const composed = await buildComposePreview(agentSession);
     const preview = previewCompact(
-      composed.request.messages as MessageParam[],
+      composed.request.messages,
       composed.request.system,
       composed.request.tools,
       agentSession.getCompactionPolicy().keepTurns,

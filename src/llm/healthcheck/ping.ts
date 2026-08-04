@@ -5,15 +5,18 @@
 import "../../bootstrap.js";
 import { PING_MAX_TOKENS } from "../../constants/llm.js";
 import { modelId } from "../../config.js";
-import { extractText, getClient } from "../client/anthropic.js";
+import { extractText } from "../normalize/extract-text.js";
+import { getLLMProvider } from "../provider.js";
 
 async function ping(userText: string): Promise<string> {
-  const response = await getClient().messages.create({
+  const response = await getLLMProvider().chat({
     model: modelId(),
-    max_tokens: PING_MAX_TOKENS,
+    system: "",
     messages: [{ role: "user", content: userText }],
+    tools: [],
+    maxTokens: PING_MAX_TOKENS,
   });
-  if (!response.content?.length) {
+  if (!response.content.length) {
     return "(empty response)";
   }
   return extractText(response.content) || "(empty response)";

@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
 import { AgentSession } from "../src/agent/agent-session.js";
 import { composeContext } from "../src/context/composer/compose.js";
 import {
@@ -11,22 +10,27 @@ import {
 import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
 import { compactionSavePath } from "../src/session/paths.js";
 import { setWorkdir } from "../src/config.js";
+import { setLLMProvider } from "../src/llm/provider.js";
 import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
 import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import type { SessionMessage } from "../src/session/types.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
+import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 
 let tmpDir = "";
+let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-compact-summary-");
   setWorkdir(tmpDir);
-  registerDefaultSidecarHooks(tmpDir);
+  testRuntime = installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
-  resetSidecarHooks();
+  clearTestRuntime();
   removeTmpWorkdir(tmpDir);
+  setLLMProvider(undefined);
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
@@ -57,13 +61,13 @@ describe("coversItemIdsForKeepFrom", () => {
 describe("runSummaryCompaction", () => {
   it("writes CompactionSave and returns token stats", async () => {
     vi.stubEnv("OCULA_COMPACT_KEEP_TURNS", "1");
-    vi.spyOn(await import("../src/llm/client/anthropic.js"), "getClient").mockReturnValue({
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [{ type: "text", text: "rolled up context" }],
-        }),
-      },
-    } as never);
+    setLLMProvider(
+      mockLLMProvider(
+        vi.fn().mockResolvedValue(
+          mockLLMResponse([{ type: "text", text: "rolled up context" }]),
+        ),
+      ),
+    );
 
     const sessionMessages = [
       userMessage("e1", 1, "plan the refactor", "sess-1"),
@@ -76,7 +80,7 @@ describe("runSummaryCompaction", () => {
       turn: 3,
       sessionMessages,
       system: buildDefaultBasePrompt(),
-      tools: resolveToolDefinitions(),
+      tools: resolveToolDefinitions(testRuntime),
       keepTurns: 1,
     });
 
@@ -90,13 +94,13 @@ describe("runSummaryCompaction", () => {
 describe("AgentSession.runSummaryCompaction", () => {
   it("persists save, compaction item, and activates compose projection", async () => {
     vi.stubEnv("OCULA_COMPACT_KEEP_TURNS", "1");
-    vi.spyOn(await import("../src/llm/client/anthropic.js"), "getClient").mockReturnValue({
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [{ type: "text", text: "summary body" }],
-        }),
-      },
-    } as never);
+    setLLMProvider(
+      mockLLMProvider(
+        vi.fn().mockResolvedValue(
+          mockLLMResponse([{ type: "text", text: "summary body" }]),
+        ),
+      ),
+    );
 
     const agent = AgentSession.create(tmpDir);
     await agent.session.appendUser(1, "old task");
@@ -120,7 +124,7 @@ describe("AgentSession.runSummaryCompaction", () => {
       artifactStore: agent.stores.artifacts,
       compactionStore: agent.stores.compaction,
       checkpointStore: agent.stores.checkpoints,
-      toolDefinitions: resolveToolDefinitions(),
+      toolDefinitions: resolveToolDefinitions(testRuntime),
       modelProfile: {
         logicalModelId: "test",
         contextWindow: 200_000,

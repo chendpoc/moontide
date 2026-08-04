@@ -1,8 +1,7 @@
-import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { Message, ToolSchema } from "../llm/protocol/types.js";
 
-import type { ToolSchema } from "../llm/protocol/types.js";
-
-import { countTokens } from "../llm/client/anthropic.js";
+import { modelId } from "../config.js";
+import { getLLMProvider } from "../llm/provider.js";
 import {
   blockMessageLabel,
   blockMessageLineDetail,
@@ -19,7 +18,7 @@ import type {
   TokenBreakdown,
 } from "./types.js";
 
-function getMessageBlocks(message: MessageParam): GenericBlock[] {
+function getMessageBlocks(message: Message): GenericBlock[] {
   if (typeof message.content === "string") {
     return [{ type: "text", text: message.content }];
   }
@@ -139,9 +138,19 @@ export function buildMessageLines(snapshot: ContextSnapshot): MessageLine[] {
 }
 
 export async function exactTokenCount(
-  messages: MessageParam[],
+  messages: Message[],
   system: string,
   tools: ToolSchema[],
 ): Promise<number> {
-  return countTokens(messages, tools as Tool[], system);
+  const provider = getLLMProvider();
+  if (!provider.countTokens) {
+    throw new Error("LLM provider does not support countTokens");
+  }
+  return provider.countTokens({
+    model: modelId(),
+    system,
+    messages,
+    tools,
+    maxTokens: 1,
+  });
 }
