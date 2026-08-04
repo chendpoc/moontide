@@ -1,17 +1,19 @@
-import type { Message, ToolSchema } from "../llm/protocol/types.js";
+import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
 
 import {
   compactKeepTurns,
   compactThreshold,
   modelId,
-} from "../config.js";
-import { applyPrune } from "./composer/compaction/apply-prune.js";
-import { buildContextReport } from "./analyze.js";
-import { estimateBreakdown } from "./metrics.js";
-import { buildSnapshot } from "./snapshot.js";
-import { extractText } from "../llm/normalize/extract-text.js";
-import { getLLMProvider } from "../llm/provider.js";
-import { buildDefaultBasePrompt } from "../agent/prompt.js";
+} from "../../../config.js";
+import { buildContextReport } from "../../../context-inspect/analyze.js";
+import { buildSnapshot } from "../../../context-inspect/snapshot.js";
+import { extractText } from "../../../llm/normalize/extract-text.js";
+import { getLLMProvider } from "../../../llm/provider.js";
+import {
+  applyPrune,
+  estimateContextTokens,
+  findKeepFromIndex,
+} from "./apply-prune.js";
 
 export interface CompactResult {
   messages: Message[];
@@ -30,47 +32,13 @@ export interface CompactPreview {
   wouldChange: boolean;
 }
 
-function estimateMessagesTokens(
-  messages: Message[],
-  system: string,
-  tools: ToolSchema[],
-): number {
-  const snapshot = {
-    turn: 0,
-    messages,
-    system,
-    tools,
-    modelId: modelId(),
-  };
-  return estimateBreakdown(snapshot).total;
-}
-
-function findKeepFromIndex(messages: Message[], keepTurns: number): number {
-  let userTurns = 0;
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (message.role !== "user") continue;
-    const content = message.content;
-    if (typeof content !== "string" && Array.isArray(content)) {
-      if (content.length > 0 && content.every((block) => block.type === "tool_result")) {
-        continue;
-      }
-    }
-    userTurns += 1;
-    if (userTurns >= keepTurns) {
-      return i;
-    }
-  }
-  return 0;
-}
-
 export function previewCompact(
   messages: Message[],
   system: string,
   tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): CompactPreview {
-  const beforeTokens = estimateMessagesTokens(messages, system, tools);
+  const beforeTokens = estimateContextTokens(messages, system, tools, modelId());
   const result = pruneCompact(messages, system, tools, keepTurns);
   return {
     beforeTokens,
@@ -117,7 +85,8 @@ export async function summarizeCompact(
   tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): Promise<CompactResult> {
-  const beforeTokens = estimateMessagesTokens(messages, system, tools);
+  const currentModelId = modelId();
+  const beforeTokens = estimateContextTokens(messages, system, tools, currentModelId);
   const keepFrom = findKeepFromIndex(messages, keepTurns);
   const head = messages.slice(0, keepFrom);
   const tail = messages.slice(keepFrom);
@@ -127,7 +96,7 @@ export async function summarizeCompact(
   }
 
   const response = await getLLMProvider().chat({
-    model: modelId(),
+    model: currentModelId,
     system:
       "Summarize the conversation excerpt for context compression. Preserve tasks, decisions, file paths, and open questions. Be concise.",
     messages: [
@@ -147,7 +116,7 @@ export async function summarizeCompact(
   };
 
   const next = [summaryMessage, ...tail];
-  const afterTokens = estimateMessagesTokens(next, system, tools);
+  const afterTokens = estimateContextTokens(next, system, tools, currentModelId);
 
   return {
     messages: next,
@@ -182,8 +151,4 @@ export function computeAutoCompact(
   }
 
   return result;
-}
-
-export function defaultCompactSystem(): string {
-  return buildDefaultBasePrompt();
 }

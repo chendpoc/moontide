@@ -1,6 +1,6 @@
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
-import { summarizeCompact, type CompactResult } from "../../compact.js";
-import type { CompactionSave } from "../../stores/compaction-types.js";
+import { summarizeCompact, type CompactResult } from "./operations.js";
+import type { CompactionSave } from "../../../session/stores/compaction-types.js";
 import { messagesFromContext } from "../../../session/transform/messages-from-context.js";
 import type { SessionMessage } from "../../../session/types.js";
 import { newEventId } from "../../../utils/id.js";

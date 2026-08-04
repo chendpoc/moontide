@@ -4,11 +4,10 @@ import {
 } from "../context/composer/compaction/run-summary-compaction.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
 import {
-  defaultCompactSystem,
   previewCompact,
   type CompactPreview,
-} from "../context/compact.js";
-import type { SessionStores } from "../context/stores/index.js";
+} from "../context/composer/compaction/operations.js";
+import type { SessionStores } from "../session/stores/index.js";
 import { resolveInstructionState } from "../instruction-state/index.js";
 import { getWorkdir } from "../config.js";
 import type { ToolSchema } from "../llm/protocol/types.js";
@@ -63,7 +62,7 @@ export class CompactionService {
       compactionPolicy: { ...this.state.getPolicy(), autoEnabled: false },
       activeCompactionSaveId: this.state.getActiveCompactionSaveId(),
       resumeFromCheckpointId: this.state.getResumeCheckpointId(),
-      systemPrompt: defaultCompactSystem(),
+      systemPrompt: resolveInstructionState(getWorkdir()).basePrompt,
     });
 
     const preview = previewCompact(

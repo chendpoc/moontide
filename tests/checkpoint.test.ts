@@ -8,7 +8,7 @@ import {
   createStubArtifactStore,
   createStubCompactionStore,
   FileCheckpointStore,
-} from "../src/context/stores/index.js";
+} from "../src/session/stores/index.js";
 import { setWorkdir } from "../src/config.js";
 import { checkpointPath } from "../src/session/paths.js";
 import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
@@ -82,7 +82,7 @@ describe("AgentSession checkpoint", () => {
       artifactStore: createStubArtifactStore(),
       compactionStore: createStubCompactionStore(),
       checkpointStore: new FileCheckpointStore(tmpDir),
-      toolDefinitions: resolveToolDefinitions(testRuntime),
+      toolDefinitions: resolveToolDefinitions(testRuntime.tools),
       modelProfile: {
         logicalModelId: "test",
         contextWindow: 200_000,

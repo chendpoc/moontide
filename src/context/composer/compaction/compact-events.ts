@@ -1,5 +1,5 @@
-import { emitDraft } from "../log/event-hub.js";
-import type { CompactResult } from "./compact.js";
+import { emitDraft } from "../../../log/event-hub.js";
+import type { CompactResult } from "./operations.js";
 
 export function emitCompactEvent(
   turn: number,

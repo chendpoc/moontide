@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { previewCompact, pruneCompact } from "../src/context/compact.js";
+import { previewCompact, pruneCompact } from "../src/context/composer/compaction/operations.js";
 import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";

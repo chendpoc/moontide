@@ -1,9 +1,8 @@
-import {
-  defaultCompactSystem,
-  previewCompact,
-} from "../../context/compact.js";
+import { previewCompact } from "../../context/composer/compaction/operations.js";
 import { composeContext } from "../../context/composer/compose.js";
+import { getWorkdir } from "../../config.js";
 import { resolveModelProfile } from "../../llm/models/resolve.js";
+import { resolveInstructionState } from "../../instruction-state/index.js";
 import { getToolDefinitions } from "../../tools/index.js";
 import { reply, formatCompactReport } from "./io.js";
 import type { ParsedReplCommand, ReplCommandContext, ReplCommandResult } from "./types.js";
@@ -14,7 +13,7 @@ async function buildComposePreview(agentSession: NonNullable<ReturnType<ReplComm
     sessionId: session.sessionId,
     turn: 0,
     messages: session.getMessages(),
-    instructionState: { basePrompt: defaultCompactSystem(), epoch: 1 },
+    instructionState: resolveInstructionState(getWorkdir()),
     artifactStore: agentSession.stores.artifacts,
     compactionStore: agentSession.stores.compaction,
     checkpointStore: agentSession.stores.checkpoints,

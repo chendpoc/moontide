@@ -80,7 +80,7 @@ describe("runSummaryCompaction", () => {
       turn: 3,
       sessionMessages,
       system: buildDefaultBasePrompt(),
-      tools: resolveToolDefinitions(testRuntime),
+      tools: resolveToolDefinitions(testRuntime.tools),
       keepTurns: 1,
     });
 
@@ -124,7 +124,7 @@ describe("AgentSession.runSummaryCompaction", () => {
       artifactStore: agent.stores.artifacts,
       compactionStore: agent.stores.compaction,
       checkpointStore: agent.stores.checkpoints,
-      toolDefinitions: resolveToolDefinitions(testRuntime),
+      toolDefinitions: resolveToolDefinitions(testRuntime.tools),
       modelProfile: {
         logicalModelId: "test",
         contextWindow: 200_000,

@@ -1,5 +1,5 @@
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
-import { estimateBreakdown } from "../../metrics.js";
+import { estimateBreakdown } from "../../../context-inspect/metrics.js";
 
 const COMPACT_PLACEHOLDER_PREFIX = "[compact:";
 
@@ -45,7 +45,7 @@ function isUserTextTurnStart(message: Message): boolean {
   return !isToolResultsOnly(message.content);
 }
 
-function findKeepFromIndex(messages: Message[], keepTurns: number): number {
+export function findKeepFromIndex(messages: Message[], keepTurns: number): number {
   let userTurns = 0;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     if (!isUserTextTurnStart(messages[i])) {

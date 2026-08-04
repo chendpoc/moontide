@@ -8,8 +8,8 @@ import {
   createStubArtifactStore,
   createStubCheckpointStore,
   createStubCompactionStore,
-} from "../src/context/stores/index.js";
-import type { CompactionSave } from "../src/context/stores/compaction-types.js";
+} from "../src/session/stores/index.js";
+import type { CompactionSave } from "../src/session/stores/compaction-types.js";
 import type { SessionMessage } from "../src/session/types.js";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
@@ -33,7 +33,7 @@ describe("composeContext", () => {
     artifactStore: createStubArtifactStore(),
     compactionStore: createStubCompactionStore(),
     checkpointStore: createStubCheckpointStore(),
-    toolDefinitions: resolveToolDefinitions(getTestRuntime()),
+    toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
     modelProfile: {
       logicalModelId: "claude-test",
       contextWindow: 200_000,
@@ -105,7 +105,7 @@ describe("compaction apply helpers", () => {
       { role: "user" as const, content: "second question" },
     ];
 
-    const result = applyPrune(messages, "sys", resolveToolDefinitions(getTestRuntime()), 1, "claude-test");
+    const result = applyPrune(messages, "sys", resolveToolDefinitions(getTestRuntime().tools), 1, "claude-test");
     expect(result.changed).toBe(true);
     expect(result.afterTokens).toBeLessThan(result.beforeTokens);
   });
