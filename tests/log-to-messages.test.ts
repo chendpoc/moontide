@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { logToMessages } from "../src/context/composer/messages/log-to-messages.js";
+import {
+  messagesFromContext,
+  type MessagesFromContextOptions,
+} from "../src/session/transform/messages-from-context.js";
+import { messagesFromItems } from "../src/session/transform/messages-from-items.js";
 import type { SessionItem } from "../src/session/types.js";
 
 function base(over: Partial<SessionItem> & Pick<SessionItem, "kind">): SessionItem {
@@ -13,7 +17,14 @@ function base(over: Partial<SessionItem> & Pick<SessionItem, "kind">): SessionIt
   } as SessionItem;
 }
 
-describe("logToMessages", () => {
+function itemsToMessages(
+  log: readonly SessionItem[],
+  options?: MessagesFromContextOptions,
+) {
+  return messagesFromContext({ messages: messagesFromItems(log) }, options);
+}
+
+describe("messagesFromItems + messagesFromContext", () => {
   it("replays user then assistant text", () => {
     const log: SessionItem[] = [
       base({ id: "e1", kind: "user_message", text: "hi" }),
@@ -24,7 +35,7 @@ describe("logToMessages", () => {
       }),
     ];
 
-    expect(logToMessages(log)).toEqual([
+    expect(itemsToMessages(log)).toEqual([
       { role: "user", content: "hi" },
       { role: "assistant", content: [{ type: "text", text: "hello" }] },
     ]);
@@ -58,7 +69,7 @@ describe("logToMessages", () => {
       }),
     ];
 
-    expect(logToMessages(log)).toEqual([
+    expect(itemsToMessages(log)).toEqual([
       { role: "user", content: "read file" },
       {
         role: "assistant",
@@ -109,7 +120,7 @@ describe("logToMessages", () => {
       }),
     ];
 
-    const messages = logToMessages(log);
+    const messages = itemsToMessages(log);
     expect(messages).toHaveLength(2);
     expect(messages[1]?.role).toBe("user");
   });
@@ -120,7 +131,7 @@ describe("logToMessages", () => {
       base({ id: "e2", kind: "user_message", text: "turn2", turn: 2 }),
     ];
 
-    expect(logToMessages(log, { upToTurn: 1 })).toEqual([
+    expect(itemsToMessages(log, { upToTurn: 1 })).toEqual([
       { role: "user", content: "turn1" },
     ]);
   });
@@ -149,7 +160,7 @@ describe("logToMessages", () => {
       }),
     ];
 
-    const messages = logToMessages(log);
+    const messages = itemsToMessages(log);
     expect(messages).toHaveLength(2);
     expect(messages[1]).toEqual({
       role: "user",

@@ -44,12 +44,11 @@ export class FileSessionItemReader implements SessionItemTailReader {
     return parseItems(readLines(sessionLogPath(this.workdir, sessionId)));
   }
 
-  async readTail(options: SessionItemReadOptions & { afterLogId?: string }): Promise<SessionItem[]> {
+  async readTail(options: SessionItemReadOptions): Promise<SessionItem[]> {
     const items = await this.readAll(options.sessionId);
     let start = 0;
-    const afterId = options.afterItemId ?? options.afterLogId;
-    if (afterId) {
-      const index = items.findIndex((item) => item.id === afterId);
+    if (options.afterItemId) {
+      const index = items.findIndex((item) => item.id === options.afterItemId);
       start = index >= 0 ? index + 1 : 0;
     }
     const sliced = items.slice(start);
@@ -60,9 +59,4 @@ export class FileSessionItemReader implements SessionItemTailReader {
   }
 }
 
-/** @deprecated Use FileSessionItemWriter */
-export const FileSessionLogWriter = FileSessionItemWriter;
-/** @deprecated Use FileSessionItemReader */
-export const FileSessionLogReader = FileSessionItemReader;
-
-export { buildSessionItem, buildSessionLog, parseItems, readLines } from "./build.js";
+export { buildSessionItem, parseItems, readLines } from "./build.js";

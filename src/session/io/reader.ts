@@ -13,12 +13,3 @@ export interface SessionItemReadOptions {
 export interface SessionItemTailReader extends SessionItemReader {
   readTail(options: SessionItemReadOptions): Promise<SessionItem[]>;
 }
-
-/** @deprecated Use SessionItemReader */
-export type SessionLogReader = SessionItemReader;
-/** @deprecated Use SessionItemReadOptions */
-export type SessionLogReadOptions = SessionItemReadOptions & {
-  afterLogId?: string;
-};
-/** @deprecated Use SessionItemTailReader */
-export type SessionLogTailReader = SessionItemTailReader;

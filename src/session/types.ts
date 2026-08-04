@@ -61,7 +61,7 @@ export interface RoutingItem extends SessionItemBase {
   decision: RoutingDecision;
 }
 
-/** Persistence DTO — one NDJSON line. Schema unchanged from legacy SessionLog. */
+/** Persistence DTO — one NDJSON line. */
 export type SessionItem =
   | UserMessageItem
   | AssistantMessageItem
@@ -131,29 +131,3 @@ export interface SessionMessage {
 export interface SessionContext {
   readonly messages: readonly SessionMessage[];
 }
-
-/** @deprecated Use SessionItem */
-export type SessionLog = SessionItem;
-/** @deprecated Use SessionItemBase */
-export type SessionLogBase = SessionItemBase;
-/** @deprecated Use SessionItemBody */
-export type SessionLogBody = SessionItemBody;
-/** @deprecated Use SessionItemKind */
-export type SessionLogKind = SessionItemKind;
-/** @deprecated Use UserMessageItem */
-export type UserMessageLog = UserMessageItem;
-/** @deprecated Use AssistantMessageItem */
-export type AssistantMessageLog = AssistantMessageItem;
-/** @deprecated Use ToolInvocationItem */
-export type ToolInvocationLog = ToolInvocationItem;
-/** @deprecated Use ToolOutcomeItem */
-export type ToolOutcomeLog = ToolOutcomeItem;
-/** @deprecated Use CompactionItem */
-export type CompactionEventLog = CompactionItem;
-/** @deprecated Use CheckpointCreatedItem */
-export type CheckpointCreatedLog = CheckpointCreatedItem;
-/** @deprecated Use RoutingItem */
-export type RoutingLog = RoutingItem;
-
-/** @deprecated Use isSessionItem */
-export const isSessionLog = isSessionItem;

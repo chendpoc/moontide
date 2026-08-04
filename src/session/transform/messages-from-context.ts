@@ -53,11 +53,3 @@ export function messagesFromContext(
   flushToolResults(pendingToolResults, messages);
   return messages;
 }
-
-/** @deprecated Use messagesFromContext */
-export function messagesFromContextAsLog(
-  context: SessionContext,
-  options?: MessagesFromContextOptions,
-): Message[] {
-  return messagesFromContext(context, options);
-}

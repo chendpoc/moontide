@@ -6,6 +6,3 @@ export interface SessionItemWriter {
   replaceAll(sessionId: string, items: SessionItem[]): Promise<void>;
   flush?(sessionId: string): Promise<void>;
 }
-
-/** @deprecated Use SessionItemWriter */
-export type SessionLogWriter = SessionItemWriter;

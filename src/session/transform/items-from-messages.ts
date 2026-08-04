@@ -9,8 +9,3 @@ export function itemsFromMessages(messages: readonly SessionMessage[]): SessionI
   }
   return items;
 }
-
-/** @deprecated Use itemsFromMessages */
-export function itemsFromContext(context: { messages: readonly SessionMessage[] }): SessionItem[] {
-  return itemsFromMessages(context.messages);
-}

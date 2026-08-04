@@ -1,6 +1,6 @@
 import type { ContentBlock as SdkContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import type { ContentBlock } from "../llm/protocol/types.js";
+import { mapSdkContentBlocks as mapBlocksFromRegistry } from "./block-registry.js";
 import type { ToolResultSummary } from "./types.js";
 import { truncateChars } from "../utils/text.js";
 import { byteLengthUtf8 } from "../utils/utf8.js";
@@ -8,26 +8,8 @@ import { byteLengthUtf8 } from "../utils/utf8.js";
 const SUMMARY_CHAR_LIMIT = 500;
 
 /** Map SDK assistant blocks to Ocula protocol blocks for Session Log. */
-export function mapSdkContentBlocks(blocks: SdkContentBlock[]): ContentBlock[] {
-  return blocks.flatMap((block): ContentBlock[] => {
-    switch (block.type) {
-      case "text":
-        return [{ type: "text", text: block.text }];
-      case "thinking":
-        return [{ type: "thinking", thinking: block.thinking }];
-      case "tool_use":
-        return [
-          {
-            type: "tool_use",
-            id: block.id,
-            name: block.name,
-            input: block.input as Record<string, unknown>,
-          },
-        ];
-      default:
-        return [];
-    }
-  });
+export function mapSdkContentBlocks(blocks: SdkContentBlock[]) {
+  return mapBlocksFromRegistry(blocks);
 }
 
 export function summarizeToolResultContent(content: string): ToolResultSummary {

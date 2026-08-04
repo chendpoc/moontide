@@ -1,17 +1,10 @@
-import fs from "node:fs";
-
+import { readLines as readFileLines } from "../../utils/fs.js";
 import { newEventId } from "../../utils/id.js";
 import type { SessionItem, SessionItemBody } from "../types.js";
 import { isSessionItem } from "../types.js";
 
 export function readLines(filePath: string): string[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split("\n")
-    .filter((line) => line.length > 0);
+  return readFileLines(filePath);
 }
 
 export function parseItems(lines: string[]): SessionItem[] {
@@ -38,6 +31,3 @@ export function buildSessionItem(
     ...body,
   } as SessionItem;
 }
-
-/** @deprecated Use buildSessionItem */
-export const buildSessionLog = buildSessionItem;

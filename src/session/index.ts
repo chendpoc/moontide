@@ -1,3 +1,4 @@
+export { replaceSessionItems } from "../extensions/log-sync/file-item.js";
 export { Session } from "./session.js";
 export { SessionTransform } from "./transform.js";
 export { newSessionId } from "./ids.js";
@@ -17,45 +18,25 @@ export type {
   ToolOutcomeItem,
   ToolResultSummary,
   UserMessageItem,
-  SessionLog,
-  SessionLogBase,
-  SessionLogBody,
-  SessionLogKind,
-  UserMessageLog,
-  AssistantMessageLog,
-  ToolInvocationLog,
-  ToolOutcomeLog,
-  CompactionEventLog,
-  CheckpointCreatedLog,
-  RoutingLog,
 } from "./types.js";
 export {
   isSessionItem,
   isNonMessageSessionItem,
-  isSessionLog,
   NON_MESSAGE_ITEM_KINDS,
 } from "./types.js";
 export type {
   SessionItemReader,
   SessionItemReadOptions,
   SessionItemTailReader,
-  SessionLogReader,
-  SessionLogReadOptions,
-  SessionLogTailReader,
 } from "./io/reader.js";
-export type { SessionItemWriter, SessionLogWriter } from "./io/writer.js";
+export type { SessionItemWriter } from "./io/writer.js";
 export {
   buildSessionItem,
-  buildSessionLog,
   FileSessionItemReader,
   FileSessionItemWriter,
-  FileSessionLogReader,
-  FileSessionLogWriter,
   parseItems,
 } from "./io/index.js";
 export {
-  contextFromItems,
-  itemsFromContext,
   itemsFromMessage,
   itemsFromMessages,
   messagesFromContext,
@@ -70,13 +51,9 @@ export {
   checkpointPath,
   checkpointsDir,
   compactionDir,
-  compactionRecordPath,
   compactionSavePath,
   artifactMetaPath,
   dataDir,
   sessionLogPath,
   sessionsDir,
 } from "./paths.js";
-
-/** @deprecated Use SessionTransform */
-export { SessionTransform as SessionLogSlice } from "./transform.js";

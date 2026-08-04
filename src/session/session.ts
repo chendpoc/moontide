@@ -6,10 +6,11 @@ import type { RoutingDecision } from "../llm/routing/types.js";
 import { newEventId } from "../utils/id.js";
 import {
   FileSessionItemReader,
-  FileSessionItemWriter,
   parseItems,
   readLines,
 } from "./io/index.js";
+import { hookDispatcher } from "../agent/hooks/index.js";
+import { replaceSessionItems } from "../extensions/log-sync/file-item.js";
 import { sessionLogPath } from "./paths.js";
 import { messagesFromItems } from "./transform/messages-from-items.js";
 import { itemsFromMessage } from "./transform/items-from-message.js";
@@ -58,7 +59,6 @@ export class Session {
 
   constructor(
     readonly sessionId: string,
-    private readonly writer: FileSessionItemWriter,
     private readonly reader: FileSessionItemReader,
     context: SessionContext = emptyContext(),
   ) {
@@ -66,18 +66,13 @@ export class Session {
   }
 
   static create(workdir = getWorkdir()): Session {
-    return new Session(
-      newSessionId(),
-      new FileSessionItemWriter(workdir),
-      new FileSessionItemReader(workdir),
-    );
+    return new Session(newSessionId(), new FileSessionItemReader(workdir));
   }
 
   static open(sessionId: string, workdir = getWorkdir()): Session {
     const reader = new FileSessionItemReader(workdir);
-    const writer = new FileSessionItemWriter(workdir);
     const items = parseItems(readLines(sessionLogPath(workdir, sessionId)));
-    return new Session(sessionId, writer, reader, {
+    return new Session(sessionId, reader, {
       messages: messagesFromItems(items),
     });
   }
@@ -96,11 +91,6 @@ export class Session {
 
   async readItems(): Promise<SessionItem[]> {
     return this.reader.readAll(this.sessionId);
-  }
-
-  /** @deprecated Use readItems */
-  async readLog(): Promise<SessionItem[]> {
-    return this.readItems();
   }
 
   async flush(): Promise<void> {
@@ -152,14 +142,6 @@ export class Session {
       formatToolSummary(resultSummary, artifactId),
       at,
     );
-  }
-
-  /** @deprecated Prefer appendToolOutcome */
-  async appendToolResult(turn: number, toolUseId: string, content: string): Promise<void> {
-    await this.appendToolOutcome(turn, toolUseId, {
-      summary: content,
-      byteCount: Buffer.byteLength(content, "utf8"),
-    });
   }
 
   private mergeToolResultInMemory(
@@ -215,16 +197,6 @@ export class Session {
     await this.pushItem(item);
   }
 
-  /** @deprecated Use appendCompactionItem */
-  async appendCompaction(
-    turn: number,
-    beforeTokens: number,
-    afterTokens: number,
-    compactionKind: CompactionKind = "prune",
-  ): Promise<void> {
-    await this.appendCompactionItem(turn, beforeTokens, afterTokens, compactionKind);
-  }
-
   async appendCheckpointItem(turn: number, checkpointId: string): Promise<void> {
     const item: CheckpointCreatedItem = {
       kind: "checkpoint_created",
@@ -253,7 +225,7 @@ export class Session {
     const mode = options?.mode ?? "append-new";
     if (mode === "replace") {
       this.messages = messagesFromItems(items);
-      await this.writer.replaceAll(this.sessionId, items);
+      await replaceSessionItems(this.sessionId, items);
       return;
     }
 
@@ -286,11 +258,17 @@ export class Session {
   }
 
   private async pushMessage(message: SessionMessage): Promise<void> {
-    await this.writer.appendMany(this.sessionId, itemsFromMessage(message));
     this.messages.push(message);
+    await this.commitItems(itemsFromMessage(message));
   }
 
   private async pushItem(item: SessionItem): Promise<void> {
-    await this.writer.append(this.sessionId, item);
+    await hookDispatcher.dispatch("sessionItem", { item });
+  }
+
+  private async commitItems(items: SessionItem[]): Promise<void> {
+    for (const item of items) {
+      await hookDispatcher.dispatch("sessionItem", { item });
+    }
   }
 }

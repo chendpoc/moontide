@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { registerDefaultSidecarHooks, resetSidecarHooks } from "../src/agent/hooks/index.js";
 import { setWorkdir } from "../src/config.js";
 import { Session } from "../src/session/session.js";
 import { sessionLogPath } from "../src/session/paths.js";
@@ -12,20 +13,22 @@ let tmpDir = "";
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-session-");
   setWorkdir(tmpDir);
+  registerDefaultSidecarHooks(tmpDir);
 });
 
 afterEach(() => {
+  resetSidecarHooks();
   removeTmpWorkdir(tmpDir);
 });
 
 describe("Session", () => {
-  it("appendUser and appendAssistant roundtrip via readLog", async () => {
+  it("appendUser and appendAssistant roundtrip via readItems", async () => {
     const session = Session.create(tmpDir);
 
     await session.appendUser(1, "hello");
     await session.appendAssistant(1, [{ type: "text", text: "world" }]);
 
-    const log = await session.readLog();
+    const log = await session.readItems();
     expect(log).toHaveLength(2);
     expect(log[0]).toMatchObject({ kind: "user_message", text: "hello", turn: 1 });
     expect(log[1]).toMatchObject({ kind: "assistant_message", turn: 1 });
@@ -126,7 +129,10 @@ describe("Session", () => {
       { type: "text", text: "calling" },
       { type: "tool_use", id: "toolu_1", name: "grep", input: { pattern: "foo" } },
     ]);
-    await session.appendToolResult(1, "toolu_1", "matches: 3");
+    await session.appendToolOutcome(1, "toolu_1", {
+      summary: "matches: 3",
+      byteCount: Buffer.byteLength("matches: 3", "utf8"),
+    });
 
     const messages = session.toMessages();
     expect(messages).toEqual([

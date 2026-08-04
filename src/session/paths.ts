@@ -34,15 +34,6 @@ export function compactionSavePath(
   return joinPath(compactionDir(workdir, sessionId), `${compactionSaveId}.json`);
 }
 
-/** @deprecated Use compactionSavePath */
-export function compactionRecordPath(
-  workdir: string,
-  sessionId: string,
-  compactionRecordId: string,
-): string {
-  return compactionSavePath(workdir, sessionId, compactionRecordId);
-}
-
 export function artifactMetaPath(
   workdir: string,
   sessionId: string,
