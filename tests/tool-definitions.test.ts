@@ -43,7 +43,7 @@ describe("tool definitions", () => {
 
   it("resolveToolDefinitions returns stable name-sorted schemas", () => {
     const runtime = getTestRuntime();
-    const resolved = resolveToolDefinitions(runtime);
+    const resolved = resolveToolDefinitions(runtime.tools);
     const names = resolved.map((s) => s.name);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     expect(resolved.length).toBe(registerDefaultTools().length);
@@ -52,6 +52,6 @@ describe("tool definitions", () => {
   it("resolveToolDefinitions matches getToolDefinitions content", () => {
     const runtime = getTestRuntime();
     const fromStore = [...getToolDefinitions(runtime)].sort((a, b) => a.name.localeCompare(b.name));
-    expect(resolveToolDefinitions(runtime)).toEqual(fromStore);
+    expect(resolveToolDefinitions(runtime.tools)).toEqual(fromStore);
   });
 });

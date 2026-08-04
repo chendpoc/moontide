@@ -1,13 +1,17 @@
 import type { ToolSchema } from "../../../llm/protocol/types.js";
 
-import { getToolDefinitions } from "../../../tools/definitions.js";
-import type { AgentRuntime } from "../../../agent/runtime/index.js";
 import type { ResolveToolDefinitionsInput } from "./types.js";
 
-/** Resolve tool schemas from the active AgentRuntime (name-sorted). */
+/** Narrow port for resolving tool schemas without importing Harness runtime. */
+export interface ToolDefinitionsPort {
+  getToolSchemas(): ToolSchema[];
+}
+
+/** Resolve tool schemas from a registry port or pre-resolved list (name-sorted). */
 export function resolveToolDefinitions(
-  runtime: AgentRuntime,
+  source: ToolDefinitionsPort | ToolSchema[],
   _input?: ResolveToolDefinitionsInput,
 ): ToolSchema[] {
-  return [...getToolDefinitions(runtime)].sort((a, b) => a.name.localeCompare(b.name));
+  const schemas = Array.isArray(source) ? source : source.getToolSchemas();
+  return [...schemas].sort((a, b) => a.name.localeCompare(b.name));
 }
