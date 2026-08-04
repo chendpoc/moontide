@@ -1,7 +1,7 @@
 import type { AgentRuntime } from "../agent/runtime/index.js";
 import { getWorkdir } from "../config.js";
 import { configureOutputs, resetEventPlatform } from "../log/setup.js";
-import { bootstrapPlugins } from "../plugin-host/host.js";
+import { bootstrapPlugins } from "../plugins/host/host.js";
 
 /** Reset and register default sidecar hooks on the runtime. */
 export function setupAgentHooks(runtime: AgentRuntime, workdir = getWorkdir()): void {

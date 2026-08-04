@@ -1,6 +1,6 @@
-import { writeStderrLine } from "../terminal/write.js";
-import { resolvePath } from "../utils/path.js";
-import type { AgentRuntime } from "../agent/runtime/index.js";
+import { writeStderrLine } from "../../terminal/write.js";
+import { resolvePath } from "../../utils/path.js";
+import type { AgentRuntime } from "../../agent/runtime/index.js";
 import { loadPluginManifest } from "./manifest.js";
 import { SidecarBridge } from "./sidecar/bridge.js";
 import type { AttachedPlugin, PluginManifestEntry } from "./types.js";

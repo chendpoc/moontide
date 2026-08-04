@@ -18,20 +18,10 @@ export interface PluginManifest {
   plugins: PluginManifestEntry[];
 }
 
-export interface SidecarHookSpec {
-  phase: string;
-  name: string;
-  order?: number;
-  errorPolicy?: "fail-open" | "fail-closed";
-}
-
-export interface SidecarToolSpec {
-  name: string;
-  schema: Record<string, unknown>;
-}
-
 export interface AttachedPlugin {
   id: string;
   kind: PluginKind;
   dispose: () => void;
 }
+
+export type { SidecarHookSpec, SidecarToolSpec } from "../sdk/types.js";

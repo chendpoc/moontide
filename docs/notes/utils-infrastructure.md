@@ -34,7 +34,7 @@ flowchart TB
   subgraph domain [业务层]
     agent[agent/ · tools/builtins/]
     context[context/ · log/]
-    plugin[plugin-host/]
+    plugin[plugins/host/]
   end
 
   fs --> ufs
@@ -58,7 +58,7 @@ flowchart TB
 **例外（有意保留）：**
 
 - `code-repl/templates/bodies/*` — 注入沙箱的用户脚本，保持原生 Node 写法
-- `plugin-host/sidecar/process-transport.ts` — sidecar IPC spawn（stdio pipe，非 HTTP）
+- `plugins/host/sidecar/process-transport.ts` — sidecar IPC spawn（stdio pipe，非 HTTP）
 
 ---
 

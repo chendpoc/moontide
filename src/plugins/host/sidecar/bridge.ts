@@ -1,17 +1,17 @@
 import { pathToFileURL } from "node:url";
 
-import type { AgentRuntime } from "../../agent/runtime/index.js";
-import type { HookPhase } from "../../agent/hooks/phases.js";
-import type { StepObserveResult } from "../../agent/hooks/types.js";
-import type { ToolSchema } from "../../llm/protocol/types.js";
+import type { AgentRuntime } from "../../../agent/runtime/index.js";
+import type { HookPhase } from "../../../agent/hooks/phases.js";
+import type { StepObserveResult } from "../../../agent/hooks/types.js";
+import type { ToolSchema } from "../../../llm/protocol/types.js";
 import {
   defineSidecarPlugin,
   listSidecarTools,
   resolveSidecarHookEntry,
   type SidecarPluginDefinition,
-} from "../../plugin-sdk/define.js";
-import type { ToolDefinition } from "../../tools/types.js";
-import { resolvePath } from "../../utils/path.js";
+} from "../../sdk/define.js";
+import type { ToolDefinition } from "../../../tools/types.js";
+import { resolvePath } from "../../../utils/path.js";
 import type { SidecarHookSpec, SidecarToolSpec } from "../types.js";
 import type { SidecarTransport } from "../types.js";
 import { SidecarProcessTransport } from "./process-transport.js";

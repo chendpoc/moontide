@@ -17,9 +17,9 @@ ocula/
 │   ├── agent/           # agent-run、loop、hooks、pipeline（runLLM / runTool）
 │   ├── instruction-state/  # AGENTS.md / rules → InstructionState
 │   ├── plugins/
-│   │   └── builtin/     # built-in plugins：log-sync、code-repl、context、session-persistence、deep-research
-│   ├── plugin-host/     # external plugins：manifest · sidecar attach · stdio IPC
-│   ├── plugin-sdk/      # defineSidecarPlugin
+│   │   ├── builtin/     # built-in plugins：log-sync、code-repl、context、session-persistence、deep-research
+│   │   ├── host/        # external plugins：manifest · sidecar attach · stdio IPC
+│   │   └── sdk/         # defineSidecarPlugin
 │   ├── tools/           # registry · execute · definitions · builtins/
 │   ├── session/         # Session Item Log · stores/ · paths
 │   ├── context-inspect/ # 观测：metrics · format · debug emit

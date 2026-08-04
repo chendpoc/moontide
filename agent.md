@@ -145,7 +145,7 @@
 | **Builtin** | [`register-defaults.ts`](src/tools/register-defaults.ts) · `tools/builtins/*-tools.ts` | 每条 `ToolSpec` 含 `permission`；name 与 `TOOL_NAMES` 一致 |
 | **Extension** | 同上 manifest 的 extension 工厂（如 `code_repl`、`deep_research`） | 与 builtin **同一套** permission / schema 规则；optional 工厂返回 null 时跳过 |
 | **Hook（内置）** | [`buildDefaultHookManifest()`](src/agent/hooks/manifest.ts) | `phase` ∈ `PHASE_DEFS`；同 phase 内 `name` 唯一；`errorPolicy` 合法 |
-| **Plugin（sidecar）** | [`defineSidecarPlugin`](src/plugin-sdk/define.ts) · [`plugins.json`](src/plugin-host/manifest.ts) | manifest 条目 `id/kind/attach` 合法；sidecar 暴露的 hook（`listSidecarHooks`）与 tool 经 attach 后同样受检 |
+| **Plugin（sidecar）** | [`defineSidecarPlugin`](src/plugins/sdk/define.ts) · [`plugins.json`](src/plugins/host/manifest.ts) | manifest 条目 `id/kind/attach` 合法；sidecar 暴露的 hook（`listSidecarHooks`）与 tool 经 attach 后同样受检 |
 
 **计划测试文件：**
 

@@ -2,8 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
-import type { HookPhase } from "../../agent/hooks/phases.js";
-import { dirname, joinPath } from "../../utils/path.js";
+import type { HookPhase } from "../../../agent/hooks/phases.js";
+import { dirname, joinPath } from "../../../utils/path.js";
 import type { SidecarHookSpec, SidecarToolSpec } from "../types.js";
 import {
   encodeSidecarMessage,

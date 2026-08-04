@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { loadPluginManifest } from "../src/plugin-host/manifest.js";
-import type { PluginAttach, PluginKind, SidecarTransport } from "../src/plugin-host/types.js";
+import { loadPluginManifest } from "../src/plugins/host/manifest.js";
+import type { PluginAttach, PluginKind, SidecarTransport } from "../src/plugins/host/types.js";
 import { dataPath } from "../src/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 

@@ -208,10 +208,10 @@ src/log/
 src/plugins/builtin/
   tool-use-log/ · log-sync/ · context/hook-module.ts
 
-src/plugin-host/sidecar/
+src/plugins/host/sidecar/
   bridge.ts · process-transport.ts · run-sidecar.ts · protocol.ts
 
-src/plugin-sdk/
+src/plugins/sdk/
   define.ts — defineSidecarPlugin · listSidecarHooks
 ```
 

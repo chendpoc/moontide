@@ -9,4 +9,4 @@ export type {
   SidecarPluginDefinition,
   SidecarToolDefinition,
 } from "./define.js";
-export { runSidecarProcess as runSidecarMain } from "../plugin-host/sidecar/run-sidecar.js";
+export type { SidecarHookSpec, SidecarToolSpec } from "./types.js";

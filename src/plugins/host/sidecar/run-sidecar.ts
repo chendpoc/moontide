@@ -8,8 +8,8 @@ import {
   listSidecarTools,
   resolveSidecarHookEntry,
   type SidecarPluginDefinition,
-} from "../../plugin-sdk/define.js";
-import type { HookPhase } from "../../agent/hooks/phases.js";
+} from "../../sdk/define.js";
+import type { HookPhase } from "../../../agent/hooks/phases.js";
 import {
   encodeSidecarMessage,
   parseSidecarMessage,

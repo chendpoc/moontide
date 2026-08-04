@@ -1,4 +1,4 @@
-import type { HookPhase } from "../../agent/hooks/phases.js";
+import type { HookPhase } from "../../../agent/hooks/phases.js";
 import type { SidecarHookSpec, SidecarToolSpec } from "../types.js";
 
 export type HostToSidecarMessage =

@@ -18,7 +18,7 @@
 
 **一词一义：** 本文不使用未定义的「Broker」总称。历史对话中的「Extension Broker」= 本文 **Plugin host** + **MCP client** +（Desktop 下）**Capability Broker** 的组合，落盘时拆开写。
 
-**当前代码：** TS harness 已实现 [`src/plugin-host/`](../../src/plugin-host/)（manifest · `kind: sidecar` attach · in-process + stdio transport）与 [`ToolRegistry`](../../src/agent/runtime/tool-registry.ts)（经 `AgentRuntime.tools`）；**MCP client 尚未实现**。
+**当前代码：** TS harness 已实现 [`src/plugins/host/`](../../src/plugins/host/)（manifest · `kind: sidecar` attach · in-process + stdio transport）与 [`ToolRegistry`](../../src/agent/runtime/tool-registry.ts)（经 `AgentRuntime.tools`）；**MCP client 尚未实现**。
 
 ---
 
@@ -299,9 +299,9 @@ TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`ToolRegistry
 
 - **方向：** Plugin host + MCP client 双 attach 模式（startup assembly / runtime attach）；Capability Broker 与 Sidecar supervisor 职责分离。
 - **TS harness（已实现）：**
-  - [`src/plugin-host/`](../../src/plugin-host/) — manifest 解析 · `kind: sidecar` attach
-  - [`src/plugin-host/sidecar/`](../../src/plugin-host/sidecar/) — **stdio pipe IPC**（`process-transport` · `bridge` · NDJSON 协议）
-  - [`src/plugin-sdk/`](../../src/plugin-sdk/) — `defineSidecarPlugin` · hook 注册
+  - [`src/plugins/host/`](../../src/plugins/host/) — manifest 解析 · `kind: sidecar` attach
+  - [`src/plugins/host/sidecar/`](../../src/plugins/host/sidecar/) — **stdio pipe IPC**（`process-transport` · `bridge` · NDJSON 协议）
+  - [`src/plugins/sdk/`](../../src/plugins/sdk/) — `defineSidecarPlugin` · hook 注册
   - [`src/agent/runtime/tool-registry.ts`](../../src/agent/runtime/tool-registry.ts) — tool registry（`AgentRuntime.tools`）
   - default sidecar：tool-use-log、log-sync、context metrics（见 [`agent-run-hooks.md`](agent-run-hooks.md)）
 - **未实现：** MCP client（R2）· Rust Plugin host · UDS transport（终局，与 TS 同协议）

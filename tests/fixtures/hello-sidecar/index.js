@@ -1,4 +1,4 @@
-import { defineSidecarPlugin } from "../../../src/plugin-sdk/define.js";
+import { defineSidecarPlugin } from "../../../src/plugins/sdk/define.js";
 
 export default defineSidecarPlugin({
   hooks: {

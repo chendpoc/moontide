@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { bootstrapPlugins } from "../src/plugin-host/index.js";
+import { bootstrapPlugins } from "../src/plugins/host/index.js";
 import { dataPath, joinPath } from "../src/utils/path.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

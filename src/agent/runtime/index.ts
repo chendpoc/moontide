@@ -1,5 +1,5 @@
 import { getWorkdir } from "../../config.js";
-import { PluginHost } from "../../plugin-host/host.js";
+import { PluginHost } from "../../plugins/host/host.js";
 import { buildDefaultHookManifest } from "../hooks/manifest.js";
 import { HookDispatcher } from "../hooks/dispatcher.js";
 import { HookRegistry } from "./hook-registry.js";

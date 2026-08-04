@@ -1,7 +1,7 @@
 import { parse as parseToml } from "smol-toml";
 
-import { exists, readText } from "../utils/fs.js";
-import { dataPath } from "../utils/path.js";
+import { exists, readText } from "../../utils/fs.js";
+import { dataPath } from "../../utils/path.js";
 import type { PluginManifest, PluginManifestEntry } from "./types.js";
 
 const MANIFEST_JSON = "plugins.json";
