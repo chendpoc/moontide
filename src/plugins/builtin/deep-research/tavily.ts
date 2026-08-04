@@ -1,10 +1,10 @@
-import { tavilyApiKey } from "../../config.js";
+import { tavilyApiKey } from "../../../config.js";
 import {
   TAVILY_DEFAULT_MAX_RESULTS,
   TAVILY_MAX_RESULTS_CAP,
   TAVILY_SEARCH_URL,
-} from "../../constants/integrations.js";
-import { clampInt } from "../../utils/number.js";
+} from "../../../constants/integrations.js";
+import { clampInt } from "../../../utils/number.js";
 import type { DeepResearchResultItem } from "./types.js";
 
 export interface TavilySearchOptions {

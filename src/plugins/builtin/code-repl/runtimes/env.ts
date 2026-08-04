@@ -1,5 +1,5 @@
-import { venvPath } from "../../../config.js";
-import { joinPath, pathDelimiter, resolvePath } from "../../../utils/path.js";
+import { venvPath } from "../../../../config.js";
+import { joinPath, pathDelimiter, resolvePath } from "../../../../utils/path.js";
 
 export function buildRuntimeEnv(): Record<string, string> {
   const env = { ...process.env } as Record<string, string>;

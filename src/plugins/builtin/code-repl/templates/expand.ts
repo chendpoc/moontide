@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
 
-import { safePath } from "../../../builtins/fs.js";
-import { exists, readText } from "../../../utils/fs.js";
-import { dirname, joinPath } from "../../../utils/path.js";
+import { safePath } from "../../../../tools/builtins/fs.js";
+import { exists, readText } from "../../../../utils/fs.js";
+import { dirname, joinPath } from "../../../../utils/path.js";
 import { getTemplate, type TemplateDef, type TemplateVarDef } from "./catalog.js";
 
 const BODIES_DIR = joinPath(dirname(fileURLToPath(import.meta.url)), "bodies");

@@ -3,9 +3,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { executeTool, getToolDefinitions } from "../src/tools/index.js";
-import { expandTemplate } from "../src/extensions/code-repl/templates/expand.js";
-import { listTemplateIds } from "../src/extensions/code-repl/templates/catalog.js";
+import { expandTemplate } from "../src/plugins/builtin/code-repl/templates/expand.js";
+import { listTemplateIds } from "../src/plugins/builtin/code-repl/templates/catalog.js";
 import { joinPath } from "../src/utils/path.js";
+import {
+  clearTestRuntime,
+  getTestRuntime,
+  installTestRuntime,
+  testToolContext,
+} from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
@@ -13,10 +19,12 @@ let tmpDir = "";
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-templates-");
   setWorkdir(tmpDir);
+  installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
+  clearTestRuntime();
 });
 
 describe("expandTemplate", () => {
@@ -86,7 +94,7 @@ describe("expandTemplate", () => {
 
 describe("code_repl templates integration", () => {
   it("includes template enum in schema", () => {
-    const schema = getToolDefinitions().find((t) => t.name === "code_repl");
+    const schema = getToolDefinitions(getTestRuntime()).find((t) => t.name === "code_repl");
     expect(schema).toBeDefined();
     const props = schema!.input_schema.properties as Record<string, { enum?: string[] }>;
     expect(props.template?.enum).toContain("read_json");
@@ -97,7 +105,7 @@ describe("code_repl templates integration", () => {
     const raw = await executeTool("code_repl", {
       template: "env_check",
       code: "console.log(1)",
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { error?: string };
     expect(result.error).toContain("template and code");
   });
@@ -111,7 +119,7 @@ describe("code_repl templates integration", () => {
     const raw = await executeTool("code_repl", {
       template: "read_json",
       vars: { path: "config.json", max_depth: 1 },
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as {
       exit_code?: number;
       stdout?: string;
@@ -141,7 +149,7 @@ describe("code_repl templates integration", () => {
     );
     const raw = await executeTool("code_repl", {
       template: "package_scripts",
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error) {
       return;
@@ -158,7 +166,7 @@ describe("code_repl templates integration", () => {
     const raw = await executeTool("code_repl", {
       template: "jsonl_tail",
       vars: { path: "events.jsonl", n: 2 },
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error) {
       return;
@@ -173,7 +181,7 @@ describe("code_repl templates integration", () => {
   it("runs glob_stats template", async () => {
     fs.writeFileSync(joinPath(tmpDir, "a.ts"), "x", "utf8");
     fs.writeFileSync(joinPath(tmpDir, "b.js"), "yy", "utf8");
-    const raw = await executeTool("code_repl", { template: "glob_stats" });
+    const raw = await executeTool("code_repl", { template: "glob_stats" }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error) {
       return;
@@ -188,7 +196,7 @@ describe("code_repl templates integration", () => {
   });
 
   it("runs env_check template", async () => {
-    const raw = await executeTool("code_repl", { template: "env_check" });
+    const raw = await executeTool("code_repl", { template: "env_check" }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error) {
       return;
@@ -203,7 +211,7 @@ describe("code_repl templates integration", () => {
     const raw = await executeTool("code_repl", {
       template: "json_pretty",
       vars: { text: '{"x":1}' },
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error?.includes("python")) {
       return;
@@ -222,7 +230,7 @@ describe("code_repl templates integration", () => {
     const raw = await executeTool("code_repl", {
       template: "peek_csv",
       vars: { path: "data.csv", n: 1 },
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error?.includes("python")) {
       return;
@@ -260,7 +268,7 @@ describe("code_repl templates integration", () => {
     const raw = await executeTool("code_repl", {
       template: "git_summary",
       vars: { log_n: 1 },
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code?: number; stdout?: string; error?: string };
     if (result.error) {
       return;

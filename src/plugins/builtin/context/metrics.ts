@@ -1,13 +1,13 @@
-import { buildContextReport, withUsage } from "../../context/analyze.js";
-import { buildSnapshot } from "../../context/snapshot.js";
+import { buildContextReport, withUsage } from "../../../context/analyze.js";
+import { buildSnapshot } from "../../../context/snapshot.js";
 import {
   getPreviousEstimated,
   publishContextReport,
   updateLatestReport,
-} from "../../context/runtime-status.js";
-import type { ContextReport } from "../../context/types.js";
-import type { LLMCallRecord } from "../../agent/pipeline/types.js";
-import type { EventDraft } from "../../log/types.js";
+} from "../../../context/runtime-status.js";
+import type { ContextReport } from "../../../context/types.js";
+import type { LLMCallRecord } from "../../../agent/pipeline/types.js";
+import type { EventDraft } from "../../../log/types.js";
 
 function reportPayload(report: ContextReport): Record<string, unknown> {
   return { report: structuredClone(report) as unknown as Record<string, unknown> };
@@ -41,8 +41,8 @@ export function buildContextMetricsDraft(record: LLMCallRecord): EventDraft[] {
     const usage = record.outcome.response.usage;
     if (usage) {
       report = withUsage(report, {
-        inputTokens: usage.input_tokens,
-        outputTokens: usage.output_tokens,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
       });
       updateLatestReport(report);
     }

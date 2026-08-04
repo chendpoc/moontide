@@ -1,6 +1,6 @@
-import { deepResearchEnabled } from "../../config.js";
-import type { ToolDefinition } from "../../tools/types.js";
-import { TOOL_NAMES } from "../../tools/names.js";
+import { deepResearchEnabled } from "../../../config.js";
+import type { ToolDefinition } from "../../../tools/types.js";
+import { TOOL_NAMES } from "../../../tools/names.js";
 import { runDeepResearch } from "./handler.js";
 
 export function defineDeepResearchTool(): ToolDefinition | null {
@@ -28,6 +28,7 @@ export function defineDeepResearchTool(): ToolDefinition | null {
         required: ["query"],
       },
     },
+    permission: { kind: "fixed", decision: "ask" },
     handler: (input, _ctx) =>
       runDeepResearch({
         query: String(input.query ?? ""),

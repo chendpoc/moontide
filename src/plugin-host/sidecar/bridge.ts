@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 
+import type { AgentRuntime } from "../../agent/runtime/index.js";
 import type { HookPhase } from "../../agent/hooks/phases.js";
-import { sidecarHooks } from "../../agent/hooks/registry.js";
 import type { StepObserveResult } from "../../agent/hooks/types.js";
 import type { ToolSchema } from "../../llm/protocol/types.js";
 import {
@@ -10,7 +10,6 @@ import {
   resolveSidecarHookEntry,
   type SidecarPluginDefinition,
 } from "../../plugin-sdk/define.js";
-import { addPluginTools, pluginToolName } from "../../tools/store.js";
 import type { ToolDefinition } from "../../tools/types.js";
 import { resolvePath } from "../../utils/path.js";
 import type { SidecarHookSpec, SidecarToolSpec } from "../types.js";
@@ -24,9 +23,10 @@ function hookHandlerName(pluginId: string, name: string): string {
 function registerInProcessPlugin(
   pluginId: string,
   definition: SidecarPluginDefinition,
+  runtime: AgentRuntime,
 ): () => void {
   const hookDisposers: Array<() => void> = [];
-  const hooks = sidecarHooks();
+  const hooks = runtime.hookRegistry.sidecar();
 
   for (const [phase, handlers] of Object.entries(definition.hooks ?? {})) {
     for (const [name, entry] of Object.entries(handlers ?? {})) {
@@ -45,11 +45,12 @@ function registerInProcessPlugin(
   const tools: ToolDefinition[] = listSidecarTools(definition).map((tool) => ({
     schema: {
       ...tool.schema,
-      name: pluginToolName(pluginId, tool.name),
+      name: runtime.tools.pluginToolName(pluginId, tool.name),
     },
     handler: tool.handler,
+    permission: tool.permission ?? { kind: "fixed", decision: "deny" },
   }));
-  const removeTools = addPluginTools(tools);
+  const removeTools = runtime.tools.addPluginTools(tools);
 
   return () => {
     for (const dispose of hookDisposers) {
@@ -67,6 +68,7 @@ export class SidecarBridge {
   constructor(
     readonly pluginId: string,
     readonly workdir: string,
+    private readonly runtime: AgentRuntime,
   ) {}
 
   async connect(entry: string, transport: SidecarTransport = "in-process"): Promise<() => void> {
@@ -79,7 +81,7 @@ export class SidecarBridge {
         plugin?: SidecarPluginDefinition;
       };
       const definition = defineSidecarPlugin(mod.default ?? mod.plugin ?? {});
-      const dispose = registerInProcessPlugin(this.pluginId, definition);
+      const dispose = registerInProcessPlugin(this.pluginId, definition, this.runtime);
       return () => {
         dispose();
       };
@@ -94,7 +96,7 @@ export class SidecarBridge {
   }
 
   private registerRemote(hookSpecs: SidecarHookSpec[], toolSpecs: SidecarToolSpec[]): void {
-    const hooks = sidecarHooks();
+    const hooks = this.runtime.hookRegistry.sidecar();
     for (const spec of hookSpecs) {
       this.hookDisposers.push(
         hooks.on(
@@ -114,11 +116,12 @@ export class SidecarBridge {
     const tools: ToolDefinition[] = toolSpecs.map((tool) => ({
       schema: {
         ...(tool.schema as unknown as ToolSchema),
-        name: pluginToolName(this.pluginId, tool.name),
+        name: this.runtime.tools.pluginToolName(this.pluginId, tool.name),
       },
       handler: async (input) => this.transport!.dispatchTool(tool.name, input),
+      permission: { kind: "fixed", decision: "deny" },
     }));
-    this.removeTools = addPluginTools(tools);
+    this.removeTools = this.runtime.tools.addPluginTools(tools);
   }
 
   disconnect(): void {
@@ -136,6 +139,7 @@ export class SidecarBridge {
 export function attachInProcessSidecar(
   pluginId: string,
   definition: SidecarPluginDefinition,
+  runtime: AgentRuntime,
 ): () => void {
-  return registerInProcessPlugin(pluginId, definition);
+  return registerInProcessPlugin(pluginId, definition, runtime);
 }

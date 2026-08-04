@@ -1,11 +1,14 @@
 import { writeStderrLine } from "../terminal/write.js";
 import { resolvePath } from "../utils/path.js";
+import type { AgentRuntime } from "../agent/runtime/index.js";
 import { loadPluginManifest } from "./manifest.js";
 import { SidecarBridge } from "./sidecar/bridge.js";
 import type { AttachedPlugin, PluginManifestEntry } from "./types.js";
 
 export class PluginHost {
   private readonly attached = new Map<string, AttachedPlugin>();
+
+  constructor(private readonly runtime: AgentRuntime) {}
 
   async loadStartupPlugins(workdir: string): Promise<void> {
     const manifest = loadPluginManifest(workdir);
@@ -29,7 +32,7 @@ export class PluginHost {
       return;
     }
 
-    const bridge = new SidecarBridge(entry.id, workdir);
+    const bridge = new SidecarBridge(entry.id, workdir, this.runtime);
     const dispose = await bridge.connect(entry.entry, entry.transport ?? "in-process");
     this.attached.set(entry.id, {
       id: entry.id,
@@ -63,22 +66,8 @@ export class PluginHost {
   }
 }
 
-let host: PluginHost | null = null;
-
-export function getPluginHost(): PluginHost {
-  if (!host) {
-    host = new PluginHost();
-  }
-  return host;
-}
-
-export function resetPluginHost(): void {
-  host?.shutdown();
-  host = null;
-}
-
-export async function bootstrapPlugins(workdir: string): Promise<void> {
-  await getPluginHost().loadStartupPlugins(workdir);
+export async function bootstrapPlugins(workdir: string, runtime: AgentRuntime): Promise<void> {
+  await runtime.plugins.loadStartupPlugins(workdir);
 }
 
 export function resolvePluginEntry(workdir: string, entry: string): string {

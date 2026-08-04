@@ -1,5 +1,5 @@
-import { pythonPath, venvPath } from "../../../config.js";
-import { joinPath, resolvePath } from "../../../utils/path.js";
+import { pythonPath, venvPath } from "../../../../config.js";
+import { joinPath, resolvePath } from "../../../../utils/path.js";
 import type { CodeRuntime } from "../types.js";
 import { buildRuntimeEnv } from "./env.js";
 import { probeCommand, resolveCommand } from "./probe.js";

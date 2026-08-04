@@ -1,6 +1,6 @@
-import { exists } from "../../../utils/fs.js";
-import { joinPath, resolvePath } from "../../../utils/path.js";
-import { execFileCollect } from "../../../utils/process.js";
+import { exists } from "../../../../utils/fs.js";
+import { joinPath, resolvePath } from "../../../../utils/path.js";
+import { execFileCollect } from "../../../../utils/process.js";
 
 export async function probeCommand(
   cmd: string,

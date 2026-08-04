@@ -1,6 +1,6 @@
-import { codeReplDisabled } from "../../config.js";
-import type { ToolDefinition } from "../../tools/types.js";
-import { TOOL_NAMES } from "../../tools/names.js";
+import { codeReplDisabled } from "../../../config.js";
+import type { ToolDefinition } from "../../../tools/types.js";
+import { TOOL_NAMES } from "../../../tools/names.js";
 import { buildRuntimeEnum, runtimeDescriptions } from "./registry.js";
 import { executeCodeRepl } from "./executor.js";
 import { registerBuiltinRuntimes } from "./runtimes/index.js";
@@ -73,6 +73,7 @@ export function defineCodeReplTool(): ToolDefinition | null {
 
   return {
     schema: buildCodeReplSchema(),
+    permission: { kind: "fixed", decision: "allow" },
     handler: (input, _ctx) => executeCodeRepl(input as Parameters<typeof executeCodeRepl>[0]),
   };
 }

@@ -7,11 +7,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc && cp -r src/extensions/code-repl/templates/bodies dist/extensions/code-repl/templates/",
+    "build": "tsc && cp -r src/plugins/builtin/code-repl/templates/bodies dist/plugins/builtin/code-repl/templates/",
     "start": "node dist/main.js",
     "dev": "tsx src/main.ts",
     "ping": "tsx src/llm/healthcheck/ping.ts",
     "test": "vitest run",
+    "test:conformance": "vitest run tests/architecture-boundaries.test.ts tests/hook-manifest.test.ts tests/tool-permissions.test.ts tests/agent-runtime.test.ts tests/plugin-manifest.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "eslint .",

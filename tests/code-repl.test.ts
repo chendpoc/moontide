@@ -3,35 +3,33 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { executeTool, getToolDefinitions } from "../src/tools/index.js";
-import { registerRuntime } from "../src/extensions/code-repl/registry.js";
-import type { CodeRuntime } from "../src/extensions/code-repl/types.js";
-import type { ToolContext } from "../src/tools/types.js";
+import { registerRuntime } from "../src/plugins/builtin/code-repl/registry.js";
+import type { CodeRuntime } from "../src/plugins/builtin/code-repl/types.js";
 import { joinPath } from "../src/utils/path.js";
+import {
+  clearTestRuntime,
+  getTestRuntime,
+  installTestRuntime,
+  testToolContext,
+} from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
 
-function testToolContext(
-  userInteraction: ToolContext["userInteraction"],
-): ToolContext {
-  return {
-    workdir: tmpDir,
-    userInteraction,
-  };
-}
-
 beforeEach(() => {
   tmpDir = createTmpWorkdir("ocula-code-repl-");
   setWorkdir(tmpDir);
+  installTestRuntime(tmpDir);
 });
 
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
+  clearTestRuntime();
 });
 
 describe("code_repl", () => {
   it("is registered in tool schemas", () => {
-    const names = getToolDefinitions().map((t) => t.name);
+    const names = getToolDefinitions(getTestRuntime()).map((t) => t.name);
     expect(names).toContain("code_repl");
     expect(names).toContain("askUserQuestion");
   });
@@ -40,7 +38,7 @@ describe("code_repl", () => {
     const raw = await executeTool("code_repl", {
       runtime: "tsx",
       code: 'console.log("hello from tsx")',
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as {
       exit_code?: number;
       stdout?: string;
@@ -59,7 +57,7 @@ describe("code_repl", () => {
     const raw = await executeTool("code_repl", {
       runtime: "python",
       code: 'print("hello from python")',
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code: number; stdout: string; error?: string };
     if (result.error) {
       expect(result.suggestion).toContain("askUserQuestion");
@@ -74,7 +72,7 @@ describe("code_repl", () => {
     const raw = await executeTool("code_repl", {
       runtime: "node",
       path: "script.js",
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code: number; stdout: string };
     expect(result.exit_code).toBe(0);
     expect(result.stdout).toContain("from file");
@@ -85,7 +83,7 @@ describe("code_repl", () => {
       runtime: "node",
       path: "nested/run.js",
       code: 'console.log("written")',
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { exit_code: number; stdout: string };
     expect(result.exit_code).toBe(0);
     expect(result.stdout).toContain("written");
@@ -97,7 +95,7 @@ describe("code_repl", () => {
       runtime: "node",
       path: "../../../etc/passwd",
       code: 'console.log("nope")',
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { error: string };
     expect(result.error).toMatch(/escapes workspace/);
   });
@@ -118,14 +116,14 @@ describe("code_repl", () => {
     const raw = await executeTool("code_repl", {
       runtime: "mock_missing",
       code: "noop",
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { error: string; suggestion: string };
     expect(result.error).toMatch(/not available|mock not installed/);
     expect(result.suggestion).toContain("askUserQuestion");
   });
 
   it("requires code or path", async () => {
-    const raw = await executeTool("code_repl", { runtime: "tsx" });
+    const raw = await executeTool("code_repl", { runtime: "tsx" }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { error: string };
     expect(result.error).toContain("Either code, path, or template");
   });
@@ -141,7 +139,7 @@ describe("askUserQuestion", () => {
           options: [{ id: "tsx", label: "TypeScript" }],
         },
       ],
-    });
+    }, testToolContext(tmpDir));
     const result = JSON.parse(raw) as { error: string };
     expect(result.error).toContain("not configured");
   });
@@ -162,7 +160,7 @@ describe("askUserQuestion", () => {
           },
         ],
       },
-      testToolContext({
+      testToolContext(tmpDir, {
         approveTool: async () => false,
         askQuestion: async () => [{ question_id: "runtime", selected: ["python"] }],
       }),

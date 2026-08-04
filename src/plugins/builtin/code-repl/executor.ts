@@ -1,4 +1,4 @@
-import { codeReplDefaultRuntime } from "../../config.js";
+import { codeReplDefaultRuntime } from "../../../config.js";
 import { getRuntime } from "./registry.js";
 import { cleanupScript, prepareScript, runPreparedScript } from "./runner.js";
 import { expandTemplate } from "./templates/expand.js";

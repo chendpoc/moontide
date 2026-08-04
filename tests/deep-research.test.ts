@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerDefaultTools } from "../src/tools/register-defaults.js";
-import { runDeepResearch } from "../src/extensions/deep-research/handler.js";
-import { defineDeepResearchTool } from "../src/extensions/deep-research/index.js";
-import { normalizeMaxResults, tavilySearch } from "../src/extensions/deep-research/tavily.js";
+import { runDeepResearch } from "../src/plugins/builtin/deep-research/handler.js";
+import { defineDeepResearchTool } from "../src/plugins/builtin/deep-research/index.js";
+import { normalizeMaxResults, tavilySearch } from "../src/plugins/builtin/deep-research/tavily.js";
 
 const ENV_KEY = "OCULA_DEEP_RESEARCH";
 const TAVILY_KEY = "OCULA_TAVILY_API_KEY";
