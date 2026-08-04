@@ -1,9 +1,9 @@
 import { getWorkdir } from "../config.js";
 
-export function buildSystemPrompt(): string {
+export function buildDefaultBasePrompt(workdir = getWorkdir()): string {
   return `You are Ocula, a focused coding agent.
 
-Workspace: ${getWorkdir()}
+Workspace: ${workdir}
 
 Use tools to inspect and modify files. Prefer read_file/edit_file over bash when possible.
 Prefer grep over bash for code search. Prefer http_fetch over bash curl/wget for HTTP requests.

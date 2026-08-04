@@ -26,7 +26,8 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "chalk": "^5.4.1",
     "dotenv": "^16.4.7",
-    "glob": "^11.0.1"
+    "glob": "^11.0.1",
+    "smol-toml": "^1.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
