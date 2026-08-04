@@ -179,6 +179,17 @@ function formatContextMetrics(event: AgentEvent, report: ContextReport): string 
   return lines.join("\n");
 }
 
+type ContextKindFormatter = (event: AgentEvent, report: ContextReport) => string | null;
+
+const CONTEXT_KIND_FORMATTERS: Record<string, ContextKindFormatter> = {
+  context_metrics: (event, report) => formatContextMetrics(event, report),
+  metrics_pre: (event, report) => formatMetricsPre(event, report),
+  metrics_post: (event, report) => {
+    const block = formatMetricsPost(event, report);
+    return block || null;
+  },
+};
+
 export function formatContextEvent(event: AgentEvent): string | null {
   if (event.kind === "context_compact") {
     const before = Number(event.payload.beforeTokens ?? 0);
@@ -194,16 +205,6 @@ export function formatContextEvent(event: AgentEvent): string | null {
     return null;
   }
 
-  if (event.kind === "context_metrics") {
-    return formatContextMetrics(event, report);
-  }
-  const legacyKind = event.kind as string;
-  if (legacyKind === "metrics_pre") {
-    return formatMetricsPre(event, report);
-  }
-  if (legacyKind === "metrics_post") {
-    const block = formatMetricsPost(event, report);
-    return block || null;
-  }
-  return null;
+  const formatter = CONTEXT_KIND_FORMATTERS[event.kind];
+  return formatter?.(event, report) ?? null;
 }

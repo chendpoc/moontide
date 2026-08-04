@@ -8,7 +8,7 @@ Ocula 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session E
 |---|-----------------|-------------------|
 | Scope | 单次 run | 整场 session |
 | Path | `.ocula/runs/<runId>.active.jsonl` | `.ocula/sessions/<sessionId>.jsonl` |
-| 职责 | trace、metrics、audit、UI tail | 会话事实 source of truth |
+| 职责 | trace、metrics、tool use log、UI tail | 会话事实 source of truth |
 | Schema | 本文 + `src/log/types.ts` | [`context-composer.md` §5](context-composer.md#5-session-event-log--条目-spec) |
 
 ---
@@ -31,6 +31,8 @@ segments are lossless archives; the desktop UI only tails the active JSONL.
 
 TypeScript source: [`src/log/types.ts`](../../src/log/types.ts).
 
+**Fan-out 入口：** [`src/log/event-hub.ts`](../../src/log/event-hub.ts) — `emitDraft` · `setOutputs` · `subscribe`。Hook sidecar 与 log-sync 派生均经此模块写入 JSONL / stderr。
+
 ## Core fields
 
 | Field | Type | Description |
@@ -40,7 +42,7 @@ TypeScript source: [`src/log/types.ts`](../../src/log/types.ts).
 | `runId` | string | Run identifier and storage routing key |
 | `turn` | number | Agent loop turn |
 | `phase` | string | `pre_llm` \| `post_llm` \| `post_tool` \| `stop` |
-| `channel` | string | `conversation` \| `trace` \| `context` \| `audit` |
+| `channel` | string | `conversation` \| `trace` \| `context` \| `tool_use_log` |
 | `kind` | string | Event kind |
 | `ts` | number | Unix milliseconds |
 | `payload` | object | Kind-specific persisted payload |
@@ -50,15 +52,15 @@ TypeScript source: [`src/log/types.ts`](../../src/log/types.ts).
 
 Persisted events also include `summary` and `displayHint`.
 
-## Persistence projection
+## Persistence serialization
 
 - A persisted JSONL line is at most 64 KiB.
 - Context reports omit `messageLines`, messages, system prompts, and tool
   schemas. They retain aggregate token, usage, structure, trend, and alert data.
 - A trace `tool_use` stores structured `input` once; its duplicate JSON body is
   omitted.
-- Audit events store the tool name without duplicating tool input or output.
-- Runtime `AgentEvent` objects remain unchanged; projection happens only at the
+- Tool use log events store the tool name without duplicating tool input or output.
+- Runtime `AgentEvent` objects remain unchanged; size limits apply only at the
   storage boundary.
 
 ## Channel payloads
@@ -74,7 +76,7 @@ Persisted events also include `summary` and `displayHint`.
 | `context/metrics_pre` | `{ report }` without historical message details |
 | `context/metrics_post` | `{ report }` without historical message details |
 | `context/context_compact` | compact mode and token deltas |
-| `audit/tool_use` | `{ toolName }` |
+| `tool_use_log/tool_use` | `{ toolName }` |
 
 ## Retention and recovery
 

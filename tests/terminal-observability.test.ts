@@ -138,7 +138,7 @@ describe("terminal event formatting", () => {
     ).toBe(true);
     expect(
       shouldPrintTerminalEvent(
-        baseEvent({ channel: "audit", kind: "tool_use", payload: { toolName: "bash" } }),
+        baseEvent({ channel: "tool_use_log", kind: "tool_use", payload: { toolName: "bash" } }),
       ),
     ).toBe(true);
     expect(
@@ -181,18 +181,18 @@ describe("terminal event formatting", () => {
     expect(text).toContain("Usage");
   });
 
-  it("formats audit events with EVENT marker in verbose mode", () => {
+  it("formats tool_use_log events with EVENT marker in verbose mode", () => {
     setVerboseOverride(true);
     const block = formatTerminalEventBlock(
       baseEvent({
-        channel: "audit",
+        channel: "tool_use_log",
         kind: "tool_use",
         payload: { toolName: "bash", toolInput: { command: "ls" } },
       }),
     );
     const text = stripAnsi(block ?? "");
     expect(text).toContain("EVENT");
-    expect(text).toContain("audit");
+    expect(text).toContain("tool_use_log");
     expect(text).toContain("bash");
   });
 

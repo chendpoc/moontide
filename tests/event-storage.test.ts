@@ -102,7 +102,7 @@ describe("persisted event projection", () => {
     );
     writer.handle(
       event("run-2", {
-        channel: "audit",
+        channel: "tool_use_log",
         kind: "tool_use",
         phase: "post_tool",
         payload: {
@@ -128,7 +128,7 @@ describe("persisted event projection", () => {
     expect(persisted[2]?.payload).toEqual({ toolName: "read_file" });
   });
 
-  it("keeps plugin_error diagnostics on the audit channel", () => {
+  it("keeps plugin_error diagnostics on the tool_use_log channel", () => {
     const writer = new JsonlWriter({ workdir: tmpDir });
     const failure = {
       plugin: "trace",
@@ -142,7 +142,7 @@ describe("persisted event projection", () => {
 
     writer.handle(
       event("run-plugin", {
-        channel: "audit",
+        channel: "tool_use_log",
         kind: "plugin_error",
         phase: "post_tool",
         payload: failure,

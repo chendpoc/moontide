@@ -1,6 +1,6 @@
 export type AgentPhase = "pre_llm" | "post_llm" | "post_tool" | "stop";
 
-export type AgentChannel = "conversation" | "trace" | "context" | "audit";
+export type AgentChannel = "conversation" | "trace" | "context" | "tool_use_log";
 
 export type AgentKind =
   | "user_prompt"

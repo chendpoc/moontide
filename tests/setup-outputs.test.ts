@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getOutputs } from "../src/log/bus.js";
+import { getOutputs } from "../src/log/event-hub.js";
 import { refreshEventOutputs, resetEventPlatform } from "../src/log/setup.js";
 import { JsonlWriter } from "../src/log/outputs/jsonl.js";
 import { StderrRenderer } from "../src/log/outputs/stderr-renderer.js";

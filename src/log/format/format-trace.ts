@@ -14,19 +14,47 @@ const theme = {
   dim: chalk.gray,
 };
 
-const kindMeta: Record<
-  string,
-  { icon: string; label: string; paint: (text: string) => string }
-> = {
-  thinking: { icon: "💭", label: "think", paint: theme.think },
-  tool_use: { icon: "🔧", label: "tool", paint: theme.tool },
-  tool_result: { icon: "✓", label: "result", paint: theme.result },
-  assistant_text: { icon: "→", label: "out", paint: theme.out },
+type TraceKindMeta = {
+  icon: string;
+  label: string;
+  paint: (text: string) => string;
+  formatBody: (event: AgentEvent) => string;
+  extra?: (event: AgentEvent) => string | undefined;
+};
+
+const TRACE_KIND_FORMATTERS: Partial<Record<string, TraceKindMeta>> = {
+  thinking: {
+    icon: "💭",
+    label: "think",
+    paint: theme.think,
+    formatBody: (event) =>
+      `"${truncateOneLine(String(event.payload.body ?? event.preview ?? ""))}"`,
+  },
+  tool_use: {
+    icon: "🔧",
+    label: "tool",
+    paint: theme.tool,
+    formatBody: (event) => truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
+    extra: (event) => `${String(event.payload.toolName ?? "tool")}  `,
+  },
+  tool_result: {
+    icon: "✓",
+    label: "result",
+    paint: theme.result,
+    formatBody: (event) => truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
+    extra: (event) => `${String(event.payload.toolName ?? "tool")}  `,
+  },
+  assistant_text: {
+    icon: "→",
+    label: "out",
+    paint: theme.out,
+    formatBody: (event) => truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
+  },
 };
 
 function formatTraceStep(
   event: AgentEvent,
-  meta: { icon: string; label: string; paint: (text: string) => string },
+  meta: TraceKindMeta,
   body: string,
   extra?: string,
 ): string {
@@ -40,35 +68,9 @@ function formatTraceStep(
 }
 
 export function formatTraceEvent(event: AgentEvent): string | null {
-  const meta = kindMeta[event.kind];
+  const meta = TRACE_KIND_FORMATTERS[event.kind];
   if (!meta) {
     return null;
   }
-
-  switch (event.kind) {
-    case "thinking":
-      return formatTraceStep(
-        event,
-        meta,
-        `"${truncateOneLine(String(event.payload.body ?? event.preview ?? ""))}"`,
-      );
-    case "tool_use": {
-      const toolName = String(event.payload.toolName ?? "tool");
-      const preview = event.preview ?? truncateOneLine(String(event.payload.body ?? ""));
-      return formatTraceStep(event, meta, preview, `${toolName}  `);
-    }
-    case "tool_result": {
-      const toolName = String(event.payload.toolName ?? "tool");
-      const preview = truncateOneLine(String(event.payload.body ?? event.preview ?? ""));
-      return formatTraceStep(event, meta, preview, `${toolName}  `);
-    }
-    case "assistant_text":
-      return formatTraceStep(
-        event,
-        meta,
-        truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
-      );
-    default:
-      return null;
-  }
+  return formatTraceStep(event, meta, meta.formatBody(event), meta.extra?.(event));
 }

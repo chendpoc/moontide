@@ -1,11 +1,12 @@
-import { setOutputs } from "./bus.js";
-import type { EventOutput } from "./bus.js";
-
+import { getWorkdir } from "../config.js";
+import {
+  registerDefaultSidecarHooks,
+  resetSidecarHooks,
+} from "../agent/hooks/index.js";
+import { bootstrapPlugins, resetPluginHost } from "../plugin-host/index.js";
+import { setOutputs, type EventOutput } from "./event-hub.js";
 import { JsonlWriter } from "./outputs/jsonl.js";
 import { StderrRenderer } from "./outputs/stderr-renderer.js";
-
-import { resetPlugins } from "../agent/pipeline/registry.js";
-
 
 function configureOutputs(): void {
   const eventOutputs: EventOutput[] = [new JsonlWriter(), new StderrRenderer()];
@@ -13,8 +14,20 @@ function configureOutputs(): void {
 }
 
 export function setupEventPipeline(): void {
-  resetPlugins();
+  resetSidecarHooks();
+  registerDefaultSidecarHooks();
   configureOutputs();
+}
+
+export async function bootstrapEventPlatform(workdir = getWorkdir()): Promise<void> {
+  setupEventPipeline();
+  await bootstrapPlugins(workdir);
+}
+
+export function teardownEventPlatform(): void {
+  resetPluginHost();
+  resetSidecarHooks();
+  setOutputs([]);
 }
 
 export function refreshEventOutputs(): void {

@@ -5,7 +5,7 @@ import {
   enableTestCollector,
   emitDraft,
   getCollectedEvents,
-} from "../src/log/bus.js";
+} from "../src/log/event-hub.js";
 import { resetRun } from "../src/log/run.js";
 import { newTimestampedId } from "../src/utils/id.js";
 

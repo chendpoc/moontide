@@ -2,11 +2,11 @@ import { buildContextReport, withUsage } from "../../context/analyze.js";
 import { buildSnapshot } from "../../context/snapshot.js";
 import {
   getPreviousEstimated,
+  publishContextReport,
   updateLatestReport,
-  updateSessionFromSnapshot,
-} from "../../context/sessions.js";
+} from "../../context/runtime-status.js";
 import type { ContextReport } from "../../context/types.js";
-import type { AgentPlugin, LLMCallRecord } from "../../agent/pipeline/types.js";
+import type { LLMCallRecord } from "../../agent/pipeline/types.js";
 import type { EventDraft } from "../../log/types.js";
 
 function reportPayload(report: ContextReport): Record<string, unknown> {
@@ -24,7 +24,7 @@ function formatMetricsPreview(report: ContextReport): string {
   return `est ${tokens}/${report.limit} ${kind}`;
 }
 
-function buildContextMetricsDraft(record: LLMCallRecord): EventDraft[] {
+export function buildContextMetricsDraft(record: LLMCallRecord): EventDraft[] {
   const snapshot = buildSnapshot({
     turn: record.turn,
     messages: record.request.messages,
@@ -35,7 +35,7 @@ function buildContextMetricsDraft(record: LLMCallRecord): EventDraft[] {
   });
 
   let report = buildContextReport(snapshot, getPreviousEstimated());
-  updateSessionFromSnapshot(snapshot, report);
+  publishContextReport(report);
 
   if (record.outcome.status === "succeeded") {
     const usage = record.outcome.response.usage;
@@ -58,13 +58,4 @@ function buildContextMetricsDraft(record: LLMCallRecord): EventDraft[] {
       preview: formatMetricsPreview(report),
     },
   ];
-}
-
-export function contextPlugin(): AgentPlugin {
-  return {
-    name: "context",
-    onLLMCall(record) {
-      return buildContextMetricsDraft(record);
-    },
-  };
 }

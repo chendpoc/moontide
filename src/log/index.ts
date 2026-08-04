@@ -9,9 +9,8 @@ export {
   disableTestCollector,
   getCollectedEvents,
   collectEvents,
-} from "./bus.js";
-export type { EventListener, EventOutput } from "./bus.js";
-export { emitFinalReply, emitUserPrompt } from "./conversation.js";
+} from "./event-hub.js";
+export type { EventListener, EventOutput } from "./event-hub.js";
 export { enrichEvent } from "./enrich.js";
 export {
   isVerboseEnabled,
@@ -22,6 +21,6 @@ export {
   describeObservabilityModes,
   resetObservabilityOverrides,
 } from "./modes.js";
-export { setupEventPipeline, refreshEventOutputs, resetEventPlatform } from "./setup.js";
+export { setupEventPipeline, bootstrapEventPlatform, teardownEventPlatform, refreshEventOutputs, resetEventPlatform } from "./setup.js";
 export { finalizeEvent, getRunId, resetRun } from "./run.js";
 export type { AgentEvent, EventDraft } from "./types.js";

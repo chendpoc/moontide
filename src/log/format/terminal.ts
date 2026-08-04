@@ -1,8 +1,6 @@
 import { isVerboseEnabled } from "../modes.js";
 import type { AgentChannel, AgentEvent } from "../types.js";
-import { formatContextEvent } from "./format-context.js";
-import { formatEventsChannelEvent } from "./format-events.js";
-import { formatTraceEvent } from "./format-trace.js";
+import { formatEventByChannel } from "./registry.js";
 import { formatChannelSeparator, formatTurnBanner } from "./shared.js";
 
 const TRACE_THINKING_KINDS = new Set(["thinking", "tool_use", "tool_result"]);
@@ -29,20 +27,7 @@ export function formatTerminalEventBlock(event: AgentEvent): string | null {
   if (!shouldPrintTerminalEvent(event)) {
     return null;
   }
-
-  switch (event.channel) {
-    case "trace":
-      return formatTraceEvent(event);
-    case "context":
-      return formatContextEvent(event);
-    case "conversation":
-    case "audit":
-      return formatEventsChannelEvent(event);
-    default:
-      return isVerboseEnabled()
-        ? `${event.channel}/${event.kind} ${event.preview ?? ""}`
-        : null;
-  }
+  return formatEventByChannel(event);
 }
 
 export function composeTerminalBlock(event: AgentEvent, block: string): string {

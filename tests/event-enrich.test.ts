@@ -34,18 +34,18 @@ describe("enrichEvent", () => {
     expect(enriched.summary).toBe("trace/thinking plan ahead");
   });
 
-  it("builds audit summary from tool name", () => {
+  it("builds tool_use_log summary from tool name", () => {
     const enriched = enrichEvent(
       baseEvent({
-        channel: "audit",
+        channel: "tool_use_log",
         kind: "tool_use",
         phase: "post_tool",
         preview: "Bash",
         payload: { toolName: "Bash", toolInput: { command: "ls" } },
       }),
     );
-    expect(enriched.summary).toBe("audit/tool_use Bash");
-    expect(enriched.displayHint).toBe("audit");
+    expect(enriched.summary).toBe("tool_use_log/tool_use Bash");
+    expect(enriched.displayHint).toBe("tool_use_log");
   });
 
   it("serializes as valid compact JSON", () => {

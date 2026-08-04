@@ -35,7 +35,7 @@ function projectPayload(event: AgentEvent): Record<string, unknown> {
     return projectContextPayload(event.payload);
   }
 
-  if (event.channel === "audit" && event.kind === "tool_use") {
+  if (event.channel === "tool_use_log" && event.kind === "tool_use") {
     return {
       toolName: event.payload.toolName,
     };

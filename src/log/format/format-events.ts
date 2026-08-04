@@ -35,7 +35,7 @@ function formatConversationEvent(event: AgentEvent): string | null {
   return null;
 }
 
-function formatAuditEvent(event: AgentEvent): string | null {
+function formatToolUseLogEvent(event: AgentEvent): string | null {
   if (event.kind !== "tool_use") {
     return null;
   }
@@ -48,7 +48,7 @@ function formatAuditEvent(event: AgentEvent): string | null {
       : "";
 
   const lines = [
-    `${theme.marker(" EVENT ")} ${theme.channel("audit")} · ${theme.kind("tool_use")} · turn ${padTurn(event.turn)}`,
+    `${theme.marker(" EVENT ")} ${theme.channel("tool_use_log")} · ${theme.kind("tool_use")} · turn ${padTurn(event.turn)}`,
     theme.border("  │ ") + theme.text(toolName) + (inputPreview ? theme.dim(`  ${inputPreview}`) : ""),
   ];
   return lines.join("\n");
@@ -58,8 +58,8 @@ export function formatEventsChannelEvent(event: AgentEvent): string | null {
   if (event.channel === "conversation") {
     return formatConversationEvent(event);
   }
-  if (event.channel === "audit") {
-    return formatAuditEvent(event);
+  if (event.channel === "tool_use_log") {
+    return formatToolUseLogEvent(event);
   }
   return null;
 }
