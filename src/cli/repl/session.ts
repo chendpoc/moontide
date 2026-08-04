@@ -1,5 +1,5 @@
 import { AgentSession } from "../../agent/agent-session.js";
-import { resetSession } from "../../context/sessions.js";
+import { resetRuntimeStatus } from "../../context/runtime-status.js";
 
 let replAgentSession: AgentSession | null = null;
 
@@ -12,7 +12,7 @@ export function getOrStartReplSession(): AgentSession {
   if (replAgentSession) {
     return replAgentSession;
   }
-  resetSession();
+  resetRuntimeStatus();
   replAgentSession = AgentSession.create();
   return replAgentSession;
 }

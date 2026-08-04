@@ -51,7 +51,7 @@ export function handleVerboseCommand(arg: string | undefined): ReplCommandResult
     reply(describeObservabilityModes());
     reply(
       isVerboseEnabled()
-        ? "verbose on — context · audit · conversation · full trace"
+        ? "verbose on — context · tool_use_log · conversation · full trace"
         : "verbose off — enable with /verbose on or OCULA_VERBOSE=1",
     );
     return "handled";

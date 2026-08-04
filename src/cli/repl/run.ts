@@ -3,7 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 import { continueReplAgent } from "../../agent/loop.js";
 import type { AgentSession } from "../../agent/agent-session.js";
-import { setupEventPipeline } from "../../log/setup.js";
+import { bootstrapEventPlatform, teardownEventPlatform } from "../../log/setup.js";
 import type { UserInteraction } from "../../tools/types.js";
 import {
   replPrompt,
@@ -43,7 +43,7 @@ async function runAgentTurn(
 
 /** Interactive REPL loop (readline, slash commands, agent turns). */
 export async function runRepl(): Promise<void> {
-  setupEventPipeline();
+  await bootstrapEventPlatform();
 
   writeStderrLine("Ocula — type /help for commands");
   writeStderrLine("");
@@ -86,5 +86,6 @@ export async function runRepl(): Promise<void> {
   } finally {
     rl.close();
     resetReplSession();
+    teardownEventPlatform();
   }
 }

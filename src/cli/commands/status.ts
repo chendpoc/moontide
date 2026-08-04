@@ -8,7 +8,7 @@ export async function handleStatusCommand(ctx: ReplCommandContext): Promise<Repl
   reply(formatStatusLineVerbose(snapshot));
   const agentSession = ctx.getAgentSession();
   if (agentSession) {
-    const log = await agentSession.session.readLog();
+    const log = await agentSession.session.readItems();
     reply(`session: ${agentSession.session.sessionId} · log records: ${log.length}`);
   } else {
     reply("session: (none)");

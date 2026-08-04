@@ -1,5 +1,5 @@
 import { getWorkdir, modelId } from "../../config.js";
-import { getLatestReport, getSession } from "../../context/sessions.js";
+import { getLatestReport, getRuntimeTurn } from "../../context/runtime-status.js";
 import { getRunId } from "../../log/run.js";
 import { shortenHomePath } from "../../utils/path.js";
 import type { StatusSnapshot } from "./types.js";
@@ -17,7 +17,7 @@ export function getReplPhase(): "idle" | "running" {
 export function collectStatusSnapshot(): StatusSnapshot {
   const workdir = getWorkdir();
   const report = getLatestReport();
-  const turn = getSession().turn || null;
+  const turn = getRuntimeTurn() || null;
   const contextPct = report?.percentUsed ?? null;
 
   return {
