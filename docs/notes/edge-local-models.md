@@ -1,6 +1,7 @@
 # Edge 本地小模型与混合推理（Edge Local Models）
 
 > 产品讨论备忘：在用户设备部署量化小模型，处理简单任务以降低 cloud token 消耗、提升体验。  
+> **后续计划轨 8.3：** [`context-window-roadmap.md`](context-window-roadmap.md) §8.3 · [`TODO.md`](../../TODO.md) §15.3  
 > **非实现承诺** — 与 [`llm-provider.md`](../spec/llm-provider.md) Model Router 及 [`runtime-multilang.md`](runtime-multilang.md) 对齐的演进候选。
 
 **已定产品原则（2026-08）：**
@@ -52,6 +53,22 @@ flowchart TB
 ```
 
 用户侧见到的不是 raw HF 模型名，而是 **MoonTide catalog id**（如 `moontide/router-v1`），背后映射到固定基座 GGUF。
+
+### 2.1 Local Fusion（与 OpenRouter Fusion 的对照）
+
+**OpenRouter Fusion** 在网关侧按任务/成本在多个 **cloud upstream** 间选模型。MoonTide **Local Fusion** 是同一产品思路的 **edge 版**：
+
+| | OpenRouter Fusion | MoonTide Local Fusion |
+|---|-------------------|------------------------|
+| 路由位置 | 云端网关 | 用户设备（`moontide-infer` + Model Router） |
+| 候选池 | 多厂商 cloud model | local catalog（router / general）+ cloud frontier |
+| 目标 | 成本/质量平衡 | **降 cloud token**；简单任务本地完成 |
+| 用户感知 | 单一 API | opt-in 下载 catalog；透明 tier 切换 |
+
+**不是：** provider upstream 竞价（见 [`llm-provider.md`](../spec/llm-provider.md) §1 — Provider routing 非本期目标）。  
+**是：** 意图分类 → local 可完成则本地推理 → 否则 escalate 到 DeepSeek 等 cloud。
+
+实现依赖：`moontide/router-v1`（Cloud train → 本地下载）、Model Router 接线、usage 分账（local vs cloud token 统计）。
 
 ---
 

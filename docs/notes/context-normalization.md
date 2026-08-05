@@ -1,6 +1,7 @@
 # Context Preflight / Postflight Normalization
 
-> **状态：** Backlog / Feature candidate  
+> **状态：** 后续计划轨 **8.4** · Backlog / Feature candidate  
+> **入口：** [`context-window-roadmap.md` §8.4](context-window-roadmap.md) · [`TODO.md`](../../TODO.md) §15.4
 > **性质：** Context Composer 与 Agent turn pipeline 的演进设计  
 > **非实现承诺：** 本文记录讨论结论、边界和验收方向；不代表当前已实现。
 

@@ -9,7 +9,7 @@
 
 | 顺序 | 文档 | 内容 |
 |------|------|------|
-| 0 | [`context-window-roadmap.md`](context-window-roadmap.md) | **当前开发计划**（六件事） |
+| 0 | [`context-window-roadmap.md`](context-window-roadmap.md) | **当前开发计划**（六件事 **done** · §8 后续四条轨） |
 | 1 | [`context-composer.md`](../spec/context-composer.md) | 已定 Spec：Session Event Log、State Stores、Composer、Compaction / Checkpoint |
 | 2 | **本文** | 分账、Structured IR、实验 Compose、backlog 特性、Deferred 项 |
 | 3 | [`context-analysis.md`](context-analysis.md) | 行业 SOTA 与 CS 类比背景 |
@@ -238,9 +238,92 @@ Compose 时的 **可选实验策略**：
 
 ---
 
-## 8. Deferred：Compaction Invariants（验证）
+## 8. Backlog：Agent Activity Model（认知动作 / 广度阶梯）
 
-### 8.1 说明
+> **来源：** 对照 [Cursor](https://cursor.com) 终端 activity 展示（read · grepped · explored · thought）的讨论（2026-08）。  
+> **Roadmap 入口：** [`context-window-roadmap.md` §7](context-window-roadmap.md#7-agent-活动模型cursor-对照--backlog) · 背景见 [`context-analysis.md`](context-analysis.md)（subagent / fresh context）。
+
+### 8.1 问题
+
+终端与 Event Log 若只暴露 **tool 名**（`read_file`、`grep`），用户难以感知 agent 在 **精读 / 检索 / 探索 / 推理** 哪一档。Cursor 的产品化启示是 **观测分层**：展示认知动作，debug 仍保留原始 tool。
+
+MoonTide 现状：
+
+| 能力 | 状态 |
+|------|------|
+| `reason.think` | **已有** — `thinking` trace kind 与 tool 分离（`format-trace.ts`） |
+| `gather.read` / `gather.search` | **工具已有** — workspace I/O + `grep`；缺语义 activity 映射 |
+| `gather.explore` | **缺口** — 无一等公民「隔离子 run + bounded 回传」；`deep_research` ≠ explore |
+| `act.shell` / `act.edit` | 映射到 bash / edit 类 builtin，未统一 activity 标签 |
+
+### 8.2 设计（三条，不必抄 Cursor 命名）
+
+**1. 工具 registry 与 activity class 解耦**
+
+- **Registry** 保持实现名：`read_file`、`grep`、`bash`、`edit`…
+- **观测层** 叠加 taxonomy（示意）：
+
+```text
+gather.read | gather.search | gather.explore | act.shell | act.edit | reason.think
+```
+
+- 映射表：`tool name (+ optional input heuristic) → activity class`
+- 落点：Agent Event `channel`/`kind` 之上或 parallel 字段；statusline / `/thinking` i18n；**不改** hook phase 与 tool schema
+
+**2. Agent 指令写清「广度阶梯」**
+
+在 Instruction State（`AGENTS.md` / rules）约定 workflow，**不必新工具**：
+
+```text
+read（定点） → grep（搜针） → explore（扫库） → act（改/跑）
+                      ↑
+              reason.think（选路，发生在工具之间）
+```
+
+| 情境 | 优先动作 |
+|------|----------|
+| 已知文件路径 | `gather.read` |
+| 已知符号 / 字符串 | `gather.search` |
+| 不知从哪找 | 并行 read/grep，或（将来）explore |
+| 大段 tool 输出 | spill + `read_artifact`（C2 / Budget L3） |
+
+减少 `bash find | xargs cat` 替代 grep 等反模式。
+
+**3. Explore MVP — 不必先做完整 subagent**
+
+| 阶段 | 形态 |
+|------|------|
+| **MVP** | 单次 run 内 **并行 tool batch**（现有 loop + prompt 约束）；或 sidecar：固定 explore prompt + 独立 runId + **仅回传摘要** |
+| **远期** | fork/fresh subagent（parent 只收 bounded result）；与 Claude Code subagent、[`session-handoff.md`](session-handoff.md) 对齐 |
+
+**明确非目标：**
+
+- 不为对齐 UI 新增 `explored` / `thought` **假 tool**
+- explore ≠ `deep_research`（广搜 vs 长链路研究）
+
+### 8.3 依赖与阶段
+
+| 项 | 说明 |
+|----|------|
+| 依赖 | C6 Agent Event · instruction-state ·（可选）sidecar plugin |
+| 建议阶段 | **7a/7b** 可独立（映射表 + AGENTS 文案）；**7c** 依赖 agent loop 并行或 sidecar |
+| 性质 | **Backlog**；不阻塞 Context Composer correctness |
+
+### 8.4 代价与优势
+
+| 代价 | 优势 |
+|------|------|
+| tool → activity 映射维护 | 终端可读性与 debug 语义一致 |
+| explore 编排复杂度 | 补齐 Cursor 式「扫库」档，控制 context 爆炸 |
+| 与 i18n activity 字符串协同 | 不绑定英文动词；中英可分别本地化 |
+
+**讨论备忘（待续）：** [`agent-activity-model-discussion.md`](agent-activity-model-discussion.md) — 7a–7c 细节、开放问题 checklist、代码锚点。
+
+---
+
+## 9. Deferred：Compaction Invariants（验证）
+
+### 9.1 说明
 
 **当前共识：不纳入第一版验收。** 此处备查定义，避免与「分账 / 触发条件」混淆。
 
@@ -254,7 +337,7 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 
 ---
 
-## 9. 明确非目标（讨论共识）
+## 10. 明确非目标（讨论共识）
 
 | 非目标 | 说明 |
 |--------|------|
@@ -265,7 +348,7 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 
 ---
 
-## 10. CS 历史借鉴（简表）
+## 11. CS 历史借鉴（简表）
 
 | 历史实践 | MoonTide 映射 |
 |----------|--------------|
@@ -280,7 +363,7 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 
 ---
 
-## 11. 特性 × 实现阶段矩阵
+## 12. 特性 × 实现阶段矩阵
 
 与 [`context-composer.md` §12](../spec/context-composer.md#12-后续实现分期代码指引) C0–C6 对齐：
 
@@ -292,14 +375,17 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | Intent-scoped Working Set | Backlog | C5+ | C1；可选 IR |
 | Episodic memory（L0–L3） | Backlog | C5+ | Session Log；见 edge-local-models |
 | Compose Dedup / CDC | Backlog | C2–C3+ | C2 Artifact |
-| Prompt Prefix Cache | Backlog | C2+ | Stable Composer prefix；provider usage |
+| Prompt Prefix Cache | Backlog | C2+ · **§8.1 后续轨** | Stable Composer prefix；provider usage |
+| Conversation Normalization | Backlog | C2+ · **§8.4 后续轨** | Preflight / Postflight；见 context-normalization |
+| Local Fusion | Backlog | C0+ · **§8.3 后续轨** | edge-local-models · Model Router |
+| Agent Activity Model | Backlog | C6+ | C6 Agent Event；instruction-state；见 §8 |
 | Compaction Invariants | Deferred | — | — |
 
 **主路径：** C0 Provider A–C **done** → C1 Event Log + Composer + prune → C2 Artifact → C3 Instruction → C4 Compaction Record → C5 Checkpoint → C6 双 log 同步。
 
 ---
 
-## 12. 相关文档
+## 13. 相关文档
 
 | 文档 | 关系 |
 |------|------|
@@ -307,6 +393,7 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | [`llm-provider.md`](../spec/llm-provider.md) | `LLMRequest`、`ModelProfile` |
 | [`llm-input.md`](../spec/llm-input.md) | 三参数对表 |
 | [`context-analysis.md`](context-analysis.md) | 竞品与 SOTA |
+| [`agent-activity-model-discussion.md`](agent-activity-model-discussion.md) | §8 讨论备忘 · 7a–7c checklist |
 | [`agent-events.md`](../spec/agent-events.md) | Agent Event Log |
 | [`vision.md`](../product/vision.md) | Bruma 代号 |
 | [`agent.md`](../../agent.md) | 文档用词 |
@@ -316,21 +403,23 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 
 ---
 
-## 13. 一句话
+## 14. 一句话
 
 **分账（L1–L4）保证各块 token 互不占；Structured IR 优先结构化文件/task；Placement / Intent WS / Dedup 为实验或 backlog；Compaction 验证暂缓。**
 
 ---
 
-## 14. Backlog：Prompt Prefix Cache
+## 15. Backlog：Prompt Prefix Cache
 
-### 14.1 目标
+> **后续计划轨 8.1：** [`context-window-roadmap.md`](context-window-roadmap.md) §8.1 · [`TODO.md`](../../TODO.md) §15.1
+
+### 15.1 目标
 
 在连续多轮 request 中复用稳定的 system / instruction / tool-definition prefix，降低 provider latency、input cost 和重复 token processing。
 
 这是性能优化，不是 correctness boundary：即使 cache miss 或 provider 不支持 cache，最终 `LLMRequest` 仍必须独立正确执行。
 
-### 14.2 可缓存 prefix
+### 15.2 可缓存 prefix
 
 推荐将 request 编排成：
 
@@ -350,7 +439,7 @@ Dynamic Suffix
 
 不是所有“较旧内容”都应该进入 prefix。Working Set、Compaction Record 和 tools 只有在 revision、schema 和排序稳定时，才可以成为 prefix 的一部分；否则应放在 dynamic suffix。
 
-### 14.3 Cache identity 与失效条件
+### 15.3 Cache identity 与失效条件
 
 Prefix fingerprint 至少应覆盖：
 
@@ -374,7 +463,7 @@ Prefix fingerprint 至少应覆盖：
 - prefix 排序策略变化；
 - provider 明确报告 cache 不可用或失效。
 
-### 14.4 Composer / Provider 边界
+### 15.4 Composer / Provider 边界
 
 Context Composer 负责生成稳定、可解释的 prefix，并在 `ContextManifest` 中记录：
 
@@ -391,7 +480,7 @@ Provider adapter 负责将该信息映射为 provider-specific cache controls �
 
 如果 provider 只支持 exact-prefix automatic caching，Composer 应保证稳定排序和 append-friendly request layout；如果 provider 支持显式 breakpoint，再由 adapter 负责映射。
 
-### 14.5 与 Compaction / Normalization 的关系
+### 15.5 与 Compaction / Normalization 的关系
 
 Preflight 顺序建议为：
 
@@ -407,7 +496,7 @@ Compaction 不得为了追求 cache hit 而保留已经超出预算的内容。�
 
 如果 compaction 改变了 system、tool schema、summary 或 prefix ordering，应显式记录 cache invalidation，而不是报告一个虚假的 cache hit。
 
-### 14.6 实现阶段
+### 15.6 实现阶段
 
 | 阶段 | 内容 |
 |------|------|
@@ -416,7 +505,7 @@ Compaction 不得为了追求 cache hit 而保留已经超出预算的内容。�
 | P2 Provider Adapter | 读取 provider cache usage，支持显式 cache controls；不支持时安全降级 |
 | P3 Request Reuse | 仅在 provider contract 明确支持、model/config/prefix 完全一致且 suffix 是 append-compatible 时复用 |
 
-### 14.7 验收标准
+### 15.7 验收标准
 
 - 同一 provider、model、instruction epoch、tool schema 和 prefix 内容生成相同 fingerprint；
 - 任一稳定 prefix 输入变化都会产生新的 fingerprint；
@@ -428,7 +517,7 @@ Compaction 不得为了追求 cache hit 而保留已经超出预算的内容。�
 - cache 机制不持久化完整 prompt 或 secret，除非 provider contract 和隐私策略明确允许；
 - benchmark 能测量 cache hit rate、input cost、latency 和 compaction 后的恢复行为。
 
-### 14.8 非目标
+### 15.8 非目标
 
 - 不实现完整 response cache；
 - 不把 cache hit 当成 correctness 或 context recovery 的证明；
