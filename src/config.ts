@@ -1,4 +1,5 @@
 import { configError } from "./errors/factories.js";
+import { resolveModelProfile } from "./llm/models/resolve.js";
 import { resolvePath } from "./utils/path.js";
 
 import type { DebugLevel } from "./constants/debug.js";
@@ -10,9 +11,7 @@ import {
   ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT,
   ARTIFACT_SPILL_PREVIEW_RATIO,
   TRACE_PREVIEW_CHARS_DEFAULT,
-  CONTEXT_LIMITS,
   DEFAULT_MODEL,
-  DEEPSEEK_ANTHROPIC_BASE_URL,
   ENV_PREFIX,
   APP_ENV,
   PROVIDER_ENV,
@@ -71,24 +70,23 @@ export function setWorkdir(dir: string): void {
 }
 
 export function apiKey(): string {
-  const key =
-    process.env[PROVIDER_ENV.ANTHROPIC_API_KEY]
-    ?? process.env[PROVIDER_ENV.DEEPSEEK_API_KEY];
-  if (!key) {
-    throw configError("Set DEEPSEEK_API_KEY (or ANTHROPIC_API_KEY) in .env");
-  }
-  return key;
+  throw configError("apiKey() is deprecated; use resolveRoute() + preset apiKeyEnv");
 }
 
 export function baseUrl(): string {
-  return process.env[PROVIDER_ENV.ANTHROPIC_BASE_URL] ?? DEEPSEEK_ANTHROPIC_BASE_URL;
+  throw configError("baseUrl() is deprecated; use resolveRoute() + preset baseUrl");
 }
 
 export function modelId(): string {
   return process.env[PROVIDER_ENV.MODEL_ID] ?? DEFAULT_MODEL;
 }
 
-export function contextLimit(): number {
+export function providerPresetId(): string | undefined {
+  const raw = env(APP_ENV.PROVIDER)?.trim().toLowerCase();
+  return raw || undefined;
+}
+
+export function contextLimitOverride(): number | undefined {
   const override = env(APP_ENV.CONTEXT_LIMIT);
   if (override) {
     const parsed = Number(override);
@@ -96,7 +94,11 @@ export function contextLimit(): number {
       return parsed;
     }
   }
-  return CONTEXT_LIMITS[modelId()] ?? CONTEXT_LIMITS.default;
+  return undefined;
+}
+
+export function contextLimit(): number {
+  return resolveModelProfile().contextWindow;
 }
 
 export function contextExact(): boolean {
