@@ -1,18 +1,15 @@
 import { modelId } from "../config.js";
 import { DEFAULT_MAX_TOKENS } from "../constants/llm.js";
-import { composeContext } from "../context/composer/compose.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
 import type { ComposedLLMRequest } from "../context/composer/types.js";
-import { publishComposeResult } from "./context-status.js";
 import type { SessionStores } from "../session/stores/index.js";
 import { extractText } from "../llm/normalize/extract-text.js";
 import type { LLMResponse } from "../llm/protocol/types.js";
-import { resolveModelProfile } from "../llm/models/resolve.js";
 import { getToolDefinitions } from "../tools/index.js";
 import type { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
-import { getWorkdir } from "../config.js";
-import { resolveInstructionState } from "../instruction-state/index.js";
+import { composeForSession } from "./compose-for-turn.js";
+import { publishComposeResult } from "./context-status.js";
 import { runLLM } from "./pipeline/runLLM.js";
 import { runToolUses } from "./pipeline/runTool.js";
 
@@ -71,16 +68,11 @@ export class AgentRun {
   }
 
   private async buildInput(runTurn: number): Promise<ComposedLLMRequest> {
-    const composed = await composeContext({
-      sessionId: this.session.sessionId,
+    const composed = await composeForSession({
+      session: this.session,
+      stores: this.stores,
       turn: runTurn,
-      messages: this.session.getMessages(),
-      instructionState: resolveInstructionState(getWorkdir()),
-      artifactStore: this.stores.artifacts,
-      compactionStore: this.stores.compaction,
-      checkpointStore: this.stores.checkpoints,
       toolDefinitions: getToolDefinitions(this.loopCtx.runtime.tools),
-      modelProfile: resolveModelProfile(),
       compactionPolicy: this.composeOptions.getCompactionPolicy(),
       resumeFromCheckpointId: this.composeOptions.resumeFromCheckpointId,
       activeCompactionSaveId: this.composeOptions.activeCompactionSaveId,
