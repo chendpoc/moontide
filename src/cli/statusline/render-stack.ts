@@ -80,6 +80,7 @@ export function isStatusStackPinned(): boolean {
 export function unpinStatusStack(): void {
   stackPinned = false;
   stackLineCount = 0;
+  lastStackKey = "";
 }
 
 export function invalidateStatusLineCommandCache(): void {

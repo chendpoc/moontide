@@ -59,6 +59,8 @@ export const DEFAULT_STATUS_LINE_SEGMENTS: StatusLineSegmentId[] = [
   "product",
   "context",
   "turn",
+  "model",
+  "workdir",
 ];
 
 export const ALL_STATUS_LINE_SEGMENT_IDS: StatusLineSegmentId[] = [

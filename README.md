@@ -180,15 +180,16 @@ run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 d
 
 ### Statusline
 
-常驻在 REPL 提示符上方（每次输入前刷新）：
+常驻在 REPL 提示符 `MoonTide >>` 正上方一行（与提示符同属 stderr，每次输入前刷新）：
 
 ```
-MoonTide · 2.2k/128k(1.7%) · turn 2 · model deepseek-v4-pro · workdir ~/code/moontide · context 2.2k/128k(1.7%) · turn 2 · segments product, context, turn
+MoonTide · 2.2k/128k(1.7%) · turn 2 · deepseek-v4-pro · ~/code/moontide
+MoonTide >>
 ```
 
 （无 context 报告时显示 `—`。跑 prompt 时（非 verbose/thinking）上方额外一行 spinner + 随机文案。）
 
-`/statusline set` 配置 segments 段；model/workdir/context meta 始终显示。配置写入 `.moontide/config.toml` 的 `[ui.status_line]`。
+`/statusline set` 配置显示哪些段（默认 `product, context, turn, model, workdir`）。配置写入 `.moontide/config.toml` 的 `[ui.status_line]`；当前 segment 列表用 `/statusline status` 查看。
 
 ### REPL 命令
 
@@ -283,9 +284,10 @@ MoonTide · 2.2k/128k(1.7%) · turn 2 · model deepseek-v4-pro · workdir ~/code
 | `MOONTIDE_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
 | `MOONTIDE_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
 | `MOONTIDE_COMPACT_AUTO=1` | compose 超阈值时 prune 旧 turn（默认开启） |
+| `MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES` | ≥ 此大小 spill 到 Artifact Store（默认 8192 字节） |
+| `MOONTIDE_TOOL_PREVIEW_CHARS` | spill 后 preview 长度（默认 spill 阈值 × 20% ≈ 1638；可单独覆盖） |
+| `MOONTIDE_TOOL_ARTIFACT_MIN` | Rust compose 侧 spill 阈值（默认 8192，与上项对齐） |
 | `MOONTIDE_TOOL_INLINE_MAX` | 小输出 inline 上限（默认 8192 字节） |
-| `MOONTIDE_TOOL_ARTIFACT_MIN` | ≥ 此大小写入 Artifact Store（默认 8192） |
-| `MOONTIDE_TOOL_PREVIEW_CHARS` | log / compose preview 长度（默认 500） |
 | `MOONTIDE_TOOL_INLINE_FLOOR` | 动态 inline 预算下限（默认 500） |
 | `MOONTIDE_CONTEXT_LIMIT` | context 字符上限估算（默认 128k） |
 | `MOONTIDE_DEV_TOOL_LEARNING=1` | 注册 `record_tool_hint`，写入 `docs/notes/tool-hints/` |

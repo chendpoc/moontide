@@ -1,6 +1,6 @@
 import { DATA_DIR } from "../../constants/storage.js";
 import { persistLocale, describeLocale, type UiLang } from "../../i18n/locale.js";
-import { renderStatusStackAsync } from "../statusline/render-stack.js";
+import { renderStatusStackAsync, resetStatusStackRender } from "../statusline/render-stack.js";
 import { reply } from "./io.js";
 import type { ReplCommandResult } from "./types.js";
 
@@ -32,10 +32,9 @@ function handleLangSubcommand(arg: string | undefined): ReplCommandResult | Prom
   }
 
   persistLocale(lang);
-  return renderStatusStackAsync().then(() => {
-    reply(`language: ${lang} (saved to ${DATA_DIR}/config.toml)`);
-    return "handled" as const;
-  });
+  resetStatusStackRender();
+  reply(`language: ${lang} (saved to ${DATA_DIR}/config.toml)`);
+  return renderStatusStackAsync().then(() => "handled" as const);
 }
 
 export async function handleSettingsCommand(arg: string | undefined): Promise<ReplCommandResult> {

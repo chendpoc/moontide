@@ -1,5 +1,5 @@
 import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { stdin as input, stderr as output } from "node:process";
 
 import { continueReplAgent } from "../../agent/loop.js";
 import type { AgentSession } from "../../agent/agent-session.js";
@@ -20,7 +20,7 @@ import {
   type ReplCommandContext,
 } from "../commands/repl.js";
 import { createReplSessionPersistenceDeps } from "../session-persistence-glue.js";
-import { beginAgentActivity, endAgentActivity, renderStatusLine } from "../statusline/render.js";
+import { beginAgentActivity, endAgentActivity, renderStatusLineAsync } from "../statusline/render.js";
 import { resolveReplLine } from "./dispatch.js";
 import { createReplUserInteraction } from "./interaction.js";
 import { getOrStartReplSession, getReplAgentSession, resetReplSession } from "./session.js";
@@ -59,6 +59,7 @@ export async function runRepl(): Promise<void> {
   printStartupHint(getWorkdir());
   writeStderrLine("");
 
+  // Prompt and statusline both use stderr so ANSI pin stays directly above `MoonTide >>`.
   const rl = readline.createInterface({ input, output });
   const userInteraction = createReplUserInteraction(rl);
   let turnCount = 0;
@@ -74,7 +75,7 @@ export async function runRepl(): Promise<void> {
 
   try {
     while (true) {
-      renderStatusLine();
+      await renderStatusLineAsync();
       const trimmed = (await rl.question(replPrompt())).trim();
       const action = await resolveReplLine(trimmed, ctx);
 

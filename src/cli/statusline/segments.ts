@@ -2,6 +2,7 @@ import chalk from "chalk";
 
 import { PRODUCT_NAME } from "../../constants/brand.js";
 import { fmtNum } from "../../i18n/context/index.js";
+import { statuslineCopy } from "../../i18n/statusline/index.js";
 import { formatContextSegment } from "./format-tokens.js";
 import type { StatusLineSegmentId, StatusSnapshot } from "./types.js";
 
@@ -13,16 +14,22 @@ const themes = {
 
 type SegmentRenderer = (snapshot: StatusSnapshot) => string | null;
 
+function segmentCopy() {
+  return statuslineCopy();
+}
+
 const SEGMENT_RENDERERS: Record<StatusLineSegmentId, SegmentRenderer> = {
   product: () => themes.product(PRODUCT_NAME),
   context: (snapshot) => {
+    const copy = segmentCopy();
     const segment = formatContextSegment(snapshot);
-    return segment ? themes.context(segment) : themes.dim("—");
+    return segment ? themes.context(segment) : themes.dim(copy.missing);
   },
   turn: (snapshot) => {
-    const label = themes.dim("turn");
+    const copy = segmentCopy();
+    const label = themes.dim(copy.turnLabel);
     if (snapshot.turn === null) {
-      return `${label} ${themes.dim("—")}`;
+      return `${label} ${themes.dim(copy.missing)}`;
     }
     return `${label} ${themes.dim(String(snapshot.turn))}`;
   },
@@ -32,20 +39,23 @@ const SEGMENT_RENDERERS: Record<StatusLineSegmentId, SegmentRenderer> = {
     if (!snapshot.runId) {
       return null;
     }
+    const copy = segmentCopy();
     const short = snapshot.runId.length > 8 ? `${snapshot.runId.slice(0, 8)}…` : snapshot.runId;
-    return themes.dim(`run ${short}`);
+    return themes.dim(`${copy.runLabel} ${short}`);
   },
   api_in: (snapshot) => {
     if (snapshot.lastApiIn === null) {
       return null;
     }
-    return themes.dim(`in ${fmtNum(snapshot.lastApiIn)} tok`);
+    const copy = segmentCopy();
+    return themes.dim(`${copy.apiInLabel} ${fmtNum(snapshot.lastApiIn)} ${copy.tokenUnit}`);
   },
   api_out: (snapshot) => {
     if (snapshot.lastApiOut === null) {
       return null;
     }
-    return themes.dim(`out ${fmtNum(snapshot.lastApiOut)} tok`);
+    const copy = segmentCopy();
+    return themes.dim(`${copy.apiOutLabel} ${fmtNum(snapshot.lastApiOut)} ${copy.tokenUnit}`);
   },
 };
 
@@ -61,15 +71,5 @@ export function renderStatusSegments(
 }
 
 export function segmentLabel(id: StatusLineSegmentId): string {
-  const labels: Record<StatusLineSegmentId, string> = {
-    product: "product name",
-    context: "context used/limit (pct)",
-    turn: "turn number",
-    model: "model id",
-    workdir: "workspace path",
-    run: "run id (short)",
-    api_in: "last API input tokens",
-    api_out: "last API output tokens",
-  };
-  return labels[id];
+  return statuslineCopy().segmentLabels[id];
 }

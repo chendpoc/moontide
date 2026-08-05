@@ -57,7 +57,7 @@ export async function handleStatuslineCommand(arg: string | undefined): Promise<
     resetStatusLineConfig();
     invalidateStatusLineCommandCache();
     await renderStatusStackAsync();
-    reply("statusline reset to default: product, context, turn");
+    reply("statusline reset to default: product, context, turn, model, workdir");
     return "handled";
   }
 

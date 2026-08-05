@@ -13,6 +13,8 @@ import type { StatusSnapshot } from "../src/cli/statusline/types.js";
 import { resetStatusLineRender, beginAgentActivity, endAgentActivity } from "../src/cli/statusline/render.js";
 import { setVerboseOverride, resetObservabilityOverrides } from "../src/log/modes.js";
 import { formatDeltaColored, formatDeltaPlain } from "../src/log/format/format-delta.js";
+import { resetContextLangOverride } from "../src/i18n/context/index.js";
+import { resetLocaleOverride, setLocaleOverride } from "../src/i18n/locale.js";
 import { stripAnsi } from "../src/utils/text.js";
 
 function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
@@ -34,6 +36,11 @@ function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
 }
 
 describe("statusline format", () => {
+  afterEach(() => {
+    resetLocaleOverride();
+    resetContextLangOverride();
+  });
+
   it("renders compact context segment", () => {
     expect(formatCompactTokens(2197)).toBe("2.2k");
     expect(formatCompactTokens(128_000)).toBe("128k");
@@ -44,7 +51,8 @@ describe("statusline format", () => {
     }))).toBe("2.2k/128k(1.7%)");
   });
 
-  it("renders resident status line with model, workdir, and segment config", () => {
+  it("renders resident status line from configured segments only", () => {
+    setLocaleOverride("en");
     const line = formatStatusLine(baseSnapshot({
       contextUsed: 2197,
       contextLimit: 128_000,
@@ -55,23 +63,24 @@ describe("statusline format", () => {
     expect(text).toContain("MoonTide");
     expect(text).toContain("2.2k/128k(1.7%)");
     expect(text).toContain("turn 2");
-    expect(text).toContain("model deepseek-v4-pro");
-    expect(text).toContain("workdir");
-    expect(text).toContain("segments product, context, turn");
+    expect(text).toContain("deepseek-v4-pro");
+    expect(text).toContain("~/code/moontide");
+    expect(text).not.toContain("segments ");
     expect(text).not.toContain("idle");
     expect(text).not.toContain("running");
   });
 
-  it("verbose status includes segment config", () => {
-    const line = formatStatusLineVerbose(baseSnapshot({
+  it("formatStatusLineVerbose matches segment-only output", () => {
+    setLocaleOverride("en");
+    const snapshot = baseSnapshot({
       turn: 2,
       contextUsed: 1000,
       contextLimit: 128_000,
       contextPct: 0.8,
-    }));
-    const text = stripAnsi(line);
-    expect(text).toContain("1k/128k");
-    expect(text).toContain("segments product, context, turn");
+    });
+    expect(formatStatusLineVerbose(snapshot)).toBe(formatStatusLine(snapshot));
+    expect(stripAnsi(formatStatusLineVerbose(snapshot))).toContain("1k/128k");
+    expect(stripAnsi(formatStatusLineVerbose(snapshot))).not.toContain("segments ");
   });
 
   it("formats delta with git colors", () => {
@@ -180,7 +189,13 @@ describe("statusline render", () => {
 });
 
 describe("statusline segments", () => {
+  afterEach(() => {
+    resetLocaleOverride();
+    resetContextLangOverride();
+  });
+
   it("supports optional api segments", () => {
+    setLocaleOverride("en");
     const line = renderStatusSegments(
       baseSnapshot({ lastApiIn: 2604, lastApiOut: 133 }),
       ["product", "api_in", "api_out"],
@@ -188,5 +203,44 @@ describe("statusline segments", () => {
     const text = stripAnsi(line);
     expect(text).toContain("in 2,604 tok");
     expect(text).toContain("out 133 tok");
+  });
+
+  it("localizes labels for zh locale", () => {
+    setLocaleOverride("zh");
+    const line = renderStatusSegments(baseSnapshot({ turn: 2 }), ["product", "turn", "run"]);
+    const text = stripAnsi(line);
+    expect(text).toContain("轮次 2");
+    expect(text).toContain("运行 run-1");
+  });
+});
+
+describe("statusline unpin", () => {
+  it("re-renders after external stderr write unpins the stack", async () => {
+    resetStatusLineRender();
+    const writes: string[] = [];
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    const originalIsTTY = process.stderr.isTTY;
+
+    process.stderr.write = ((chunk: string) => {
+      writes.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+
+    try {
+      const { renderStatusStackAsync } = await import("../src/cli/statusline/render-stack.js");
+      const { reply } = await import("../src/cli/commands/io.js");
+
+      await renderStatusStackAsync();
+      expect(writes.length).toBeGreaterThan(0);
+
+      reply("language: zh");
+      await renderStatusStackAsync();
+      expect(writes.length).toBeGreaterThan(1);
+    } finally {
+      process.stderr.write = originalWrite;
+      Object.defineProperty(process.stderr, "isTTY", { value: originalIsTTY, configurable: true });
+      resetStatusLineRender();
+    }
   });
 });
