@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "../src/llm/protocol/types.js";
 
 import { previewCompact, pruneCompact } from "../src/context/composer/compaction/operations.js";
+import { estimateDialogueCompactionTokens } from "../src/context/composer/compaction/apply-prune.js";
 import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
@@ -39,6 +40,7 @@ describe("context compact", () => {
     expect(preview.wouldChange).toBe(true);
     expect(preview.afterTokens).toBeLessThan(preview.beforeTokens);
     expect(preview.truncatedToolResults).toBeGreaterThan(0);
+    expect(preview.beforeTokens).toBe(estimateDialogueCompactionTokens(messages, "claude-test"));
   });
 
   it("prune mutates tool results in older turns", () => {

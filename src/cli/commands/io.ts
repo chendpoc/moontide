@@ -44,5 +44,5 @@ export function formatCompactReport(
 ): string {
   const saved = before - after;
   const tail = extra ? ` · ${extra}` : "";
-  return `${label}: ${before.toLocaleString()} → ${after.toLocaleString()} tokens (saved ${saved.toLocaleString()})${tail}`;
+  return `${label}: ${before.toLocaleString()} → ${after.toLocaleString()} L2 tok (saved ${saved.toLocaleString()})${tail}`;
 }
