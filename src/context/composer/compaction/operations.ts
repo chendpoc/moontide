@@ -5,14 +5,14 @@ import {
   compactThreshold,
   modelId,
 } from "../../../config.js";
-import { buildContextReport } from "../../../context-inspect/analyze.js";
-import { buildSnapshot } from "../../../context-inspect/snapshot.js";
+import { shouldCompactDialogue } from "../budget/policy.js";
+import { resolveModelProfile } from "../../../llm/models/resolve.js";
 import { extractText } from "../../../llm/normalize/extract-text.js";
 import { getLLMProvider } from "../../../llm/provider.js";
 import { resolveRoute } from "../../../llm/routing/resolve.js";
 import {
   applyPrune,
-  estimateContextTokens,
+  estimateDialogueCompactionTokens,
   findKeepFromIndex,
 } from "./apply-prune.js";
 
@@ -39,7 +39,7 @@ export function previewCompact(
   tools: ToolSchema[],
   keepTurns = compactKeepTurns(),
 ): CompactPreview {
-  const beforeTokens = estimateContextTokens(messages, system, tools, modelId());
+  const beforeTokens = estimateDialogueCompactionTokens(messages, modelId());
   const result = pruneCompact(messages, system, tools, keepTurns);
   return {
     beforeTokens,
@@ -87,7 +87,7 @@ export async function summarizeCompact(
   keepTurns = compactKeepTurns(),
 ): Promise<CompactResult> {
   const currentModelId = modelId();
-  const beforeTokens = estimateContextTokens(messages, system, tools, currentModelId);
+  const beforeTokens = estimateDialogueCompactionTokens(messages, currentModelId);
   const keepFrom = findKeepFromIndex(messages, keepTurns);
   const head = messages.slice(0, keepFrom);
   const tail = messages.slice(keepFrom);
@@ -118,7 +118,7 @@ export async function summarizeCompact(
   };
 
   const next = [summaryMessage, ...tail];
-  const afterTokens = estimateContextTokens(next, system, tools, currentModelId);
+  const afterTokens = estimateDialogueCompactionTokens(next, currentModelId);
 
   return {
     messages: next,
@@ -136,14 +136,21 @@ export function computeAutoCompact(
   system: string,
   tools: ToolSchema[],
   enabled: boolean,
+  modelProfile = resolveModelProfile(),
 ): CompactResult | null {
   if (!enabled || messages.length === 0) {
     return null;
   }
 
-  const snapshot = buildSnapshot({ turn: 0, messages, system, tools });
-  const report = buildContextReport(snapshot);
-  if (report.percentUsed < compactThreshold()) {
+  if (
+    !shouldCompactDialogue({
+      modelProfile,
+      system,
+      tools,
+      messages,
+      thresholdPercent: compactThreshold(),
+    })
+  ) {
     return null;
   }
 

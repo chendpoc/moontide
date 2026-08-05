@@ -76,6 +76,10 @@ describe("Deep Task Mode compose integration", () => {
 
     expect(composed.request.system).toContain("## Working set (Deep Task Mode)");
     expect(composed.request.system).toContain("Reproduce 401 on token refresh");
+    const pinned = composed.manifest.budgetTiers?.find((tier) => tier.tier === "pinned");
+    expect(pinned?.subAccounts?.workingSet).toBeDefined();
+    expect(pinned?.subAccounts?.workingSet.estimatedTokens).toBeGreaterThan(0);
+    expect(pinned?.subAccounts?.workingSet.limitTokens).toBeGreaterThan(0);
   });
 
   it("skips Working Set injection when deep mode is off", async () => {
@@ -164,6 +168,9 @@ describe("Deep Task Mode compose integration", () => {
 
     expect(composed.request.system).toContain("## Working set (Deep Task Mode)");
     expect(composed.request.system).toContain("Keep redis session store");
+
+    const pinned = composed.manifest.budgetTiers?.find((tier) => tier.tier === "pinned");
+    expect(pinned?.subAccounts?.workingSet?.estimatedTokens).toBeGreaterThan(0);
 
     const toolResult = composed.request.messages
       .flatMap((message) => (Array.isArray(message.content) ? message.content : []))

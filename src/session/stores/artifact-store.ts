@@ -1,4 +1,3 @@
-import { internalError } from "../../errors/factories.js";
 import { artifactMetaPath } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import type { Artifact } from "./artifact-types.js";
@@ -23,12 +22,18 @@ export class FileArtifactStore implements ArtifactStore {
 }
 
 export function createStubArtifactStore(): ArtifactStore {
+  const artifacts = new Map<string, Artifact>();
   return {
-    async get() {
-      return undefined;
+    async get(sessionId, artifactId) {
+      return artifacts.get(`${sessionId}/${artifactId}`);
     },
-    async put() {
-      throw internalError("ArtifactStore not implemented");
+    async put(artifact) {
+      artifacts.set(`${artifact.sessionId}/${artifact.id}`, artifact);
     },
   };
+}
+
+/** In-memory ArtifactStore for tests (same behavior, explicit name). */
+export function createMemoryArtifactStore(): ArtifactStore {
+  return createStubArtifactStore();
 }

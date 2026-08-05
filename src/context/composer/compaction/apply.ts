@@ -1,8 +1,10 @@
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
 import type { CompactionSave } from "../../../session/stores/compaction-types.js";
 import type { SessionMessage } from "../../../session/types.js";
+import type { ModelProfile } from "../../../llm/models/types.js";
+import { shouldCompactDialogue } from "../budget/policy.js";
 import type { CompactionPolicy } from "./policy.js";
-import { applyPrune, estimateContextTokens } from "./apply-prune.js";
+import { applyPrune, estimateDialogueCompactionTokens } from "./apply-prune.js";
 import { applySummary } from "./apply-summary.js";
 import { messagesFromContext } from "../../../session/transform/messages-from-context.js";
 
@@ -25,26 +27,31 @@ export interface CompactionApplyResult {
   estimatedInputTokens: number;
 }
 
+type BudgetModelProfile = Pick<
+  ModelProfile,
+  "logicalModelId" | "contextWindow" | "maxOutputTokens" | "supportsThinking"
+>;
+
 function shouldAutoPrune(
   messages: Message[],
   system: string,
   tools: ToolSchema[],
-  modelId: string,
-  contextWindow: number,
+  modelProfile: BudgetModelProfile,
   thresholdPercent: number,
 ): boolean {
-  if (messages.length === 0 || contextWindow <= 0) {
-    return false;
-  }
-  const tokens = estimateContextTokens(messages, system, tools, modelId);
-  const percentUsed = (tokens / contextWindow) * 100;
-  return percentUsed >= thresholdPercent;
+  return shouldCompactDialogue({
+    modelProfile,
+    system,
+    tools,
+    messages,
+    thresholdPercent,
+  });
 }
 
 /** Apply compaction policy to compose-time message slice (immutable). */
 export function applyCompactionPolicy(
   input: CompactionApplyInput,
-  contextWindow: number,
+  modelProfile: BudgetModelProfile,
 ): CompactionApplyResult {
   let sessionMessages = [...input.sessionMessages];
   let messages = [...input.messages];
@@ -57,7 +64,7 @@ export function applyCompactionPolicy(
 
   let truncatedToolResults = 0;
   let keepFromIndex = 0;
-  let estimatedInputTokens = estimateContextTokens(messages, input.system, input.tools, input.modelId);
+  let estimatedInputTokens = estimateDialogueCompactionTokens(messages, input.modelId);
 
   const autoPrune =
     input.policy.autoEnabled &&
@@ -66,8 +73,7 @@ export function applyCompactionPolicy(
       messages,
       input.system,
       input.tools,
-      input.modelId,
-      contextWindow,
+      modelProfile,
       input.policy.thresholdPercent,
     );
 

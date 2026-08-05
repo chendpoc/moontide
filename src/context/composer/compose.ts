@@ -1,4 +1,12 @@
 import { messagesFromContext } from "../../session/transform/messages-from-context.js";
+import { contextBudgetFlexEnabled } from "../../config.js";
+import {
+  buildBudgetAlerts,
+  enforceL3ReferenceBudget,
+  findTierUsage,
+  resolveBudgetPolicy,
+  sumInputTierTokens,
+} from "./budget/index.js";
 import { appendWorkingSetToSystem } from "./working-set.js";
 import { applyCompactionPolicy, applyTailWindow } from "./compaction/apply.js";
 import { buildContextManifest } from "./manifest.js";
@@ -41,6 +49,26 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
 
   let protocolMessages = messagesFromContext({ messages: sessionMessages });
 
+  const flexEnabled = contextBudgetFlexEnabled();
+  const preBudget = resolveBudgetPolicy({
+    modelProfile: input.modelProfile,
+    system,
+    tools,
+    messages: protocolMessages,
+    systemBase,
+    workingSetSnapshot: input.workingSetSnapshot,
+    includeFlex: flexEnabled,
+  });
+  const l3Cap = findTierUsage(preBudget, "reference").limitTokens;
+  const l3Enforced = await enforceL3ReferenceBudget({
+    messages: protocolMessages,
+    l3Cap,
+    modelId,
+    sessionId: input.sessionId,
+    artifactStore: input.artifactStore,
+  });
+  protocolMessages = l3Enforced.messages;
+
   const compaction = applyCompactionPolicy(
     {
       sessionMessages,
@@ -51,7 +79,7 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
       tools,
       modelId,
     },
-    input.modelProfile.contextWindow,
+    input.modelProfile,
   );
 
   sessionMessages = compaction.sessionMessages;
@@ -61,6 +89,17 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
   const compactionExcludedItemIds = preCompactionIds.filter(
     (id) => !compiledMessageItemIds.includes(id),
   );
+
+  const budgetPolicy = resolveBudgetPolicy({
+    modelProfile: input.modelProfile,
+    system,
+    tools,
+    messages: protocolMessages,
+    systemBase,
+    workingSetSnapshot: input.workingSetSnapshot,
+    includeFlex: flexEnabled,
+  });
+  const budgetAlerts = buildBudgetAlerts(budgetPolicy);
 
   const manifest = buildContextManifest({
     sessionId: input.sessionId,
@@ -75,7 +114,9 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
       compactionExcludedItemIds.length > 0 ? compactionExcludedItemIds : undefined,
     activeCompactionSaveId: compaction.activeCompactionSaveId,
     resumeCheckpointId,
-    estimatedInputTokens: compaction.estimatedInputTokens,
+    estimatedInputTokens: sumInputTierTokens(budgetPolicy),
+    budgetTiers: budgetPolicy.tiers,
+    alerts: budgetAlerts.length > 0 ? budgetAlerts : undefined,
   });
 
   return {

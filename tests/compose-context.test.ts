@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { composeContext } from "../src/context/composer/compose.js";
-import { applyPrune, applySummary, applyTailWindow } from "../src/context/composer/compaction/apply.js";
+import { shouldCompactDialogue } from "../src/context/composer/budget/policy.js";
+import {
+  applyCompactionPolicy,
+  applyPrune,
+  applySummary,
+  applyTailWindow,
+} from "../src/context/composer/compaction/apply.js";
 import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
 import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
 import {
@@ -57,6 +63,25 @@ describe("composeContext", () => {
     expect(composed.manifest.sourceItemIds).toEqual(["e1", "e2"]);
     expect(composed.manifest.compiledMessageItemIds).toEqual(["e1", "e2"]);
     expect(composed.request.messages).toHaveLength(2);
+    expect(composed.manifest.budgetTiers).toBeDefined();
+    expect(composed.manifest.budgetTiers?.some((tier) => tier.tier === "dialogue")).toBe(true);
+    expect(composed.manifest.estimatedInputTokens).toBeGreaterThan(0);
+  });
+
+  it("emits pinned_over_budget alert when system exceeds L1 cap", async () => {
+    const composed = await composeContext({
+      ...baseInput,
+      messages: [userMessage("e1", 1, "hi")],
+      instructionState: { basePrompt: "x".repeat(150_000), epoch: 1 },
+      compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
+    });
+
+    expect(composed.manifest.alerts?.some((alert) => alert.code === "pinned_over_budget")).toBe(
+      true,
+    );
+    expect(composed.manifest.budgetTiers?.find((tier) => tier.tier === "pinned")?.estimatedTokens).toBeGreaterThan(
+      composed.manifest.budgetTiers?.find((tier) => tier.tier === "pinned")?.limitTokens ?? 0,
+    );
   });
 });
 
@@ -108,5 +133,79 @@ describe("compaction apply helpers", () => {
     const result = applyPrune(messages, "sys", resolveToolDefinitions(getTestRuntime().tools), 1, "claude-test");
     expect(result.changed).toBe(true);
     expect(result.afterTokens).toBeLessThan(result.beforeTokens);
+  });
+
+  it("applyCompactionPolicy auto-prunes on L2 usage, not L1-heavy system alone", () => {
+    const modelProfile = {
+      logicalModelId: "claude-test",
+      contextWindow: 128_000,
+      maxOutputTokens: 8192,
+      supportsTools: true,
+      supportsThinking: false,
+      tokenCount: "estimate" as const,
+    };
+    const tools = resolveToolDefinitions(getTestRuntime().tools);
+    const policy = { ...defaultCompactionPolicy, autoEnabled: true, thresholdPercent: 50, keepTurns: 1 };
+
+    expect(
+      shouldCompactDialogue({
+        modelProfile,
+        system: "x".repeat(60_000),
+        tools,
+        messages: [{ role: "user", content: "short" }],
+        thresholdPercent: 50,
+      }),
+    ).toBe(false);
+
+    const dialogueMessages = [
+      { role: "user" as const, content: "first task" },
+      {
+        role: "assistant" as const,
+        content: [{ type: "tool_use" as const, id: "t1", name: "Read", input: { path: "a.ts" } }],
+      },
+      {
+        role: "user" as const,
+        content: [{ type: "tool_result" as const, tool_use_id: "t1", content: "y".repeat(200_000) }],
+      },
+      { role: "user" as const, content: "second question" },
+      { role: "assistant" as const, content: [{ type: "text", text: "done" }] },
+      { role: "user" as const, content: "third question" },
+    ];
+
+    expect(
+      shouldCompactDialogue({
+        modelProfile,
+        system: "system rules",
+        tools,
+        messages: dialogueMessages,
+        thresholdPercent: 50,
+      }),
+    ).toBe(true);
+
+    const l1Heavy = applyCompactionPolicy(
+      {
+        sessionMessages: [],
+        messages: [{ role: "user", content: "short" }],
+        policy,
+        system: "x".repeat(60_000),
+        tools,
+        modelId: modelProfile.logicalModelId,
+      },
+      modelProfile,
+    );
+    expect(l1Heavy.truncatedToolResults).toBe(0);
+
+    const l2Heavy = applyCompactionPolicy(
+      {
+        sessionMessages: [],
+        messages: dialogueMessages,
+        policy,
+        system: "system rules",
+        tools,
+        modelId: modelProfile.logicalModelId,
+      },
+      modelProfile,
+    );
+    expect(l2Heavy.truncatedToolResults).toBeGreaterThan(0);
   });
 });

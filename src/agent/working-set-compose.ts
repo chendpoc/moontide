@@ -1,5 +1,5 @@
-import { estimateContextTokens } from "../context/composer/compaction/apply-prune.js";
 import type { CompactionPolicy } from "../context/composer/compaction/policy.js";
+import { shouldCompactDialogue } from "../context/composer/budget/policy.js";
 import { buildSystemFromInstructionState } from "../context/composer/system/build-system.js";
 import type { InstructionState } from "../context/composer/system/types.js";
 import { appendWorkingSetToSystem } from "../context/composer/working-set.js";
@@ -25,11 +25,10 @@ function stageRank(stage: WorkMemEscalationStagePort): number {
   return STAGE_ORDER.indexOf(stage);
 }
 
-function compactionThresholdExceeded(
+function dialogueCompactionThresholdExceeded(
   messages: readonly SessionMessage[],
   system: string,
   tools: ToolSchema[],
-  modelId: string,
   modelProfile: ModelProfile,
   policy: CompactionPolicy,
   activeCompactionSaveId?: string,
@@ -37,13 +36,14 @@ function compactionThresholdExceeded(
   if (!policy.autoEnabled || activeCompactionSaveId || messages.length === 0) {
     return false;
   }
-  if (modelProfile.contextWindow <= 0) {
-    return false;
-  }
   const protocolMessages = messagesFromContext({ messages });
-  const tokens = estimateContextTokens(protocolMessages, system, tools, modelId);
-  const percentUsed = (tokens / modelProfile.contextWindow) * 100;
-  return percentUsed >= policy.thresholdPercent;
+  return shouldCompactDialogue({
+    modelProfile,
+    system,
+    tools,
+    messages: protocolMessages,
+    thresholdPercent: policy.thresholdPercent,
+  });
 }
 
 export interface ResolveWorkingSetForComposeInput {
@@ -62,7 +62,6 @@ export function resolveWorkingSetForCompose(
   input: ResolveWorkingSetForComposeInput,
 ): ResolvedWorkingSetPort | undefined {
   const ports = getWorkMemAgentPorts();
-  const modelId = input.modelProfile.logicalModelId;
   const systemBase = buildSystemFromInstructionState(input.instructionState);
 
   let resolved = ports.resolveWorkingSetSnapshot({
@@ -72,11 +71,10 @@ export function resolveWorkingSetForCompose(
   });
 
   const systemWithSnapshot = appendWorkingSetToSystem(systemBase, resolved.text);
-  const overThreshold = compactionThresholdExceeded(
+  const overThreshold = dialogueCompactionThresholdExceeded(
     input.messages,
     systemWithSnapshot,
     input.tools,
-    modelId,
     input.modelProfile,
     input.compactionPolicy,
     input.activeCompactionSaveId,

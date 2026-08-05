@@ -1,5 +1,6 @@
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
 import { estimateBreakdown } from "../../../context-inspect/metrics.js";
+import { estimateDialogueTokens } from "../budget/estimate.js";
 
 const COMPACT_PLACEHOLDER_PREFIX = "[compact:";
 
@@ -12,6 +13,11 @@ export interface PruneResult {
   keepFromIndex: number;
 }
 
+function estimateMessagesDialogueTokens(messages: Message[], modelId: string): number {
+  return estimateDialogueTokens(messages, modelId);
+}
+
+/** Legacy full-window estimate (system + tools + messages); prefer L2 dialogue for compaction metrics. */
 function estimateMessagesTokens(
   messages: Message[],
   system: string,
@@ -127,7 +133,7 @@ export function applyPrune(
     };
   }
 
-  const beforeTokens = estimateMessagesTokens(messages, system, tools, modelId);
+  const beforeTokens = estimateMessagesDialogueTokens(messages, modelId);
   const keepFrom = findKeepFromIndex(messages, keepTurns);
   let truncatedToolResults = 0;
 
@@ -142,7 +148,7 @@ export function applyPrune(
     return current;
   });
 
-  const afterTokens = estimateMessagesTokens(next, system, tools, modelId);
+  const afterTokens = estimateMessagesDialogueTokens(next, modelId);
   const changed = afterTokens < beforeTokens || truncatedToolResults > 0;
 
   return {
@@ -162,4 +168,9 @@ export function estimateContextTokens(
   modelId: string,
 ): number {
   return estimateMessagesTokens(messages, system, tools, modelId);
+}
+
+/** L2 dialogue tokens for compaction before/after reports (matches auto-prune threshold scope). */
+export function estimateDialogueCompactionTokens(messages: Message[], modelId: string): number {
+  return estimateMessagesDialogueTokens(messages, modelId);
 }
