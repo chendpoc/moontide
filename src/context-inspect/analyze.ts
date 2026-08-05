@@ -11,12 +11,14 @@ function buildAlerts(percentUsed: number): ContextAlert[] {
   if (percentUsed >= 90) {
     alerts.push({
       level: "critical",
-      message: `Context usage at ${percentUsed.toFixed(1)}% — compaction recommended`,
+      code: "compaction_recommended",
+      percentUsed,
     });
   } else if (percentUsed >= 70) {
     alerts.push({
       level: "warn",
-      message: `Context usage at ${percentUsed.toFixed(1)}% — approaching limit`,
+      code: "approaching_limit",
+      percentUsed,
     });
   }
   return alerts;
@@ -31,8 +33,8 @@ export function buildContextReport(
   const limit = contextLimit();
   const headroom = Math.max(0, limit - estimatedTokens);
   const percentUsed = limit > 0 ? (estimatedTokens / limit) * 100 : 0;
-  const deltaTokens =
-    previousEstimated !== undefined ? estimatedTokens - previousEstimated : estimatedTokens;
+  const hasBaseline = previousEstimated !== undefined;
+  const deltaTokens = hasBaseline ? estimatedTokens - previousEstimated! : 0;
 
   return {
     turn: snapshot.turn,
@@ -47,6 +49,7 @@ export function buildContextReport(
     trend: {
       deltaTokens,
       cumulativeTokens: estimatedTokens,
+      hasBaseline,
     },
     alerts: buildAlerts(percentUsed),
     usage: snapshot.response?.usage

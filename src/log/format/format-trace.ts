@@ -1,6 +1,8 @@
 import chalk from "chalk";
 
+import { tracePreviewChars } from "../../config.js";
 import type { AgentEvent } from "../types.js";
+import { formatPluginErrorEvent } from "./format-error.js";
 import { padTurn } from "./shared.js";
 import { truncateOneLine } from "../../utils/text.js";
 
@@ -22,33 +24,37 @@ type TraceKindMeta = {
   extra?: (event: AgentEvent) => string | undefined;
 };
 
+function previewTraceLine(text: string): string {
+  return truncateOneLine(text, tracePreviewChars());
+}
+
 const TRACE_KIND_FORMATTERS: Partial<Record<string, TraceKindMeta>> = {
   thinking: {
     icon: "💭",
     label: "think",
     paint: theme.think,
     formatBody: (event) =>
-      `"${truncateOneLine(String(event.payload.body ?? event.preview ?? ""))}"`,
+      `"${previewTraceLine(String(event.payload.body ?? event.preview ?? ""))}"`,
   },
   tool_use: {
     icon: "🔧",
     label: "tool",
     paint: theme.tool,
-    formatBody: (event) => truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
+    formatBody: (event) => previewTraceLine(String(event.payload.body ?? event.preview ?? "")),
     extra: (event) => `${String(event.payload.toolName ?? "tool")}  `,
   },
   tool_result: {
     icon: "✓",
     label: "result",
     paint: theme.result,
-    formatBody: (event) => truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
+    formatBody: (event) => previewTraceLine(String(event.payload.body ?? event.preview ?? "")),
     extra: (event) => `${String(event.payload.toolName ?? "tool")}  `,
   },
   assistant_text: {
     icon: "→",
     label: "out",
     paint: theme.out,
-    formatBody: (event) => truncateOneLine(String(event.payload.body ?? event.preview ?? "")),
+    formatBody: (event) => previewTraceLine(String(event.payload.body ?? event.preview ?? "")),
   },
 };
 
@@ -68,6 +74,10 @@ function formatTraceStep(
 }
 
 export function formatTraceEvent(event: AgentEvent): string | null {
+  if (event.kind === "plugin_error") {
+    return formatPluginErrorEvent(event);
+  }
+
   const meta = TRACE_KIND_FORMATTERS[event.kind];
   if (!meta) {
     return null;

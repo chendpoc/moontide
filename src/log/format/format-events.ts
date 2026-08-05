@@ -1,6 +1,7 @@
 import chalk from "chalk";
 
 import type { AgentEvent } from "../types.js";
+import { formatPluginErrorEvent } from "./format-error.js";
 import { padTurn } from "./shared.js";
 import { truncateOneLine } from "../../utils/text.js";
 
@@ -55,6 +56,10 @@ function formatToolUseLogEvent(event: AgentEvent): string | null {
 }
 
 export function formatEventsChannelEvent(event: AgentEvent): string | null {
+  if (event.kind === "plugin_error") {
+    return formatPluginErrorEvent(event);
+  }
+
   if (event.channel === "conversation") {
     return formatConversationEvent(event);
   }

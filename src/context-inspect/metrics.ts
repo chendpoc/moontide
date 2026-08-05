@@ -1,6 +1,7 @@
 import type { Message, ToolSchema } from "../llm/protocol/types.js";
 
 import { modelId } from "../config.js";
+import { internalError } from "../errors/factories.js";
 import { getLLMProvider } from "../llm/provider.js";
 import {
   blockMessageLabel,
@@ -144,7 +145,7 @@ export async function exactTokenCount(
 ): Promise<number> {
   const provider = getLLMProvider();
   if (!provider.countTokens) {
-    throw new Error("LLM provider does not support countTokens");
+    throw internalError("LLM provider does not support countTokens");
   }
   return provider.countTokens({
     model: modelId(),

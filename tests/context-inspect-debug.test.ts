@@ -22,7 +22,7 @@ import { resetRun } from "../src/log/run.js";
 import { setStderrWriterForTest } from "../src/terminal/write.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
-const DEBUG_ENV = "OCULA_DEBUG";
+const DEBUG_ENV = "MOONTIDE_DEBUG";
 
 describe("context-inspect debug mode", () => {
   beforeEach(() => {
@@ -71,7 +71,7 @@ describe("context-inspect debug hooks", () => {
 
   beforeEach(() => {
     originalWorkdir = getWorkdir();
-    tmpDir = createTmpWorkdir("ocula-debug-");
+    tmpDir = createTmpWorkdir("moontide-debug-");
     setWorkdir(tmpDir);
     stderr = "";
     resetDebugOverride();
@@ -143,5 +143,41 @@ describe("context-inspect debug hooks", () => {
     emitDebugRecord({ kind: "compose", turn: 1, request: {} }, tmpDir);
     expect(stderr).toBe("");
     expect(fs.existsSync(debugLogPath(tmpDir))).toBe(false);
+  });
+
+  it("failed tool_use debug record includes errorCode", () => {
+    setDebugOverride("file");
+
+    handleDebugToolUse({
+      turn: 3,
+      toolName: "http_fetch",
+      toolUseId: "tu-fail",
+      toolInput: { url: "https://example.test" },
+      outcome: { status: "failed", error: "timeout" },
+    });
+
+    const path = debugLogPath(tmpDir);
+    const line = fs.readFileSync(path, "utf8").trim();
+    const record = JSON.parse(line) as { kind: string; errorCode: string; outcome: { status: string } };
+    expect(record.kind).toBe("tool_use");
+    expect(record.errorCode).toBe("tool");
+    expect(record.outcome.status).toBe("failed");
+  });
+
+  it("denied tool_use debug record includes permission errorCode", () => {
+    setDebugOverride("file");
+
+    handleDebugToolUse({
+      turn: 4,
+      toolName: "bash",
+      toolUseId: "tu-deny",
+      toolInput: { command: "rm -rf /" },
+      outcome: { status: "denied", reason: "blocked" },
+    });
+
+    const path = debugLogPath(tmpDir);
+    const line = fs.readFileSync(path, "utf8").trim();
+    const record = JSON.parse(line) as { errorCode: string };
+    expect(record.errorCode).toBe("permission");
   });
 });

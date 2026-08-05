@@ -10,7 +10,7 @@ export interface DebugRecord {
   [key: string]: unknown;
 }
 
-/** Emit one full debug record to stderr and/or `.ocula/debug/` per active tier. */
+/** Emit one full debug record to stderr and/or `.moontide/debug/` per active tier. */
 export function emitDebugRecord(record: DebugRecord, workdir = getWorkdir()): void {
   if (!isDebugTerminalEnabled() && !isDebugFileEnabled()) {
     return;

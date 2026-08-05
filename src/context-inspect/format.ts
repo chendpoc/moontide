@@ -1,37 +1,48 @@
+import {
+  contextCopy,
+  fmtNum,
+  formatAlert,
+  formatPercent,
+} from "../i18n/context/index.js";
 import type { ContextReport, DetailLevel } from "./types.js";
 
-function formatNumber(value: number): string {
-  return value.toLocaleString("en-US");
-}
-
-function formatPercent(value: number): string {
-  return `${value.toFixed(1)}%`;
-}
-
 export function getSummary(report: ContextReport): string {
+  const copy = contextCopy();
   const tokenLabel = report.exactTokens ?? report.estimatedTokens;
-  const tokenKind = report.exactTokens !== undefined ? "exact" : "est";
+  const tokenKind = report.exactTokens !== undefined ? copy.exact : copy.est;
   return [
-    `Turn ${report.turn} | ${tokenKind} ${formatNumber(tokenLabel)} / ${formatNumber(report.limit)} (${formatPercent(report.percentUsed)}) | headroom ${formatNumber(report.headroom)}`,
-    `messages=${report.structure.messageCount} tool_calls=${report.structure.toolCallCount} delta=${formatNumber(report.trend.deltaTokens)}`,
-    report.alerts.length > 0 ? report.alerts.map((alert) => alert.message).join("; ") : "",
+    copy.inspectTurnSummary(
+      report.turn,
+      tokenKind,
+      fmtNum(tokenLabel),
+      fmtNum(report.limit),
+      formatPercent(report.percentUsed),
+      fmtNum(report.headroom),
+    ),
+    copy.inspectStructureLine(
+      report.structure.messageCount,
+      report.structure.toolCallCount,
+      fmtNum(report.trend.deltaTokens),
+    ),
+    report.alerts.length > 0 ? report.alerts.map((alert) => formatAlert(alert)).join("; ") : "",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 export function getStruct(report: ContextReport): string {
+  const copy = contextCopy();
   const lines = [
     getSummary(report),
-    `├─ system          ${formatNumber(report.breakdown.system)} tok`,
-    `├─ tool_definitions ${formatNumber(report.breakdown.toolDefinitions)} tok`,
-    `└─ messages[${report.structure.messageCount}]`,
+    `├─ ${copy.inspectBreakdownSystem.padEnd(16)} ${fmtNum(report.breakdown.system)} tok`,
+    `├─ ${copy.inspectBreakdownToolDefs.padEnd(16)} ${fmtNum(report.breakdown.toolDefinitions)} tok`,
+    `└─ ${copy.inspectMessagesHeader(report.structure.messageCount)}`,
   ];
 
   for (const [idx, line] of report.messageLines.entries()) {
     const prefix = idx === report.messageLines.length - 1 ? "   └─" : "   ├─";
     lines.push(
-      `${prefix} [${line.index}] ${line.role.padEnd(9)} ${formatNumber(line.tokens).padStart(6)} tok  ${line.label}  "${line.preview}"`,
+      `${prefix} [${line.index}] ${line.role.padEnd(9)} ${fmtNum(line.tokens).padStart(6)} tok  ${line.label}  "${line.preview}"`,
     );
   }
 
@@ -39,25 +50,27 @@ export function getStruct(report: ContextReport): string {
 }
 
 export function getBreakdown(report: ContextReport): string {
+  const copy = contextCopy();
   const { breakdown: b } = report;
   return [
     getSummary(report),
     "",
-    "Breakdown:",
-    `- system:       ${formatNumber(b.system)}`,
-    `- tool_definitions: ${formatNumber(b.toolDefinitions)}`,
-    `- user:         ${formatNumber(b.user)}`,
-    `- assistant:    ${formatNumber(b.assistant)}`,
-    `- thinking:     ${formatNumber(b.thinking)}`,
-    `- tool_results: ${formatNumber(b.toolResults)}`,
-    `- total:        ${formatNumber(b.total)}`,
+    copy.inspectBreakdownHeader,
+    `- ${copy.inspectBreakdownSystem}:       ${fmtNum(b.system)}`,
+    `- ${copy.inspectBreakdownToolDefs}: ${fmtNum(b.toolDefinitions)}`,
+    `- ${copy.inspectBreakdownUser}:         ${fmtNum(b.user)}`,
+    `- ${copy.inspectBreakdownAssistant}:    ${fmtNum(b.assistant)}`,
+    `- ${copy.inspectBreakdownThinking}:     ${fmtNum(b.thinking)}`,
+    `- ${copy.inspectBreakdownToolResults}: ${fmtNum(b.toolResults)}`,
+    `- ${copy.inspectBreakdownTotal}:        ${fmtNum(b.total)}`,
   ].join("\n");
 }
 
 export function getFull(report: ContextReport): string {
+  const copy = contextCopy();
   const usageLine =
     report.usage?.inputTokens !== undefined
-      ? `\nUsage: input=${formatNumber(report.usage.inputTokens)} output=${formatNumber(report.usage.outputTokens ?? 0)}`
+      ? `\n${copy.inspectUsageLine(fmtNum(report.usage.inputTokens), fmtNum(report.usage.outputTokens ?? 0))}`
       : "";
 
   return `${getBreakdown(report)}${usageLine}\n\n${getStruct(report)}`;

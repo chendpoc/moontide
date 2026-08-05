@@ -30,9 +30,12 @@ export interface ContextStructure {
   maxToolResultChars: number;
 }
 
+export type ContextAlertCode = "approaching_limit" | "compaction_recommended";
+
 export interface ContextAlert {
   level: "warn" | "critical";
-  message: string;
+  code: ContextAlertCode;
+  percentUsed: number;
 }
 
 export interface ContextUsage {
@@ -42,7 +45,9 @@ export interface ContextUsage {
 
 export interface ContextTrend {
   deltaTokens: number;
+  /** Current estimated context size (same as estimatedTokens). */
   cumulativeTokens: number;
+  hasBaseline: boolean;
 }
 export interface MessageLine {
   index: number;

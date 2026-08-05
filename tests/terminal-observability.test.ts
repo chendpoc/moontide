@@ -17,10 +17,14 @@ import { stripAnsi } from "../src/utils/text.js";
 import { StderrRenderer } from "../src/log/outputs/stderr-renderer.js";
 import { setStderrWriterForTest } from "../src/terminal/write.js";
 import type { AgentEvent } from "../src/log/types.js";
+import {
+  resetContextLangOverride,
+  setContextLangOverride,
+} from "../src/i18n/context/index.js";
 import type { ContextReport } from "../src/context-inspect/types.js";
 
-const THINKING_KEY = "OCULA_THINKING";
-const VERBOSE_KEY = "OCULA_VERBOSE";
+const THINKING_KEY = "MOONTIDE_THINKING";
+const VERBOSE_KEY = "MOONTIDE_VERBOSE";
 
 function baseEvent(overrides: Partial<AgentEvent>): AgentEvent {
   return {
@@ -40,6 +44,7 @@ function baseEvent(overrides: Partial<AgentEvent>): AgentEvent {
 function sampleReport(overrides: Partial<ContextReport> = {}): ContextReport {
   return {
     turn: 1,
+    modelId: "test-model",
     estimatedTokens: 1200,
     limit: 128_000,
     headroom: 126_800,
@@ -53,9 +58,9 @@ function sampleReport(overrides: Partial<ContextReport> = {}): ContextReport {
       toolResults: 150,
       total: 1200,
     },
-    structure: { messageCount: 3, toolCallCount: 1 },
+    structure: { messageCount: 3, toolCallCount: 1, maxToolResultChars: 0 },
     messageLines: [],
-    trend: { deltaTokens: 100, cumulativeTokens: 1200 },
+    trend: { deltaTokens: 100, cumulativeTokens: 1200, hasBaseline: true },
     alerts: [],
     ...overrides,
   };
@@ -100,6 +105,7 @@ describe("terminal event formatting", () => {
   beforeEach(() => {
     resetObservabilityOverrides();
     resetTerminalRenderState();
+    resetContextLangOverride();
     delete process.env[THINKING_KEY];
     delete process.env[VERBOSE_KEY];
   });
@@ -107,6 +113,7 @@ describe("terminal event formatting", () => {
   afterEach(() => {
     resetObservabilityOverrides();
     resetTerminalRenderState();
+    resetContextLangOverride();
   });
 
   it("prints trace call chain in thinking mode", () => {
@@ -166,7 +173,24 @@ describe("terminal event formatting", () => {
     expect(text).toContain("read_file");
   });
 
-  it("formats context metrics as boxed output in verbose mode", () => {
+  it("respects MOONTIDE_TRACE_PREVIEW_CHARS for trace preview length", () => {
+    process.env.MOONTIDE_TRACE_PREVIEW_CHARS = "100";
+    setThinkingOverride(true);
+    const body =
+      "Path escapes workspace: /Users/chenjiayu/code/agent-learning/moontide/src/tools/registry.ts";
+    const block = formatTerminalEventBlock(
+      baseEvent({
+        kind: "tool_result",
+        payload: { toolName: "read_file", body },
+      }),
+    );
+    const text = stripAnsi(block ?? "");
+    expect(text).toContain("registry.ts");
+    expect(text).not.toMatch(/registry\.t…/);
+    delete process.env.MOONTIDE_TRACE_PREVIEW_CHARS;
+  });
+
+  it("formats context metrics as one line in verbose mode", () => {
     setVerboseOverride(true);
     const block = formatTerminalEventBlock(
       baseEvent({
@@ -176,9 +200,41 @@ describe("terminal event formatting", () => {
       }),
     );
     const text = stripAnsi(block ?? "");
-    expect(text).toContain("CONTEXT");
-    expect(text).toContain("Tokens");
-    expect(text).toContain("Usage");
+    expect(text).toContain("context · turn 01");
+    expect(text).toContain("1.2k/128k");
+    expect(text).not.toContain("Billing");
+  });
+
+  it("shows colored delta on context metrics line when baseline exists", () => {
+    setVerboseOverride(true);
+    const block = formatTerminalEventBlock(
+      baseEvent({
+        channel: "context",
+        kind: "context_metrics",
+        payload: {
+          report: sampleReport({
+            trend: { deltaTokens: 100, cumulativeTokens: 1200, hasBaseline: true },
+          }),
+        },
+      }),
+    );
+    const text = stripAnsi(block ?? "");
+    expect(text).toContain("+100 tok");
+  });
+
+  it("formats context metrics line in Chinese when lang override is zh", () => {
+    setVerboseOverride(true);
+    setContextLangOverride("zh");
+    const block = formatTerminalEventBlock(
+      baseEvent({
+        channel: "context",
+        kind: "context_metrics",
+        payload: { report: sampleReport() },
+      }),
+    );
+    const text = stripAnsi(block ?? "");
+    expect(text).toContain("context · turn 01");
+    resetContextLangOverride();
   });
 
   it("formats tool_use_log events with EVENT marker in verbose mode", () => {
@@ -275,5 +331,35 @@ describe("StderrRenderer", () => {
     renderer.handle(baseEvent({ kind: "thinking", payload: { body: "hidden" } }));
 
     expect(lines).toHaveLength(0);
+  });
+
+  it("renders plugin_error in thinking mode", () => {
+    setThinkingOverride(true);
+    const lines: string[] = [];
+    setStderrWriterForTest((chunk) => {
+      lines.push(chunk);
+      return true;
+    });
+
+    const renderer = new StderrRenderer();
+    renderer.handle(
+      baseEvent({
+        channel: "tool_use_log",
+        kind: "plugin_error",
+        phase: "post_tool",
+        payload: {
+          errorCode: "internal",
+          message: "hook failed",
+          source: "hook:tool-use-log",
+          toolName: "bash",
+        },
+        preview: "tool-use-log/toolUse",
+      }),
+    );
+
+    const text = stripAnsi(lines.join(""));
+    expect(text).toContain("ERROR");
+    expect(text).toContain("hook failed");
+    expect(text).toContain("bash");
   });
 });

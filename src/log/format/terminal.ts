@@ -1,4 +1,4 @@
-import { isVerboseEnabled } from "../modes.js";
+import { isThinkingEnabled, isVerboseEnabled } from "../modes.js";
 import type { AgentChannel, AgentEvent } from "../types.js";
 import { formatEventByChannel } from "./registry.js";
 import { formatChannelSeparator, formatTurnBanner } from "./shared.js";
@@ -14,6 +14,10 @@ export function resetTerminalRenderState(): void {
 }
 
 export function shouldPrintTerminalEvent(event: AgentEvent): boolean {
+  if (event.kind === "plugin_error") {
+    return isThinkingEnabled() || isVerboseEnabled();
+  }
+
   if (event.channel === "trace") {
     if (isVerboseEnabled()) {
       return true;

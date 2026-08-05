@@ -1,4 +1,5 @@
 import type { DebugLevel } from "../constants/debug.js";
+import { DATA_DIR } from "../constants/storage.js";
 import { debugModeDefault } from "../config.js";
 
 let debugOverride: DebugLevel | null = null;
@@ -16,7 +17,7 @@ export function isDebugTerminalEnabled(): boolean {
   return level === "terminal" || level === "file";
 }
 
-/** Level 2 — additionally append full records to `.ocula/debug/<runId>.jsonl`. */
+/** Level 2 — additionally append full records to `${DATA_DIR}/debug/<runId>.jsonl`. */
 export function isDebugFileEnabled(): boolean {
   return getDebugLevel() === "file";
 }
@@ -37,7 +38,7 @@ export function describeDebugMode(): string {
   if (level === "terminal") {
     return "debug: terminal (full compose · llm · tool → stderr)";
   }
-  return "debug: file (terminal + .ocula/debug/<runId>.jsonl)";
+  return `debug: file (terminal + ${DATA_DIR}/debug/<runId>.jsonl)`;
 }
 
 export function parseDebugLevelArg(arg: string | undefined): DebugLevel | null | "status" {

@@ -1,3 +1,5 @@
+import { stripAnsi } from "../../utils/text.js";
+
 export function fmt(value: number): string {
   return value.toLocaleString("en-US");
 }
@@ -7,8 +9,43 @@ export function padTurn(turn: number): string {
 }
 
 export function boxLine(content: string, width: number): string {
-  const inner = content.slice(0, width);
-  return `│ ${inner.padEnd(width)} │`;
+  const visible = stripAnsi(content);
+  const inner =
+    visible.length <= width ? content : truncateVisible(content, width);
+  const padWidth = width - stripAnsi(inner).length;
+  return `│ ${inner}${" ".repeat(Math.max(0, padWidth))} │`;
+}
+
+function truncateVisible(content: string, width: number): string {
+  let visibleLen = 0;
+  let result = "";
+  // eslint-disable-next-line no-control-regex -- intentional ANSI escape handling
+  const ansiPattern = /\u001b\[[0-9;]*m/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = ansiPattern.exec(content)) !== null) {
+    const textBefore = content.slice(lastIndex, match.index);
+    for (const char of textBefore) {
+      if (visibleLen >= width) {
+        return result;
+      }
+      result += char;
+      visibleLen += 1;
+    }
+    result += match[0];
+    lastIndex = match.index + match[0].length;
+  }
+
+  const rest = content.slice(lastIndex);
+  for (const char of rest) {
+    if (visibleLen >= width) {
+      break;
+    }
+    result += char;
+    visibleLen += 1;
+  }
+  return result;
 }
 
 const TURN_BANNER_WIDTH = 36;

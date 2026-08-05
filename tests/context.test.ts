@@ -1,17 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 
 import { buildContextReport } from "../src/context-inspect/analyze.js";
 import { formatContext, getSummary } from "../src/context-inspect/format.js";
 import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../src/context-inspect/metrics.js";
 import { buildSnapshot } from "../src/context-inspect/snapshot.js";
 import { resetRuntimeStatus, publishContextReport } from "../src/agent/context-status.js";
+import { resetContextLangOverride, setContextLangOverride } from "../src/i18n/context/index.js";
 import type { ContextSnapshot } from "../src/context-inspect/types.js";
 
 function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot {
   return {
     turn: 1,
     modelId: "deepseek-v4-pro",
-    system: "You are Ocula.",
+    system: "You are MoonTide.",
     tools: [
       {
         name: "read_file",
@@ -61,6 +62,10 @@ describe("context metrics", () => {
 });
 
 describe("context analyze/format", () => {
+  afterEach(() => {
+    resetContextLangOverride();
+  });
+
   it("builds a report with alerts when usage is high", () => {
     const longContent = "x".repeat(500_000);
     const report = buildContextReport(
@@ -73,6 +78,7 @@ describe("context analyze/format", () => {
   });
 
   it("formats summary and struct views", () => {
+    setContextLangOverride("en");
     const report = buildContextReport(makeSnapshot());
     expect(getSummary(report)).toContain("Turn 1");
     expect(formatContext(report, "struct")).toContain("messages[3]");
@@ -90,6 +96,8 @@ describe("context analyze/format", () => {
   it("tracks turn-to-turn delta via session state", () => {
     resetRuntimeStatus();
     const turn1 = buildContextReport(makeSnapshot({ turn: 1 }));
+    expect(turn1.trend.deltaTokens).toBe(0);
+    expect(turn1.trend.hasBaseline).toBe(false);
     publishContextReport(turn1);
 
     const turn2 = buildContextReport(
@@ -103,7 +111,15 @@ describe("context analyze/format", () => {
       turn1.estimatedTokens,
     );
 
+    expect(turn2.trend.hasBaseline).toBe(true);
     expect(turn2.trend.deltaTokens).toBe(turn2.estimatedTokens - turn1.estimatedTokens);
+  });
+
+  it("formats summary in Chinese when lang override is zh", () => {
+    setContextLangOverride("zh");
+    const report = buildContextReport(makeSnapshot());
+    expect(getSummary(report)).toContain("第 1 轮");
+    resetContextLangOverride();
   });
 });
 
