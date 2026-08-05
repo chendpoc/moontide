@@ -13,7 +13,7 @@
 | **Plugin host** | Rust agent core 内负责 **扩展发现、附着（attach）、tool registry 合并、子进程生命周期** 的模块 | LLM 调用、Context Composer、Session append |
 | **MCP client** | 实现 [Model Context Protocol](https://modelcontextprotocol.io/) 的客户端：`tools/list`、`tools/call`；传输为 stdio 或 Streamable HTTP | 权限决策（交给 Capability Broker） |
 | **Capability Broker** | 系统能力入口：读文件、spawn 进程、网络、Desktop 审批 UI；见 [`runtime-multilang.md`](runtime-multilang.md) §4 | MCP 协议解析 |
-| **Sidecar supervisor** | 对 **Node sidecar**（L2 Ocula Plugin SDK）的 spawn、handshake、健康检查、cancel、重启；见 [`runtime-multilang.md`](runtime-multilang.md) §5 | MCP server 通用监管（由 Plugin host 内的 MCP client 连接管理承担） |
+| **Sidecar supervisor** | 对 **Node sidecar**（L2 MoonTide Plugin SDK）的 spawn、handshake、健康检查、cancel、重启；见 [`runtime-multilang.md`](runtime-multilang.md) §5 | MCP server 通用监管（由 Plugin host 内的 MCP client 连接管理承担） |
 | **Tool registry** | 当前 session 可见的 tool 定义集合（builtin + MCP + sidecar 暴露）；Composer 解析为 `LLMRequest.tools` | tool 执行逻辑 |
 
 **一词一义：** 本文不使用未定义的「Broker」总称。历史对话中的「Extension Broker」= 本文 **Plugin host** + **MCP client** +（Desktop 下）**Capability Broker** 的组合，落盘时拆开写。
@@ -28,7 +28,7 @@ Rust release CLI **不在 core 内 embed Node**，但仍需支持：
 
 1. **灵活：** agent Ready 后 **runtime attach** Node MCP（`npx` / `node`）。
 2. **性能：** 启动时 **startup assembly** 已构建的 Go / Rust **MCP server binary**。
-3. **深度扩展（可选）：** Node **sidecar** 承载 Ocula Plugin SDK（hook、npm 插件），经 Sidecar supervisor 监管。
+3. **深度扩展（可选）：** Node **sidecar** 承载 MoonTide Plugin SDK（hook、npm 插件），经 Sidecar supervisor 监管。
 
 Agent loop 只应调用窄接口（列出 tools、执行 tool、权限查询），不应内联 `spawn(npx …)` 或 `dlopen(…)`。
 
@@ -75,7 +75,7 @@ Loop **不出现** MCP、sidecar、attach 等扩展名；与 [`agent-run-hooks.m
 | 层 | 机制 | Plugin host 职责 |
 |----|------|------------------|
 | **L1 MCP** | 独立 MCP server 进程 | attach、连接、tool 合并、重连 |
-| **L2 Ocula Plugin SDK** | Node sidecar | Sidecar supervisor；sidecar 经自有 RPC 注册 tools / hooks |
+| **L2 MoonTide Plugin SDK** | Node sidecar | Sidecar supervisor；sidecar 经自有 RPC 注册 tools / hooks |
 | **L0 WASM（可选）** | in-process sandbox | Plugin host 加载 `.wasm` 为 builtin 类 provider；见 [`scratchpad.md`](scratchpad.md) |
 | **L3 Adapter** | 社区包装 | 不承诺零改；通常仍表现为 MCP 或 sidecar |
 
@@ -96,7 +96,7 @@ Loop **不出现** MCP、sidecar、attach 等扩展名；与 [`agent-run-hooks.m
 ### 5.1 Startup assembly
 
 ```text
-读取 .ocula/plugins.toml（或 manifest.lock）
+读取 .moontide/plugins.toml（或 manifest.lock）
   → 并行 spawn MCP server（Capability Broker 批准 command）
   → MCP client handshake + tools/list
   → 写入 Tool registry
@@ -128,7 +128,7 @@ MCP 协议与 server 实现语言无关。Plugin host 通过 **MCP client** 连�
 
 | 产物 | `command` 示例 | Node 依赖 | 冷启动 |
 |------|------------------|-----------|--------|
-| **Rust / Go binary** | `["${OCULA_PLUGINS}/bin/fs-mcp", "--root", "."]` | 无 | 快 |
+| **Rust / Go binary** | `["${MOONTIDE_PLUGINS}/bin/fs-mcp", "--root", "."]` | 无 | 快 |
 | **Node runtime** | `["npx", "-y", "@vendor/server"]` 或 node pack 内 `node` | 是（pack 或 PATH） | 较慢 |
 | **HTTP MCP** | `transport: http`, `url: …` | 视 server | 无本地 spawn |
 
@@ -142,7 +142,7 @@ plugins/bundle/
     └── git-mcp
 ```
 
-CLI（候选）：`ocula plugin pack` 锁依赖并产出 bundle；`ocula plugin verify` 校验签名。非 R0 范围。
+CLI（候选）：`moontide plugin pack` 锁依赖并产出 bundle；`moontide plugin verify` 校验签名。非 R0 范围。
 
 **与 in-process dynamic link 的区别：** MCP 始终是 **独立进程 + JSON-RPC**；`.so` / `dlopen` 属于 L0 in-process provider，不走 MCP，仅官方或 WASM 优先（见 [`runtime-multilang.md`](runtime-multilang.md) §10 优先级）。
 
@@ -150,7 +150,7 @@ CLI（候选）：`ocula plugin pack` 锁依赖并产出 bundle；`ocula plugin 
 
 ## 7. Plugin manifest（候选 schema）
 
-路径：`.ocula/plugins.toml` 或 workdir 内 `plugins/manifest.toml`。**非 Spec**，实现前可修订。
+路径：`.moontide/plugins.toml` 或 workdir 内 `plugins/manifest.toml`。**非 Spec**，实现前可修订。
 
 ```toml
 [[plugins]]
@@ -158,7 +158,7 @@ id = "fs-mcp"
 kind = "mcp"
 attach = "startup"
 transport = "stdio"
-command = ["${OCULA_PLUGINS}/bin/fs-mcp", "--root", "${WORKSPACE}"]
+command = ["${MOONTIDE_PLUGINS}/bin/fs-mcp", "--root", "${WORKSPACE}"]
 capabilities = ["fs.read", "fs.list"]
 
 [[plugins]]
@@ -213,7 +213,7 @@ effective_tools = builtins ⊕ mcp_tools ⊕ sidecar_tools
 
 | | MCP server（L1） | Node sidecar（L2） |
 |--|------------------|-------------------|
-| 协议 | MCP | Ocula Plugin SDK（NDJSON / UDS，见 runtime-multilang） |
+| 协议 | MCP | MoonTide Plugin SDK（NDJSON / UDS，见 runtime-multilang） |
 | 能力 | 主要为 **tools** | tools + **hooks**（Transform 经 IPC） |
 | 监管 | Plugin host 内连接池 + 子进程 reap | Sidecar supervisor 状态机 |
 | npm | 仅在 MCP server 进程内 | 在 sidecar 进程内 `import` |
@@ -246,7 +246,7 @@ Agent Event Log 可 mirror 运行级摘要，供 UI tail。
 /plugin status
 ```
 
-等价配置：`ocula config plugins …`（TBD）。
+等价配置：`moontide config plugins …`（TBD）。
 
 ---
 
@@ -262,10 +262,10 @@ Agent Event Log 可 mirror 运行级摘要，供 UI tail。
 候选 crate 切分（Rust，非承诺）：
 
 ```text
-ocula-plugin-host/     # manifest、registry、attach 调度
-ocula-mcp/             # MCP client 协议
-ocula-capability/      # Capability Broker（CLI 可先简化）
-ocula-sidecar/         # Sidecar supervisor（R3+）
+moontide-plugin-host/     # manifest、registry、attach 调度
+moontide-mcp/             # MCP client 协议
+moontide-capability/      # Capability Broker（CLI 可先简化）
+moontide-sidecar/         # Sidecar supervisor（R3+）
 ```
 
 TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`ToolRegistry`](../../src/agent/runtime/tool-registry.ts) 行为对齐 registry 语义。

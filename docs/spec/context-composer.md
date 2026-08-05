@@ -1,4 +1,4 @@
-# Ocula Context Composer 与 Session 中间态
+# MoonTide Context Composer 与 Session 中间态
 
 > Context window 的数据组成、持久化边界与编译流程。  
 > 一次 API 调用的出口类型见 [`llm-provider.md`](llm-provider.md)（`LLMRequest`）；三参数对表见 [`llm-input.md`](llm-input.md)；行业背景见 [`context-analysis.md`](../notes/context-analysis.md)。
@@ -9,7 +9,7 @@
 
 ### 1.1 定位
 
-Ocula 的 context window 不是「一个可变 `messages[]`」，而是：
+MoonTide 的 context window 不是「一个可变 `messages[]`」，而是：
 
 ```
 Session Event Log + Session State Stores + Tool Definitions + ModelProfile
@@ -24,13 +24,13 @@ API 适配层 → 厂商 API
 **Context Composer** 是唯一允许产出「发给模型的 immutable input」的模块。Harness（`agent/loop`、tool 执行）只 mutate **SessionContext**（内存）、append **SessionItem**（jsonl）、经 **SessionTransform** 转为协议 `Message[]`，再调用 Composer 与 `LLMProvider`。
 
 > **TypeScript（2026）：** 运行时真相为 [`SessionContext`](../notes/session-domain-model.md)（`{ messages }` only）；**Session Item Log** 存 `SessionItem`；**Context Composer**（`composeContext`）为唯一 LLM 输入出口；Agent 观测在 [`src/log`](../../src/log/)。  
-> **Rust R1：** `ocula-composer` + `ocula-session` 已实现 Artifact Store 分级 spill、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Log append-only 不变。
+> **Rust R1：** `moontide-composer` + `moontide-session` 已实现 Artifact Store 分级 spill、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Log append-only 不变。
 
 ### 1.2 与相关文档的分工
 
 | 文档 | 职责 |
 |------|------|
-| [`llm-provider.md`](llm-provider.md) | `LLMRequest` / Ocula 协议、API 适配层、ModelProfile 来源 |
+| [`llm-provider.md`](llm-provider.md) | `LLMRequest` / MoonTide 协议、API 适配层、ModelProfile 来源 |
 | [`llm-input.md`](llm-input.md) | `system` / `tools` / `messages` 对表与现状缺口 |
 | [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA 与竞品参考 |
 | [`context-window-roadmap.md`](../notes/context-window-roadmap.md) | **当前开发计划**（C6+ 六件事） |
@@ -43,7 +43,7 @@ API 适配层 → 厂商 API
 2. **编译产物 immutable** — 每 turn 新建 `LLMRequest`；adapter 只读，不 mutate Composer 产出。
 3. **Instruction State 独立于对话摘要** — `system` 每轮从 Instruction State 重建，不依赖 summary 记得规则。
 4. **Compaction ≠ Checkpoint** — 前者调整 context 预算下的 compose 规则；后者保存可恢复快照；互不必然伴随。
-5. **厂商中性** — Session 中间态使用 Ocula `ContentBlock`（见 [`llm-provider.md` §9.1](llm-provider.md#91-ocula-协议内核唯一依赖)），不存 SDK 专有类型。
+5. **厂商中性** — Session 中间态使用 MoonTide `ContentBlock`（见 [`llm-provider.md` §9.1](llm-provider.md#91-moontide-协议内核唯一依赖)），不存 SDK 专有类型。
 
 ### 1.4 术语（一词一义）
 
@@ -98,13 +98,13 @@ flowchart TB
 
 | 术语 | 定义 | 持久化 | 典型路径 / 模块 |
 |------|------|--------|-----------------|
-| **Agent Event Log** | 单次 run 的观测事件（trace、metrics、tool use log） | 是 | `.ocula/runs/<runId>.jsonl` |
-| **Session Item Log** | 整场 session 的 append-only 事实 | 是 | `.ocula/sessions/<sessionId>.jsonl` |
-| **Session Index** | REPL session 书签（可发现性元数据，非事实源） | 是 | `.ocula/sessions/index.json` |
-| **Instruction State** | 拼进 `LLMRequest.system` 的规则与 prompt 来源 | 部分（文件源） | 内存 + `AGENTS.md` / `.ocula/rules`（远期） |
-| **Artifact Store** | 大 tool 输出全文 | 是 | `.ocula/artifacts/<sessionId>/<artifactId>` + `<id>.meta.json` |
-| **CompactionSave** | summary / structured 压缩的持久产物 | 是 | `.ocula/sessions/<sessionId>/compaction/<id>.json` |
-| **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.ocula/sessions/<sessionId>/checkpoints/<id>.json` |
+| **Agent Event Log** | 单次 run 的观测事件（trace、metrics、tool use log） | 是 | `.moontide/runs/<runId>.jsonl` |
+| **Session Item Log** | 整场 session 的 append-only 事实 | 是 | `.moontide/sessions/<sessionId>.jsonl` |
+| **Session Index** | REPL session 书签（可发现性元数据，非事实源） | 是 | `.moontide/sessions/index.json` |
+| **Instruction State** | 拼进 `LLMRequest.system` 的规则与 prompt 来源 | 部分（文件源） | 内存 + `AGENTS.md` / `.moontide/rules`（远期） |
+| **Artifact Store** | 大 tool 输出全文 | 是 | `.moontide/artifacts/<sessionId>/<artifactId>` + `<id>.meta.json` |
+| **CompactionSave** | summary / structured 压缩的持久产物 | 是 | `.moontide/sessions/<sessionId>/compaction/<id>.json` |
+| **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.moontide/sessions/<sessionId>/checkpoints/<id>.json` |
 | **Compaction** | 调整 Composer compose 规则的操作（过程） | 事件写入 Session Item Log | — |
 | **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | [`tools/`](../../src/tools/) `getToolDefinitions()` → Composer |
 | **ModelProfile** | context 上限、token 计数策略等 | model 注册表 + env | [`llm/models/resolve.ts`](../../src/llm/models/resolve.ts) |
@@ -119,7 +119,7 @@ flowchart TB
 | | **Agent Event Log** | **Session Item Log** |
 |---|---------------------|------------------------|
 | **Scope** | 单次 **run** | 整场 **session**（可跨多个 run） |
-| **路径** | `.ocula/runs/<runId>.active.jsonl` | `.ocula/sessions/<sessionId>.jsonl` |
+| **路径** | `.moontide/runs/<runId>.active.jsonl` | `.moontide/sessions/<sessionId>.jsonl` |
 | **职责** | trace、context metrics、tool use log、UI tail | **source of truth**：user、assistant、tool、compaction、checkpoint 等事实 |
 | **是否 append-only** | 是（按 run 分段压缩） | 是 |
 | **与模型 input 关系** | 观测镜像；**不是**唯一事实源 | 事实源；Composer 读 **SessionContext.messages** + Stores 参与 compose |
@@ -137,7 +137,7 @@ flowchart TB
 
 ## 5. Session Event Log — 条目 Spec
 
-每行一条 JSON（NDJSON）。条目厂商中性；assistant / tool 块对齐 Ocula `ContentBlock`。
+每行一条 JSON（NDJSON）。条目厂商中性；assistant / tool 块对齐 MoonTide `ContentBlock`。
 
 ```typescript
 export type SessionLogEntry =
@@ -233,7 +233,7 @@ export interface InstructionState {
 }
 ```
 
-- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../src/agent/prompt.ts)；远期 `AGENTS.md`、`.ocula/rules`。
+- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../src/agent/prompt.ts)；远期 `AGENTS.md`、`.moontide/rules`。
 - **Composer：** 每 turn 拼成 `LLMRequest.system`；**不参与** conversation summary。
 - **`epoch`：** 规则文件变更时递增，便于 cache 与调试。
 
@@ -251,7 +251,7 @@ export interface Artifact {
 }
 ```
 
-- **路径：** `.ocula/artifacts/<sessionId>/<artifactId>`
+- **路径：** `.moontide/artifacts/<sessionId>/<artifactId>`
 - **Session Event Log：** `tool_outcome` 只存 `artifactId` + `resultSummary`（`ToolResultSummary`）；全文在 Artifact Store。
 - **Composer：** 默认 compose 只含 `resultSummary`；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
 
@@ -275,7 +275,7 @@ export interface StructuredPayload {
 }
 ```
 
-- **路径：** `.ocula/sessions/<sessionId>/compaction/<id>.json`（`compactionSavePath`）
+- **路径：** `.moontide/sessions/<sessionId>/compaction/<id>.json`（`compactionSavePath`）
 - **何时写入：** 仅 **summary / structured** 类 Compaction（`/compact summary` → `runSummaryCompaction`）
 - **prune / tail_window：** 只写 Session Item Log 的 `compaction` 行，**不**写 CompactionSave
 - **Composer：** `applySummary` 引用 `activeCompactionSaveId`；Manifest 含 `coversItemIds`
@@ -296,7 +296,7 @@ export interface Checkpoint {
 }
 ```
 
-- **路径：** `.ocula/sessions/<sessionId>/checkpoints/<id>.json`
+- **路径：** `.moontide/sessions/<sessionId>/checkpoints/<id>.json`
 - **用途：** resume、debug、fork；**不**等同于 CompactionSave
 - **CLI：** `/checkpoint [label]` · `/checkpoint list` · `/resume <checkpoint-id>`（同 session 内）
 - **跨 session：** `/resume session <session-id>` · `/save` · `/save list` — 见 [session-persistence.md](../notes/session-persistence.md)
@@ -377,14 +377,14 @@ export interface Checkpoint {
 
 **定位：** Context Composer 是 **context window 的唯一显式组装器**——把组成一次 LLM 请求的全部切片列清、按固定顺序 compile 成 **`LLMRequest` + Context Manifest**。各切片由独立模块**产出**；Composer **拥有组装顺序与 Manifest**，不拥有各模块的实现。
 
-厂商 API 顶层只有 **`system` + `tools` + `messages`**（另加 `max_tokens` 等）。Ocula 侧全部内容落入这三参数，无隐藏「第 4 参数」；详见 [`llm-input.md`](llm-input.md)。
+厂商 API 顶层只有 **`system` + `tools` + `messages`**（另加 `max_tokens` 等）。MoonTide 侧全部内容落入这三参数，无隐藏「第 4 参数」；详见 [`llm-input.md`](llm-input.md)。
 
 #### 组装切片表
 
 | 切片 | 用户可见内容 | API 落点 | 输入模块 | Composer 步骤 |
 |------|--------------|----------|----------|---------------|
-| **S1 身份与策略** | 「You are Ocula…」、workdir、tool 选用策略 | `system` 首段 | [`instruction-state`](../../src/instruction-state/) → `basePrompt`（[`prompt.ts`](../../src/agent/prompt.ts)） | `buildSystemFromInstructionState` |
-| **S2 项目规则** | `AGENTS.md`、`.ocula/rules/*.md` | `system` 中段 | `instruction-state` → `projectRules` | 同上 |
+| **S1 身份与策略** | 「You are MoonTide…」、workdir、tool 选用策略 | `system` 首段 | [`instruction-state`](../../src/instruction-state/) → `basePrompt`（[`prompt.ts`](../../src/agent/prompt.ts)） | `buildSystemFromInstructionState` |
+| **S2 项目规则** | `AGENTS.md`、`.moontide/rules/*.md` | `system` 中段 | `instruction-state` → `projectRules` | 同上 |
 | **S3 用户偏好 / skills** | 个人 `agent.md`、skills（远期） | `system` 尾段 | `instruction-state` → `userMemory` / skills（**接口预留**） | 同上 |
 | **T 工具表** | 各 tool 的 name · description · schema | `tools[]` | [`tools/`](../../src/tools/) → `ToolSchema[]` | 传入或 `resolveToolDefinitions()` |
 | **M 对话时间线** | 各 turn：user prompt、assistant、tool_use、tool_result | `messages[]` | [`session/`](../../src/session/) → `SessionMessage[]` | `messagesFromContext` |
@@ -503,7 +503,7 @@ AgentRun:
 
 ## 12. 后续实现分期（代码指引）
 
-> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（Ocula 协议 + `LLMProvider` + `ModelProfile`）。
+> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（MoonTide 协议 + `LLMProvider` + `ModelProfile`）。
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|

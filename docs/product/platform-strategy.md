@@ -1,4 +1,4 @@
-# Ocula — Platform Strategy
+# MoonTide — Platform Strategy
 
 > **文档性质：** product（方向与发布策略，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名与保留产品名见 [`vision.md`](vision.md)  
@@ -8,7 +8,7 @@
 
 ## 1. 一句话定位
 
-**Ocula** 是轻量 **native coding agent**：以 **Session Event Log + Context Composer** 为架构核心（Spec 见 [`context-composer.md`](../spec/context-composer.md)），**MCP** 为默认工具扩展面，**可选 Node sidecar** 承载深度 TS 插件；**release 不嵌入 JavaScript runtime**，也不绑定单一云厂商。
+**MoonTide** 是轻量 **native coding agent**：以 **Session Event Log + Context Composer** 为架构核心（Spec 见 [`context-composer.md`](../spec/context-composer.md)），**MCP** 为默认工具扩展面，**可选 Node sidecar** 承载深度 TS 插件；**release 不嵌入 JavaScript runtime**，也不绑定单一云厂商。
 
 ---
 
@@ -33,9 +33,9 @@
 
 ---
 
-## 3. Ocula 架构决策
+## 3. MoonTide 架构决策
 
-### 3.1 Release：`ocula` = Rust CLI（无 embedded Node）
+### 3.1 Release：`moontide` = Rust CLI（无 embedded Node）
 
 | 决策 | 理由 |
 |------|------|
@@ -49,8 +49,8 @@
 ```mermaid
 flowchart TB
   subgraph release [Release artifacts]
-    OculaCLI["ocula Rust CLI"]
-    OculaUI["ocula-ui Rust optional"]
+    MoonTideCLI["moontide Rust CLI"]
+    MoonTideUI["moontide-ui Rust optional"]
   end
 
   subgraph storage [Workdir persistence]
@@ -63,12 +63,12 @@ flowchart TB
     Sidecar["Node sidecar L2 optional"]
   end
 
-  OculaCLI --> SEL
-  OculaCLI --> AEL
-  OculaCLI --> MCP
-  OculaCLI -.->|"按需 spawn"| Sidecar
-  OculaUI -->|"tail JSONL"| AEL
-  Sidecar -->|"Ocula Plugin SDK"| Sidecar
+  MoonTideCLI --> SEL
+  MoonTideCLI --> AEL
+  MoonTideCLI --> MCP
+  MoonTideCLI -.->|"按需 spawn"| Sidecar
+  MoonTideUI -->|"tail JSONL"| AEL
+  Sidecar -->|"MoonTide Plugin SDK"| Sidecar
   MCP -->|"stdio or HTTP"| ExtServers["External MCP servers"]
 ```
 
@@ -85,12 +85,12 @@ flowchart TB
 | 层 | 机制 | 用户需 Node？ | 兼容承诺 |
 |----|------|---------------|----------|
 | **L1 MCP** | Rust MCP client；配置 stdio / HTTP server | stdio 时通常要（`npx`）或 remote HTTP | 与 Codex/Claude **工具 server 生态**对齐 |
-| **L2 Ocula Plugin SDK** | 可选 **Node sidecar**；TS 插件 + hook | sidecar pack 或 PATH 有 node | **Ocula 自有协议**；承载 tool-use-log / context / code-repl 等 |
+| **L2 MoonTide Plugin SDK** | 可选 **Node sidecar**；TS 插件 + hook | sidecar pack 或 PATH 有 node | **MoonTide 自有协议**；承载 tool-use-log / context / code-repl 等 |
 | **L3 Adapter** | `pi-compat` / 社区包装 | 视 adapter | **不承诺** OpenCode/Pi 插件零改即用 |
 
 **「无缝 npm 生态」的诚实定义：**
 
-- **能 seamless：** MCP 工具 server（行业正在标准化）、Ocula 官方 sidecar 插件。
+- **能 seamless：** MCP 工具 server（行业正在标准化）、MoonTide 官方 sidecar 插件。
 - **不能 seamless：** OpenCode in-process hook、Pi `ExtensionAPI` 同进程语义、VS Code 扩展、任意 `npm install` 进 Rust loop。
 
 Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），不是第二个完整 fork 的 harness。
@@ -171,7 +171,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | **R0** | Rust CLI MVP：loop + Session JSONL + LLM fetch + builtins；无 sidecar |
 | **R1** | 体积/启动 benchmark；Session 增量读；Composer 读 Session（C1b invariant） |
 | **R2** | MCP client；配置形态对齐 Codex 文档习惯 |
-| **R3** | 可选 Node sidecar pack + **Ocula Plugin SDK**（非 OpenCode 兼容承诺） |
+| **R3** | 可选 Node sidecar pack + **MoonTide Plugin SDK**（非 OpenCode 兼容承诺） |
 | **R4** | Rust Host 监管 sidecar + Slint desktop（对齐 runtime-multilang Phase 1–2） |
 
 **TS 仓库角色：** R0 之前与并行期 — 参考实现、测试金标准、sidecar 宿主；release 二进制以 Rust 为准。
@@ -199,5 +199,5 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 ## 10. Status
 
 - **方向已定：** Rust release CLI、MCP L1、可选 Node sidecar L2、不 embed JS runtime。
-- **实现状态：** TypeScript CLI 仍为功能最全的参考实现；**Rust CLI R0 可本地 dev 启动**（`cargo run -p ocula-cli -- --workdir .`），含 `/help`、`/thinking`、`/verbose` 与 stderr trace；sidecar pack 未 ship。
+- **实现状态：** TypeScript CLI 仍为功能最全的参考实现；**Rust CLI R0 可本地 dev 启动**（`cargo run -p moontide-cli -- --workdir .`），含 `/help`、`/thinking`、`/verbose` 与 stderr trace；sidecar pack 未 ship。
 - **修订：** 随 release 里程碑更新 §5 指标与 §8 阶段。

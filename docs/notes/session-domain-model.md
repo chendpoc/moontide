@@ -21,7 +21,7 @@
 ```
 Agent appendUser/Assistant/Tool → SessionContext.messages（内存）
                                  ↓ itemsFromMessages（write-through）
-                              Session Item Log (.ocula/sessions/<id>.jsonl)
+                              Session Item Log (.moontide/sessions/<id>.jsonl)
                                  ↑ 计划：commit 经 SessionItemCommitPort（Harness 注入），非 Session 内 hook
 
 Agent appendCompactionItem / appendCheckpointItem / appendRoutingItem
@@ -54,10 +54,10 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 2. **`composeContext`** 是唯一 LLM 输入出口；热路径 **不** `readLog()`、**不** `composeContextV1`。
 3. Compaction **不 splice** Item Log / `messages`；只改 Composer 输出（`applyPrune` / `applySummary` / `applyTailWindow`）。
 4. jsonl schema 不变（含 legacy 字段 `compactionRecordId`）；新 TS/Manifest 用 `CompactionSave`、`coversItemIds`、`lastItemId`、`activeCompactionSaveId`。
-5. 超大 tool 输出（默认 >8KB，`OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES`）→ **ArtifactStore** + Item Log `tool_outcome.artifactId`；模型只见 `formatToolSummary`。
+5. 超大 tool 输出（默认 >8KB，`MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES`）→ **ArtifactStore** + Item Log `tool_outcome.artifactId`；模型只见 `formatToolSummary`。
 6. **Checkpoint** 快照：`/checkpoint` + `/resume <checkpoint-id>`（同 session）；跨 REPL 加载用 `/resume session <session-id>` — 见 [session-persistence.md](session-persistence.md)。
 7. **`/compact summary`** → **CompactionSave** + `compaction` Item；compose 经 `applySummary` 注入摘要。
-8. **Session Index** — `exit` / `/reset` / `/save` 维护 `.ocula/sessions/index.json`；Item Log 仍为事实源。
+8. **Session Index** — `exit` / `/reset` / `/save` 维护 `.moontide/sessions/index.json`；Item Log 仍为事实源。
 
 ## 相关文档
 

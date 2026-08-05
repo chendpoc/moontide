@@ -290,7 +290,7 @@ Sidecar 用于隔离：
                    └────────┬────────┘
                             │ UDS / NDJSON
 ┌──────────────┐    ┌───────▼────────┐    ┌─────────────────┐
-│ Slint UI     │◄──►│ Rust Host      │───►│ ocula-infer     │
+│ Slint UI     │◄──►│ Rust Host      │───►│ moontide-infer     │
 └──────────────┘    │ Control Plane  │    │ (catalog GGUF)  │
                     └───────┬────────┘    └─────────────────┘
                             │
@@ -300,7 +300,7 @@ Sidecar 用于隔离：
                    └─────────────────┘
 ```
 
-所有 Runtime 默认通过 Rust Host 通信。`ocula-infer` 由 Host **supervise**（启动、健康、崩溃重启）；Node loop 经 `LLMProvider` `local-direct` preset 与其 IPC，不直连 llama.cpp。
+所有 Runtime 默认通过 Rust Host 通信。`moontide-infer` 由 Host **supervise**（启动、健康、崩溃重启）；Node loop 经 `LLMProvider` `local-direct` preset 与其 IPC，不直连 llama.cpp。
 
 不推荐：
 
@@ -392,15 +392,15 @@ Node Sidecar 启动后可在应用会话期间常驻。
 
 ---
 
-## 5.5 `ocula-infer` Sidecar（演进候选）
+## 5.5 `moontide-infer` Sidecar（演进候选）
 
-本地 LLM **不进 Node 进程、不进 WASM**。形态对齐 Kocoro `tlm`，但 Ocula 用 **direct GGUF + llama.cpp**，不用 Ollama/vLLM 套壳。详见 [`edge-local-models.md`](edge-local-models.md)、[`kocoro-architecture.md`](kocoro-architecture.md) §6.5。
+本地 LLM **不进 Node 进程、不进 WASM**。形态对齐 Kocoro `tlm`，但 MoonTide 用 **direct GGUF + llama.cpp**，不用 Ollama/vLLM 套壳。详见 [`edge-local-models.md`](edge-local-models.md)、[`kocoro-architecture.md`](kocoro-architecture.md) §6.5。
 
 | 项 | 设计 |
 |----|------|
-| **语言** | Rust（`ocula-infer` crate） |
-| **权重** | `~/.ocula/models/` — 仅 Ocula catalog 签名条目 |
-| **Train** | Ocula Cloud / CI；用户 **只 pull**，不 local train |
+| **语言** | Rust（`moontide-infer` crate） |
+| **权重** | `~/.moontide/models/` — 仅 MoonTide catalog 签名条目 |
+| **Train** | MoonTide Cloud / CI；用户 **只 pull**，不 local train |
 | **IPC** | UDS + NDJSON（与 Node Agent / Rust Host 同族消息） |
 | **监管** | Rust Host：懒启动、Ready/Busy、Cancel、崩溃重启 |
 | **Loop 接缝** | [`runLLM.ts`](../../src/agent/pipeline/runLLM.ts) → `LLMProvider` preset `local-direct` |
@@ -757,13 +757,13 @@ Slint UI
 - Apple Events；
 - Rust Native Tools；
 - Runtime 下载和更新；
-- **`ocula-infer` sidecar**（catalog GGUF、llama.cpp、UDS 服务）。
+- **`moontide-infer` sidecar**（catalog GGUF、llama.cpp、UDS 服务）。
 
 ### Phase 2b（与 Phase 2 并行，依赖 LLMProvider Phase I）
 
 增加：
 
-- `ocula model pull` / catalog 校验；
+- `moontide model pull` / catalog 校验；
 - Model Router local tier → `local-direct` IPC；
 - 详见 [`edge-local-models.md`](edge-local-models.md) P0–P2。
 
@@ -808,7 +808,7 @@ WASM 负责插件隔离和纯计算扩展。
 
 最终目标可以概括为：
 
-> 构建一个以原生体验为外壳、以 Node.js Agent 生态为智能层、以 Rust 为控制与系统能力层，并能按需扩展 Go Worker、WASM 插件和 `ocula-infer` 本地推理 sidecar 的多语言 Agent Desktop Runtime。
+> 构建一个以原生体验为外壳、以 Node.js Agent 生态为智能层、以 Rust 为控制与系统能力层，并能按需扩展 Go Worker、WASM 插件和 `moontide-infer` 本地推理 sidecar 的多语言 Agent Desktop Runtime。
 
 ---
 
@@ -816,7 +816,7 @@ WASM 负责插件隔离和纯计算扩展。
 
 | 文档 | 关系 |
 |------|------|
-| [`edge-local-models.md`](edge-local-models.md) | catalog pull、`ocula-infer` 详细设计 |
+| [`edge-local-models.md`](edge-local-models.md) | catalog pull、`moontide-infer` 详细设计 |
 | [`kocoro-architecture.md`](kocoro-architecture.md) | sidecar supervise、bundle pull 参考 |
 | [`llm-provider.md`](../spec/llm-provider.md) | `local-direct` preset、Model Router |
 | [`context-composer.md`](../spec/context-composer.md) | Composer / Session Log 与 loop 边界 |

@@ -8,8 +8,8 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .DS_Store
-.ocula-audit.log
-.ocula/
+.moontide-audit.log
+.moontide/
 
 news_items/
 

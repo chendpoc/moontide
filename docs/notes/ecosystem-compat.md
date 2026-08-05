@@ -3,7 +3,7 @@
 > **文档性质：** notes（兼容承诺，非 Spec）  
 > **Hook 机制：** [`agent-run-hooks.md`](agent-run-hooks.md) · **加载实现：** [`plugin-host.md`](plugin-host.md) · **平台：** [`platform-strategy.md`](../product/platform-strategy.md)
 
-Ocula 与 Codex / Claude Code 同属 **native camp**（Rust CLI、无 embedded Node）。兼容重点是 **用户已有配置与 MCP 工具**，不是 Pi/OpenCode in-process 插件 API。
+MoonTide 与 Codex / Claude Code 同属 **native camp**（Rust CLI、无 embedded Node）。兼容重点是 **用户已有配置与 MCP 工具**，不是 Pi/OpenCode in-process 插件 API。
 
 ---
 
@@ -12,8 +12,8 @@ Ocula 与 Codex / Claude Code 同属 **native camp**（Rust CLI、无 embedded N
 | 层级 | 兼容对象 | 机制 | Release 阶段 | 承诺 |
 |------|----------|------|--------------|------|
 | **P0** | MCP 工具 server | L1 stdio / HTTP · `tools/list` · `tools/call` | R2 | **一等公民** |
-| **P0** | 项目指令 | `AGENTS.md` · `CLAUDE.md` · `.ocula/rules` → Instruction State | R1–R2 | **内容兼容** |
-| **P0** | MCP 配置习惯 | `.ocula/plugins.toml` · `/mcp add` · startup/runtime attach | R2 | **形态对齐** |
+| **P0** | 项目指令 | `AGENTS.md` · `CLAUDE.md` · `.moontide/rules` → Instruction State | R1–R2 | **内容兼容** |
+| **P0** | MCP 配置习惯 | `.moontide/plugins.toml` · `/mcp add` · startup/runtime attach | R2 | **形态对齐** |
 | **P1** | Codex lifecycle hooks | shell + JSON · `PreToolUse` / `PostToolUse` · proceed/block/modify | R2–R3 | **协议兼容** |
 | **P1** | Codex Plugin 包 | 拆层导入 manifest（见 §2） | R3 | **部分导入** |
 | **P1** | Claude Code hooks | 与 Codex 同族 adapter | R3 | **尽力兼容** |
@@ -29,7 +29,7 @@ Ocula 与 Codex / Claude Code 同属 **native camp**（Rust CLI、无 embedded N
 
 `.codex-plugin/plugin.json` 拆层接入，不要求目录 100% 相同：
 
-| Manifest 字段 | Ocula 接入 |
+| Manifest 字段 | MoonTide 接入 |
 |---------------|------------|
 | `mcpServers` / `.mcp.json` | Plugin host L1 attach |
 | `skills/` | Instruction State 加载 |
@@ -59,7 +59,7 @@ Plugin Runtime Pack 按需下载，不进主 binary。见 [`runtime-multilang.md
 | platform 层 | compat 层 | 说明 |
 |-------------|-----------|------|
 | **L1 MCP** | P0 | 默认扩展面 |
-| **L2 Ocula Plugin SDK** | P1 sidecar + P2 pi-compat | 自有 NDJSON 协议 |
+| **L2 MoonTide Plugin SDK** | P1 sidecar + P2 pi-compat | 自有 NDJSON 协议 |
 | **L3 Adapter** | P2 | 社区包装，不承诺零改 |
 
 ---

@@ -6,9 +6,9 @@
 **已定产品原则（2026-08）：**
 
 - **Local = inference only** — 用户设备只 download + run，不提供本地 train。
-- **Train = Ocula Cloud**（或 CI）— 用户不可见 train 管线。
-- **Download = opt-in ability** — 用户显式开启本地模型；catalog **仅 Ocula 签名白名单**。
-- **Runtime** — Rust `ocula-infer` sidecar + direct GGUF（llama.cpp），**不用 Ollama/vLLM 套壳**。
+- **Train = MoonTide Cloud**（或 CI）— 用户不可见 train 管线。
+- **Download = opt-in ability** — 用户显式开启本地模型；catalog **仅 MoonTide 签名白名单**。
+- **Runtime** — Rust `moontide-infer` sidecar + direct GGUF（llama.cpp），**不用 Ollama/vLLM 套壳**。
 
 **阅读顺序：** [`llm-provider.md`](../spec/llm-provider.md) §3.4 / §10 → [`runtime-multilang.md`](runtime-multilang.md) §5.5 → [`kocoro-architecture.md`](kocoro-architecture.md) §6.5。
 
@@ -26,7 +26,7 @@
 
 **核心诉求：** 在用户设备 edge deploy 小模型，把低复杂度任务留在本地，降低 DeepSeek 等 API 的 token 预算，同时降低延迟。
 
-**候选基座（上游 foundation，Ocula Cloud train 的起点）：**
+**候选基座（上游 foundation，MoonTide Cloud train 的起点）：**
 
 1. **Qwen3.5-0.8B**
 2. **Gemma 4 E4B-IT**
@@ -41,9 +41,9 @@
 ```mermaid
 flowchart TB
   User["用户请求"] --> T0["Tier 0: 启发式\n零成本规则"]
-  T0 --> T1["Tier 1: ocula/router-v1 常驻\nOcula Cloud train → 本地下载"]
+  T0 --> T1["Tier 1: moontide/router-v1 常驻\nMoonTide Cloud train → 本地下载"]
   T1 -->|simple| Local["本地完成"]
-  T1 -->|multimodal daily| T2["Tier 2: ocula/general-v1\n按需加载"]
+  T1 -->|multimodal daily| T2["Tier 2: moontide/general-v1\n按需加载"]
   T1 -->|video / screen| T3["Tier 3: 视觉专项\nPhase 2+"]
   T1 -->|coding / complex| T4["Tier 4: DeepSeek API 等"]
   T2 --> Local
@@ -51,7 +51,7 @@ flowchart TB
   Mem --> T4
 ```
 
-用户侧见到的不是 raw HF 模型名，而是 **Ocula catalog id**（如 `ocula/router-v1`），背后映射到固定基座 GGUF。
+用户侧见到的不是 raw HF 模型名，而是 **MoonTide catalog id**（如 `moontide/router-v1`），背后映射到固定基座 GGUF。
 
 ---
 
@@ -61,7 +61,7 @@ flowchart TB
 |------|-------------|------|
 | 意图分类 / 路由 | ✅ 强适合 | 短 prompt、结构化输出、可常驻 |
 | 日常闲聊 | ✅ 适合 | 低 stakes |
-| 文件整理（rename / 分类 / 摘要） | ✅ 适合 | Ocula train 的 general 模型 |
+| 文件整理（rename / 分类 / 摘要） | ✅ 适合 | MoonTide train 的 general 模型 |
 | 文档总结（短文档） | ✅ 适合 | 本地读文件 → 本地 summarize |
 | 图片 OCR / 内容描述 | ⚠️ 中号 VLM | E4B 档 general 模型 |
 | 视频理解 | ⚠️ 专项 VLM | Phase 2+ |
@@ -72,7 +72,7 @@ flowchart TB
 
 ## 4. 候选基座调研（上游）
 
-> 以下为 **Ocula Cloud train 的 foundation 选型参考**；用户设备加载的是 train 后的 **Ocula catalog 产物**，不是让用户自行选 HF repo。
+> 以下为 **MoonTide Cloud train 的 foundation 选型参考**；用户设备加载的是 train 后的 **MoonTide catalog 产物**，不是让用户自行选 HF repo。
 
 ### 4.1 Qwen3.5-0.8B（Alibaba，2026-02）
 
@@ -84,8 +84,8 @@ flowchart TB
 | 许可 | **Apache 2.0** |
 | 内存 | Q4_K_M ~0.5 GB VRAM |
 
-**Ocula Cloud train 首选基座：** router、memory intent、轻量抽取。  
-**用户 catalog 示例：** `ocula/router-v1`（基于 Qwen3.5-0.8B Q4 GGUF + Ocula 路由数据 train）。
+**MoonTide Cloud train 首选基座：** router、memory intent、轻量抽取。
+**用户 catalog 示例：** `moontide/router-v1`（基于 Qwen3.5-0.8B Q4 GGUF + MoonTide 路由数据 train）。
 
 **不适合：** 完整 agent tool loop、复杂 coding（仍 cloud）。
 
@@ -97,10 +97,10 @@ flowchart TB
 |------|------|
 | 有效参数 | 4.5B effective |
 | 模态 | 文本 + 图像 + 音频 |
-| 许可 | **Gemma License**（Ocula 审后再分发） |
+| 许可 | **Gemma License**（MoonTide 审后再分发） |
 | 内存 | Mobile QAT ~2.2–2.5 GB |
 
-**Ocula Cloud train 用途：** 多模态 general、`ocula/general-v1` 档。  
+**MoonTide Cloud train 用途：** 多模态 general、`moontide/general-v1` 档。
 **Phase：** P2 以后 catalog 条目。
 
 ---
@@ -115,7 +115,7 @@ flowchart TB
 
 | | Qwen3.5-0.8B | Gemma 4 E4B | Mage-VL-4B |
 |---|:---:|:---:|:---:|
-| **Ocula tier** | Tier 1 常驻 | Tier 2 按需 | Tier 3 专项 |
+| **MoonTide tier** | Tier 1 常驻 | Tier 2 按需 | Tier 3 专项 |
 | **首 catalog** | ✅ `router-v1` | P2 `general-v1` | 远期 |
 | **License** | Apache 2.0 | Gemma Terms | Apache 2.0 |
 | **Edge 内存** | 0.5–1 GB | 2.2–2.5 GB | 8 GB+ GPU |
@@ -135,20 +135,20 @@ flowchart TB
 └──────────────────────────┬──────────────────────────────────┘
                            │ UDS / NDJSON
 ┌──────────────────────────▼──────────────────────────────────┐
-│ Layer B — Rust `ocula-infer`                                 │
+│ Layer B — Rust `moontide-infer`                                 │
 │  Scheduler（pin router / LRU evict）                           │
 │  llama.cpp + GGUF mmap                                       │
 │  只加载 registry 白名单                                       │
 └──────────────────────────┬──────────────────────────────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
-│ Layer C — ~/.ocula/models/                                   │
+│ Layer C — ~/.moontide/models/                                   │
 │  registry.json（本地已 pull 条目）                            │
-│  remote catalog ← Ocula 签名 catalog（定期 fetch）             │
+│  remote catalog ← MoonTide 签名 catalog（定期 fetch）             │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer D — Ocula Cloud / CI（用户不可见）                      │
+│ Layer D — MoonTide Cloud / CI（用户不可见）                      │
 │  train → eval → export GGUF → 发布 catalog 条目               │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -160,8 +160,8 @@ flowchart TB
 interface LocalDirectPreset {
   id: "local-direct";
   transport: "unix" | "stdio";
-  socketPath: string; // e.g. ~/.ocula/run/infer.sock
-  // catalog 白名单由 infer sidecar 强制，Node 只传 ocula/* model_id
+  socketPath: string; // e.g. ~/.moontide/run/infer.sock
+  // catalog 白名单由 infer sidecar 强制，Node 只传 moontide/* model_id
 }
 ```
 
@@ -172,10 +172,10 @@ interface LocalDirectPreset {
 ### 7.1 目录布局
 
 ```text
-~/.ocula/models/
+~/.moontide/models/
 ├── registry.json           # 本地：已 pull 条目 + active 指针
-├── catalog.cache.json      # 远程 Ocula catalog 缓存
-├── ocula/
+├── catalog.cache.json      # 远程 MoonTide catalog 缓存
+├── moontide/
 │   └── router-v1/
 │       ├── 1.0.0/
 │       │   └── model.gguf
@@ -187,14 +187,14 @@ interface LocalDirectPreset {
 
 ```json
 {
-  "id": "ocula/router-v1",
+  "id": "moontide/router-v1",
   "role": "router",
   "tier": 1,
   "pin": true,
   "base_foundation": "qwen3.5-0.8b-q4",
-  "ocula_train_revision": "2026-08-01",
+  "moontide_train_revision": "2026-08-01",
   "files": [{
-    "url": "https://models.ocula.dev/ocula/router-v1/1.0.0/model.gguf",
+    "url": "https://models.moontide.dev/moontide/router-v1/1.0.0/model.gguf",
     "sha256": "…",
     "size_bytes": 524288000
   }],
@@ -207,7 +207,7 @@ interface LocalDirectPreset {
 ### 7.3 下载流程
 
 ```text
-ensure_model("ocula/router-v1")
+ensure_model("moontide/router-v1")
   → 读 catalog / registry
   → 若 sha256 匹配 → skip
   → HTTPS 断点续传 → 校验 → 原子写入 version 目录
@@ -215,7 +215,7 @@ ensure_model("ocula/router-v1")
   → 通知 infer reload（若已运行）
 ```
 
-**触发：** 用户 `ocula model pull`；或 `local.infer=on` 时懒下载；catalog 版本 bump 时后台 pull（类似 Kocoro 24h bundle）。
+**触发：** 用户 `moontide model pull`；或 `local.infer=on` 时懒下载；catalog 版本 bump 时后台 pull（类似 Kocoro 24h bundle）。
 
 ### 7.4 infer 调度
 
@@ -224,7 +224,7 @@ ensure_model("ocula/router-v1")
 | **pin** | `role=router` 且 catalog `pin:true` — 常驻 |
 | **按需 load** | general / vision 首次请求时 load |
 | **LRU evict** | 超 `local.vram_budget_mb` 卸载非 pin |
-| **lazy start** | 首次 local route 才 spawn `ocula-infer` |
+| **lazy start** | 首次 local route 才 spawn `moontide-infer` |
 | **白名单** | infer **拒绝** registry / catalog 外路径 |
 
 ### 7.5 用户 ability（opt-in）
@@ -233,12 +233,12 @@ ensure_model("ocula/router-v1")
 local:
   infer: off | on              # 默认 off
   models:                      # 仅允许 catalog id
-    - ocula/router-v1
+    - moontide/router-v1
 ```
 
-- ❌ 不提供 `ocula model train`
+- ❌ 不提供 `moontide model train`
 - ❌ 不提供任意 HF URL（dev flag 除外）
-- ✅ `ocula model list` 仅列 Ocula 签名 catalog
+- ✅ `moontide model list` 仅列 MoonTide 签名 catalog
 - ✅ 下载前展示：体积、VRAM、license、用途
 
 ---
@@ -256,30 +256,30 @@ local:
 
 **结论：** 本地 train **不作为 v1–v2 能力**；远期若做个性化，也是 **opt-in 上传 → Cloud train → 下发 user-scoped catalog id**，而非设备上 train。
 
-### 8.2 Ocula Cloud train 管线（用户不可见）
+### 8.2 MoonTide Cloud train 管线（用户不可见）
 
 ```text
 固定基座（Qwen0.8B / Gemma E4B / …）
   → 脱敏聚合数据 + 人工标注 + 合成数据
   → train / eval / 回归门禁
   → export GGUF + manifest + sha256
-  → 发布 catalog 条目（ocula/router-v1@1.0.1）
+  → 发布 catalog 条目（moontide/router-v1@1.0.1）
 ```
 
 | 产物 | 用途 | 典型 catalog id |
 |------|------|-----------------|
-| Router | 意图 / tier 分类 | `ocula/router-v1` |
-| Memory extractor | QueryIntent / 结构化抽取 | `ocula/extract-v1`（可选） |
-| General | 闲聊 / 轻 multimodal | `ocula/general-v1` |
+| Router | 意图 / tier 分类 | `moontide/router-v1` |
+| Memory extractor | QueryIntent / 结构化抽取 | `moontide/extract-v1`（可选） |
+| General | 闲聊 / 轻 multimodal | `moontide/general-v1` |
 
 **隐私：** v1 下发 **全局共享** train 产物（不含用户原文）；个性化 catalog **以后**单独 opt-in。
 
 ### 8.3 与 Kocoro 对照
 
-| Kocoro | Ocula |
+| Kocoro | MoonTide |
 |--------|-------|
 | memory bundle Cloud train → 本地 pull | **model catalog** Cloud train → 本地 pull |
-| `tlm` sidecar + UDS | `ocula-infer` sidecar + UDS |
+| `tlm` sidecar + UDS | `moontide-infer` sidecar + UDS |
 | 用户不 train memory index | 用户不 train GGUF |
 
 见 [kocoro-architecture.md](kocoro-architecture.md) §6.5。
@@ -292,8 +292,8 @@ local:
 |----|------|------|
 | L0 | 文件 watcher + git activity | 结构化信号 |
 | L1 | embedding catalog 模型（远期） | 语义检索 |
-| L2 | `ocula/extract-v1` 或 router | memory facts 抽取 |
-| L3 | `ocula/general-v1` | 截图 / 文档理解 |
+| L2 | `moontide/extract-v1` 或 router | memory facts 抽取 |
+| L3 | `moontide/general-v1` | 截图 / 文档理解 |
 | Store | 本地 store + Session Log | Composer attach |
 
 ---
@@ -303,7 +303,7 @@ local:
 | 风险 | 说明 |
 |------|------|
 | **Tool call 可靠性** | 小模型 agent bench 弱；必须 cloud fallback |
-| **Catalog 运维** | Ocula 需维护 train/eval/回滚 |
+| **Catalog 运维** | MoonTide 需维护 train/eval/回滚 |
 | **Gemma License** | general 档需 legal 审后再分发 |
 | **infer 未 ready** | 必须默认 cloud，不阻塞 loop |
 | **质量感知** | UI 明示 local vs cloud routing |
@@ -314,10 +314,10 @@ local:
 
 | 阶段 | 交付 | 备注 |
 |------|------|------|
-| **P0** | catalog schema + `ocula model pull` + infer spike 单模型 | 可先用手动放置 GGUF 验证 infer |
+| **P0** | catalog schema + `moontide model pull` + infer spike 单模型 | 可先用手动放置 GGUF 验证 infer |
 | **P1** | `LLMProvider local-direct` + Router 规则 + cloud fallback | 默认 cloud |
-| **P2** | Scheduler + status API + `ocula/router-v1` Cloud train 首发 | 用户 opt-in 下载 |
-| **P3** | `ocula/general-v1` + 多模态 load | Gemma 基座 |
+| **P2** | Scheduler + status API + `moontide/router-v1` Cloud train 首发 | 用户 opt-in 下载 |
+| **P3** | `moontide/general-v1` + 多模态 load | Gemma 基座 |
 | **P4** | 视觉 catalog + memory sidecar 联动 | Mage-VL 等 |
 | **Deferred** | 用户本地 train | **不做** |
 | **Deferred** | 用户 scoped Cloud train（个性化 catalog） | opt-in，P4+ |
@@ -327,13 +327,13 @@ local:
 ## 12. CLI 面（草案）
 
 ```bash
-ocula model list              # 仅 Ocula catalog
-ocula model pull ocula/router-v1
-ocula infer status
-OCULA_LOCAL_INFER=on          # ability 总开关
+moontide model list              # 仅 MoonTide catalog
+moontide model pull moontide/router-v1
+moontide infer status
+MOONTIDE_LOCAL_INFER=on          # ability 总开关
 ```
 
-**明确不提供：** `ocula model train` / `export` / 任意 URL import（产品路径）。
+**明确不提供：** `moontide model train` / `export` / 任意 URL import（产品路径）。
 
 ---
 
@@ -342,7 +342,7 @@ OCULA_LOCAL_INFER=on          # ability 总开关
 | 文档 | 关系 |
 |------|------|
 | [`llm-provider.md`](../spec/llm-provider.md) | Model Router、`local-direct` preset、`RoutingDecision` |
-| [`runtime-multilang.md`](runtime-multilang.md) | Rust host、`ocula-infer` sidecar |
+| [`runtime-multilang.md`](runtime-multilang.md) | Rust host、`moontide-infer` sidecar |
 | [`kocoro-architecture.md`](kocoro-architecture.md) | bundle pull、sidecar supervise |
 | [`session-handoff.md`](session-handoff.md) | memory 指针 |
 | [`context-backlog.md`](context-backlog.md) | episodic memory |
@@ -351,7 +351,7 @@ OCULA_LOCAL_INFER=on          # ability 总开关
 
 ## 14. 待决问题
 
-1. **Catalog 托管** — `models.ocula.dev` vs HuggingFace org？
+1. **Catalog 托管** — `models.moontide.dev` vs HuggingFace org？
 2. **Catalog 刷新间隔** — startup + weekly vs 每次 pull 检查？
 3. **Router fallback 阈值** — 本地低置信何时 retry cloud？
 4. **Gemma general 档** — 是否首发仅 Apache 基座（Qwen）？

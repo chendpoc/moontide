@@ -1,29 +1,29 @@
 # Agent Event Log（AgentEvent storage schema）
 
-Ocula 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session Event Log** 区分；后者见 [`context-composer.md`](context-composer.md)）。
+MoonTide 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session Event Log** 区分；后者见 [`context-composer.md`](context-composer.md)）。
 
 ## Agent Event Log vs Session Event Log
 
 | | Agent Event Log | Session Event Log |
 |---|-----------------|-------------------|
 | Scope | 单次 run | 整场 session |
-| Path | `.ocula/runs/<runId>.active.jsonl` | `.ocula/sessions/<sessionId>.jsonl` |
+| Path | `.moontide/runs/<runId>.active.jsonl` | `.moontide/sessions/<sessionId>.jsonl` |
 | 职责 | trace、metrics、tool use log、UI tail | 会话事实 source of truth |
 | Schema | 本文 + `src/log/types.ts` | [`context-composer.md` §5](context-composer.md#5-session-event-log--条目-spec) |
 
 ---
 
-Ocula writes one JSON object per line for the active run:
+MoonTide writes one JSON object per line for the active run:
 
 ```text
-workdir/.ocula/runs/<runId>.active.jsonl
+workdir/.moontide/runs/<runId>.active.jsonl
 ```
 
 Before an append would push the active file above 5 MiB, the complete existing
 lines are sealed and compressed with gzip level 2:
 
 ```text
-workdir/.ocula/runs/<runId>-0001.jsonl.gz
+workdir/.moontide/runs/<runId>-0001.jsonl.gz
 ```
 
 The final active segment is also compressed when the run completes. Compressed
@@ -86,13 +86,13 @@ Persisted events also include `summary` and `displayHint`.
 - Active, `.sealed`, `.tmp`, and legacy log files are excluded from retention.
 - Startup removes stale `.tmp` files, retries `.sealed` compression, and seals
   abandoned active files.
-- Existing `.ocula/events.jsonl`, `context.jsonl`, and
-  `.ocula-audit.log` files are left untouched and are no longer read or
+- Existing `.moontide/events.jsonl`, `context.jsonl`, and
+  `.moontide-audit.log` files are left untouched and are no longer read or
   appended.
 
 ## Status sidecar
 
-`workdir/.ocula/status.json` includes the active `runId`:
+`workdir/.moontide/status.json` includes the active `runId`:
 
 ```json
 {

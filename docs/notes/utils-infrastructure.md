@@ -1,7 +1,7 @@
 # Utils 基础设施层
 
 > **状态：** 2026-08 · **已实现**（TS harness）  
-> **原则：** 通用 Node/OS 原语集中在 `utils/`；Ocula 持久化约定在 `storage/`；业务层不直接 `import fs` / `child_process`。
+> **原则：** 通用 Node/OS 原语集中在 `utils/`；MoonTide 持久化约定在 `storage/`；业务层不直接 `import fs` / `child_process`。
 
 ---
 
@@ -26,7 +26,7 @@ flowchart TB
     upath[path.ts]
   end
 
-  subgraph storage [storage/ — Ocula 约定]
+  subgraph storage [storage/ — MoonTide 约定]
     sfs[fs.ts]
     slist[list-json.ts]
   end

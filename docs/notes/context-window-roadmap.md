@@ -121,7 +121,7 @@ src/instruction-state/
   types.ts · load.ts · resolve.ts · index.ts
 ```
 
-- 读 `AGENTS.md` / `CLAUDE.md` / `.ocula/rules/*.md`
+- 读 `AGENTS.md` / `CLAUDE.md` / `.moontide/rules/*.md`
 - `resolveInstructionState(workdir)` 带 per-run 缓存（`prepareRun` 时 reset）
 - compose 经 `buildSystemFromInstructionState`
 
@@ -133,7 +133,7 @@ src/instruction-state/
 
 | 子阶段 | 内容 | 状态 |
 |--------|------|------|
-| **A** | Ocula 协议类型；SDK import 限 adapter | 部分 |
+| **A** | MoonTide 协议类型；SDK import 限 adapter | 部分 |
 | **B** | `LLMProvider`；runLLM / compact 统一入口 | 部分 |
 | **C** | model 注册表 + `ModelProfile` 驱动 context limit | 待做 |
 

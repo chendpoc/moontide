@@ -1,11 +1,11 @@
-# Ocula 分段日志存储
+# MoonTide 分段日志存储
 
 > 完整 TODO：[`TODO.md`](../../TODO.md) · Doc Map：[`docs/README.md`](../README.md)
 
 ## 已确定设计
 
 ```text
-<workspace>/.ocula/
+<workspace>/.moontide/
 ├── runs/
 │   ├── <runId>-0001.jsonl.gz
 │   └── <runId>.active.jsonl
@@ -34,4 +34,4 @@
 ## CLI 双轨
 
 - **TypeScript**（`pnpm dev`）：完整 REPL、Agent Event JSONL、Session Item Log + Index（`/save` · `/resume session`）、statusline、built-in plugins；observability 含 `/thinking`、`/verbose`、`/debug`。
-- **Rust R0**（`cargo run -p ocula-cli -- --workdir .`）：native loop + Session JSONL + builtins；observability 为 stderr trace（`/thinking`、`/verbose`），无 Agent Event pipeline。
+- **Rust R0**（`cargo run -p moontide-cli -- --workdir .`）：native loop + Session JSONL + builtins；observability 为 stderr trace（`/thinking`、`/verbose`），无 Agent Event pipeline。

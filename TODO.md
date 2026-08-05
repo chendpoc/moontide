@@ -40,7 +40,7 @@
 
 - [ ] **9. 日常 Action 统计控件（Tide）**
   - 多 UI 组件之一：可视化「今天做了什么 / 最近做了什么」
-  - 数据源不限于 Ocula app 内，覆盖电脑上的日常操作（窗口切换、应用使用、文件编辑、终端命令、浏览器等）
+  - 数据源不限于 MoonTide app 内，覆盖电脑上的日常操作（窗口切换、应用使用、文件编辑、终端命令、浏览器等）
   - 作为独立 panel / widget 嵌入 **MoonTide**，持续监控并汇总 daily action
   - 与 AgentEvent / trace 打通，区分「人做的」与「agent 做的」
   - 远期：时间线视图、分类 Tag、与 Project Tree / Session（**Bruma**）关联
@@ -54,8 +54,8 @@
 
 - [x] **11. 产品命名 — 已定稿**
   - 见 [`docs/product/vision.md`](docs/product/vision.md)
-  - **当前产品：Ocula**（repo `ocula/`、工作区 `.ocula/`、`OCULA_*`）
-  - **Ciel · Lyra · MoonTide · Zephyr · Bruma** 为保留产品名；**Tide · Fleet · Buoy** 为 MoonTide 内组件代号；均不用于现行 Ocula 产品名或实现模块名
+  - **当前产品：MoonTide**（repo `moontide/`、工作区 `.moontide/`、`MOONTIDE_*`）
+  - **MoonTide** 为当前产品名，由 **OceanSpark** 开发；**Ciel · Lyra · Zephyr · Bruma** 为保留产品名；**Tide · Fleet · Buoy** 为 MoonTide 内组件代号
 
 - [ ] **12. 多 Agent 进程监控（Fleet）**
   - 在 **MoonTide** 中实时查看多个 agent 的运行状态（进行中 / 等待 / 完成 / 失败）
@@ -75,7 +75,7 @@
 
 - [ ] **14. Agent 外网数据源可达性与体验（国内网络）**
   - **背景**：大量国内用户无法稳定访问 GitHub、Google 等外网数据源；agent 拉依赖、搜文档、clone、调 API 时易失败
-  - **目标**：在 **Ocula** 与相关工具链上做可达性优化与体验提升；即使无法彻底解决连通，也要有明确降级、错误说明与替代路径
+  - **目标**：在 **MoonTide** 与相关工具链上做可达性优化与体验提升；即使无法彻底解决连通，也要有明确降级、错误说明与替代路径
   - **探索方向**（非本期实现承诺）：
     - 失败时可读的错误与建议（镜像、代理、本地缓存、离线知识）
     - 可选镜像 / 国内可替代源的探测与配置

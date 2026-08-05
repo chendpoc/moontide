@@ -20,7 +20,7 @@
 3. **仍** `messages.splice` compact；`runLLM` 仍读 in-memory 数组
 4. 可选：`messagesFromItems` 还原 `Message[]`，与 `messages[]` shadow diff（测试）
 
-**验收：** `.ocula/sessions/<sessionId>.jsonl` 可 tail；REPL 续聊行为与 today 一致。
+**验收：** `.moontide/sessions/<sessionId>.jsonl` 可 tail；REPL 续聊行为与 today 一致。
 
 ## C1b — compose 取代 splice
 

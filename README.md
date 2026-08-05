@@ -1,14 +1,25 @@
-# Ocula
+# MoonTide
 
-**Ocula** — /AH-kyoo-lah/ · 最小可用的 coding agent harness（**TypeScript**）：loop 不变，工具 / 权限 / tool-use-log 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
+**MoonTide** — 最小可用的 coding agent harness（**TypeScript**），由 **OceanSpark** 开发：loop 不变，工具 / 权限 / tool-use-log 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
+
+产品品牌是 **MoonTide**，公司是 **OceanSpark**。技术标识：工作区 `.moontide/`、`MOONTIDE_*` 环境变量、`moontide-*` Rust crates；npm 包名 `moontide`。
 
 当前开发优先级与非目标见 [`docs/product/plan.md`](docs/product/plan.md)。设计文档索引见 [`docs/README.md`](docs/README.md)（Doc Map）。
+
+## 从 Ocula 迁移
+
+若已有旧工作区，需手动切换（无自动兼容）：
+
+```sh
+mv .ocula .moontide
+# .env 中 MOONTIDE_* → MOONTIDE_*
+```
 
 ## 项目结构
 
 ```
-ocula/
-├── crates/              # Rust agent（ocula-cli、ocula-agent、session、tools…）
+moontide/
+├── crates/              # Rust agent（moontide-cli、moontide-agent、session、tools…）
 ├── Cargo.toml           # workspace
 ├── docs/                # 设计 Spec 与 Doc Map（product / spec / notes）
 ├── src/
@@ -29,7 +40,7 @@ ocula/
 │   ├── context/         # composer/（Context Composer 专用）
 │   ├── storage/         # fs 约定 · list-json
 │   ├── utils/           # fs · process · glob · compress · hash · tmp · path
-│   └── constants/       # storage、llm、env 等常量
+│   └── constants/       # brand、storage、env 等常量
 ├── scripts/
 │   └── cursor-statusline.ts
 ├── tests/
@@ -42,7 +53,7 @@ ocula/
 ## 快速开始
 
 ```sh
-cd ocula
+cd moontide
 pnpm install
 cp .env.example .env   # 填入 DEEPSEEK_API_KEY
 
@@ -58,13 +69,13 @@ Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 Native agent loop（Session JSONL → Composer v1 → LLM → builtins）：
 
 ```sh
-cargo run -p ocula-cli -- --workdir .
-cargo run -p ocula-cli -- --workdir . --always-allow
+cargo run -p moontide-cli -- --workdir .
+cargo run -p moontide-cli -- --workdir . --always-allow
 # 或
-cargo build -p ocula-cli --release && ./target/release/ocula
+cargo build -p moontide-cli --release && ./target/release/moontide
 ```
 
-启动 banner：`Ocula — type /help for commands`
+启动 banner：`MoonTide — type /help for commands`
 
 **REPL 命令：** `/help` · `/thinking` · `/verbose` · `/debug` · `/save` · `/resume` · `/always-allow on|off|status` · `/new`（别名 `/reset`）· `/workdir` · `/exit`（别名 `q` · `exit`）
 
@@ -72,10 +83,10 @@ cargo build -p ocula-cli --release && ./target/release/ocula
 
 - `/thinking on` — 每 turn 打印 banner；tool / thinking / result 摘要
 - `/verbose on` — 在 thinking 基础上额外打印 compose 摘要（messages · tools · truncated · artifacts）
-- `/debug on|terminal|file` — **无截断全量** compose / llm_call / tool_use（terminal → stderr；file 额外落盘 `.ocula/debug/<runId>.jsonl`）
-- 环境变量：`OCULA_THINKING=1` · `OCULA_VERBOSE=1`（verbose 开启时 thinking 视为开启）· `OCULA_DEBUG=1|terminal|file`
+- `/debug on|terminal|file` — **无截断全量** compose / llm_call / tool_use（terminal → stderr；file 额外落盘 `.moontide/debug/<runId>.jsonl`）
+- 环境变量：`MOONTIDE_THINKING=1` · `MOONTIDE_VERBOSE=1`（verbose 开启时 thinking 视为开启）· `MOONTIDE_DEBUG=1|terminal|file`
 
-**权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`/always-allow on` 或 `--always-allow` 或 `OCULA_ALWAYS_ALLOW=1` 自动批准。
+**权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`/always-allow on` 或 `--always-allow` 或 `MOONTIDE_ALWAYS_ALLOW=1` 自动批准。
 
 需 `.env` 中 `DEEPSEEK_API_KEY`（或 `ANTHROPIC_API_KEY`）。
 
@@ -94,15 +105,15 @@ Agent 协作用词规范见 [`agent.md`](agent.md)。
 
 ## LLM Provider 与模型配置
 
-Ocula 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
+MoonTide 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
 
 设计详述见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)（API 适配层）与 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/spec/llm-input.md`](docs/spec/llm-input.md)。
 
-**今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `OCULA_PROVIDER` 与各厂商 key。
+**今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `MOONTIDE_PROVIDER` 与各厂商 key。
 
 ## AgentEvent 架构
 
-每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.ocula/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
+每次 agent run 产生结构化 `AgentEvent`，append 到 `workdir/.moontide/runs/<runId>.active.jsonl`。未压缩内容达到 5 MiB 时，旧 segment 使用 gzip level 2 无损压缩为 `<runId>-0001.jsonl.gz`；run 完成时压缩最后一个 segment。插件通过 **phase slot** 注册：
 
 ```
 pre_llm:context → post_llm:trace → post_llm:context → post_tool:trace
@@ -123,11 +134,11 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 |------|------|
 | **stdout** | 每轮 agent 最终 reply |
 | **stderr** | statusline、prompt、分隔线；**thinking/verbose/debug 开启时**实时 trace/context |
-| **`.ocula/runs/<runId>.active.jsonl`** | 当前 run 的实时结构化事件 |
-| **`.ocula/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
-| **`.ocula/sessions/<sessionId>.jsonl`** | Session Item Log（每条消息 append，**exit 后仍在**） |
-| **`.ocula/sessions/index.json`** | session 书签索引（exit / reset 自动 save；`/save` 显式写入） |
-| **`.ocula/debug/<runId>.jsonl`** | `/debug file` 全量 compose/llm/tool（无 Agent Event 截断） |
+| **`.moontide/runs/<runId>.active.jsonl`** | 当前 run 的实时结构化事件 |
+| **`.moontide/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
+| **`.moontide/sessions/<sessionId>.jsonl`** | Session Item Log（每条消息 append，**exit 后仍在**） |
+| **`.moontide/sessions/index.json`** | session 书签索引（exit / reset 自动 save；`/save` 显式写入） |
+| **`.moontide/debug/<runId>.jsonl`** | `/debug file` 全量 compose/llm/tool（无 Agent Event 截断） |
 
 ### Session 持久化与恢复
 
@@ -151,10 +162,10 @@ Last session: 20260804-195300-a1b2c3d4 · resume with /resume session 20260804-1
 | 模式 | stderr 展示 | 开启方式 |
 |------|-------------|----------|
 | **off（默认）** | 无 trace/context 噪音 | — |
-| **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `OCULA_THINKING=1` |
-| **verbose** | thinking + context 盒（`┌ CONTEXT · pre ┐` + token bar）+ tool_use_log/conversation `EVENT` 标记（**有截断**） | `/verbose on` 或 `OCULA_VERBOSE=1` |
-| **debug terminal** | 无截断全量 compose / llm_call / tool_use JSON → stderr | `/debug on` 或 `OCULA_DEBUG=1` |
-| **debug file** | terminal + 同上全量写入 `.ocula/debug/<runId>.jsonl` | `/debug file` 或 `OCULA_DEBUG=file` |
+| **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `MOONTIDE_THINKING=1` |
+| **verbose** | thinking + context 单行摘要 + tool_use_log/conversation `EVENT` 标记（**有截断**） | `/verbose on` 或 `MOONTIDE_VERBOSE=1` |
+| **debug terminal** | 无截断全量 compose / llm_call / tool_use JSON → stderr | `/debug on` 或 `MOONTIDE_DEBUG=1` |
+| **debug file** | terminal + 同上全量写入 `.moontide/debug/<runId>.jsonl` | `/debug file` 或 `MOONTIDE_DEBUG=file` |
 
 run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。Debug 与 verbose 差异见 [`docs/notes/context-inspect-debug.md`](docs/notes/context-inspect-debug.md)。
 
@@ -162,18 +173,22 @@ run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 d
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
 /verbose on     # 美化摘要 trace（context 盒 + tool_use_log + conversation，有截断）
 /debug on       # 全量无截断 debug（compose / llm / tool → stderr）
-/debug file     # 额外落盘 .ocula/debug/<runId>.jsonl
+/debug file     # 额外落盘 .moontide/debug/<runId>.jsonl
 /thinking status
 /debug status
 ```
 
 ### Statusline
 
+常驻在 REPL 提示符上方（每次输入前刷新）：
+
 ```
-Ocula idle · context 12.3% · turn 2
+MoonTide · 2.2k/128k(1.7%) · turn 2 · model deepseek-v4-pro · workdir ~/code/moontide · context 2.2k/128k(1.7%) · turn 2 · segments product, context, turn
 ```
 
-（无 context 报告时显示 `context —`。）
+（无 context 报告时显示 `—`。跑 prompt 时（非 verbose/thinking）上方额外一行 spinner + 随机文案。）
+
+`/statusline set` 配置 segments 段；model/workdir/context meta 始终显示。配置写入 `.moontide/config.toml` 的 `[ui.status_line]`。
 
 ### REPL 命令
 
@@ -181,8 +196,10 @@ Ocula idle · context 12.3% · turn 2
 |------|------|
 | `/help` | 命令列表 |
 | `/reset` | 清空内存 session（auto-save 旧 session 到 index，换新 sessionId） |
-| `/status` | verbose statusline + auto-compact 状态 |
+| `/status` | 会话 + compact auto 状态（status line 常驻在提示符上方） |
+| `/statusline [set <ids>\|reset\|preview]` | 配置 status line 字段（写入 `.moontide/config.toml`） |
 | `/workdir [path]` | 查看或切换 workspace |
+| `/settings lang en\|zh\|status` | UI 语言（写入 `.moontide/config.toml`；未配置时用 `MOONTIDE_LANG`） |
 | `/compact` | prune 旧 tool_result（写 compaction Item，下轮 compose 编译） |
 | `/compact preview` | dry-run token 估算 |
 | `/compact summary` | LLM 摘要 → **CompactionSave** + compose 编译（额外 API） |
@@ -249,37 +266,38 @@ Ocula idle · context 12.3% · turn 2
 {
   "statusLine": {
     "type": "command",
-    "command": "tsx /path/to/ocula/scripts/cursor-statusline.ts"
+    "command": "tsx /path/to/moontide/scripts/cursor-statusline.ts"
   }
 }
 ```
 
-脚本合并 Cursor stdin payload 与 `.ocula/status.json`。
+脚本合并 Cursor stdin payload 与 `.moontide/status.json`。
 
 ## 环境变量
 
 | 变量 | 作用 |
 |------|------|
 | `DEEPSEEK_API_KEY` / `MODEL_ID` | LLM API（今天默认 DeepSeek Anthropic 兼容端点） |
-| `OCULA_PROVIDER` | Provider preset（目标：`deepseek` \| `kimi` \| `openai` \| `anthropic` \| `gemini` \| `openrouter` \| `custom`） |
-| `OCULA_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)） |
-| `OCULA_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
-| `OCULA_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
-| `OCULA_COMPACT_AUTO=1` | compose 超阈值时 prune 旧 turn（默认开启） |
-| `OCULA_TOOL_INLINE_MAX` | 小输出 inline 上限（默认 8192 字节） |
-| `OCULA_TOOL_ARTIFACT_MIN` | ≥ 此大小写入 Artifact Store（默认 8192） |
-| `OCULA_TOOL_PREVIEW_CHARS` | log / compose preview 长度（默认 500） |
-| `OCULA_TOOL_INLINE_FLOOR` | 动态 inline 预算下限（默认 500） |
-| `OCULA_CONTEXT_LIMIT` | context 字符上限估算（默认 128k） |
-| `OCULA_DEV_TOOL_LEARNING=1` | 注册 `record_tool_hint`，写入 `docs/notes/tool-hints/` |
-| `OCULA_CODE_REPL_*` / `OCULA_PYTHON` / `OCULA_VENV` | code_repl 配置 |
-| `OCULA_CODE_REPL_DISABLED=1` | 禁用 code_repl |
-| `OCULA_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |
-| `OCULA_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
-| `OCULA_HTTP=0` | 禁用 `http_fetch` tool（默认启用且需 ask） |
-| `OCULA_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
-| `OCULA_VERBOSE=1` | 默认开启 verbose 模式（美化摘要 trace；**默认 off**） |
-| `OCULA_DEBUG=1\|terminal\|file` | 默认 debug 档：无截断全量 compose/llm/tool（terminal → stderr；file 额外落盘 `.ocula/debug/`；**默认 off**） |
+| `MOONTIDE_PROVIDER` | Provider preset（目标：`deepseek` \| `kimi` \| `openai` \| `anthropic` \| `gemini` \| `openrouter` \| `custom`） |
+| `MOONTIDE_CUSTOM_*` / `CUSTOM_API_KEY` | 自定义中转（`custom` preset；见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)） |
+| `MOONTIDE_COMPACT_KEEP_TURNS` | compact 保留最近 N 轮 user prompt（默认 3） |
+| `MOONTIDE_COMPACT_THRESHOLD` | auto compact 触发阈值 %（默认 85） |
+| `MOONTIDE_COMPACT_AUTO=1` | compose 超阈值时 prune 旧 turn（默认开启） |
+| `MOONTIDE_TOOL_INLINE_MAX` | 小输出 inline 上限（默认 8192 字节） |
+| `MOONTIDE_TOOL_ARTIFACT_MIN` | ≥ 此大小写入 Artifact Store（默认 8192） |
+| `MOONTIDE_TOOL_PREVIEW_CHARS` | log / compose preview 长度（默认 500） |
+| `MOONTIDE_TOOL_INLINE_FLOOR` | 动态 inline 预算下限（默认 500） |
+| `MOONTIDE_CONTEXT_LIMIT` | context 字符上限估算（默认 128k） |
+| `MOONTIDE_DEV_TOOL_LEARNING=1` | 注册 `record_tool_hint`，写入 `docs/notes/tool-hints/` |
+| `MOONTIDE_CODE_REPL_*` / `MOONTIDE_PYTHON` / `MOONTIDE_VENV` | code_repl 配置 |
+| `MOONTIDE_CODE_REPL_DISABLED=1` | 禁用 code_repl |
+| `MOONTIDE_DEEP_RESEARCH=1` | 注册实验性 `deep_research` tool（Tavily 搜索，需用户批准） |
+| `MOONTIDE_TAVILY_API_KEY` | Tavily API key（可选；不设则 keyless 模式） |
+| `MOONTIDE_HTTP=0` | 禁用 `http_fetch` tool（默认启用且需 ask） |
+| `MOONTIDE_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
+| `MOONTIDE_VERBOSE=1` | 默认开启 verbose 模式（美化摘要 trace；**默认 off**） |
+| `MOONTIDE_TRACE_PREVIEW_CHARS` | thinking trace 单行 preview 长度（默认 80；原硬编码 40） |
+| `MOONTIDE_DEBUG=1\|terminal\|file` | 默认 debug 档：无截断全量 compose/llm/tool（terminal → stderr；file 额外落盘 `.moontide/debug/`；**默认 off**） |
 
 ## 开发与质量
 

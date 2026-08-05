@@ -1,6 +1,6 @@
 # Truncated tool output — recovery strategies
 
-When Composer truncates a tool result during compile, Ocula injects `[strategies]` into the tool result footnote and may add a synthetic user reminder before the next LLM turn.
+When Composer truncates a tool result during compile, MoonTide injects `[strategies]` into the tool result footnote and may add a synthetic user reminder before the next LLM turn.
 
 ## Decision flow
 
@@ -21,4 +21,4 @@ truncated?
 | Re-run same bash after `[truncated]` | Follow `[strategies]` block |
 | `read_artifact` then bash again for same content | Work from artifact or scoped git_diff |
 
-Implementation: `crates/ocula-tools/src/truncation_strategies.rs`
+Implementation: `crates/moontide-tools/src/truncation_strategies.rs`

@@ -1,7 +1,8 @@
 {
-  "name": "ocula",
+  "name": "moontide",
   "version": "0.1.0",
-  "description": "Ocula — minimal coding agent harness (TypeScript)",
+  "description": "MoonTide — minimal coding agent harness by OceanSpark (TypeScript)",
+  "author": "OceanSpark",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -12,7 +13,7 @@
     "dev": "tsx src/main.ts",
     "ping": "tsx src/llm/healthcheck/ping.ts",
     "test": "vitest run",
-    "test:conformance": "vitest run tests/architecture-boundaries.test.ts tests/hook-manifest.test.ts tests/tool-permissions.test.ts tests/agent-runtime.test.ts tests/plugin-manifest.test.ts",
+    "test:conformance": "vitest run tests/architecture-boundaries.test.ts tests/hook-manifest.test.ts tests/tool-permissions.test.ts tests/trust-policy.test.ts tests/agent-runtime.test.ts tests/plugin-manifest.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "eslint .",

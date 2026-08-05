@@ -16,13 +16,13 @@ flowchart LR
 
 也就是说：
 
-- Session history 是 source of truth（Ocula：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)）。
+- Session history 是 source of truth（MoonTide：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)）。
 - Model context 只是针对某次请求 **compile** 出来的 ephemeral 产物（**LLMRequest**）。
 - System instructions、permissions、用户约束不能依赖 conversation summary 存活。
 - 大型 tool output 应先变成可寻址 artifact，而不是直接塞进 summary。
 - Compaction 是有验证、有恢复能力的状态转换，不是对 `messages[]` 随手 `splice()`。
 
-这也是我认为对 Ocula 最重要的启发。
+这也是我认为对 MoonTide 最重要的启发。
 
 ## 版本与身份边界
 
@@ -81,7 +81,7 @@ Codex 是目前最适合做源码级参考的实现。
 
 源码：[history ownership](https://github.com/openai/codex/blob/6219b7c40fc9c702c0aef9964e72b492558f60e4/codex-rs/core/src/context_manager/history.rs#L38-L60)、[prompt construction](https://github.com/openai/codex/blob/6219b7c40fc9c702c0aef9964e72b492558f60e4/codex-rs/core/src/session/turn.rs#L333-L357)、[remote compaction](https://github.com/openai/codex/blob/6219b7c40fc9c702c0aef9964e72b492558f60e4/codex-rs/core/src/compact_remote_v2.rs#L439-L571)、[resume reconstruction](https://github.com/openai/codex/blob/6219b7c40fc9c702c0aef9964e72b492558f60e4/codex-rs/core/src/session/rollout_reconstruction.rs#L112-L186)。
 
-对 Ocula 最有价值的是 `ContextManager` 的 ownership，而不是 Rust 本身。
+对 MoonTide 最有价值的是 `ContextManager` 的 ownership，而不是 Rust 本身。
 
 ### OpenCode V2
 
@@ -95,7 +95,7 @@ OpenCode V2 是最明显朝 “context as compiled state” 转向的设计：
 - 旧 messages 仍然存在，不等于直接删除。
 - 最终调用即使禁止继续调用工具，也尽量保留 tool definitions，以维持 cache prefix。
 
-这是目前几者中最值得 Ocula借鉴的抽象。不过它还是 beta，而且 threshold 的[当前源码](https://github.com/anomalyco/opencode/blob/f9de608dead252e1c50041feb42b69ddde43e34d/packages/core/src/session/compaction.ts#L344-L357)与[V2 文档](https://opencode.ai/v2/docs/compaction)并未完全一致，所以不应把它当成熟参考实现直接移植。
+这是目前几者中最值得 MoonTide借鉴的抽象。不过它还是 beta，而且 threshold 的[当前源码](https://github.com/anomalyco/opencode/blob/f9de608dead252e1c50041feb42b69ddde43e34d/packages/core/src/session/compaction.ts#L344-L357)与[V2 文档](https://opencode.ai/v2/docs/compaction)并未完全一致，所以不应把它当成熟参考实现直接移植。
 
 ### CodeWhale 与 Reasonix
 
@@ -118,7 +118,7 @@ Reasonix 更偏 durable/recoverable：
 - Summary 失败后还有 deterministic mechanical digest fallback。
 - Subagent 默认 fresh context，只把最终结果返回 parent。
 
-Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、subagent 都做得较深。Ocula 目前只适合选择其中一两个高 leverage seam，不适合照搬整个系统。
+Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、subagent 都做得较深。MoonTide 目前只适合选择其中一两个高 leverage seam，不适合照搬整个系统。
 
 另外，DeepSeek 官方 API 当前 V4 Flash/Pro 是 1M context，并自动提供 exact-prefix disk cache；client 只能看到 hit/miss token，不能保证缓存驻留。[DeepSeek model limits](https://api-docs.deepseek.com/quick_start/pricing/)、[disk context cache](https://api-docs.deepseek.com/guides/kv_cache)。
 
@@ -137,7 +137,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 9. 高输出研究任务放进 fresh subagent context，parent 只接收 bounded result。
 10. 建立 Context Manifest 和多次 compaction 后的任务成功率测试。
 
-仍属于 research frontier、暂不适合 Ocula 第一版的包括：
+仍属于 research frontier、暂不适合 MoonTide 第一版的包括：
 
 - Gemini CLI 当前默认关闭的 context graph pipeline。
 - Vector/semantic cross-run automatic memory。
@@ -151,7 +151,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 - 2026 年一项 preprint 报告 compaction 后约束遵守会持续衰减，而单独 pin constraints 能恢复表现：[Governance Decay](https://arxiv.org/abs/2606.22528)。这是 preprint，不应当作最终行业定论，但方向与生产系统的 instruction reinjection 一致。
 - Addressable Retrieval Context 把完整 observation 存在可寻址存储中、active prompt 只保留引用，needle recall 很强，但在更综合 benchmark 上提升有限：[ARC](https://arxiv.org/abs/2607.25066)。它适合作为未来方向，不是当前必做。
 
-## 对 Ocula 的具体判断
+## 对 MoonTide 的具体判断
 
 > **注（2026-08）：** C1–C5 已落地（`composeContext` 编译、Artifact spill、CompactionSave、Checkpoint 等）。  
 > 下文部分 bullet 为迁移前诊断；**当前 pending 与执行顺序**见 [`context-window-roadmap.md`](context-window-roadmap.md)。
@@ -175,7 +175,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 
 **演进特性 backlog**（分账、Structured IR、Compose 实验与 Deferred 项）见 [`context-backlog.md`](context-backlog.md)。
 
-不需要因为 Codex 使用 Rust 就重写 Ocula agent core。这个问题的主要矛盾是 state ownership、invariants、recovery 和 observability，TypeScript 完全能够正确实现。
+不需要因为 Codex 使用 Rust 就重写 MoonTide agent core。这个问题的主要矛盾是 state ownership、invariants、recovery 和 observability，TypeScript 完全能够正确实现。
 
 完整的架构候选、before/after 图和优先级在这里：[architecture review](/private/tmp/architecture-review-20260730-agent-context-sota.html)。
 

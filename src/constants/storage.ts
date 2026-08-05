@@ -1,5 +1,7 @@
-/** Workspace-local Ocula data directory name. */
-export const DATA_DIR = ".ocula";
+import { PRODUCT_SLUG } from "./brand.js";
+
+/** Workspace-local MoonTide data directory name. */
+export const DATA_DIR = `.${PRODUCT_SLUG}`;
 
 export const RUNS_DIR = "runs";
 export const SESSIONS_DIR = "sessions";

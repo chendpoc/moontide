@@ -1,7 +1,7 @@
-# Kocoro 架构参考与 Ocula 启发
+# Kocoro 架构参考与 MoonTide 启发
 
 > 竞品 / 参考实现分析：[Kocoro](https://github.com/Kocoro-lab/Kocoro)（本地 agent runtime）与 [Shannon](https://github.com/Kocoro-lab/Shannon)（企业多 agent 编排）。  
-> **非实现承诺** — 用于校准 Ocula 多进程、sidecar、memory、router 等方向；不表示照搬其技术栈。
+> **非实现承诺** — 用于校准 MoonTide 多进程、sidecar、memory、router 等方向；不表示照搬其技术栈。
 
 ---
 
@@ -128,13 +128,13 @@ Client → Gateway (Go) → Orchestrator (Go) → Agent Core (Rust) → LLM Serv
 
 - 开源：**Go engine + daemon**
 - 闭源：**Desktop** spawn daemon，`desktop_rpc/` 反向 RPC 补 TCC 能力
-- Slint/Ocula 现状是 sidecar **观测**；Kocoro 是 **控制面也走 socket**
+- Slint/MoonTide 现状是 sidecar **观测**；Kocoro 是 **控制面也走 socket**
 
 ---
 
-## 5. 与 Ocula 对照
+## 5. 与 MoonTide 对照
 
-| 维度 | Kocoro | Ocula（现状 / 讨论方向） |
+| 维度 | Kocoro | MoonTide（现状 / 讨论方向） |
 |------|--------|-------------------------|
 | Agent loop | Go monolith (`internal/agent`) | Node/TS [`loop.ts`](../../src/agent/loop.ts) |
 | LLM seam | Provider 接口（Cloud gateway / Ollama） | [`runLLM`](../../src/agent/pipeline/runLLM.ts) → 规划 `LLMProvider` |
@@ -151,60 +151,60 @@ Client → Gateway (Go) → Orchestrator (Go) → Agent Core (Rust) → LLM Serv
 
 ---
 
-## 6. 对 Ocula 的启发
+## 6. 对 MoonTide 的启发
 
 ### 6.1 架构原则
 
 **① 按 crash / 权限 / 体积 / 生命周期切进程，不是按语言切功能**
 
-Kocoro 本地主体是 **一个 Go 二进制**，只在 memory、Desktop RPC、Cloud 处拆进程。Ocula 可保持 **Node loop**，但应新增：
+Kocoro 本地主体是 **一个 Go 二进制**，只在 memory、Desktop RPC、Cloud 处拆进程。MoonTide 可保持 **Node loop**，但应新增：
 
 ```text
 Node loop（编排）
-  ├─ UDS → ocula-infer（Rust，GGUF）
-  ├─ UDS → ocula-memory（Rust 或专用 recall 服务）
+  ├─ UDS → moontide-infer（Rust，GGUF）
+  ├─ UDS → moontide-memory（Rust 或专用 recall 服务）
   └─ UDS ↔ Slint/Rust host（权限 UI、将来 Calendar 类能力）
 ```
 
 **② Harness 单一；平台能力外圈 additive**
 
-Named Agents、Skills、Daemon、MCP 不应重写 loop。Ocula 应对齐：**Session Event Log 为事实层**，Composer / Router / Memory inject 为外圈。
+Named Agents、Skills、Daemon、MCP 不应重写 loop。MoonTide 应对齐：**Session Event Log 为事实层**，Composer / Router / Memory inject 为外圈。
 
 **③ 三类 compute 分开**
 
-| 类型 | Ocula 对应 | 参考 Kocoro |
+| 类型 | MoonTide 对应 | 参考 Kocoro |
 |------|-----------|-------------|
 | 编排 | Node `agentLoop` | Go `internal/agent` |
-| 推理 / memory 索引 | Rust `ocula-infer` + catalog GGUF | `tlm` + Ollama client（Ocula **不**走 Ollama） |
+| 推理 / memory 索引 | Rust `moontide-infer` + catalog GGUF | `tlm` + Ollama client（MoonTide **不**走 Ollama） |
 | 沙箱短计算 | WASM / QuickJS scratch | Shannon WASI |
 
 Infer **不要**进 WASM；沙箱 **不要**扛 GB 权重。
 
 ### 6.2 可落地的具体启发
 
-| # | Kocoro 做法 | Ocula 建议 | 关联 Spec / 模块 |
+| # | Kocoro 做法 | MoonTide 建议 | 关联 Spec / 模块 |
 |---|-------------|-----------|------------------|
-| 1 | Memory sidecar + daemon supervise | `ocula-memory` 独立进程；Node 只调 `memory.query` IPC | [context-backlog.md](context-backlog.md)、[session-handoff.md](session-handoff.md) |
+| 1 | Memory sidecar + daemon supervise | `moontide-memory` 独立进程；Node 只调 `memory.query` IPC | [context-backlog.md](context-backlog.md)、[session-handoff.md](session-handoff.md) |
 | 2 | `<private_memory>` 当 turn 注入、不落 transcript | Composer 支持 **ephemeral inject block** + Manifest 审计 | [context-composer.md](../spec/context-composer.md) |
 | 3 | Small-tier preflight before main LLM | Model Router v2：0.8B 本地做 intent / memory intent | [edge-local-models.md](edge-local-models.md)、[llm-provider.md](../spec/llm-provider.md) §10 |
 | 4 | `runLLM` 是唯一 LLM 出口 | 已实现 seam；cloud / local-direct 都走 `LLMProvider` | [`runLLM.ts`](../../src/agent/pipeline/runLLM.ts) |
 | 5 | Tool spill 三层 budget | 对齐 tool artifact + prune；避免 `messages[]` splice 丢事实 | [context-composer.md](../spec/context-composer.md) |
 | 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 解析一致 | [llm-input.md](../spec/llm-input.md) |
-| 7 | Daemon HTTP + SSE 本地 API | 远期：Ocula daemon 模式（IM / 自动化），不只 REPL | [runtime-multilang.md](runtime-multilang.md) |
+| 7 | Daemon HTTP + SSE 本地 API | 远期：MoonTide daemon 模式（IM / 自动化），不只 REPL | [runtime-multilang.md](runtime-multilang.md) |
 | 8 | Desktop reverse RPC for TCC | Slint host UDS：审批 UI、系统 API broker | `ui/` Rust、`runtime-multilang.md` |
 | 9 | Capability token on handshake | WS/IPC 版本协商；避免 UI 与 engine 耦合 | [agent-events.md](../spec/agent-events.md) 观测字段扩展 |
 | 10 | Interrupted turn resume + route pin | Checkpoint + Session Log；多来源 session 串行 | [context-composer.md](../spec/context-composer.md) § Checkpoint |
 | 11 | Content-free memory audit | `memory_preflight` 式 audit：只记 outcome/count，不记 query 正文 | [agent-events.md](../spec/agent-events.md) |
 | 12 | 本地 LLM 仍走统一 provider 接口 | `local-direct` preset → Rust IPC，**不**在 loop 里绑 Ollama | [edge-local-models.md](edge-local-models.md) |
 
-### 6.3 建议的 Ocula 目标架构（综合 Kocoro + 前述讨论）
+### 6.3 建议的 MoonTide 目标架构（综合 Kocoro + 前述讨论）
 
 ```mermaid
 flowchart TB
   UI["Slint UI\n控制 + 观测"]
   Node["Node Agent Loop\nrunLLM / runTool / events"]
-  Infer["ocula-infer Rust\nGGUF + llama.cpp"]
-  Mem["ocula-memory Rust\ntlm-like recall"]
+  Infer["moontide-infer Rust\nGGUF + llama.cpp"]
+  Mem["moontide-memory Rust\ntlm-like recall"]
   Host["Rust Host\n权限 broker · 进程监管"]
   Cloud["Cloud LLM API"]
 
@@ -229,27 +229,27 @@ flowchart TB
 |--------|-----|------|
 | **P0** | `LLMProvider` + Model Router 规则 | small+main 分层 |
 | **P0** | Session / Event 事实层 | spill、inject、resume |
-| **P1** | `ocula-infer` + **catalog pull**（无 local train） | 差异化；Kocoro bundle 同构 |
+| **P1** | `moontide-infer` + **catalog pull**（无 local train） | 差异化；Kocoro bundle 同构 |
 | **P1** | Memory sidecar 协议 | 情景 memory |
-| **P2** | Cloud train 首发 `ocula/router-v1` | 用户 opt-in 下载 |
+| **P2** | Cloud train 首发 `moontide/router-v1` | 用户 opt-in 下载 |
 | **P3** | Daemon / Slint 控制面 UDS | 权限 UI |
 
 ### 6.5 模型 catalog pull（借 memory bundle 模式）
 
-Kocoro 用户不 train memory index；daemon **pull bundle → sidecar 查询**。Ocula 本地小模型采用同一产品形态：
+Kocoro 用户不 train memory index；daemon **pull bundle → sidecar 查询**。MoonTide 本地小模型采用同一产品形态：
 
-| Kocoro | Ocula |
+| Kocoro | MoonTide |
 |--------|-------|
-| Cloud 训练 memory bundle | **Ocula Cloud train** → GGUF catalog |
-| `tlm` sidecar + UDS | `ocula-infer` + UDS |
+| Cloud 训练 memory bundle | **MoonTide Cloud train** → GGUF catalog |
+| `tlm` sidecar + UDS | `moontide-infer` + UDS |
 | 24h bundle pull + sha256 | catalog pull + sha256 + `current` 指针 |
 | 未 Ready → 降级 | infer 未 Ready → **cloud fallback** |
 
-**明确不做：** 用户设备上 train（见 [edge-local-models.md](edge-local-models.md) §8）。用户 ability 仅为 **opt-in 下载 Ocula 签名 catalog**（如 `ocula/router-v1`），非开放 HF 任意权重。
+**明确不做：** 用户设备上 train（见 [edge-local-models.md](edge-local-models.md) §8）。用户 ability 仅为 **opt-in 下载 MoonTide 签名 catalog**（如 `moontide/router-v1`），非开放 HF 任意权重。
 
-### 6.6 反模式（Kocoro 有、Ocula 应慎学）
+### 6.6 反模式（Kocoro 有、MoonTide 应慎学）
 
-| 做法 | 风险 | Ocula 态度 |
+| 做法 | 风险 | MoonTide 态度 |
 |------|------|-----------|
 | 全栈绑 Cloud 才能用 memory bundle | 供应商 lock-in | Memory 本地 bundle 优先；cloud 训练可选 |
 | 本地 LLM 仅 Ollama | 多一层、难 direct weight | Rust infer + catalog GGUF |
@@ -268,13 +268,13 @@ Kocoro 用户不 train memory index；daemon **pull bundle → sidecar 查询**�
 | [Kocoro AGENTS.md](https://github.com/Kocoro-lab/Kocoro/blob/main/AGENTS.md) | Module map、invariants |
 | [Shannon README](https://github.com/Kocoro-lab/Shannon) | 企业多语言微服务、WASI、Temporal |
 | [Chapter 33 — Kocoro](https://waylandz.com/ai-agent-book-en/chapter-33-building-on-the-harness-shanclaw/) | 同心圆平台模型 |
-| [edge-local-models.md](edge-local-models.md) | Ocula catalog pull、Cloud train only、local infer |
-| [runtime-multilang.md](runtime-multilang.md) | Ocula 多语言进程边界讨论 |
+| [edge-local-models.md](edge-local-models.md) | MoonTide catalog pull、Cloud train only、local infer |
+| [runtime-multilang.md](runtime-multilang.md) | MoonTide 多语言进程边界讨论 |
 | [session-handoff.md](session-handoff.md) | 跨 agent 上下文与 memory 指针 |
 
 ---
 
 ## 8. 讨论来源
 
-2026-08-01：Kocoro/Shannon 多语言分层架构调研；与 Ocula edge infer、sidecar、情景 memory 讨论交叉对照。  
+2026-08-01：Kocoro/Shannon 多语言分层架构调研；与 MoonTide edge infer、sidecar、情景 memory 讨论交叉对照。
 2026-08-01：补充 **Cloud train + catalog pull only**、不做用户本地 train（见 [edge-local-models.md](edge-local-models.md) §8）。

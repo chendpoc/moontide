@@ -6,8 +6,8 @@
 
 | 层 | 路径 | 职责 | 写入时机 |
 |----|------|------|----------|
-| **Session Item Log** | `.ocula/sessions/<sessionId>.jsonl` | 对话事实（user / assistant / tool / compaction / checkpoint 等） | 每条消息经 `SessionItemCommitPort` **即时 append** |
-| **Session Index** | `.ocula/sessions/index.json` | session 书签（sessionId + 元数据；可选 `label?`） | `exit` / `/reset` 静默 upsert；`/save` 显式 upsert |
+| **Session Item Log** | `.moontide/sessions/<sessionId>.jsonl` | 对话事实（user / assistant / tool / compaction / checkpoint 等） | 每条消息经 `SessionItemCommitPort` **即时 append** |
+| **Session Index** | `.moontide/sessions/index.json` | session 书签（sessionId + 元数据；可选 `label?`） | `exit` / `/reset` 静默 upsert；`/save` 显式 upsert |
 
 **结论：** 用户 **无需** 在 exit 前手动 save 才能保留对话正文；index 解决「下次如何找到这段对话」。
 

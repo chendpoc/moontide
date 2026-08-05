@@ -1,6 +1,6 @@
-# Ocula LLM Input 对表
+# MoonTide LLM Input 对表
 
-> 说明「成熟 agent 一次 LLM 请求应包含什么」，以及 **Ocula 当前实现** 落在哪、缺什么。  
+> 说明「成熟 agent 一次 LLM 请求应包含什么」，以及 **MoonTide 当前实现** 落在哪、缺什么。
 > 行业背景见 [`context-analysis.md`](../notes/context-analysis.md)；Provider / API 适配层见 [`llm-provider.md`](llm-provider.md)；Session 中间态与 **Context Composer** 见 [`context-composer.md`](context-composer.md)（目标产出 **`LLMRequest`**）。  
 > 本文只做 **API 对表 + 代码落点**，不涉及代码实现计划。
 
@@ -8,13 +8,13 @@
 
 ## 1. API 顶层：实际只有三个参数
 
-Ocula 调用见 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts)：
+MoonTide 调用见 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts)：
 
 ```typescript
 messages.create({ model, system, messages, tools, max_tokens })
 ```
 
-| API 参数 | 含义 | Ocula 谁组装 | 现状 |
+| API 参数 | 含义 | MoonTide 谁组装 | 现状 |
 |----------|------|----------------|------|
 | `system` | 静态/半静态指令 | [`composeContext`](../../src/context/composer/compose.ts) → `buildSystemFromInstructionState` | 有，每 turn 由 Instruction State 组装 |
 | `tools` | 工具名 + description + schema | [`src/tools/index.ts`](../../src/tools/index.ts) → `getToolDefinitions()` | 有，按 config 动态注册 |
@@ -33,14 +33,14 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 ## 2. `system` 里通常有什么
 
-| 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
+| 内容块 | 成熟做法 | MoonTide | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
-| 身份 / 角色 | system 首段 | **有** | [`src/agent/prompt.ts`](../../src/agent/prompt.ts) | "You are Ocula…" |
+| 身份 / 角色 | system 首段 | **有** | [`src/agent/prompt.ts`](../../src/agent/prompt.ts) | "You are MoonTide…" |
 | 工作区路径 | cwd / workdir | **有** | `prompt.ts` → `getWorkdir()` | 动态注入 |
 | 全局 tool 选用策略 | prefer read_file over bash 等 | **有** | `prompt.ts` L8–11 | 与部分 tool description 重复 |
 | Extension 使用说明 | code_repl runtime、templates | **有（混在 system）** | `prompt.ts` L14–23 | code_repl schema 里也有长 description |
-| 项目规则 | `AGENTS.md` / `CLAUDE.md` / `.ocula/rules/*.md` | **有** | [`instruction-state/load.ts`](../../src/instruction-state/load.ts) | 经 `resolveInstructionState` → compose |
-| 用户偏好 / 长期记忆 | `~/.ocula/` 或 MEMORY.md，每轮 re-inject | **无** | — | `InstructionState.userMemory` 接口预留 |
+| 项目规则 | `AGENTS.md` / `CLAUDE.md` / `.moontide/rules/*.md` | **有** | [`instruction-state/load.ts`](../../src/instruction-state/load.ts) | 经 `resolveInstructionState` → compose |
+| 用户偏好 / 长期记忆 | `~/.moontide/` 或 MEMORY.md，每轮 re-inject | **无** | — | `InstructionState.userMemory` 接口预留 |
 | 权限 / 审批提示 | "bash 可能需用户确认" | **无** | permission 在 [`runTool.ts`](../../src/agent/pipeline/runTool.ts) 执行层 | 模型不可见 |
 | 压缩摘要 | 通常放 **messages**，不是 system | — | `/compact summary` 进 messages | 见 §4 |
 
@@ -50,7 +50,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 ## 3. `tools[]` 里通常有什么
 
-| 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
+| 内容块 | 成熟做法 | MoonTide | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
 | Tool name | API schema | **有** | 各 `ToolDefinition.schema.name` | |
 | Tool description | 每个 tool 一段 | **有** | [`tools/builtins/*-tools.ts`](../../src/tools/builtins/) 等 | grep / code_repl 较详细 |
@@ -66,7 +66,7 @@ messages.create({ model, system, messages, tools, max_tokens })
 
 ## 4. `messages[]` 里通常有什么
 
-| 内容块 | 成熟做法 | Ocula | 代码 / 文件 | 备注 |
+| 内容块 | 成熟做法 | MoonTide | 代码 / 文件 | 备注 |
 |--------|----------|---------|-------------|------|
 | 用户输入（首轮） | `role: user` 文本 | **有** | [`runAgent`](../../src/agent/loop.ts) / REPL | |
 | 用户输入（后续轮） | messages 末尾 append | **有** | `continueReplAgent` push | 不是独立 API 字段 |
@@ -95,7 +95,7 @@ flowchart LR
 
 ## 5. 你列的五项 → 正确落点
 
-| # | 你的说法 | API 落点 | Ocula 现状 |
+| # | 你的说法 | API 落点 | MoonTide 现状 |
 |---|----------|----------|--------------|
 | 1 | system prompt | `system` | **有** — `prompt.ts` |
 | 2 | tool description | `tools[].description` + `input_schema` | **有** — 各 tool 注册 |
@@ -107,7 +107,7 @@ flowchart LR
 
 ## 6. 相关但不在「一次 LLM input」里
 
-| 项 | 作用 | Ocula |
+| 项 | 作用 | MoonTide |
 |----|------|---------|
 | Context 用量估算 | 决定是否 compact | **有** — [`context/metrics`](../../src/context/metrics.ts) + context sidecar hook |
 | Event JSONL | 观测 / UI tail | **有** — [`log/event-hub`](../../src/log/event-hub.ts) fan-out；与 LLM messages **分离** |
@@ -120,7 +120,7 @@ flowchart LR
 
 ## 7. 缺口优先级（对照 context-window 设计）
 
-| 优先级 | 缺口 | 今天表现 | 建议方向（Ocula 演进，未实现） |
+| 优先级 | 缺口 | 今天表现 | 建议方向（MoonTide 演进，未实现） |
 |--------|------|----------|----------------------------------|
 | P0 | messages 一物两用 | ~~loop 原地 splice~~ | **done** — `composeContext` 编译 |
 | P0 | 无 project / memory 注入 | ~~仅 `prompt.ts`~~ | **done** — project rules 经 instruction-state；userMemory 仍 pending |
@@ -135,7 +135,7 @@ flowchart LR
 
 ## 8. 一句话总结
 
-**Ocula 今天已覆盖：** `system`（Instruction State：`prompt.ts` + `AGENTS.md` / rules）+ `tools` + `messages`（经 **`composeContext`** 编译）；大 tool 输出 **Artifact spill**；**CompactionSave** summary；**Checkpoint** resume；**runtime-status** 观测缓存。
+**MoonTide 今天已覆盖：** `system`（Instruction State：`prompt.ts` + `AGENTS.md` / rules）+ `tools` + `messages`（经 **`composeContext`** 编译）；大 tool 输出 **Artifact spill**；**CompactionSave** summary；**Checkpoint** resume；**runtime-status** 观测缓存。
 
 **尚未覆盖：** personal memory 文件源、`read_artifact` tool、Provider A–C 分层 — 见 [`context-window-roadmap.md`](../notes/context-window-roadmap.md) **#5**。
 
@@ -148,5 +148,5 @@ flowchart LR
 - [`context-backlog.md`](../notes/context-backlog.md) — Context 演进特性（分账、IR、实验与 Deferred）
 - [`llm-provider.md`](llm-provider.md) — API 适配方案 A、Provider Preset、`LLMRequest`、`ModelProfile`
 - [`context-analysis.md`](../notes/context-analysis.md) — 行业 SOTA 与产品对比
-- [`vision.md`](../product/vision.md) — 产品名 Ocula；保留代号与未来方向
+- [`vision.md`](../product/vision.md) — 产品名 MoonTide；保留代号与未来方向
 - [`agent-events.md`](agent-events.md) — 观测侧 JSONL（与 LLM input 分离）

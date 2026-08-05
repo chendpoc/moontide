@@ -24,7 +24,7 @@
 | 场景 | 例子 |
 |------|------|
 | **角色切换** | 探索型 agent 聊完架构，实现型 agent 接手写代码 |
-| **跨工具迁移** | ChatGPT 里讨论完方案，Ocula / Cursor 里继续执行 |
+| **跨工具迁移** | ChatGPT 里讨论完方案，MoonTide / Cursor 里继续执行 |
 | **审查 / 第二意见** | review agent 读完整决策过程，而非只看最终结论 |
 | **并行分工** | A 做调研，B 做实现，共享已达成共识的上下文 |
 | **避免重复解释** | 新 session 不必从头复述 20 轮对话 |
@@ -80,7 +80,7 @@
 
 | 组件 | 路径 / 职责 |
 |------|-------------|
-| **Session Event Log** | `.ocula/sessions/<id>.jsonl` — append-only 事实源 |
+| **Session Event Log** | `.moontide/sessions/<id>.jsonl` — append-only 事实源 |
 | **Compaction Record** | structured / summary 压缩产物 |
 | **Checkpoint** | 某 turn 可恢复快照 |
 | **Context Composer** | 按目标 agent 窗口与用途**编译 LLMRequest**，非整包塞入 |
@@ -97,7 +97,7 @@ flowchart LR
 
 另一个 agent 读的不是「原始 chat」，而是 **针对它编译过的 LLMRequest + Context Manifest**。
 
-Ocula `StructuredPayload` 已预留 handoff 相关字段（[`context-composer.md` §6.3](../spec/context-composer.md#63-compaction-record)）：
+MoonTide `StructuredPayload` 已预留 handoff 相关字段（[`context-composer.md` §6.3](../spec/context-composer.md#63-compaction-record)）：
 
 ```typescript
 export interface StructuredPayload {
@@ -122,7 +122,7 @@ ChatGPT export (JSON)
 
 用户侧 UX 候选：
 
-- `ocula session import chatgpt.json`
+- `moontide session import chatgpt.json`
 - 当前 session：`/attach-session <id>` 或 `@session:abc turns 12-45`
 
 与 [`vision.md`](../product/vision.md) 中 **Zephyr**（跨 agent 产品切换与迁移）为同一类问题的不同切面。
@@ -213,7 +213,7 @@ ChatGPT share link 面向传播与拉新，非 export 到其他 coding agent。
 
 传统 `messages[]` 可变数组与 model input 混为一体时，share = 复制噪音大、超 window、格式绑死厂商。
 
-**Session Event Log + Context Composer** 才是正确前提（Ocula spec、OpenCode V2 beta 方向）。迁移完成前，优雅 share 难成一等 feature。
+**Session Event Log + Context Composer** 才是正确前提（MoonTide spec、OpenCode V2 beta 方向）。迁移完成前，优雅 share 难成一等 feature。
 
 **6. 安全与合规**
 
@@ -239,7 +239,7 @@ Multi-agent 工作流未成为主流前，friction 不足以驱动平台投入�
 
 ---
 
-## 8. 对 Ocula 的启示
+## 8. 对 MoonTide 的启示
 
 1. **不必等 Codex** — 其优化目标是单 agent coding loop，非 cross-agent knowledge transfer
 2. **P0 即可差异化** — handoff brief + session export + `@session:id` 选择性 attach；不必等完整 Zephyr
@@ -267,7 +267,7 @@ Multi-agent 工作流未成为主流前，friction 不足以驱动平台投入�
 2. **跨 session attach API** — `ComposeContextInput` 是否增加 `attachedSessionIds` + turn range？
 3. **外部 import 格式** — 首批支持 ChatGPT JSON export？归一化到 `SessionLogEntry` 的映射表？
 4. **与 Checkpoint 边界** — handoff 产出写 Compaction Record 还是独立 `HandoffRecord`？
-5. **CLI / 命令** — `/handoff`、`ocula session export`、`ocula session import` 的 UX 草案
+5. **CLI / 命令** — `/handoff`、`moontide session export`、`moontide session import` 的 UX 草案
 
 ---
 

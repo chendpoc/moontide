@@ -27,5 +27,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Test Ocula Rust crates
-        run: cargo test -p ocula-protocol -p ocula-session -p ocula-composer -p ocula-tools -p ocula-llm -p ocula-agent -p ocula-cli
+      - name: Test MoonTide Rust crates
+        run: cargo test -p moontide-protocol -p moontide-session -p moontide-composer -p moontide-tools -p moontide-llm -p moontide-agent -p moontide-cli

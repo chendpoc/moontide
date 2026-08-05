@@ -1,8 +1,10 @@
-/** Prefix for Ocula-specific environment variables. */
-export const ENV_PREFIX = "OCULA_" as const;
+import { PRODUCT_SLUG } from "./brand.js";
 
-/** Ocula-scoped env keys (without prefix). */
-export const OCULA_ENV = {
+/** Prefix for MoonTide-specific environment variables. */
+export const ENV_PREFIX = `${PRODUCT_SLUG.toUpperCase()}_` as const;
+
+/** MoonTide-scoped env keys (without prefix). */
+export const APP_ENV = {
   WORKDIR: "WORKDIR",
   CONTEXT_LIMIT: "CONTEXT_LIMIT",
   CONTEXT_EXACT: "CONTEXT_EXACT",
@@ -19,9 +21,18 @@ export const OCULA_ENV = {
   TAVILY_API_KEY: "TAVILY_API_KEY",
   THINKING: "THINKING",
   VERBOSE: "VERBOSE",
+  TRACE_PREVIEW_CHARS: "TRACE_PREVIEW_CHARS",
+  LANG: "LANG",
   DEBUG: "DEBUG",
   HTTP: "HTTP",
+  ALWAYS_ALLOW: "ALWAYS_ALLOW",
+  SIDECAR_PLUGIN_ID: "SIDECAR_PLUGIN_ID",
 } as const;
+
+/** Full env var name, e.g. `${ENV_PREFIX}LANG`. */
+export function envVarName(key: keyof typeof APP_ENV | string): string {
+  return `${ENV_PREFIX}${key}`;
+}
 
 /** Provider / third-party env var names. */
 export const PROVIDER_ENV = {

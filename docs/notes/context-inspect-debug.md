@@ -7,8 +7,8 @@
 | 档位 | stderr | 落盘 | 开启 |
 |------|--------|------|------|
 | **off** | — | — | 默认 |
-| **terminal** | 全量 JSON 块 | — | `/debug on` · `OCULA_DEBUG=1` |
-| **file** | 同 terminal | `.ocula/debug/<runId>.jsonl` | `/debug file` · `OCULA_DEBUG=file` |
+| **terminal** | 全量 JSON 块 | — | `/debug on` · `MOONTIDE_DEBUG=1` |
+| **file** | 同 terminal | `.moontide/debug/<runId>.jsonl` | `/debug file` · `MOONTIDE_DEBUG=file` |
 
 **与 verbose 区别：** verbose 打印 token bar、截断 preview；debug 输出完整 request/outcome，无 64KB Agent Event 投影限制。
 
@@ -33,4 +33,4 @@ Hook 薄层在 `plugins/builtin/context/debug-hook-module.ts`；`context-inspect
 ## 相关
 
 - [README §CLI](../../README.md#cli)（Thinking / Verbose / Debug）
-- `OCULA_DEBUG` — [`.env.example`](../../.env.example)
+- `MOONTIDE_DEBUG` — [`.env.example`](../../.env.example)

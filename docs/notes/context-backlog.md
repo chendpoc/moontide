@@ -1,4 +1,4 @@
-# Ocula Context Window 特性 Backlog
+# MoonTide Context Window 特性 Backlog
 
 > Context Composer **演进特性**候选：优先级、设计要点、代价与阶段。  
 > **非实现承诺** — 当前主路径见 [`context-window-roadmap.md`](context-window-roadmap.md)（六件事）；C6+ 之后择项见本文。
@@ -153,7 +153,7 @@ Compose 时的 **可选实验策略**：
 - L2 recent tail 固定在 `messages` **末尾**
 - L3 `ToolResultSummary` 紧贴相关 tool turn，避免远距离 orphan
 
-**Feature flag（示意）：** `OCULA_COMPOSE_PLACEMENT_EXPERIMENT=1`
+**Feature flag（示意）：** `MOONTIDE_COMPOSE_PLACEMENT_EXPERIMENT=1`
 
 与 Budget Tiers **配合**；优先级 **标签** 弱于 placement，仅作 debug。
 
@@ -181,7 +181,7 @@ Compose 时的 **可选实验策略**：
 - **约束：** `tool_use` / `tool_result` 不可拆对；条目顺序单调；总 token ≤ L2 预算
 - 选取理由写入 `ContextManifest.excludedEntryIds` / `includedEntryIds`
 
-类似产品中的 **情景 / working memory**；Ocula 差异在于 **可审计、可复现**（Manifest + log id）。
+类似产品中的 **情景 / working memory**；MoonTide 差异在于 **可审计、可复现**（Manifest + log id）。
 
 **Feature 名（示意）：** `intentWorkingSet`
 
@@ -259,13 +259,13 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | 全 session **对话**向量化 / knowledge graph | 理论阶段；第一版不做 |
 | 后台并行 compaction daemon | 见 context-analysis research frontier |
 | Vector **跨 session** memory | 远期；不阻塞 C0–C6 |
-| Cherry 式大 context 聚合 UI | 非 Ocula harness 范围 |
+| Cherry 式大 context 聚合 UI | 非 MoonTide harness 范围 |
 
 ---
 
 ## 10. CS 历史借鉴（简表）
 
-| 历史实践 | Ocula 映射 |
+| 历史实践 | MoonTide 映射 |
 |----------|--------------|
 | 虚拟内存 / working set | Session Event Log + Composer 编译 |
 | WAL + snapshot | Checkpoint + immutable `LLMRequest` |

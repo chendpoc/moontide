@@ -1,6 +1,13 @@
 # Doc Map
 
-Ocula 文档分三层：`product/` 定方向，`spec/` 是可实现的设计，`notes/` 是分析与候选。用词规范见 [`agent.md`](../agent.md)。
+MoonTide 文档分三层：`product/` 定方向，`spec/` 是可实现的设计，`notes/` 是分析与候选。用词规范见 [`agent.md`](../agent.md)。
+
+**模块级操作说明（与 Doc Map 并列，避免孤儿文档）：**
+
+| 路径 | 内容 |
+|------|------|
+| [`src/tools/builtins/README.md`](../src/tools/builtins/README.md) | 内置 tool 目录约定、域一览、新增 checklist |
+| [`src/plugins/builtin/README.md`](../src/plugins/builtin/README.md) | 内置 plugin 模块、含 tool 的 spec/impl 约定 |
 
 **命名：** 全部小写 kebab-case；`{domain}-{topic}.md`，目录已表达层级时不重复前缀。
 
@@ -85,6 +92,10 @@ flowchart TB
 
 **改模块边界 / 架构修复** — [agent.md](../agent.md) §2 → [architecture-remediation](notes/architecture-remediation.md) → [context-composer](spec/context-composer.md) §4/§10.1 → [session-domain-model](notes/session-domain-model.md)
 
+**新增 / 修改 builtin tool** — [agent.md §2.1](../agent.md#21-声明与实现分离spec--impl-split) → [tools/builtins/README](../src/tools/builtins/README.md) → [register-defaults.ts](../src/tools/register-defaults.ts) · `pnpm test:conformance`
+
+**新增 / 修改 plugin tool**（code_repl、deep_research）— [plugins/builtin/README](../src/plugins/builtin/README.md) → 同上 conformance
+
 **接 MCP / 外部 Plugin** — ecosystem-compat → plugin-host → platform-strategy
 
 **改 context** — [context-window-roadmap](notes/context-window-roadmap.md)（**当前开发计划 · #5 Provider 进行中**）→ [session-domain-model](notes/session-domain-model.md)（类型/数据流）→ context-composer（主 Spec）→ agent-run-hooks（Session/Turn Observe）→ [utils-infrastructure](notes/utils-infrastructure.md) → context-backlog（C6+ 演进）→ context-analysis（行业背景）
@@ -105,7 +116,7 @@ flowchart TB
 
 **Hook 工程落地** — agent-run-hooks §11+ → agent-run-hooks §1–§10 → [agent-run.ts](../src/agent/agent-run.ts)
 
-**Rust REPL 开发** — 根 [README](../README.md) §Rust CLI → `crates/ocula-cli` · `crates/ocula-observability` · `platform-strategy` §10
+**Rust REPL 开发** — 根 [README](../README.md) §Rust CLI → `crates/moontide-cli` · `crates/moontide-observability` · `platform-strategy` §10
 
 ## notes 主题索引
 
@@ -117,6 +128,7 @@ flowchart TB
 | Context 开发计划 | [context-window-roadmap](notes/context-window-roadmap.md) | 六件事；**#5 Provider 进行中** |
 | 架构修复计划 | [architecture-remediation](notes/architecture-remediation.md) | Phase A–C；与 #5 并行 |
 | Utils / storage 分层 | [utils-infrastructure](notes/utils-infrastructure.md) | fs · process · event-hub · storage |
+| Builtin / plugin tool 结构 | [tools/builtins/README](../src/tools/builtins/README.md) · [plugins/builtin/README](../src/plugins/builtin/README.md) | agent.md §2.1 · register-defaults · architecture-boundaries |
 | Session 域模型 | [session-domain-model](notes/session-domain-model.md) | SessionContext / Item / compose 数据流 |
 | Session 迁移 | [session-log-migration](notes/session-log-migration.md) | C1a/C1b；链到 #1 runtime-status |
 | Session 书签 / 恢复 | [session-persistence](notes/session-persistence.md) | `/save` · `/resume session` · index.json |
@@ -132,7 +144,7 @@ flowchart TB
 
 | 文档 | 一句话 |
 |------|--------|
-| [vision](product/vision.md) | 产品定位（Ocula）与远期保留产品名（Bruma、MoonTide 等） |
+| [vision](product/vision.md) | 产品定位（MoonTide）与远期保留产品名（Bruma 等） |
 | [platform-strategy](product/platform-strategy.md) | Release 架构、竞争定位、MCP/sidecar 边界与非目标 |
 | [plugin-host](notes/plugin-host.md) | Plugin host、MCP client、startup assembly 与 runtime attach |
 | [plan](product/plan.md) | 当前优先级、分段 JSONL 存储与非目标 |
@@ -150,10 +162,10 @@ flowchart TB
 | [session-persistence](notes/session-persistence.md) | Session Index 书签 · `/save` · `/resume session` |
 | [context-inspect-debug](notes/context-inspect-debug.md) | `/debug` 分级全量 compose/llm/tool dump |
 | [context-backlog](notes/context-backlog.md) | Context 演进特性候选（C6+ 之后，非实现承诺） |
-| [edge-local-models](notes/edge-local-models.md) | Edge 小模型：catalog pull、Cloud train only、`ocula-infer` |
-| [kocoro-architecture](notes/kocoro-architecture.md) | Kocoro/Shannon 架构参考与 Ocula 对照 |
+| [edge-local-models](notes/edge-local-models.md) | Edge 小模型：catalog pull、Cloud train only、`moontide-infer` |
+| [kocoro-architecture](notes/kocoro-architecture.md) | Kocoro/Shannon 架构参考与 MoonTide 对照 |
 | [session-handoff](notes/session-handoff.md) | 跨 agent 会话交接：价值、分层方案、业界 gap |
-| [runtime-multilang](notes/runtime-multilang.md) | 多语言 Desktop Runtime、`ocula-infer` sidecar |
+| [runtime-multilang](notes/runtime-multilang.md) | 多语言 Desktop Runtime、`moontide-infer` sidecar |
 | [scratchpad](notes/scratchpad.md) | `scratch.eval` 低风险草稿执行层 |
 
 ## 重命名对照
