@@ -5,19 +5,41 @@ import type { ToolResultSummary } from "./types.js";
 import { truncateChars } from "../utils/text.js";
 import { byteLengthUtf8 } from "../utils/utf8.js";
 
-const SUMMARY_CHAR_LIMIT = 500;
+export interface SummarizeToolResultOptions {
+  /** Cap summary length when output was spilled (default: ~20% of artifact spill threshold). */
+  maxSummaryChars?: number;
+}
 
 /** Map SDK assistant blocks to MoonTide protocol blocks for Session Log. */
 export function mapSdkContentBlocks(blocks: SdkContentBlock[]) {
   return mapBlocksFromRegistry(blocks);
 }
 
-export function summarizeToolResultContent(content: string): ToolResultSummary {
-  const { text, truncated } = truncateChars(content, SUMMARY_CHAR_LIMIT);
+/**
+ * Build ToolResultSummary for session log / compose.
+ * Inline path (no maxSummaryChars): full text — used when byte size ≤ spill threshold.
+ * Preview path (maxSummaryChars set): truncated preview — used after artifact spill only.
+ */
+export function summarizeToolResultContent(
+  content: string,
+  options?: SummarizeToolResultOptions,
+): ToolResultSummary {
+  const byteCount = byteLengthUtf8(content);
   const lineCount = content.length === 0 ? 0 : content.split("\n").length;
+
+  if (options?.maxSummaryChars === undefined) {
+    return {
+      summary: content,
+      byteCount,
+      lineCount,
+      truncated: false,
+    };
+  }
+
+  const { text, truncated } = truncateChars(content, options.maxSummaryChars);
   return {
     summary: text,
-    byteCount: byteLengthUtf8(content),
+    byteCount,
     lineCount,
     truncated,
   };
