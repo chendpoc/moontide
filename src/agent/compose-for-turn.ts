@@ -8,7 +8,7 @@ import type { ModelProfile } from "../llm/models/types.js";
 import { resolveInstructionState } from "../instruction-state/index.js";
 import type { ToolSchema } from "../llm/protocol/types.js";
 import type { Session } from "../session/session.js";
-import { getActiveWorkMemId, isDeepModeEnabled } from "./deep-mode.js";
+import { getActiveWorkMemId, getDeepTaskGoal, isDeepModeEnabled } from "./deep-mode.js";
 import { resolveWorkingSetForCompose } from "./working-set-compose.js";
 
 export interface ComposeForSessionInput {
@@ -33,10 +33,13 @@ export async function composeForSession(input: ComposeForSessionInput): Promise<
 
   const modelProfile = input.modelProfile ?? resolveModelProfile();
   let workingSetSnapshot: string | undefined;
+  let deepTask: { goal: string; workMemId: string } | undefined;
 
   if (isDeepModeEnabled()) {
     const workMemId = getActiveWorkMemId(input.session.sessionId);
-    if (workMemId) {
+    const goal = getDeepTaskGoal(input.session.sessionId);
+    if (workMemId && goal) {
+      deepTask = { goal, workMemId };
       const resolved = resolveWorkingSetForCompose({
         sessionId: input.session.sessionId,
         workMemId,
@@ -65,5 +68,6 @@ export async function composeForSession(input: ComposeForSessionInput): Promise<
     resumeFromCheckpointId: input.resumeFromCheckpointId,
     activeCompactionSaveId: input.activeCompactionSaveId,
     workingSetSnapshot,
+    deepTask,
   });
 }

@@ -7,6 +7,7 @@ import {
   resolveBudgetPolicy,
   sumInputTierTokens,
 } from "./budget/index.js";
+import { appendDeepTaskProtocolToSystem } from "./deep-task-system.js";
 import { appendWorkingSetToSystem } from "./working-set.js";
 import { applyCompactionPolicy, applyTailWindow } from "./compaction/apply.js";
 import { buildContextManifest } from "./manifest.js";
@@ -42,8 +43,11 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
     ? await input.compactionStore.get(input.sessionId, activeCompactionSaveId)
     : undefined;
 
-  const systemBase = buildSystemFromInstructionState(input.instructionState);
-  const system = appendWorkingSetToSystem(systemBase, input.workingSetSnapshot);
+  const systemFromInstruction = buildSystemFromInstructionState(input.instructionState);
+  const systemWithDeepTask = input.deepTask
+    ? appendDeepTaskProtocolToSystem(systemFromInstruction, input.deepTask)
+    : systemFromInstruction;
+  const system = appendWorkingSetToSystem(systemWithDeepTask, input.workingSetSnapshot);
   const tools = input.toolDefinitions;
   const modelId = input.modelProfile.logicalModelId;
 
@@ -55,7 +59,7 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
     system,
     tools,
     messages: protocolMessages,
-    systemBase,
+    systemBase: systemFromInstruction,
     workingSetSnapshot: input.workingSetSnapshot,
     includeFlex: flexEnabled,
   });
@@ -95,7 +99,7 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
     system,
     tools,
     messages: protocolMessages,
-    systemBase,
+    systemBase: systemFromInstruction,
     workingSetSnapshot: input.workingSetSnapshot,
     includeFlex: flexEnabled,
   });
@@ -117,6 +121,13 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
     estimatedInputTokens: sumInputTierTokens(budgetPolicy),
     budgetTiers: budgetPolicy.tiers,
     alerts: budgetAlerts.length > 0 ? budgetAlerts : undefined,
+    deepTask: input.deepTask
+      ? {
+          active: true,
+          workMemId: input.deepTask.workMemId,
+          goal: input.deepTask.goal,
+        }
+      : undefined,
   });
 
   return {

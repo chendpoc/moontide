@@ -17,6 +17,13 @@ export interface BuildContextManifestInput {
   estimatedInputTokens?: number;
   alerts?: ManifestAlert[];
   budgetTiers?: BudgetTierUsage[];
+  deepTask?: {
+    active: true;
+    workMemId: string;
+    goal: string;
+    thinkingBump?: boolean;
+    synthesizeSkipped?: boolean;
+  };
 }
 
 export function buildContextManifest(input: BuildContextManifestInput): ContextManifest {
@@ -34,5 +41,6 @@ export function buildContextManifest(input: BuildContextManifestInput): ContextM
     estimatedInputTokens: input.estimatedInputTokens,
     alerts: input.alerts,
     budgetTiers: input.budgetTiers,
+    deepTask: input.deepTask,
   };
 }

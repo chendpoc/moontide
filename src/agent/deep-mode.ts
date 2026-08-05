@@ -10,6 +10,7 @@ const DEEP_PREFIX = /^deep:\s*/i;
 let deepModeActive = false;
 
 const activeWorkMemBySession = new Map<string, string>();
+const activeGoalBySession = new Map<string, string>();
 
 export function isDeepModeEnabled(): boolean {
   return deepModeActive;
@@ -23,9 +24,14 @@ function setDeepModeActive(active: boolean): void {
   deepModeActive = active;
 }
 
+export function getDeepTaskGoal(sessionId: string): string | undefined {
+  return activeGoalBySession.get(sessionId);
+}
+
 export function resetDeepModeOnNewSession(): void {
   deepModeActive = false;
   activeWorkMemBySession.clear();
+  activeGoalBySession.clear();
 }
 
 function generateWorkMemId(): string {
@@ -38,6 +44,7 @@ export function startDeepTask(sessionId: string, goal: string): string {
   getWorkMemAgentPorts().startDeepTaskRecord({ workdir, sessionId, workMemId, goal });
   setDeepModeActive(true);
   activeWorkMemBySession.set(sessionId, workMemId);
+  activeGoalBySession.set(sessionId, goal);
   return workMemId;
 }
 

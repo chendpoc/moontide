@@ -52,6 +52,34 @@ describe("Deep Task Mode compose integration", () => {
     rmSync(workdir, { recursive: true, force: true });
   });
 
+  it("injects protocol and seeded outline via composeForSession without manual work_mem", async () => {
+    const session = Session.create(workdir);
+    applyDeepPromptGate("deep: trace auth regression", session.sessionId);
+    await session.appendUser(1, "continue investigation");
+
+    const composed = await composeForSession({
+      session,
+      stores: {
+        artifacts: createStubArtifactStore(),
+        compaction: createStubCompactionStore(),
+        checkpoints: createStubCheckpointStore(),
+      },
+      turn: 1,
+      toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
+      compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
+    });
+
+    expect(composed.request.system).toContain("## Deep Task Mode (active)");
+    expect(composed.request.system).toContain("trace auth regression");
+    expect(composed.request.system).toContain("## Working set (Deep Task Mode)");
+    expect(composed.request.system).toContain("Open questions");
+    expect(composed.manifest.deepTask).toMatchObject({
+      active: true,
+      goal: "trace auth regression",
+    });
+    expect(composed.manifest.deepTask?.workMemId).toMatch(/^wm_/);
+  });
+
   it("injects Working Set snapshot into system via composeForSession", async () => {
     const session = Session.create(workdir);
     applyDeepPromptGate("deep: trace auth regression", session.sessionId);

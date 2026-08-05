@@ -5,11 +5,13 @@ import { TOOL_NAMES } from "../../../tools/names.js";
 import { runWorkMem } from "./handler.js";
 import type { WorkMemAction } from "./types.js";
 
+const WORK_MEM_DESCRIPTION_DEEP =
+  "Deep Task Mode is active and required for this run. Maintain structured task state in work_mem: refine the seeded outline (draft/outline), record findings (note with ref), and before concluding write draft/decision. Use summarize/refine to pack jsonl when context grows. Do not store raw tool dumps; keep refs to evidence elsewhere.";
+
 const WORK_MEM_TOOL_SPECS: ToolSpec[] = [
   {
     name: TOOL_NAMES.WORK_MEM,
-    description:
-      "Task working memory for Deep Task Mode. Use draft for structured task state (outline, hypothesis, decision, action), note for observations with optional ref, summarize/refine to pack jsonl for context. Do not store raw tool dumps; keep refs to evidence elsewhere.",
+    description: WORK_MEM_DESCRIPTION_DEEP,
     permission: { kind: "fixed", decision: "allow" },
     capability: "mixed",
     input_schema: {

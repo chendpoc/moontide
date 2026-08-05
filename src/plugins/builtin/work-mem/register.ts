@@ -1,6 +1,7 @@
 import { registerWorkMemAgentPorts } from "../../../agent/ports/work-mem.js";
 
 import { resolveWorkingSetSnapshot } from "./escalation.js";
+import { seedOutlineDraft } from "./seed-outline.js";
 import { appendWorkMemEvent, ensureWorkMemFile } from "./store.js";
 
 let registered = false;
@@ -21,6 +22,7 @@ export function registerBuiltinWorkMemPorts(): void {
         ts: new Date().toISOString(),
         goal,
       });
+      seedOutlineDraft(workdir, sessionId, workMemId, goal);
     },
     resolveWorkingSetSnapshot(input) {
       return resolveWorkingSetSnapshot(input);

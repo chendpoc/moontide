@@ -27,6 +27,13 @@ export interface ComposeContextInput {
   activeCompactionSaveId?: string;
   /** Pre-resolved Working Set snapshot for Deep Task Mode (Phase B compose inject). */
   workingSetSnapshot?: string;
+  /** Deep Task Mode protocol block (goal + workMemId). */
+  deepTask?: {
+    goal: string;
+    workMemId: string;
+    thinkingBump?: boolean;
+    synthesizeSkipped?: boolean;
+  };
 }
 
 export interface ComposedLLMRequest {
@@ -57,6 +64,14 @@ export interface ContextManifest {
   alerts?: ManifestAlert[];
   /** Context Budget Tier breakdown (L1–L4; L5 when enabled). */
   budgetTiers?: BudgetTierUsage[];
+  /** Deep Task Mode metadata when active at compose time. */
+  deepTask?: {
+    active: true;
+    workMemId: string;
+    goal: string;
+    thinkingBump?: boolean;
+    synthesizeSkipped?: boolean;
+  };
 }
 
 export interface ComposedContext {

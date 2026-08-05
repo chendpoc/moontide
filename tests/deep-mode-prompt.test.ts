@@ -50,6 +50,13 @@ describe("Deep Task Mode prompt gate", () => {
       kind: "workmem_started",
       goal: "investigate flaky test",
     });
+    expect(events[1]).toMatchObject({
+      kind: "workmem_draft",
+      draftKind: "outline",
+    });
+    expect(events[1]?.kind === "workmem_draft" ? events[1].content : "").toContain(
+      "investigate flaky test",
+    );
   });
 
   it("is case-insensitive on deep: prefix", () => {

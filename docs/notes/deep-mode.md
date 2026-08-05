@@ -4,13 +4,15 @@
 
 Deep Task Mode 是 REPL 内的一种**任务级工作记忆**模式：用户以 `deep:` 前缀发起 prompt，Agent 获得 `work_mem` tool，并在 compose 时注入 **Working Set snapshot**（非 prunable）。
 
+**优化设计（草案）：** 当前实现与用户期望存在差距（主 run 未走 `composeForSession`、无强制 protocol），见 [`deep-mode-redesign.md`](deep-mode-redesign.md)。
+
 **刻意不提供** `/deep` slash 命令；入口只有 prompt 级 `deep:` gate。
 
 ## 触发与生命周期
 
 | 事件 | 行为 |
 |------|------|
-| 用户输入以 `deep:` 开头（大小写不敏感） | 剥前缀 → 开启 Deep Task Mode → 新建 `wm_<8hex>` 任务 → `ToolRegistry.refresh()` 注册 `work_mem` |
+| 用户输入以 `deep:` 开头（大小写不敏感） | 剥前缀 → 开启 Deep Task Mode → 新建 `wm_<8hex>` 任务 → **机械 seed outline** → `ToolRegistry.refresh()` 注册 `work_mem` |
 | 同 session 再次 `deep:` | 新建另一个 `workMemId`（每次 deep prompt 一条独立 jsonl） |
 | `/reset` 或新 session | `resetDeepModeOnNewSession()` → 关闭 deep mode、清空 active map、`refresh()` 移除 `work_mem` |
 | 普通 prompt（无 `deep:`） | 不进入 deep mode；无 token budget 阶梯 |
@@ -39,7 +41,12 @@ Deep Task Mode 是 REPL 内的一种**任务级工作记忆**模式：用户以 
 
 ## Working Set 与 budget escalation
 
-Compose 路径（[`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) → [`working-set-compose.ts`](../../src/agent/working-set-compose.ts)）在 deep mode 下解析 snapshot，追加到 **system**（[`working-set.ts`](../../src/context/composer/working-set.ts)），不参与 message prune。
+Compose 路径（[`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) → [`working-set-compose.ts`](../../src/agent/working-set-compose.ts)）在 deep mode 下：
+
+1. 注入 **Deep Task Protocol** system 块（goal · workMemId · 使用节奏）
+2. 解析 Working Set snapshot，追加到 **system**（[`working-set.ts`](../../src/context/composer/working-set.ts)），不参与 message prune
+
+详设：[`deep-mode-redesign.md`](deep-mode-redesign.md) · P1 seed + protocol。
 
 **Budget escalation**（harness 管理，无用户 token budget env）：
 
@@ -74,3 +81,9 @@ Compose 路径（[`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) �
 - REPL `/deep` 命令
 - 用户可配置的 `WORK_MEM_CONTEXT_TOKEN_BUDGET`
 - LLM 驱动的 summarize/refine（当前为 deterministic pack）
+
+## 演进
+
+| 文档 | 内容 |
+|------|------|
+| [`deep-mode-redesign.md`](deep-mode-redesign.md) | **`deep:` 行为优化**：compose 统一、outline seed、protocol、nudge |
