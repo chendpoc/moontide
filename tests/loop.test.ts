@@ -39,6 +39,7 @@ const denyAllInteraction: UserInteraction = {
 };
 
 beforeEach(() => {
+  vi.stubEnv("MOONTIDE_ENV", "production");
   delete process.env.MOONTIDE_ALWAYS_ALLOW;
   resetAlwaysAllowOverride();
   tmpDir = createTmpWorkdir("moontide-agent-run-");
@@ -55,6 +56,7 @@ afterEach(() => {
   clearTestRuntime();
   setLLMProvider(undefined);
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("AgentSession.run", () => {

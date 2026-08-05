@@ -29,6 +29,7 @@ const loopCtx = (interaction = denyAllInteraction): LoopContext => ({
 });
 
 beforeEach(() => {
+  vi.stubEnv("MOONTIDE_ENV", "production");
   delete process.env.MOONTIDE_ALWAYS_ALLOW;
   resetAlwaysAllowOverride();
   tmpDir = createTmpWorkdir("moontide-run-tool-");
@@ -40,6 +41,7 @@ beforeEach(() => {
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   resetAlwaysAllowOverride();
   clearTestRuntime();
 });

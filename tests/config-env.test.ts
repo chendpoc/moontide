@@ -1,6 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { alwaysAllowDefault, appEnv, isDevEnv } from "../src/config.js";
+
+beforeEach(() => {
+  vi.stubEnv("MOONTIDE_ENV", "");
+  delete process.env.MOONTIDE_ENV;
+  delete process.env.MOONTIDE_ALWAYS_ALLOW;
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
