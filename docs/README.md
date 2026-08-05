@@ -82,7 +82,7 @@ flowchart TB
 |------|------|------|
 | [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
-| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
+| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [deep-mode](notes/deep-mode.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
 ## 阅读路径
 
@@ -94,7 +94,7 @@ flowchart TB
 
 **新增 / 修改 builtin tool** — [agent.md §2.1](../agent.md#21-声明与实现分离spec--impl-split) → [tools/builtins/README](../src/tools/builtins/README.md) → [register-defaults.ts](../src/tools/register-defaults.ts) · `pnpm test:conformance`
 
-**新增 / 修改 plugin tool**（code_repl、deep_research）— [plugins/builtin/README](../src/plugins/builtin/README.md) → 同上 conformance
+**新增 / 修改 plugin tool**（code_repl、deep_research、work_mem）— [plugins/builtin/README](../src/plugins/builtin/README.md) → [deep-mode](notes/deep-mode.md)（`work_mem`）→ 同上 conformance
 
 **接 MCP / 外部 Plugin** — ecosystem-compat → plugin-host → platform-strategy
 
@@ -125,7 +125,7 @@ flowchart TB
 | Agent hook 设计 | [agent-run-hooks](notes/agent-run-hooks.md) | agent-events · session-log-migration · platform-strategy |
 | Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | plugin-host · runtime-multilang · kocoro-architecture · agent-run-hooks |
 | 插件与 MCP 集成 | [plugin-host](notes/plugin-host.md) | platform-strategy · runtime-multilang · scratchpad |
-| Context 开发计划 | [context-window-roadmap](notes/context-window-roadmap.md) | 六件事；**#5 Provider 进行中** |
+| Deep Task Mode / work_mem | [deep-mode](notes/deep-mode.md) | work-mem plugin · compose Working Set |
 | 架构修复计划 | [architecture-remediation](notes/architecture-remediation.md) | Phase A–C；与 #5 并行 |
 | Utils / storage 分层 | [utils-infrastructure](notes/utils-infrastructure.md) | fs · process · event-hub · storage |
 | Builtin / plugin tool 结构 | [tools/builtins/README](../src/tools/builtins/README.md) · [plugins/builtin/README](../src/plugins/builtin/README.md) | agent.md §2.1 · register-defaults · architecture-boundaries |
@@ -154,6 +154,7 @@ flowchart TB
 | [agent-events](spec/agent-events.md) | Agent Event Log（run 级 JSONL）schema |
 | [agent-run-hooks](notes/agent-run-hooks.md) | Agent 运行时 hook：生命周期、四类语义、注册实践与 §11+ 工程落地 |
 | [context-analysis](notes/context-analysis.md) | 竞品 context window 架构对比 |
+| [deep-mode](notes/deep-mode.md) | Deep Task Mode：`deep:` prompt gate、`work_mem`、Working Set snapshot |
 | [context-window-roadmap](notes/context-window-roadmap.md) | **当前开发计划**：六件事（#1–#4、#6 done · #5 进行中） |
 | [architecture-remediation](notes/architecture-remediation.md) | **架构修复计划**：16 项 review · Phase A–C |
 | [utils-infrastructure](notes/utils-infrastructure.md) | Utils / storage 分层、event-hub、import 约束 |
