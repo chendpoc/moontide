@@ -1,20 +1,37 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type {
-  ContentBlock as SdkContentBlock,
-  MessageParam,
-  Tool,
-} from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/messages.js";
 
-import { apiKey, baseUrl, modelId } from "../../config.js";
+import { configError } from "../../errors/factories.js";
 import type { ContentBlock, LLMRequest, LLMResponse } from "../protocol/types.js";
+import { getProviderPreset } from "../presets/presets.js";
+import type { ResolvedRoute } from "../routing/types.js";
 
-let client: Anthropic | undefined;
+const clients = new Map<string, Anthropic>();
 
-export function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({ apiKey: apiKey(), baseURL: baseUrl() });
+export function getClientForPreset(presetId: string): Anthropic {
+  const preset = getProviderPreset(presetId);
+  if (!preset) {
+    throw configError(`Unknown provider preset: ${presetId}`);
   }
+
+  const cached = clients.get(presetId);
+  if (cached) {
+    return cached;
+  }
+
+  const apiKey = process.env[preset.apiKeyEnv]?.trim();
+  if (!apiKey) {
+    throw configError(`Set ${preset.apiKeyEnv} for preset ${presetId}`);
+  }
+
+  const client = new Anthropic({ apiKey, baseURL: preset.baseUrl });
+  clients.set(presetId, client);
   return client;
+}
+
+/** Test hook — clear cached SDK clients between tests. */
+export function resetAnthropicClients(): void {
+  clients.clear();
 }
 
 function toSdkMessages(messages: LLMRequest["messages"]): MessageParam[] {
@@ -39,8 +56,11 @@ function fromSdkResponse(message: Anthropic.Message): LLMResponse {
   };
 }
 
-export async function anthropicMessagesChat(request: LLMRequest): Promise<LLMResponse> {
-  const response = await getClient().messages.create({
+export async function anthropicMessagesChat(
+  request: LLMRequest,
+  route: ResolvedRoute,
+): Promise<LLMResponse> {
+  const response = await getClientForPreset(route.providerPresetId).messages.create({
     model: request.model,
     system: request.system,
     messages: toSdkMessages(request.messages),
@@ -50,28 +70,15 @@ export async function anthropicMessagesChat(request: LLMRequest): Promise<LLMRes
   return fromSdkResponse(response);
 }
 
-export async function anthropicMessagesCountTokens(request: LLMRequest): Promise<number> {
-  const result = await getClient().messages.countTokens({
+export async function anthropicMessagesCountTokens(
+  request: LLMRequest,
+  route: ResolvedRoute,
+): Promise<number> {
+  const result = await getClientForPreset(route.providerPresetId).messages.countTokens({
     model: request.model,
     system: request.system,
     messages: toSdkMessages(request.messages),
     tools: toSdkTools(request.tools),
   });
   return result.input_tokens;
-}
-
-/** Legacy SDK chat for healthcheck and transitional callers. */
-export async function anthropicMessagesRawChat(
-  messages: MessageParam[],
-  tools: Tool[],
-  system: string,
-  maxTokens: number,
-): Promise<{ content: SdkContentBlock[]; stop_reason: string | null; usage?: Anthropic.Message["usage"] }> {
-  return getClient().messages.create({
-    model: modelId(),
-    system,
-    messages,
-    tools,
-    max_tokens: maxTokens,
-  });
 }

@@ -588,18 +588,18 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 
 ## 12. 现状 vs 目标
 
-| 项 | 现状 | 目标 |
-|----|------|------|
-| Client | 仅 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts) | `LLMProvider` + `adapters/*` + `normalize/*` |
-| API 适配 | 隐式 DeepSeek → Anthropic SDK | **方案 A**（§5） |
-| Provider | `bootstrap.ts` 将 DeepSeek 映射为 Anthropic env | 显式 `ProviderPreset` + `resolveRoute()` |
-| Model | `MODEL_ID` 字符串 + [`constants/llm.ts`](../../src/constants/llm.ts) 硬编码 context | **model 注册表** + `ModelProfile` |
-| 类型泄漏 | `@anthropic-ai/sdk` 约 17 处 | 仅 `src/llm/adapters/**` |
-| Compact / ping | `compact.ts` 直连 `getClient()` | 经 `LLMProvider` |
-| 路由 | 无 | Model Router + Route Resolver |
-| 本地推理 | 无 | `local-direct` preset + `moontide-infer` sidecar（本地 model catalog GGUF） |
-| 观测 | statusline 仅 `model` | `providerPreset` + `logicalModel` + `routingReason` |
-| custom 中转 | 仅文档级 Anthropic 兼容 env | `custom` preset + compat |
+| 项 | 现状（2026-08 A–C 后） | 目标（§13 D–I backlog） |
+|----|-------------------------|-------------------------|
+| Client | [`LLMProvider`](../../src/llm/provider.ts) + [`adapters/anthropic-messages.ts`](../../src/llm/adapters/anthropic-messages.ts) | 多 adapter 族 |
+| API 适配 | **方案 A** — 单 `anthropic-messages` adapter | OpenAI / Gemini 等 adapter |
+| Provider | [`presets/presets.ts`](../../src/llm/presets/presets.ts) + [`resolveRoute()`](../../src/llm/routing/resolve.ts) | + openrouter · custom · kimi… |
+| Model | [`models/registry.ts`](../../src/llm/models/registry.ts) + `resolveModelProfile()` | 扩注册表 + Model Router |
+| 类型泄漏 | SDK 仅 [`src/llm/adapters/**`](../../src/llm/adapters/) | 维持 |
+| Compact / ping | 经 `LLMProvider` + `resolveRoute` | 维持 |
+| 路由 | `resolveRoute()`（env + registry `prefer`） | Model Router v1 + CLI |
+| 本地推理 | 无 | `local-direct` + `moontide-infer` |
+| 观测 | `LLMCallRecord.routing` 可选字段 | statusline + JSONL 全量 `RoutingDecision` |
+| custom 中转 | 无 | `custom` preset + compat |
 
 ---
 

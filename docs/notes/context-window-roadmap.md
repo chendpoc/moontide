@@ -1,6 +1,6 @@
 # Context Window 后续开发计划
 
-> **状态：** 2026-08 定稿 · **#1–#4、#6 主体 done** · **下一步 #5 LLM Provider**  
+> **状态：** 2026-08 定稿 · **#1–#6 主体 done** · **#5 A–C done** · **下一步 Context Budget Tiers / backlog**  
 > **Spec：** [`context-composer.md`](../spec/context-composer.md) C0–C6  
 > **Hook：** [`agent-run-hooks.md`](agent-run-hooks.md) · **Agent Event：** [`agent-events.md`](../spec/agent-events.md) · **Utils：** [`utils-infrastructure.md`](utils-infrastructure.md)
 
@@ -16,7 +16,7 @@
 | **2** | **Hook 机制终局** | `HookDispatcher` + sidecar phase；删 RunHooks/AgentPlugin/observe registry | **done** |
 | **3** | **Session Observe（C6）** | commit port 落盘、Agent Event 派生、dedup | **done** |
 | **4** | **instruction-state** | `load/resolve` + compose 接入；AGENTS.md / rules | **done** |
-| **5** | **LLM Provider 完善** | 协议 → Provider → model registry（C0 A–C） | **进行中** |
+| **5** | **LLM Provider 完善** | 协议 → Provider → model registry（C0 A–C） | **done**（A–C；D–I backlog） |
 | **6** | **Legacy / deprecated 清理** | 删 `@deprecated` alias、utils 抽离、event-hub 改名 | **done**（TS harness） |
 
 ```mermaid
@@ -25,7 +25,7 @@ flowchart TD
   W2["2 HookDispatcher ✓"]
   W3["3 session observe ✓"]
   W4["4 instruction-state ✓"]
-  W5["5 LLM Provider"]
+  W5["5 LLM Provider ✓"]
   W6["6 cleanup ✓"]
 
   W1 --> W2 --> W3
@@ -36,7 +36,7 @@ flowchart TD
   W5 -.-> W6
 ```
 
-**下一步：** **#5 LLM Provider A–C**（与 Rust release 可并行）；backlog 择项见 [`context-backlog.md`](context-backlog.md)。
+**下一步：** **Context Budget Tiers**（见 [`context-backlog.md`](context-backlog.md)）；LLM Provider **D–I**（多 preset adapter、Model Router）择项 backlog。
 
 ---
 
@@ -71,7 +71,7 @@ flowchart TD
 | **2** | [`agent/hooks/`](../../src/agent/hooks/) | phases · dispatcher · registry · defaults |
 | **3** | [`plugins/builtin/log-sync/`](../../src/plugins/builtin/log-sync/) · [`tool-use-log/`](../../src/plugins/builtin/tool-use-log/) | SessionItem → AgentEvent |
 | **4** | [`instruction-state/`](../../src/instruction-state/) | load · resolve · epoch |
-| **5** | [`llm/protocol/`](../../src/llm/protocol/) · [`llm/routing/`](../../src/llm/routing/) | Provider A–C 待完善 |
+| **5** | [`llm/protocol/`](../../src/llm/protocol/) · [`llm/presets/`](../../src/llm/presets/) · [`llm/models/registry.ts`](../../src/llm/models/registry.ts) · [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) | Provider A–C done |
 | **6** | [`utils/`](../../src/utils/) · [`storage/`](../../src/storage/) | 基础设施抽离；`log/event-hub.ts` |
 
 ### CLI 入口
@@ -127,15 +127,15 @@ src/instruction-state/
 
 ---
 
-## 5. LLM Provider 完善（C0 A–C）— 进行中
+## 5. LLM Provider 完善（C0 A–C）— done
 
-见 [`llm-provider.md`](../spec/llm-provider.md) §13。
+见 [`llm-provider.md`](../spec/llm-provider.md) §13。**D–I**（多协议 adapter、OpenRouter、Model Router）仍 backlog。
 
 | 子阶段 | 内容 | 状态 |
 |--------|------|------|
-| **A** | MoonTide 协议类型；SDK import 限 adapter | 部分 |
-| **B** | `LLMProvider`；runLLM / compact 统一入口 | 部分 |
-| **C** | model 注册表 + `ModelProfile` 驱动 context limit | 待做 |
+| **A** | MoonTide 协议类型；SDK import 限 adapter | **done** |
+| **B** | `LLMProvider` + `resolveRoute()`；runLLM / compact / ping | **done**（`deepseek` + `anthropic` preset，单 adapter） |
+| **C** | model 注册表 + `ModelProfile` 驱动 context limit | **done** |
 
 ---
 
@@ -168,7 +168,7 @@ src/instruction-state/
 | instruction-state | done |
 | Plugin host `kind: sidecar` | done — [`plugin-host.md`](plugin-host.md) |
 | Utils / storage 分层 | done — [`utils-infrastructure.md`](utils-infrastructure.md) |
-| Provider A–C | **#5 进行中** |
+| Provider A–C | **done** — [`llm/models/registry.ts`](../../src/llm/models/registry.ts) · [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) |
 | MCP client | 待 R2 |
 
 ---

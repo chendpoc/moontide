@@ -28,6 +28,8 @@ export const APP_ENV = {
   HTTP: "HTTP",
   /** Runtime profile: `dev` | `production` (see `appEnv()` in config). */
   ENV: "ENV",
+  /** Provider preset id: `deepseek` | `anthropic` (see llm/presets). */
+  PROVIDER: "PROVIDER",
   ALWAYS_ALLOW: "ALWAYS_ALLOW",
   SIDECAR_PLUGIN_ID: "SIDECAR_PLUGIN_ID",
 } as const;

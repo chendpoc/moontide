@@ -1,0 +1,52 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { resolveRoute } from "../src/llm/routing/resolve.js";
+
+describe("llm routing", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults to deepseek when only DEEPSEEK_API_KEY is set", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
+
+    const route = resolveRoute();
+    expect(route.providerPresetId).toBe("deepseek");
+    expect(route.vendorModelId).toBe("deepseek-v4-pro");
+    expect(route.adapterFamily).toBe("anthropic-messages");
+  });
+
+  it("uses explicit MOONTIDE_PROVIDER when key is present", () => {
+    vi.stubEnv("MOONTIDE_PROVIDER", "anthropic");
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
+
+    const route = resolveRoute();
+    expect(route.providerPresetId).toBe("anthropic");
+    expect(route.vendorModelId).toBe("deepseek-v4-pro");
+  });
+
+  it("prefers deepseek over anthropic when both keys exist and model prefers deepseek", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-ds");
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-flash");
+
+    const route = resolveRoute();
+    expect(route.providerPresetId).toBe("deepseek");
+    expect(route.vendorModelId).toBe("deepseek-v4-flash");
+  });
+
+  it("throws when no provider API key is configured", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    expect(() => resolveRoute()).toThrow(/DEEPSEEK_API_KEY or ANTHROPIC_API_KEY/);
+  });
+
+  it("throws when explicit preset lacks API key", () => {
+    vi.stubEnv("MOONTIDE_PROVIDER", "anthropic");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    expect(() => resolveRoute()).toThrow(/ANTHROPIC_API_KEY/);
+  });
+});

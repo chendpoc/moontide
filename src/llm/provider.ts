@@ -10,15 +10,16 @@ export interface LLMProvider {
   countTokens?(request: LLMRequest): Promise<number>;
 }
 
-const defaultProvider: LLMProvider = {
-  chat: anthropicMessagesChat,
-  countTokens: anthropicMessagesCountTokens,
-};
-
 let providerOverride: LLMProvider | undefined;
 
-export function getLLMProvider(_route?: ResolvedRoute): LLMProvider {
-  return providerOverride ?? defaultProvider;
+export function getLLMProvider(route: ResolvedRoute): LLMProvider {
+  if (providerOverride) {
+    return providerOverride;
+  }
+  return {
+    chat: (request) => anthropicMessagesChat(request, route),
+    countTokens: (request) => anthropicMessagesCountTokens(request, route),
+  };
 }
 
 /** Test hook — reset with `undefined` to restore default. */

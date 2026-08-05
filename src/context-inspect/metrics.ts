@@ -3,6 +3,7 @@ import type { Message, ToolSchema } from "../llm/protocol/types.js";
 import { modelId } from "../config.js";
 import { internalError } from "../errors/factories.js";
 import { getLLMProvider } from "../llm/provider.js";
+import { resolveRoute } from "../llm/routing/resolve.js";
 import {
   blockMessageLabel,
   blockMessageLineDetail,
@@ -143,12 +144,13 @@ export async function exactTokenCount(
   system: string,
   tools: ToolSchema[],
 ): Promise<number> {
-  const provider = getLLMProvider();
+  const route = resolveRoute(modelId());
+  const provider = getLLMProvider(route);
   if (!provider.countTokens) {
     throw internalError("LLM provider does not support countTokens");
   }
   return provider.countTokens({
-    model: modelId(),
+    model: route.vendorModelId,
     system,
     messages,
     tools,

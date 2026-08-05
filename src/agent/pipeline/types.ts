@@ -1,4 +1,5 @@
 import type { LLMRequest, LLMResponse } from "../../llm/protocol/types.js";
+import type { ResolvedRoute } from "../../llm/routing/types.js";
 
 export type ToolUseOutcome =
   | { status: "denied"; reason: string }
@@ -14,6 +15,7 @@ export interface LLMCallRecord {
   turn: number;
   request: LLMRequest;
   outcome: LLMCallOutcome;
+  routing?: ResolvedRoute;
 }
 
 export interface ToolUseRecord {

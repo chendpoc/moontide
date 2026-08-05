@@ -9,6 +9,7 @@ import { buildContextReport } from "../../../context-inspect/analyze.js";
 import { buildSnapshot } from "../../../context-inspect/snapshot.js";
 import { extractText } from "../../../llm/normalize/extract-text.js";
 import { getLLMProvider } from "../../../llm/provider.js";
+import { resolveRoute } from "../../../llm/routing/resolve.js";
 import {
   applyPrune,
   estimateContextTokens,
@@ -95,8 +96,9 @@ export async function summarizeCompact(
     return pruneCompact(messages, system, tools, keepTurns);
   }
 
-  const response = await getLLMProvider().chat({
-    model: currentModelId,
+  const route = resolveRoute(currentModelId);
+  const response = await getLLMProvider(route).chat({
+    model: route.vendorModelId,
     system:
       "Summarize the conversation excerpt for context compression. Preserve tasks, decisions, file paths, and open questions. Be concise.",
     messages: [

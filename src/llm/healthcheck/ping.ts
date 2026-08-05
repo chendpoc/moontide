@@ -5,13 +5,14 @@
 import { toMessage } from "../../errors/normalize.js";
 import "../../bootstrap.js";
 import { PING_MAX_TOKENS } from "../../constants/llm.js";
-import { modelId } from "../../config.js";
 import { extractText } from "../normalize/extract-text.js";
 import { getLLMProvider } from "../provider.js";
+import { resolveRoute } from "../routing/resolve.js";
 
 async function ping(userText: string): Promise<string> {
-  const response = await getLLMProvider().chat({
-    model: modelId(),
+  const route = resolveRoute();
+  const response = await getLLMProvider(route).chat({
+    model: route.vendorModelId,
     system: "",
     messages: [{ role: "user", content: userText }],
     tools: [],
