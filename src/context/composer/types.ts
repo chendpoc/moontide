@@ -8,6 +8,7 @@ import type {
 } from "../../session/stores/index.js";
 import type { InstructionState } from "./system/types.js";
 import type { CompactionPolicy } from "./compaction/policy.js";
+import type { BudgetTierUsage } from "./budget/types.js";
 
 /** Target compose input. See docs/spec/context-composer.md §10.1. */
 export interface ComposeContextInput {
@@ -54,6 +55,8 @@ export interface ContextManifest {
   activeCompactionSaveId?: string;
   resumeCheckpointId?: string;
   alerts?: ManifestAlert[];
+  /** Context Budget Tier breakdown (L1–L4; L5 when enabled). */
+  budgetTiers?: BudgetTierUsage[];
 }
 
 export interface ComposedContext {

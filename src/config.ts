@@ -101,6 +101,44 @@ export function contextLimit(): number {
   return resolveModelProfile().contextWindow;
 }
 
+function parsePositiveBudgetEnv(key: keyof typeof APP_ENV): number | undefined {
+  const raw = env(APP_ENV[key]);
+  if (raw === undefined || raw === "") {
+    return undefined;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return Math.floor(parsed);
+}
+
+export function contextBudgetL1(): number | undefined {
+  return parsePositiveBudgetEnv("CONTEXT_BUDGET_L1");
+}
+
+export function contextBudgetL3(): number | undefined {
+  return parsePositiveBudgetEnv("CONTEXT_BUDGET_L3");
+}
+
+export function contextBudgetL4(): number | undefined {
+  return parsePositiveBudgetEnv("CONTEXT_BUDGET_L4");
+}
+
+export function contextBudgetL5(): number | undefined {
+  return parsePositiveBudgetEnv("CONTEXT_BUDGET_L5");
+}
+
+export function contextBudgetFlexPct(): number | undefined {
+  return parsePositiveBudgetEnv("CONTEXT_BUDGET_FLEX_PCT");
+}
+
+/** L5 flex tier enabled by default; explicit 0/false/off disables. */
+export function contextBudgetFlexEnabled(): boolean {
+  const flag = envFlagOptional(APP_ENV.CONTEXT_BUDGET_FLEX);
+  return flag ?? true;
+}
+
 export function contextExact(): boolean {
   return envFlag(APP_ENV.CONTEXT_EXACT);
 }

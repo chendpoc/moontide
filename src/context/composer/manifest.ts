@@ -1,6 +1,7 @@
 import type { ModelProfile } from "../../llm/models/types.js";
 import type { ToolSchema } from "../../llm/protocol/types.js";
 import type { ManifestAlert, ContextManifest } from "./types.js";
+import type { BudgetTierUsage } from "./budget/types.js";
 
 export interface BuildContextManifestInput {
   sessionId: string;
@@ -15,6 +16,7 @@ export interface BuildContextManifestInput {
   resumeCheckpointId?: string;
   estimatedInputTokens?: number;
   alerts?: ManifestAlert[];
+  budgetTiers?: BudgetTierUsage[];
 }
 
 export function buildContextManifest(input: BuildContextManifestInput): ContextManifest {
@@ -31,5 +33,6 @@ export function buildContextManifest(input: BuildContextManifestInput): ContextM
     resumeCheckpointId: input.resumeCheckpointId,
     estimatedInputTokens: input.estimatedInputTokens,
     alerts: input.alerts,
+    budgetTiers: input.budgetTiers,
   };
 }
