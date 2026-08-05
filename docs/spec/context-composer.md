@@ -326,9 +326,20 @@ export interface Checkpoint {
 | 命令 | 行为 |
 |------|------|
 | `/compact` / `/compact prune` | 写 `compaction` Item；下轮 compose **forcePrune** |
-| `/compact preview` | dry-run token 估算（经 `composeContext`） |
-| `/compact summary` | LLM 摘要 → **CompactionSave** + `compaction` Item；激活 `activeCompactionSaveId` |
-| `/compact auto on\|off` | REPL 级 auto-prune 开关（超阈值 compose 内 prune，不写 Item Log） |
+| `/compact preview` | dry-run L2 token 估算（经 `composeContext` 编译后的 messages） |
+| `/compact summary` | LLM 摘要 → **CompactionSave** + `compaction` Item；激活 `activeCompactionSaveId`（**手动**；见 §7.4） |
+| `/compact auto on\|off` | REPL 级 auto-prune 开关（L2 超阈值时 compose 内 prune，不写 Item Log） |
+
+### 7.4 Compaction 与 L2 阈值（Budget Tiers）
+
+| 路径 | 触发 / 计量 | 说明 |
+|------|-------------|------|
+| **auto-prune**（compose） | `L2_used / L2_limit ≥ MOONTIDE_COMPACT_THRESHOLD` | `shouldCompactDialogue` · 与 statusline L2 % 同源 |
+| **`/compact preview` / prune / summary`** | before/after 报告 **L2 dialogue tok** | `estimateDialogueCompactionTokens`；与 auto-prune 同账，不含 system/tools |
+| **`/compact summary`** | **无自动阈值**；用户显式调用 | 摘要在 L2 账内减 token，但不替代 auto-prune 触发条件 |
+| **Working Set escalation** | 同上 L2 阈值 | `working-set-compose.ts` 在 auto-prune 压力前升级 snapshot |
+
+CLI 报告格式：`preview: 12,000 → 8,500 L2 tok (saved 3,500)`.
 
 ---
 
@@ -503,11 +514,11 @@ AgentRun:
 
 ## 12. 后续实现分期（代码指引）
 
-> **本节为代码落地顺序，非当前文档交付范围。** 须先完成 [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（MoonTide 协议 + `LLMProvider` + `ModelProfile`）。
+> **本节为代码落地顺序，非当前文档交付范围。** [`llm-provider.md` §13](llm-provider.md#13-后续实现分期代码指引) 阶段 A–C（MoonTide 协议 + `LLMProvider` + `ModelProfile`）**已完成**；D–I 仍 backlog。
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| **C0** | Provider A–C | 部分 |
+| **C0** | Provider A–C | **done** — [`llm/models/registry.ts`](../../src/llm/models/registry.ts) · [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) |
 | **C1** | Session Item Log + Composer **prune** compose 输入 | **done** |
 | **C2** | Artifact Store + spill | **done** |
 | **C3** | Instruction State（`AGENTS.md` / rules） | **done** — [`instruction-state/`](../../src/instruction-state/) |
@@ -515,7 +526,7 @@ AgentRun:
 | **C5** | Checkpoint + resume | **done** |
 | **C6** | Agent Event Log 与 Session Item Log 同步优化 | **done**（TS harness）— log-sync · event-hub |
 
-> **C6+ 执行计划：** 六件事见 [`context-window-roadmap.md`](../notes/context-window-roadmap.md)（#1–#4、#6 **done** · **#5 Provider 进行中**）。
+> **C6+ 执行计划：** 六件事见 [`context-window-roadmap.md`](../notes/context-window-roadmap.md)（#1–#6 **done** · 下一步 Context Budget Tiers / backlog）。
 
 ---
 
@@ -548,3 +559,23 @@ AgentRun:
 - **优先：** Structured Session IR（files / tool / task；对话不做全 session 向量 graph）
 - **Experiment / Backlog：** Priority Placement、Intent-scoped Working Set、Compose-time Dedup（CDC）
 - **Deferred：** Compaction Invariants 验证（当前不纳入验收）
+
+---
+
+## 16. Context Budget Tiers（MVP · 2026-08）
+
+实现：`src/context/composer/budget/` · compose 写入 `ContextManifest.budgetTiers` · compact 阈值 **L2-scoped**。
+
+| Tier | 代码 id | 策略 |
+|------|---------|------|
+| L4 Reserved | `reserved` | 先从 `ModelProfile.contextWindow` 扣 `maxOutputTokens` (+ thinking headroom) |
+| L1 Pinned | `pinned` | system + tools；**non-prunable**；超 cap → alert `pinned_over_budget` |
+| L3 Reference | `reference` | summary / 引用 cap（MVP 估算占位） |
+| L2 Dialogue | `dialogue` | messages；auto-prune 阈值 = `L2_used / L2_limit` |
+| L5 Flex | `flex` | 默认启用（`MOONTIDE_CONTEXT_BUDGET_FLEX=0` 关闭）；估算误差 slack |
+
+Env：`MOONTIDE_CONTEXT_BUDGET_L1` / `_L3` / `_L4` / `_L5` / `_FLEX_PCT` / `_FLEX`（见 `.env.example`）。小窗（C < 128k）默认 cap 按比例缩放。
+
+**MVP+（2026-08）：** L5 flex 默认开 · L3 硬 enforcement（compose 前 `enforceL3ReferenceBudget` + **Artifact spill 同源**）· L1 `subAccounts.workingSet` · context-inspect / statusline 展示 L2 tier breakdown · **Compaction 报告与 auto-prune 均 L2-scoped**（§7.4）。
+
+与 Deep Task Mode：Working Set 在 L1（system）；**budget escalation** 与 L2 compact 阈值联动（`working-set-compose.ts`）。`WorkMemBudgetTier` ≠ `BudgetTier`。

@@ -1,6 +1,6 @@
 # Context Window 后续开发计划
 
-> **状态：** 2026-08 定稿 · **#1–#6 主体 done** · **#5 A–C done** · **下一步 Context Budget Tiers / backlog**  
+> **状态：** 2026-08 定稿 · **#1–#6 主体 done** · **#5 A–C done** · **Context Budget Tiers done**（见 [`context-composer.md` §16`](../spec/context-composer.md#16-context-budget-tiersmvp--2026-08)）  
 > **Spec：** [`context-composer.md`](../spec/context-composer.md) C0–C6  
 > **Hook：** [`agent-run-hooks.md`](agent-run-hooks.md) · **Agent Event：** [`agent-events.md`](../spec/agent-events.md) · **Utils：** [`utils-infrastructure.md`](utils-infrastructure.md)
 
@@ -36,7 +36,7 @@ flowchart TD
   W5 -.-> W6
 ```
 
-**下一步：** **Context Budget Tiers**（见 [`context-backlog.md`](context-backlog.md)）；LLM Provider **D–I**（多 preset adapter、Model Router）择项 backlog。
+**下一步：** [`context-backlog.md`](context-backlog.md) 择项（Structured Session IR 等）；LLM Provider **D–I**（多 preset adapter、Model Router）择项 backlog。
 
 ---
 

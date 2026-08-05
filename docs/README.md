@@ -33,6 +33,7 @@ flowchart TB
     EC[ecosystem-compat]
     CA[context-analysis]
     CB[context-backlog]
+    CN[context-normalization]
     SDM[session-domain-model]
     SLM[session-log-migration]
     EL[edge-local-models]
@@ -68,6 +69,7 @@ flowchart TB
   LP --> LI
   CA --> CC
   CB --> CC
+  CN --> CC
   EL --> LP
   KO --> RM
   KO --> EL
@@ -82,7 +84,7 @@ flowchart TB
 |------|------|------|
 | [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
-| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [deep-mode](notes/deep-mode.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
+| [`notes/`](notes/) | 参考 / 候选 | [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [deep-mode](notes/deep-mode.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [context-normalization](notes/context-normalization.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
 ## 阅读路径
 
@@ -98,7 +100,9 @@ flowchart TB
 
 **接 MCP / 外部 Plugin** — ecosystem-compat → plugin-host → platform-strategy
 
-**改 context** — [context-window-roadmap](notes/context-window-roadmap.md)（**当前开发计划 · #5 Provider 进行中**）→ [session-domain-model](notes/session-domain-model.md)（类型/数据流）→ context-composer（主 Spec）→ agent-run-hooks（Session/Turn Observe）→ [utils-infrastructure](notes/utils-infrastructure.md) → context-backlog（C6+ 演进）→ context-analysis（行业背景）
+**改 context** — [context-window-roadmap](notes/context-window-roadmap.md)（**当前开发计划 · #1–#6 done · Context Budget Tiers / backlog**）→ [session-domain-model](notes/session-domain-model.md)（类型/数据流）→ context-composer（主 Spec）→ agent-run-hooks（Session/Turn Observe）→ [utils-infrastructure](notes/utils-infrastructure.md) → context-backlog（C6+ 演进）→ context-analysis（行业背景）
+
+**改 context preflight / postflight** — [context-normalization](notes/context-normalization.md)（本 feature backlog）→ context-composer（最终 request owner）→ agent-run-hooks（完整 turn postflight）
 
 **改 REPL session 持久化** — [session-persistence](notes/session-persistence.md) → session-domain-model → context-composer §4
 
@@ -134,6 +138,7 @@ flowchart TB
 | Session 书签 / 恢复 | [session-persistence](notes/session-persistence.md) | `/save` · `/resume session` · index.json |
 | Context debug dump | [context-inspect-debug](notes/context-inspect-debug.md) | `/debug` · context-inspect |
 | Context 演进 | [context-backlog](notes/context-backlog.md) | context-composer · context-analysis |
+| Context Preflight / Postflight | [context-normalization](notes/context-normalization.md) | context-composer · agent-run-hooks · deep-mode |
 | 跨 agent 交接 | [session-handoff](notes/session-handoff.md) | context-composer · vision（Zephyr） |
 | Edge 本地推理 | [edge-local-models](notes/edge-local-models.md) | llm-provider · runtime-multilang · kocoro-architecture |
 | 多语言 Runtime | [runtime-multilang](notes/runtime-multilang.md) | kocoro-architecture · edge-local-models |
@@ -163,6 +168,7 @@ flowchart TB
 | [session-persistence](notes/session-persistence.md) | Session Index 书签 · `/save` · `/resume session` |
 | [context-inspect-debug](notes/context-inspect-debug.md) | `/debug` 分级全量 compose/llm/tool dump |
 | [context-backlog](notes/context-backlog.md) | Context 演进特性候选（C6+ 之后，非实现承诺） |
+| [context-normalization](notes/context-normalization.md) | LLM request 前后 Context budget / projection normalization 特性 backlog |
 | [edge-local-models](notes/edge-local-models.md) | Edge 小模型：catalog pull、Cloud train only、`moontide-infer` |
 | [kocoro-architecture](notes/kocoro-architecture.md) | Kocoro/Shannon 架构参考与 MoonTide 对照 |
 | [session-handoff](notes/session-handoff.md) | 跨 agent 会话交接：价值、分层方案、业界 gap |

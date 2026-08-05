@@ -137,7 +137,7 @@ flowchart LR
 
 **MoonTide 今天已覆盖：** `system`（Instruction State：`prompt.ts` + `AGENTS.md` / rules）+ `tools` + `messages`（经 **`composeContext`** 编译）；大 tool 输出 **Artifact spill**；**CompactionSave** summary；**Checkpoint** resume；**runtime-status** 观测缓存。
 
-**尚未覆盖：** personal memory 文件源、`read_artifact` tool、Provider A–C 分层 — 见 [`context-window-roadmap.md`](../notes/context-window-roadmap.md) **#5**。
+**尚未覆盖：** personal memory 文件源、`read_artifact` tool；Provider **D–I**（多 adapter、OpenRouter、Model Router）— 见 [`llm-provider.md`](llm-provider.md) §13 · [`context-window-roadmap.md`](../notes/context-window-roadmap.md) **#5 backlog**。
 
 ---
 

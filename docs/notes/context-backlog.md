@@ -44,6 +44,8 @@ flowchart LR
 
 ## 3. Core：Context Budget Tiers（分账）
 
+> **状态（2026-08）：** **done** — L1–L5 分账 · L2-scoped auto-prune · `/compact` 报告 L2 tok（§7.4）· L3 spill 集成 · manifest `budgetTiers` · inspect/statusline · `subAccounts.workingSet`。详见 [`context-composer.md` §16](../spec/context-composer.md#16-context-budget-tiersmvp--2026-08)。
+
 ### 3.1 问题
 
 单一 context 上限 + 全局 `percentUsed` 阈值时，**长对话或大 tool_result 会挤占** Instruction State、Tool Definitions 与输出预留，导致 system/tools 被 silent 压缩或截断。
@@ -290,9 +292,10 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | Intent-scoped Working Set | Backlog | C5+ | C1；可选 IR |
 | Episodic memory（L0–L3） | Backlog | C5+ | Session Log；见 edge-local-models |
 | Compose Dedup / CDC | Backlog | C2–C3+ | C2 Artifact |
+| Prompt Prefix Cache | Backlog | C2+ | Stable Composer prefix；provider usage |
 | Compaction Invariants | Deferred | — | — |
 
-**主路径不变：** C0 Provider A–C → C1 Event Log + Composer + prune → C2 Artifact → C3 Instruction → C4 Compaction Record → C5 Checkpoint → C6 双 log 同步。
+**主路径：** C0 Provider A–C **done** → C1 Event Log + Composer + prune → C2 Artifact → C3 Instruction → C4 Compaction Record → C5 Checkpoint → C6 双 log 同步。
 
 ---
 
@@ -316,3 +319,119 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 ## 13. 一句话
 
 **分账（L1–L4）保证各块 token 互不占；Structured IR 优先结构化文件/task；Placement / Intent WS / Dedup 为实验或 backlog；Compaction 验证暂缓。**
+
+---
+
+## 14. Backlog：Prompt Prefix Cache
+
+### 14.1 目标
+
+在连续多轮 request 中复用稳定的 system / instruction / tool-definition prefix，降低 provider latency、input cost 和重复 token processing。
+
+这是性能优化，不是 correctness boundary：即使 cache miss 或 provider 不支持 cache，最终 `LLMRequest` 仍必须独立正确执行。
+
+### 14.2 可缓存 prefix
+
+推荐将 request 编排成：
+
+```text
+Stable Prefix
+  ├─ model/provider-compatible system instructions
+  ├─ stable project rules / instruction state
+  ├─ deterministically ordered tool definitions
+  └─ explicitly versioned stable capability descriptions
+
+Dynamic Suffix
+  ├─ working-set snapshot
+  ├─ compaction record / summary projection
+  ├─ conversation messages
+  └─ current user prompt and tool results
+```
+
+不是所有“较旧内容”都应该进入 prefix。Working Set、Compaction Record 和 tools 只有在 revision、schema 和排序稳定时，才可以成为 prefix 的一部分；否则应放在 dynamic suffix。
+
+### 14.3 Cache identity 与失效条件
+
+Prefix fingerprint 至少应覆盖：
+
+| 输入 | 说明 |
+|------|------|
+| provider / route | 不同 provider 或 route 不共享假定的 prefix |
+| model profile | model、context window、thinking 能力变化时失效 |
+| instruction epoch | `AGENTS.md`、rules 或基础 system prompt 变化时失效 |
+| ordered tool schema hash | tool 名称、description、input schema 或顺序变化时失效 |
+| capability/plugin revision | 插件描述或能力集合变化时失效 |
+| working-set / compaction revision | 只有被明确放入 stable prefix 时才纳入 |
+
+`sessionId` 不应被无条件放入内容 fingerprint；是否按 Session 隔离由 provider cache contract 和隐私策略决定。
+
+以下情况必须造成 cache miss 或新的 prefix fingerprint：
+
+- system / instruction state 变化；
+- tool definition、tool 顺序或 schema 变化；
+- model、provider route、thinking 配置变化；
+- prefix 中的 working-set / compaction revision 变化；
+- prefix 排序策略变化；
+- provider 明确报告 cache 不可用或失效。
+
+### 14.4 Composer / Provider 边界
+
+Context Composer 负责生成稳定、可解释的 prefix，并在 `ContextManifest` 中记录：
+
+```ts
+interface PromptPrefixInfo {
+  fingerprint: string;
+  tokenEstimate: number;
+  cacheEligible: boolean;
+  invalidationReason?: string;
+}
+```
+
+Provider adapter 负责将该信息映射为 provider-specific cache controls 或读取 provider 返回的 cache usage。Core 不应假设所有 provider 都支持显式 cache breakpoint。
+
+如果 provider 只支持 exact-prefix automatic caching，Composer 应保证稳定排序和 append-friendly request layout；如果 provider 支持显式 breakpoint，再由 adapter 负责映射。
+
+### 14.5 与 Compaction / Normalization 的关系
+
+Preflight 顺序建议为：
+
+```text
+build instruction + tools
+  → choose stable prefix
+  → apply compaction / budget normalization
+  → compute prefix fingerprint
+  → build final LLMRequest
+```
+
+Compaction 不得为了追求 cache hit 而保留已经超出预算的内容。正确性与预算优先，cache 只在合法 projection 上优化。
+
+如果 compaction 改变了 system、tool schema、summary 或 prefix ordering，应显式记录 cache invalidation，而不是报告一个虚假的 cache hit。
+
+### 14.6 实现阶段
+
+| 阶段 | 内容 |
+|------|------|
+| P0 Observe | 计算 prefix fingerprint、prefix token estimate 和潜在 cache break reason，不改变 provider 行为 |
+| P1 Stable Layout | 固定 system / tools 排序，拆分 stable prefix 与 dynamic suffix，写入 ContextManifest |
+| P2 Provider Adapter | 读取 provider cache usage，支持显式 cache controls；不支持时安全降级 |
+| P3 Request Reuse | 仅在 provider contract 明确支持、model/config/prefix 完全一致且 suffix 是 append-compatible 时复用 |
+
+### 14.7 验收标准
+
+- 同一 provider、model、instruction epoch、tool schema 和 prefix 内容生成相同 fingerprint；
+- 任一稳定 prefix 输入变化都会产生新的 fingerprint；
+- cache miss 不影响 request correctness；
+- provider 不支持 prefix cache 时正常运行；
+- compaction 不会造成错误 cache hit；
+- manifest 能区分 `cacheEligible`、`cacheHit`、`cacheMiss` 和 `cacheBreakReason`；
+- provider 返回的 cache usage 与本地 fingerprint 观测可以对照；
+- cache 机制不持久化完整 prompt 或 secret，除非 provider contract 和隐私策略明确允许；
+- benchmark 能测量 cache hit rate、input cost、latency 和 compaction 后的恢复行为。
+
+### 14.8 非目标
+
+- 不实现完整 response cache；
+- 不把 cache hit 当成 correctness 或 context recovery 的证明；
+- 不为了 cache 保留过时的 instruction、tool schema 或 compaction 内容；
+- 不在 provider contract 不明确时复用跨 Session 的 prompt 内容；
+- 不先实现复杂的本地 cache daemon。
