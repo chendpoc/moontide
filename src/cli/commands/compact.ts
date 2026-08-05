@@ -1,3 +1,4 @@
+import { toMessage } from "../../errors/normalize.js";
 import { previewCompact } from "../../context/composer/compaction/operations.js";
 import { composeContext } from "../../context/composer/compose.js";
 import { getWorkdir } from "../../config.js";
@@ -17,7 +18,7 @@ async function buildComposePreview(agentSession: NonNullable<ReturnType<ReplComm
     artifactStore: agentSession.stores.artifacts,
     compactionStore: agentSession.stores.compaction,
     checkpointStore: agentSession.stores.checkpoints,
-    toolDefinitions: getToolDefinitions(agentSession.runtime),
+    toolDefinitions: getToolDefinitions(agentSession.runtime.tools),
     modelProfile: resolveModelProfile(),
     compactionPolicy: { ...agentSession.getCompactionPolicy(), autoEnabled: false },
     activeCompactionSaveId: agentSession.getActiveCompactionSaveId(),
@@ -91,7 +92,7 @@ export async function handleCompactCommand(
         ),
       );
     } catch (err) {
-      reply(err instanceof Error ? err.message : String(err));
+      reply(toMessage(err));
     }
     return "handled";
   }

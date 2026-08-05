@@ -1,3 +1,5 @@
+import { DATA_DIR } from "../../constants/storage.js";
+import { APP_ENV, envVarName } from "../../constants/env.js";
 import {
   describeDebugMode,
   getDebugLevel,
@@ -12,14 +14,14 @@ export function handleDebugCommand(arg: string | undefined): ReplCommandResult {
   if (parsed === null) {
     reply("usage: /debug on|terminal|file|off|status");
     reply("  on|terminal — full compose/llm/tool dumps to stderr (default tier)");
-    reply("  file        — terminal + .ocula/debug/<runId>.jsonl");
+    reply(`  file        — terminal + ${DATA_DIR}/debug/<runId>.jsonl`);
     return "handled";
   }
   if (parsed === "status") {
     reply(describeDebugMode());
     const level = getDebugLevel();
     if (level === "off") {
-      reply("enable with /debug on or OCULA_DEBUG=1|terminal|file");
+      reply(`enable with /debug on or ${envVarName(APP_ENV.DEBUG)}=1|terminal|file`);
     }
     return "handled";
   }

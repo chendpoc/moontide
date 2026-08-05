@@ -1,5 +1,7 @@
 import chalk from "chalk";
 
+import { PRODUCT_NAME } from "../constants/brand.js";
+
 export const cliTheme = {
   dim: chalk.gray,
   prompt: chalk.cyan,
@@ -8,7 +10,7 @@ export const cliTheme = {
 };
 
 export function replPrompt(): string {
-  return `${cliTheme.prompt("Ocula >>")} `;
+  return `${cliTheme.prompt(`${PRODUCT_NAME} >>`)} `;
 }
 
 export function turnSeparator(): string {

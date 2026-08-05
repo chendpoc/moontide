@@ -1,13 +1,15 @@
 #!/usr/bin/env tsx
 /**
- * Cursor CLI statusLine script — merges Cursor stdin payload with Ocula .ocula/status.json.
+ * Cursor CLI statusLine script — merges Cursor stdin payload with MoonTide .moontide/status.json.
  * Config: ~/.cursor/cli-config.json → statusLine.command
  */
 import fs from "node:fs";
 import path from "node:path";
 
+import { loadStatusLineConfig } from "../src/config/status-line.js";
 import { DATA_DIR, STATUS_FILE } from "../src/constants/storage.js";
-import { formatStatusLine } from "../src/cli/statusline/format.js";
+import { snapshotToPayload } from "../src/cli/statusline/collect.js";
+import { renderStatusSegments } from "../src/cli/statusline/segments.js";
 import type { StatusSnapshot } from "../src/cli/statusline/types.js";
 
 interface CursorStatusPayload {
@@ -15,6 +17,7 @@ interface CursorStatusPayload {
   model?: { display_name?: string; id?: string };
   context_window?: {
     used_percentage?: number | null;
+    total_input_tokens?: number | null;
     context_window_size?: number | null;
   };
 }
@@ -28,7 +31,7 @@ function readStdin(): Promise<string> {
   });
 }
 
-function loadOculaStatus(cwd: string): StatusSnapshot | null {
+function loadMoonTideStatus(cwd: string): StatusSnapshot | null {
   const filePath = path.join(cwd, DATA_DIR, STATUS_FILE);
   if (!fs.existsSync(filePath)) {
     return null;
@@ -42,17 +45,23 @@ function loadOculaStatus(cwd: string): StatusSnapshot | null {
 
 function mergeSnapshot(
   cursor: CursorStatusPayload,
-  ocula: StatusSnapshot | null,
+  status: StatusSnapshot | null,
+  cwd: string,
 ): StatusSnapshot {
-  const cwd = cursor.cwd ?? process.cwd();
-  const pct = cursor.context_window?.used_percentage ?? ocula?.contextPct ?? null;
+  const pct = cursor.context_window?.used_percentage ?? status?.contextPct ?? null;
+  const used =
+    cursor.context_window?.total_input_tokens ?? status?.contextUsed ?? null;
+  const limit =
+    cursor.context_window?.context_window_size ?? status?.contextLimit ?? null;
 
-  if (ocula) {
+  if (status) {
     return {
-      ...ocula,
-      model: cursor.model?.display_name ?? cursor.model?.id ?? ocula.model,
-      workdir: ocula.workdir || cwd,
+      ...status,
+      model: cursor.model?.display_name ?? cursor.model?.id ?? status.model,
+      workdir: status.workdir || cwd,
       contextPct: pct,
+      contextUsed: used,
+      contextLimit: limit,
     };
   }
 
@@ -63,6 +72,12 @@ function mergeSnapshot(
     runId: "",
     turn: null,
     contextPct: pct,
+    contextUsed: used,
+    contextLimit: limit,
+    contextDelta: null,
+    contextHasBaseline: false,
+    lastApiIn: null,
+    lastApiOut: null,
   };
 }
 
@@ -70,10 +85,12 @@ async function main(): Promise<void> {
   const raw = await readStdin();
   const cursor = raw.trim() ? (JSON.parse(raw) as CursorStatusPayload) : {};
   const cwd = cursor.cwd ?? process.cwd();
-  const ocula = loadOculaStatus(cwd);
-  const snapshot = mergeSnapshot(cursor, ocula);
-  const lines = formatStatusLine(snapshot);
-  process.stdout.write(`${lines}\n`);
+  const status = loadMoonTideStatus(cwd);
+  const snapshot = mergeSnapshot(cursor, status, cwd);
+  const config = loadStatusLineConfig(cwd);
+  const line = renderStatusSegments(snapshot, config.segments);
+  process.stdout.write(`${line}\n`);
+  void snapshotToPayload(snapshot, cwd);
 }
 
 main().catch((error) => {

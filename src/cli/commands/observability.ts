@@ -1,3 +1,4 @@
+import { APP_ENV, envVarName } from "../../constants/env.js";
 import {
   describeObservabilityModes,
   isThinkingEnabled,
@@ -32,7 +33,7 @@ export function handleThinkingCommand(arg: string | undefined): ReplCommandResul
     reply(
       isThinkingEnabled()
         ? "shows trace call chain: thinking · tool → · result"
-        : "thinking off — enable with /thinking on or OCULA_THINKING=1",
+        : `thinking off — enable with /thinking on or ${envVarName(APP_ENV.THINKING)}=1`,
     );
     return "handled";
   }
@@ -52,7 +53,7 @@ export function handleVerboseCommand(arg: string | undefined): ReplCommandResult
     reply(
       isVerboseEnabled()
         ? "verbose on — context · tool_use_log · conversation · full trace"
-        : "verbose off — enable with /verbose on or OCULA_VERBOSE=1",
+        : `verbose off — enable with /verbose on or ${envVarName(APP_ENV.VERBOSE)}=1`,
     );
     return "handled";
   }

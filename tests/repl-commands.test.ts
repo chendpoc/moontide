@@ -9,6 +9,11 @@ import {
   resetObservabilityOverrides,
 } from "../src/log/modes.js";
 import {
+  isAlwaysAllowEnabled,
+  resetAlwaysAllowOverride,
+  setAlwaysAllowOverride,
+} from "../src/tools/always-allow-mode.js";
+import {
   getDebugLevel,
   resetDebugOverride,
   setDebugOverride,
@@ -26,6 +31,7 @@ describe("repl commands", () => {
   afterEach(() => {
     resetObservabilityOverrides();
     resetDebugOverride();
+    resetAlwaysAllowOverride();
     resetReplSession();
   });
 
@@ -58,6 +64,20 @@ describe("repl commands", () => {
     expect(getDebugLevel()).toBe("off");
   });
 
+  it("toggles always-allow mode", async () => {
+    const result = await handleReplCommand("/always-allow on", emptyCtx);
+    expect(result).toBe("handled");
+    expect(isAlwaysAllowEnabled()).toBe(true);
+  });
+
+  it("resets always-allow override on /reset", async () => {
+    delete process.env.MOONTIDE_ALWAYS_ALLOW;
+    setAlwaysAllowOverride(true);
+    const result = await handleReplCommand("/reset", emptyCtx);
+    expect(result).toBe("handled");
+    expect(isAlwaysAllowEnabled()).toBe(false);
+  });
+
   it("does not treat non-commands as handled", async () => {
     const result = await handleReplCommand("hello", emptyCtx);
     expect(result).toBe("not_command");
@@ -66,6 +86,21 @@ describe("repl commands", () => {
   it("returns unknown for bogus commands", async () => {
     const result = await handleReplCommand("/bogus", emptyCtx);
     expect(result).toBe("unknown");
+  });
+
+  it("groups help output by category", async () => {
+    const { replCommandHelpSections } = await import("../src/cli/commands/registry.js");
+    const sections = replCommandHelpSections();
+    expect(sections.map((section) => section.category)).toEqual([
+      "General",
+      "Session",
+      "Context",
+      "Observability",
+    ]);
+    const syntaxes = sections.flatMap((section) => section.entries.map((entry) => entry.syntax));
+    expect(syntaxes).toContain("/save");
+    expect(syntaxes).toContain("/settings lang en|zh|status");
+    expect(syntaxes).toContain("/debug on|terminal|file|off|status");
   });
 
   it("compact preview requires session", async () => {

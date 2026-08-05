@@ -4,9 +4,11 @@ import { stdin as input, stdout as output } from "node:process";
 import { continueReplAgent } from "../../agent/loop.js";
 import type { AgentSession } from "../../agent/agent-session.js";
 import { getWorkdir } from "../../config.js";
+import { PRODUCT_NAME } from "../../constants/brand.js";
 import { bootstrapAgentPlatform, teardownAgentPlatform } from "../../app/bootstrap.js";
 import { getAgentRuntime } from "../../agent/runtime/index.js";
 import type { UserInteraction } from "../../tools/types.js";
+import { reportError, toErrorRecord, toMessage } from "../../errors/index.js";
 import {
   replPrompt,
   turnSeparator,
@@ -18,8 +20,7 @@ import {
   type ReplCommandContext,
 } from "../commands/repl.js";
 import { createReplSessionPersistenceDeps } from "../session-persistence-glue.js";
-import { setReplPhase } from "../statusline/collect.js";
-import { renderStatusLine } from "../statusline/render.js";
+import { beginAgentActivity, endAgentActivity, renderStatusLine } from "../statusline/render.js";
 import { resolveReplLine } from "./dispatch.js";
 import { createReplUserInteraction } from "./interaction.js";
 import { getOrStartReplSession, getReplAgentSession, resetReplSession } from "./session.js";
@@ -33,8 +34,7 @@ async function runAgentTurn(
   agentSession: AgentSession,
   userInteraction: UserInteraction,
 ): Promise<string> {
-  setReplPhase("running");
-  renderStatusLine();
+  beginAgentActivity();
 
   try {
     const { reply } = await continueReplAgent(prompt, agentSession, {
@@ -43,9 +43,11 @@ async function runAgentTurn(
       runtime: agentSession.runtime,
     });
     return reply;
+  } catch (err) {
+    reportError(toErrorRecord(err, "repl:runAgentTurn"));
+    return toMessage(err);
   } finally {
-    setReplPhase("idle");
-    renderStatusLine();
+    endAgentActivity();
   }
 }
 
@@ -53,7 +55,7 @@ async function runAgentTurn(
 export async function runRepl(): Promise<void> {
   await bootstrapAgentPlatform(getWorkdir(), getAgentRuntime());
 
-  writeStderrLine("Ocula — type /help for commands");
+  writeStderrLine(`${PRODUCT_NAME} — type /help for commands`);
   printStartupHint(getWorkdir());
   writeStderrLine("");
 

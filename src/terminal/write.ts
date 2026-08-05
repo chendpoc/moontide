@@ -1,3 +1,5 @@
+import { notifyExternalStderrWrite } from "./pin.js";
+
 type WriteFn = (chunk: string) => boolean;
 
 let stderrWriter: WriteFn = (chunk) => process.stderr.write(chunk);
@@ -8,10 +10,12 @@ export function writeStderr(chunk: string): void {
 }
 
 export function writeStderrLine(line: string): void {
+  notifyExternalStderrWrite();
   writeStderr(line.endsWith("\n") ? line : `${line}\n`);
 }
 
 export function writeStderrBlock(text: string): void {
+  notifyExternalStderrWrite();
   writeStderr(text.endsWith("\n") ? text : `${text}\n`);
   writeStderr("\n");
 }

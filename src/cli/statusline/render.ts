@@ -1,22 +1,53 @@
-import { writeStderrLine } from "../../terminal/write.js";
-import { collectStatusSnapshot } from "./collect.js";
-import { formatStatusLine } from "./format.js";
-import { writeStatusJson } from "./persist.js";
+import { setReplPhase } from "./collect.js";
+import {
+  setActivityTickHandler,
+  startActivityLine,
+  stopActivityLine,
+} from "./activity.js";
+import { isObservabilityEnabled } from "../../log/modes.js";
+import {
+  invalidateStatusLineCommandCache,
+  isStatusStackPinned,
+  renderStatusStack,
+  renderStatusStackAsync,
+  resetStatusStackRender,
+} from "./render-stack.js";
 
-let lastRendered = "";
+setActivityTickHandler(() => {
+  if (isStatusStackPinned()) {
+    renderStatusStack();
+  }
+});
 
 /** Reset dedupe state (tests). */
 export function resetStatusLineRender(): void {
-  lastRendered = "";
+  resetStatusStackRender();
+  stopActivityLine();
+  setReplPhase("idle");
 }
 
 export function renderStatusLine(): void {
-  const snapshot = collectStatusSnapshot();
-  writeStatusJson(snapshot);
-  const line = formatStatusLine(snapshot);
-  if (line === lastRendered) {
-    return;
-  }
-  lastRendered = line;
-  writeStderrLine(line);
+  renderStatusStack();
 }
+
+export async function renderStatusLineAsync(): Promise<void> {
+  await renderStatusStackAsync();
+}
+
+export function beginAgentActivity(): void {
+  setReplPhase("running");
+  invalidateStatusLineCommandCache();
+  if (!isObservabilityEnabled()) {
+    startActivityLine();
+  }
+  renderStatusStack();
+}
+
+export function endAgentActivity(): void {
+  setReplPhase("idle");
+  stopActivityLine();
+  invalidateStatusLineCommandCache();
+  renderStatusStack();
+}
+
+export { renderStatusStackAsync };
