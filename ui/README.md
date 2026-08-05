@@ -1,6 +1,6 @@
-# Ocula UI
+# MoonTide UI
 
-Read-only Slint sidecar for Ocula. Reads `status.json.runId`, tails `workdir/.ocula/runs/<runId>.active.jsonl`, and renders **Trace**, **Context**, and **Chat** tabs.
+Read-only Slint sidecar for MoonTide. Reads `status.json.runId`, tails `workdir/.moontide/runs/<runId>.active.jsonl`, and renders **Trace**, **Context**, and **Chat** tabs.
 
 The UI is live-only: it keeps already loaded rows across segment rotation, but does not read completed `.jsonl.gz` segments. After a UI restart, completed runs are not restored.
 
@@ -20,7 +20,7 @@ macOS-first (folder picker via `rfd`, file watching via `notify`).
 ## Prerequisites
 
 - [rustup](https://rustup.rs) with **stable ≥ 1.89**
-- Ocula REPL writing `.ocula/` artifacts in the workdir
+- MoonTide REPL writing `.moontide/` artifacts in the workdir
 
 ### Upgrade Rust (国内镜像)
 
@@ -35,7 +35,7 @@ rustc --version   # expect 1.89+
 ## Build & run
 
 ```bash
-cd ocula/ui
+cd moontide/ui
 cargo build
 cargo run -- --workdir ..
 ```
@@ -50,17 +50,17 @@ Use **Pick…** to switch workdir at runtime.
 
 ## 联调
 
-Terminal 1 — Ocula REPL:
+Terminal 1 — MoonTide REPL:
 
 ```bash
-cd ocula
+cd moontide
 pnpm dev
 ```
 
 Terminal 2 — UI sidecar:
 
 ```bash
-cd ocula
+cd moontide
 pnpm dev:ui
 # or: cd ui && cargo run -- --workdir ..
 ```

@@ -1,0 +1,13 @@
+[package]
+name = "moontide-composer"
+description = "MoonTide Context Composer v1"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+moontide-protocol = { workspace = true }
+moontide-tools = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

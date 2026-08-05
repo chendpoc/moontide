@@ -1,20 +1,21 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/ocula-protocol",
-    "crates/ocula-session",
-    "crates/ocula-composer",
-    "crates/ocula-llm",
-    "crates/ocula-tools",
-    "crates/ocula-observability",
-    "crates/ocula-agent",
-    "crates/ocula-cli",
+    "crates/moontide-protocol",
+    "crates/moontide-session",
+    "crates/moontide-composer",
+    "crates/moontide-llm",
+    "crates/moontide-tools",
+    "crates/moontide-observability",
+    "crates/moontide-agent",
+    "crates/moontide-cli",
     "ui",
 ]
 
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
+authors = ["OceanSpark"]
 
 [workspace.dependencies]
 anyhow = "1"
@@ -33,10 +34,10 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 owo-colors = "4.3"
 
-ocula-protocol = { path = "crates/ocula-protocol" }
-ocula-session = { path = "crates/ocula-session" }
-ocula-composer = { path = "crates/ocula-composer" }
-ocula-llm = { path = "crates/ocula-llm" }
-ocula-tools = { path = "crates/ocula-tools" }
-ocula-observability = { path = "crates/ocula-observability" }
-ocula-agent = { path = "crates/ocula-agent" }
+moontide-protocol = { path = "crates/moontide-protocol" }
+moontide-session = { path = "crates/moontide-session" }
+moontide-composer = { path = "crates/moontide-composer" }
+moontide-llm = { path = "crates/moontide-llm" }
+moontide-tools = { path = "crates/moontide-tools" }
+moontide-observability = { path = "crates/moontide-observability" }
+moontide-agent = { path = "crates/moontide-agent" }

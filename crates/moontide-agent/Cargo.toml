@@ -1,0 +1,21 @@
+[package]
+name = "moontide-agent"
+description = "MoonTide agent loop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+moontide-composer = { workspace = true }
+moontide-llm = { workspace = true }
+moontide-observability = { workspace = true }
+moontide-protocol = { workspace = true }
+moontide-session = { workspace = true }
+moontide-tools = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

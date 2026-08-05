@@ -14,7 +14,7 @@ use store::{reload_all, SharedStores};
 slint::include_modules!();
 
 #[derive(Parser, Debug)]
-#[command(name = "ocula-ui", about = "Read-only Slint sidecar for Ocula")]
+#[command(name = "moontide-ui", about = "Read-only Slint sidecar for MoonTide by OceanSpark")]
 struct Cli {
     #[arg(long)]
     workdir: Option<PathBuf>,

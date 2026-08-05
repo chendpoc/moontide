@@ -2983,6 +2983,122 @@ dependencies = [
 ]
 
 [[package]]
+name = "moontide-agent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "moontide-composer",
+ "moontide-llm",
+ "moontide-observability",
+ "moontide-protocol",
+ "moontide-session",
+ "moontide-tools",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "moontide-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dotenvy",
+ "moontide-agent",
+ "moontide-llm",
+ "moontide-observability",
+ "moontide-session",
+ "moontide-tools",
+ "rustyline",
+ "tokio",
+]
+
+[[package]]
+name = "moontide-composer"
+version = "0.1.0"
+dependencies = [
+ "moontide-protocol",
+ "moontide-tools",
+ "serde_json",
+]
+
+[[package]]
+name = "moontide-llm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dotenvy",
+ "moontide-protocol",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "moontide-observability"
+version = "0.1.0"
+dependencies = [
+ "owo-colors",
+]
+
+[[package]]
+name = "moontide-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "moontide-session"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "moontide-composer",
+ "moontide-protocol",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "moontide-tools"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "glob",
+ "moontide-protocol",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "moontide-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "notify",
+ "rfd",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
+]
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3417,122 +3533,6 @@ dependencies = [
  "objc2 0.5.2",
  "objc2-core-location",
  "objc2-foundation 0.2.2",
-]
-
-[[package]]
-name = "ocula-agent"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "ocula-composer",
- "ocula-llm",
- "ocula-observability",
- "ocula-protocol",
- "ocula-session",
- "ocula-tools",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "ocula-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "dotenvy",
- "ocula-agent",
- "ocula-llm",
- "ocula-observability",
- "ocula-session",
- "ocula-tools",
- "rustyline",
- "tokio",
-]
-
-[[package]]
-name = "ocula-composer"
-version = "0.1.0"
-dependencies = [
- "ocula-protocol",
- "ocula-tools",
- "serde_json",
-]
-
-[[package]]
-name = "ocula-llm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "dotenvy",
- "ocula-protocol",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "ocula-observability"
-version = "0.1.0"
-dependencies = [
- "owo-colors",
-]
-
-[[package]]
-name = "ocula-protocol"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "ocula-session"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "ocula-composer",
- "ocula-protocol",
- "rand 0.9.5",
- "serde",
- "serde_json",
- "tempfile",
- "uuid",
-]
-
-[[package]]
-name = "ocula-tools"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "glob",
- "ocula-protocol",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "ocula-ui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "notify",
- "rfd",
- "serde",
- "serde_json",
- "slint",
- "slint-build",
 ]
 
 [[package]]

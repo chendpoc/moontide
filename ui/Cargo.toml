@@ -1,8 +1,9 @@
 [package]
-name = "ocula-ui"
+name = "moontide-ui"
 version = "0.1.0"
 edition = "2021"
-description = "Read-only Slint sidecar UI for Ocula agent events"
+authors = ["OceanSpark"]
+description = "Read-only Slint sidecar UI for MoonTide agent events"
 
 [dependencies]
 anyhow = "1"
