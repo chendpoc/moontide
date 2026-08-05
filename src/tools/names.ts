@@ -17,6 +17,7 @@ export const TOOL_NAMES = {
   READ_ARTIFACT: "read_artifact",
   CODE_REPL: "code_repl",
   DEEP_RESEARCH: "deep_research",
+  WORK_MEM: "work_mem",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];

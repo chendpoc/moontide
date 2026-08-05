@@ -50,6 +50,14 @@ export function checkpointsDir(workdir: string, sessionId: string): string {
   return joinPath(sessionsDir(workdir), sessionId, "checkpoints");
 }
 
+export function workMemDir(workdir: string, sessionId: string): string {
+  return joinPath(sessionsDir(workdir), sessionId, "work-mem");
+}
+
+export function workMemPath(workdir: string, sessionId: string, workMemId: string): string {
+  return joinPath(workMemDir(workdir, sessionId), `${workMemId}.jsonl`);
+}
+
 export function checkpointPath(
   workdir: string,
   sessionId: string,

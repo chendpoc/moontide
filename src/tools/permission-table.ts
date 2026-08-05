@@ -20,4 +20,5 @@ export const TOOL_PERMISSIONS: Record<ToolName, ToolPermissionRule> = {
   [TOOL_NAMES.ASK_USER_QUESTION]: { kind: "fixed", decision: "allow" },
   [TOOL_NAMES.CODE_REPL]: { kind: "fixed", decision: "allow" },
   [TOOL_NAMES.DEEP_RESEARCH]: { kind: "fixed", decision: "ask" },
+  [TOOL_NAMES.WORK_MEM]: { kind: "fixed", decision: "allow" },
 };

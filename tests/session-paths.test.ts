@@ -7,10 +7,11 @@ import {
   checkpointsDir,
   compactionDir,
   compactionSavePath,
-  compactionSavePath,
   sessionLogPath,
   sessionIndexPath,
   sessionsDir,
+  workMemDir,
+  workMemPath,
 } from "../src/session/paths.js";
 
 const workdir = "/tmp/moontide-workspace";
@@ -38,14 +39,20 @@ describe("session paths", () => {
     expect(compactionSavePath(workdir, sessionId, "cmp-1")).toBe(
       `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/compaction/cmp-1.json`,
     );
-    expect(compactionSavePath(workdir, sessionId, "cmp-1")).toBe(
-      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/compaction/cmp-1.json`,
-    );
     expect(checkpointsDir(workdir, sessionId)).toBe(
       `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/checkpoints`,
     );
     expect(checkpointPath(workdir, sessionId, "ckpt-1")).toBe(
       `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/checkpoints/ckpt-1.json`,
+    );
+  });
+
+  it("builds work-mem paths under session", () => {
+    expect(workMemDir(workdir, sessionId)).toBe(
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/work-mem`,
+    );
+    expect(workMemPath(workdir, sessionId, "wm_abc12345")).toBe(
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/work-mem/wm_abc12345.jsonl`,
     );
   });
 });

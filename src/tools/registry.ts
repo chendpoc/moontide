@@ -55,4 +55,9 @@ export class ToolRegistry {
     this.pluginTools = [];
     this.rebuild();
   }
+
+  /** Rebuild catalog after dynamic gates change (e.g. Deep Task Mode via `deep:` prefix). */
+  refresh(): void {
+    this.rebuild();
+  }
 }

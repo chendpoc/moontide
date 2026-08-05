@@ -20,4 +20,5 @@ export const TOOL_CAPABILITIES: Record<ToolName, ToolCapability> = {
   [TOOL_NAMES.ASK_USER_QUESTION]: "read",
   [TOOL_NAMES.CODE_REPL]: "exec",
   [TOOL_NAMES.DEEP_RESEARCH]: "network",
+  [TOOL_NAMES.WORK_MEM]: "mixed",
 };
