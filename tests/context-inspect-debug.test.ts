@@ -46,7 +46,7 @@ describe("context-inspect debug mode", () => {
     setDebugOverride("terminal");
     expect(getDebugLevel()).toBe("terminal");
     expect(isDebugTerminalEnabled()).toBe(true);
-    expect(isDebugFileEnabled()).toBe(false);
+    expect(isDebugFileEnabled()).toBe(true);
 
     setDebugOverride("file");
     expect(isDebugTerminalEnabled()).toBe(true);
@@ -89,7 +89,7 @@ describe("context-inspect debug hooks", () => {
     removeTmpWorkdir(tmpDir);
   });
 
-  it("writes full compose to stderr in terminal tier", () => {
+  it("writes full compose to stderr and debug jsonl in terminal tier", () => {
     setDebugOverride("terminal");
     handleDebugCompose({
       composed: {
@@ -101,7 +101,9 @@ describe("context-inspect debug hooks", () => {
     expect(stderr).toContain("DEBUG turn 01");
     expect(stderr).toContain('"kind": "compose"');
     expect(stderr).toContain('"system": "hello"');
-    expect(fs.existsSync(debugLogPath(tmpDir))).toBe(false);
+    expect(fs.existsSync(debugLogPath(tmpDir))).toBe(true);
+    const line = fs.readFileSync(debugLogPath(tmpDir), "utf8").trim();
+    expect(JSON.parse(line).kind).toBe("compose");
   });
 
   it("writes full llm and tool records to debug jsonl in file tier", () => {

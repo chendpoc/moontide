@@ -7,8 +7,8 @@
 | 档位 | stderr | 落盘 | 开启 |
 |------|--------|------|------|
 | **off** | — | — | 默认 |
-| **terminal** | 全量 JSON 块 | — | `/debug on` · `MOONTIDE_DEBUG=1` |
-| **file** | 同 terminal | `.moontide/debug/<runId>.jsonl` | `/debug file` · `MOONTIDE_DEBUG=file` |
+| **terminal** | 全量 JSON 块 | `.moontide/debug/<runId>.jsonl` | `/debug on` · `MOONTIDE_DEBUG=1` |
+| **file** | 同 terminal | 同 terminal | `/debug file` · `MOONTIDE_DEBUG=file`（别名） |
 
 **与 verbose 区别：** verbose 打印 token bar、截断 preview；debug 输出完整 request/outcome，无 64KB Agent Event 投影限制。
 

@@ -13,8 +13,8 @@ export function handleDebugCommand(arg: string | undefined): ReplCommandResult {
   const parsed = parseDebugLevelArg(arg);
   if (parsed === null) {
     reply("usage: /debug on|terminal|file|off|status");
-    reply("  on|terminal — full compose/llm/tool dumps to stderr (default tier)");
-    reply(`  file        — terminal + ${DATA_DIR}/debug/<runId>.jsonl`);
+    reply(`  on|terminal — full compose/llm/tool dumps to stderr + ${DATA_DIR}/debug/<runId>.jsonl`);
+    reply("  file        — alias for terminal (same behavior)");
     return "handled";
   }
   if (parsed === "status") {

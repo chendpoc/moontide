@@ -289,7 +289,7 @@
 
 1. 终端红色 **ERROR** 块（`formatErrorTerminal`，`/thinking` 以上可见）
 2. `.moontide/runs/<runId>.active.jsonl` — grep `plugin_error`（Agent Event 持久化）
-3. `/debug file` → `.moontide/debug/<runId>.jsonl` — 按 turn 对照 compose / llm_call / tool_use / **error**
+3. `/debug on` → `.moontide/debug/<runId>.jsonl` — 按 turn 对照 compose / llm_call / tool_use / **error**
 
 **context 字段约定：** 网络错误带 `url`、路径错误带 `path`、sidecar 带 `pluginId`。
 

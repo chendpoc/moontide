@@ -17,9 +17,10 @@ export function isDebugTerminalEnabled(): boolean {
   return level === "terminal" || level === "file";
 }
 
-/** Level 2 — additionally append full records to `${DATA_DIR}/debug/<runId>.jsonl`. */
+/** Level 1+ — append full records to `${DATA_DIR}/debug/<runId>.jsonl`. */
 export function isDebugFileEnabled(): boolean {
-  return getDebugLevel() === "file";
+  const level = getDebugLevel();
+  return level === "terminal" || level === "file";
 }
 
 export function setDebugOverride(level: DebugLevel | null): void {
@@ -30,15 +31,17 @@ export function resetDebugOverride(): void {
   debugOverride = null;
 }
 
+const debugFileHint = `${DATA_DIR}/debug/<runId>.jsonl`;
+
 export function describeDebugMode(): string {
   const level = getDebugLevel();
   if (level === "off") {
     return "debug: off";
   }
   if (level === "terminal") {
-    return "debug: terminal (full compose · llm · tool → stderr)";
+    return `debug: terminal (stderr + ${debugFileHint})`;
   }
-  return `debug: file (terminal + ${DATA_DIR}/debug/<runId>.jsonl)`;
+  return `debug: file (same as terminal — stderr + ${debugFileHint})`;
 }
 
 export function parseDebugLevelArg(arg: string | undefined): DebugLevel | null | "status" {

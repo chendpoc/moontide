@@ -77,13 +77,13 @@ cargo build -p moontide-cli --release && ./target/release/moontide
 
 启动 banner：`MoonTide — type /help for commands`
 
-**REPL 命令：** `/help` · `/thinking` · `/verbose` · `/debug` · `/save` · `/resume` · `/always-allow on|off|status` · `/new`（别名 `/reset`）· `/workdir` · `/exit`（别名 `q` · `exit`）
+**REPL 命令：** `/help` · `/thinking` · `/verbose` · `/debug` · `/save` · `/resume` · `/always-allow on|off|status` · `/new`（别名 `/reset`）· `/workdir` · `/exit`（别名 `/quit`）
 
 **Observability（stderr，不影响 stdout 正文）：**
 
 - `/thinking on` — 每 turn 打印 banner；tool / thinking / result 摘要
 - `/verbose on` — 在 thinking 基础上额外打印 compose 摘要（messages · tools · truncated · artifacts）
-- `/debug on|terminal|file` — **无截断全量** compose / llm_call / tool_use（terminal → stderr；file 额外落盘 `.moontide/debug/<runId>.jsonl`）
+- `/debug on|terminal|file` — **无截断全量** compose / llm_call / tool_use（stderr + 落盘 `.moontide/debug/<runId>.jsonl`；`file` 与 `terminal` 等价）
 - 环境变量：`MOONTIDE_THINKING=1` · `MOONTIDE_VERBOSE=1`（verbose 开启时 thinking 视为开启）· `MOONTIDE_DEBUG=1|terminal|file`
 
 **权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`MOONTIDE_ENV=dev` 或 `/always-allow on` 或 `--always-allow` 或 `MOONTIDE_ALWAYS_ALLOW=1` 自动批准（deny 规则仍生效）。
@@ -138,7 +138,7 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 | **`.moontide/runs/<runId>-NNNN.jsonl.gz`** | 已封存的无损压缩 segments |
 | **`.moontide/sessions/<sessionId>.jsonl`** | Session Item Log（每条消息 append，**exit 后仍在**） |
 | **`.moontide/sessions/index.json`** | session 书签索引（exit / reset 自动 save；`/save` 显式写入） |
-| **`.moontide/debug/<runId>.jsonl`** | `/debug file` 全量 compose/llm/tool（无 Agent Event 截断） |
+| **`.moontide/debug/<runId>.jsonl`** | `/debug on` 全量 compose/llm/tool（无 Agent Event 截断） |
 
 ### Session 持久化与恢复
 
@@ -164,8 +164,8 @@ Last session: 20260804-195300-a1b2c3d4 · resume with /resume session 20260804-1
 | **off（默认）** | 无 trace/context 噪音 | — |
 | **thinking** | chalk 调用链：`▸ turn 01 💭 think` · `🔧 tool` · `✓ result`；turn banner / channel 分隔 | `/thinking on` 或 `MOONTIDE_THINKING=1` |
 | **verbose** | thinking + context 单行摘要 + tool_use_log/conversation `EVENT` 标记（**有截断**） | `/verbose on` 或 `MOONTIDE_VERBOSE=1` |
-| **debug terminal** | 无截断全量 compose / llm_call / tool_use JSON → stderr | `/debug on` 或 `MOONTIDE_DEBUG=1` |
-| **debug file** | terminal + 同上全量写入 `.moontide/debug/<runId>.jsonl` | `/debug file` 或 `MOONTIDE_DEBUG=file` |
+| **debug terminal** | 无截断全量 compose / llm_call / tool_use → stderr + `.moontide/debug/<runId>.jsonl` | `/debug on` 或 `MOONTIDE_DEBUG=1` |
+| **debug file** | 与 terminal 相同（保留别名） | `/debug file` 或 `MOONTIDE_DEBUG=file` |
 
 run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。Debug 与 verbose 差异见 [`docs/notes/context-inspect-debug.md`](docs/notes/context-inspect-debug.md)。
 
@@ -173,7 +173,8 @@ run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 d
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
 /verbose on     # 美化摘要 trace（context 盒 + tool_use_log + conversation，有截断）
 /debug on       # 全量无截断 debug（compose / llm / tool → stderr）
-/debug file     # 额外落盘 .moontide/debug/<runId>.jsonl
+/debug on        # stderr + .moontide/debug/<runId>.jsonl
+/debug file      # 与 on 相同（别名）
 /thinking status
 /debug status
 ```
@@ -301,7 +302,7 @@ MoonTide >>
 | `MOONTIDE_THINKING=1` | 默认开启 thinking 模式（stderr 调用链；**默认 off**） |
 | `MOONTIDE_VERBOSE=1` | 默认开启 verbose 模式（美化摘要 trace；**默认 off**） |
 | `MOONTIDE_TRACE_PREVIEW_CHARS` | thinking trace 单行 preview 长度（默认 80；原硬编码 40） |
-| `MOONTIDE_DEBUG=1\|terminal\|file` | 默认 debug 档：无截断全量 compose/llm/tool（terminal → stderr；file 额外落盘 `.moontide/debug/`；**默认 off**） |
+| `MOONTIDE_DEBUG=1\|terminal\|file` | 默认 debug 档：无截断全量 compose/llm/tool（stderr + `.moontide/debug/`；**默认 off**） |
 
 ## 开发与质量
 
