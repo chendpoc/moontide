@@ -34,6 +34,22 @@ describe("architecture boundaries (structural invariants)", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("agent deep-mode compose paths do not import plugins/builtin/", () => {
+    const pluginImport = /from\s+["'].*plugins\/builtin/;
+    const files = [
+      repoPath("src/agent/deep-mode.ts"),
+      repoPath("src/agent/compose-for-turn.ts"),
+      repoPath("src/agent/working-set-compose.ts"),
+    ];
+    const offenders = files.flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .map((text, index) => ({ file, line: index + 1, text: text.trim() }))
+        .filter(({ text }) => pluginImport.test(text)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it("context/composer/ does not import agent/", () => {
     const offenders = scanTsFiles(repoPath("src/context/composer"), AGENT_IMPORT);
     expect(offenders).toEqual([]);
@@ -126,6 +142,9 @@ describe("architecture boundaries (structural invariants)", () => {
       ...collectTsFiles(repoPath("src/plugins/builtin/deep-research")).filter(
         (file) => !file.endsWith(`${path.sep}tools.ts`),
       ),
+      ...collectTsFiles(repoPath("src/plugins/builtin/work-mem")).filter(
+        (file) => !file.endsWith(`${path.sep}tools.ts`),
+      ),
     ];
     const offenders: SourceMatch[] = implFiles.flatMap((file) =>
       readFileSync(file, "utf8")
@@ -142,6 +161,7 @@ describe("architecture boundaries (structural invariants)", () => {
       repoPath("src/tools/builtins"),
       repoPath("src/plugins/builtin/code-repl"),
       repoPath("src/plugins/builtin/deep-research"),
+      repoPath("src/plugins/builtin/work-mem"),
     ];
     const offenders = dirs.flatMap((dir) => scanTsFiles(dir, singularFactory));
     expect(offenders).toEqual([]);

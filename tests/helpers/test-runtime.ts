@@ -4,6 +4,7 @@ import {
   type AgentRuntime,
 } from "../../src/agent/runtime/index.js";
 import { getWorkdir } from "../../src/config.js";
+import { registerBuiltinWorkMemPorts } from "../../src/plugins/builtin/work-mem/register.js";
 import { resetAlwaysAllowOverride } from "../../src/tools/always-allow-mode.js";
 
 let active: AgentRuntime | undefined;
@@ -20,6 +21,7 @@ const denyAllInteraction: UserInteraction = {
 
 /** Install an isolated AgentRuntime for tests (hooks + default tools). */
 export function installTestRuntime(workdir = getWorkdir()): AgentRuntime {
+  registerBuiltinWorkMemPorts();
   const runtime = createAgentRuntime();
   setAgentRuntime(runtime);
   runtime.registerDefaultSidecarHooks(workdir);
