@@ -1,4 +1,5 @@
 import { messagesFromContext } from "../../session/transform/messages-from-context.js";
+import { appendWorkingSetToSystem } from "./working-set.js";
 import { applyCompactionPolicy, applyTailWindow } from "./compaction/apply.js";
 import { buildContextManifest } from "./manifest.js";
 import { buildSystemFromInstructionState } from "./system/build-system.js";
@@ -33,7 +34,8 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
     ? await input.compactionStore.get(input.sessionId, activeCompactionSaveId)
     : undefined;
 
-  const system = buildSystemFromInstructionState(input.instructionState);
+  const systemBase = buildSystemFromInstructionState(input.instructionState);
+  const system = appendWorkingSetToSystem(systemBase, input.workingSetSnapshot);
   const tools = input.toolDefinitions;
   const modelId = input.modelProfile.logicalModelId;
 

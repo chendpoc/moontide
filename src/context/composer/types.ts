@@ -24,6 +24,8 @@ export interface ComposeContextInput {
   resumeFromCheckpointId?: string;
   /** Active summary compaction (overridden by checkpoint on resume). */
   activeCompactionSaveId?: string;
+  /** Pre-resolved Working Set snapshot for Deep Task Mode (Phase B compose inject). */
+  workingSetSnapshot?: string;
 }
 
 export interface ComposedLLMRequest {
