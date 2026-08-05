@@ -71,6 +71,7 @@ describe("repl commands", () => {
   });
 
   it("resets always-allow override on /reset", async () => {
+    delete process.env.MOONTIDE_ENV;
     delete process.env.MOONTIDE_ALWAYS_ALLOW;
     setAlwaysAllowOverride(true);
     const result = await handleReplCommand("/reset", emptyCtx);

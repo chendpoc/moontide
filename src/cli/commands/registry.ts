@@ -3,6 +3,7 @@ import { handleCheckpointCommand } from "./checkpoint.js";
 import { handleCompactCommand } from "./compact.js";
 import { handleHelpCommand } from "./help.js";
 import { handleDebugCommand } from "./debug.js";
+import { handleExitCommand } from "./exit.js";
 import { handleThinkingCommand, handleVerboseCommand } from "./observability.js";
 import { handleResetCommand } from "./reset.js";
 import { handleResumeCommand } from "./resume.js";
@@ -48,6 +49,7 @@ export interface ReplCommandSpec {
 export const REPL_COMMANDS: ReplCommandSpec[] = [
   {
     name: "/help",
+    aliases: ["/h"],
     helpCategory: "General",
     helpSummary: "show this command list",
     handler: () => handleHelpCommand(),
@@ -92,6 +94,13 @@ export const REPL_COMMANDS: ReplCommandSpec[] = [
       },
     ],
     handler: (parsed) => handleSettingsCommand(parsed.parts.slice(1).join(" ") || undefined),
+  },
+  {
+    name: "/exit",
+    aliases: ["/quit"],
+    helpCategory: "General",
+    helpEntries: [{ syntax: "/exit · /quit", summary: "leave REPL" }],
+    handler: () => handleExitCommand(),
   },
   {
     name: "/save",

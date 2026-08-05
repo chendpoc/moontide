@@ -6,7 +6,6 @@ pub fn help_text() -> String {
         "  /thinking on|off|status · /verbose on|off|status  (call chain & debug trace)",
         "  /always-allow on|off|status  (auto-approve ask-class tools)",
         "  /new · /exit",
-        "  q · exit",
         "",
         "TS-only (not in Rust R0): /status · /compact",
         "",

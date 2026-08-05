@@ -6,19 +6,20 @@ export type ReplLineAction =
   | { kind: "continue" }
   | { kind: "agent"; prompt: string };
 
-const EXIT_INPUTS = new Set(["q", "exit"]);
-
-/** Classify one REPL line: exit, slash command, or agent prompt. */
+/** Classify one REPL line: slash command, agent prompt, or empty continue. */
 export async function resolveReplLine(
   trimmed: string,
   ctx: ReplCommandContext,
 ): Promise<ReplLineAction> {
-  if (!trimmed || EXIT_INPUTS.has(trimmed.toLowerCase())) {
-    return { kind: "exit" };
+  if (!trimmed) {
+    return { kind: "continue" };
   }
 
   if (trimmed.startsWith("/")) {
     const result = await handleReplCommand(trimmed, ctx);
+    if (result === "exit") {
+      return { kind: "exit" };
+    }
     if (result === "unknown") {
       writeStderrLine(`unknown command: ${trimmed.split(/\s+/)[0]} (try /help)`);
     }

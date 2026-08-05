@@ -7,8 +7,6 @@ const langEnv = envVarName(APP_ENV.LANG);
 
 export const helpZh: HelpStrings = {
   title: "REPL 命令",
-  exit: "退出",
-  exitSummary: "离开 REPL",
   legend: `Statusline: 2.2k/128k(1.7%) · turn N · /statusline · 事件 → ${DATA_DIR}/${RUNS_DIR}/<runId>${ACTIVE_EVENTS_SUFFIX}`,
   languageHint: (lang) => `语言: ${lang} · 切换: /settings lang en|zh`,
   categories: {
@@ -24,6 +22,7 @@ export const helpZh: HelpStrings = {
     "/status": "会话 + compact auto 状态（status line 常驻在提示符上方）",
     "/workdir [path]": "查看或切换工作目录",
     "/settings lang en|zh|status": `UI 语言（写入 ${configPath}；未配置时用 ${langEnv}）`,
+    "/exit · /quit": "离开 REPL",
     "/save": "将当前会话写入 index",
     "/save list": "列出已保存与磁盘上的会话",
     "/resume session <session-id> [checkpoint-id]": "跨重启加载历史会话",
@@ -37,6 +36,6 @@ export const helpZh: HelpStrings = {
     "/thinking on|off|status": "调用链 trace（thinking · tool · result）",
     "/statusline [set <ids>|reset|preview|status]": `配置 status line 字段（写入 ${configPath}）`,
     "/verbose on|off|status": "context 单行 + 事件 trace（预览有截断）",
-    "/debug on|terminal|file|off|status": "全量 compose / llm / tool 输出（无截断）",
+    "/debug on|terminal|file|off|status": "全量 compose / llm / tool 输出（stderr + debug jsonl）",
   },
 };

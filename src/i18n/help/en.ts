@@ -7,8 +7,6 @@ const langEnv = envVarName(APP_ENV.LANG);
 
 export const helpEn: HelpStrings = {
   title: "REPL commands",
-  exit: "Exit",
-  exitSummary: "leave REPL",
   legend: `Statusline: 2.2k/128k(1.7%) · turn N · /statusline · events → ${DATA_DIR}/${RUNS_DIR}/<runId>${ACTIVE_EVENTS_SUFFIX}`,
   languageHint: (lang) => `Language: ${lang} · switch with /settings lang en|zh`,
   categories: {
@@ -24,6 +22,7 @@ export const helpEn: HelpStrings = {
     "/status": "session + compact auto state (status line stays above prompt)",
     "/workdir [path]": "show or switch workspace directory",
     "/settings lang en|zh|status": `UI language (persisted to ${configPath}; fallback ${langEnv})`,
+    "/exit · /quit": "leave REPL",
     "/save": "write current session to index",
     "/save list": "list saved and on-disk sessions",
     "/resume session <session-id> [checkpoint-id]": "load session across restarts",
@@ -37,6 +36,6 @@ export const helpEn: HelpStrings = {
     "/thinking on|off|status": "call-chain trace (thinking · tool · result)",
     "/statusline [set <ids>|reset|preview|status]": `configure status line segments (persisted to ${configPath})`,
     "/verbose on|off|status": "context one-liner + event trace (truncated previews)",
-    "/debug on|terminal|file|off|status": "full compose / llm / tool dumps (no truncation)",
+    "/debug on|terminal|file|off|status": "full compose / llm / tool dumps (stderr + debug jsonl)",
   },
 };

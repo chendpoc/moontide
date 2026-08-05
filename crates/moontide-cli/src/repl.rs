@@ -35,9 +35,8 @@ pub async fn run_repl(
             continue;
         }
 
-        // Aliases aligned with TS REPL
+        // Alias aligned with TS REPL
         let normalized = match trimmed {
-            "q" | "exit" => "/exit",
             "/reset" => "/new",
             other => other,
         };

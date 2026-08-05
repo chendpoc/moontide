@@ -8,7 +8,7 @@ export interface ReplCommandContext {
   resetConversation: () => void;
 }
 
-export type ReplCommandResult = "handled" | "unknown" | "not_command";
+export type ReplCommandResult = "handled" | "unknown" | "not_command" | "exit";
 
 export interface ParsedReplCommand {
   parts: string[];

@@ -38,8 +38,6 @@ export function handleHelpCommand(): ReplCommandResult {
   for (const line of formatHelpSections(replCommandHelpSections())) {
     reply(line);
   }
-  reply(chalk.bold(copy.exit));
-  reply(`  ${chalk.cyan("q · exit")}  ${chalk.dim(copy.exitSummary)}`);
   reply("");
   reply(copy.legend);
   reply(chalk.dim(copy.languageHint(lang)));
