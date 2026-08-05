@@ -21,6 +21,7 @@
 | [`log-sync/`](log-sync/) | Hook：Session Item → Agent Event | — |
 | [`session-persistence/`](session-persistence/) | REPL `/save` · `/resume` | — |
 | [`tool-use-log/`](tool-use-log/) | Hook：tool 使用日志 | — |
+| [`work-mem/`](work-mem/) | Deep Task Mode 可选 tool + jsonl store | `work_mem` → [`tools.ts`](work-mem/tools.ts) + [`handler.ts`](work-mem/handler.ts)（`deep:` gate；[`register.ts`](work-mem/register.ts) 挂 agent port） |
 
 ## 含 tool 的 plugin：目录约定
 
@@ -47,6 +48,7 @@ deep-research/
 ```typescript
 { factory: defineCodeReplTools, optional: true },
 { factory: defineDeepResearchTools, optional: true },
+{ factory: defineWorkMemTools, optional: true },
 ```
 
 ## 新增 plugin tool checklist

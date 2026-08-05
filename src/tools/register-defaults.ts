@@ -8,6 +8,8 @@ import { defineShellTools } from "./builtins/shell/tools.js";
 import { defineWorkspaceTools } from "./builtins/workspace/tools.js";
 import { defineCodeReplTools } from "../plugins/builtin/code-repl/tools.js";
 import { defineDeepResearchTools } from "../plugins/builtin/deep-research/tools.js";
+import { defineWorkMemTools } from "../plugins/builtin/work-mem/tools.js";
+import { registerBuiltinWorkMemPorts } from "../plugins/builtin/work-mem/register.js";
 import { resolveToolManifest, type ToolManifestEntry } from "./define-tool.js";
 import type { ToolDefinition } from "./types.js";
 
@@ -55,6 +57,7 @@ export const BUILTIN_TOOL_MANIFEST: ToolManifestEntry[] = [
 export const BUILTIN_PLUGIN_TOOL_MANIFEST: ToolManifestEntry[] = [
   { factory: defineCodeReplTools, optional: true },
   { factory: defineDeepResearchTools, optional: true },
+  { factory: defineWorkMemTools, optional: true },
 ];
 
 const DEFAULT_TOOL_MANIFEST: ToolManifestEntry[] = [
@@ -65,3 +68,5 @@ const DEFAULT_TOOL_MANIFEST: ToolManifestEntry[] = [
 export function registerDefaultTools(): ToolDefinition[] {
   return resolveToolManifest(DEFAULT_TOOL_MANIFEST);
 }
+
+registerBuiltinWorkMemPorts();
