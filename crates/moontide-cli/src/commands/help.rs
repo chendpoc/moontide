@@ -10,7 +10,7 @@ pub fn help_text() -> String {
         "",
         "TS-only (not in Rust R0): /status · /compact",
         "",
-        "Env: MOONTIDE_THINKING=1 · MOONTIDE_VERBOSE=1 · MOONTIDE_ALWAYS_ALLOW=1",
+        "Env: MOONTIDE_ENV=dev · MOONTIDE_THINKING=1 · MOONTIDE_VERBOSE=1 · MOONTIDE_ALWAYS_ALLOW=1",
     ]
     .join("\n")
 }

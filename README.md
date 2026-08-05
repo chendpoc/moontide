@@ -86,7 +86,7 @@ cargo build -p moontide-cli --release && ./target/release/moontide
 - `/debug on|terminal|file` — **无截断全量** compose / llm_call / tool_use（terminal → stderr；file 额外落盘 `.moontide/debug/<runId>.jsonl`）
 - 环境变量：`MOONTIDE_THINKING=1` · `MOONTIDE_VERBOSE=1`（verbose 开启时 thinking 视为开启）· `MOONTIDE_DEBUG=1|terminal|file`
 
-**权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`/always-allow on` 或 `--always-allow` 或 `MOONTIDE_ALWAYS_ALLOW=1` 自动批准。
+**权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`MOONTIDE_ENV=dev` 或 `/always-allow on` 或 `--always-allow` 或 `MOONTIDE_ALWAYS_ALLOW=1` 自动批准（deny 规则仍生效）。
 
 需 `.env` 中 `DEEPSEEK_API_KEY`（或 `ANTHROPIC_API_KEY`）。
 
@@ -290,6 +290,8 @@ MoonTide >>
 | `MOONTIDE_TOOL_INLINE_MAX` | 小输出 inline 上限（默认 8192 字节） |
 | `MOONTIDE_TOOL_INLINE_FLOOR` | 动态 inline 预算下限（默认 500） |
 | `MOONTIDE_CONTEXT_LIMIT` | context 字符上限估算（默认 128k） |
+| `MOONTIDE_ENV` | 运行环境：`dev` 本地开发（默认 always-allow）；`production` 或未设（默认需确认 ask 类工具） |
+| `MOONTIDE_ALWAYS_ALLOW` | 显式覆盖 always-allow：`1`/`on` 开 · `0`/`off` 关（优先于 `MOONTIDE_ENV` 预设） |
 | `MOONTIDE_DEV_TOOL_LEARNING=1` | 注册 `record_tool_hint`，写入 `docs/notes/tool-hints/` |
 | `MOONTIDE_CODE_REPL_*` / `MOONTIDE_PYTHON` / `MOONTIDE_VENV` | code_repl 配置 |
 | `MOONTIDE_CODE_REPL_DISABLED=1` | 禁用 code_repl |

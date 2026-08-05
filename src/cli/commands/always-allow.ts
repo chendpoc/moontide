@@ -31,7 +31,7 @@ export function handleAlwaysAllowCommand(arg: string | undefined): ReplCommandRe
     reply(
       isAlwaysAllowEnabled()
         ? "ask-class tools auto-approved (deny rules still apply)"
-        : `always allow off — enable with /always-allow on or ${envVarName(APP_ENV.ALWAYS_ALLOW)}=1`,
+        : `always allow off — enable with /always-allow on, ${envVarName(APP_ENV.ENV)}=dev, or ${envVarName(APP_ENV.ALWAYS_ALLOW)}=1`,
     );
     return "handled";
   }

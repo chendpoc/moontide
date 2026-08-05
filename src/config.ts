@@ -26,6 +26,40 @@ function envFlag(name: string): boolean {
   return env(name) === "1";
 }
 
+/** Explicit tri-state env flag: true / false / unset (invalid values → unset). */
+function envFlagOptional(name: string): boolean | undefined {
+  const raw = env(name);
+  if (raw === undefined || raw === "") {
+    return undefined;
+  }
+  const v = raw.toLowerCase();
+  if (v === "1" || v === "true" || v === "on") {
+    return true;
+  }
+  if (v === "0" || v === "false" || v === "off") {
+    return false;
+  }
+  return undefined;
+}
+
+export type AppEnvProfile = "dev" | "production";
+
+/** Runtime profile from app env key; unset or unknown values default to production. */
+export function appEnv(): AppEnvProfile {
+  const raw = env(APP_ENV.ENV)?.toLowerCase();
+  if (raw === "dev" || raw === "development") {
+    return "dev";
+  }
+  if (raw === "prod" || raw === "production") {
+    return "production";
+  }
+  return "production";
+}
+
+export function isDevEnv(): boolean {
+  return appEnv() === "dev";
+}
+
 let workdir = resolvePath(env(APP_ENV.WORKDIR) ?? process.cwd());
 
 export function getWorkdir(): string {
@@ -176,5 +210,9 @@ export function httpFetchEnabled(): boolean {
 }
 
 export function alwaysAllowDefault(): boolean {
-  return envFlag(APP_ENV.ALWAYS_ALLOW);
+  const explicit = envFlagOptional(APP_ENV.ALWAYS_ALLOW);
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  return isDevEnv();
 }

@@ -26,6 +26,8 @@ export const APP_ENV = {
   LANG: "LANG",
   DEBUG: "DEBUG",
   HTTP: "HTTP",
+  /** Runtime profile: `dev` | `production` (see `appEnv()` in config). */
+  ENV: "ENV",
   ALWAYS_ALLOW: "ALWAYS_ALLOW",
   SIDECAR_PLUGIN_ID: "SIDECAR_PLUGIN_ID",
 } as const;
