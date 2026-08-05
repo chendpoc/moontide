@@ -5,7 +5,7 @@ import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages
 
 import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
 import { runToolUse } from "../src/agent/pipeline/index.js";
-import { setWorkdir, artifactSpillThresholdBytes } from "../src/config.js";
+import { setWorkdir, artifactSpillThresholdBytes, toolPreviewChars } from "../src/config.js";
 import { FileArtifactStore, maybeSpillToolResult } from "../src/session/stores/index.js";
 import { artifactMetaPath, artifactPath } from "../src/session/paths.js";
 import { Session } from "../src/session/session.js";
@@ -29,6 +29,16 @@ afterEach(() => {
 });
 
 describe("maybeSpillToolResult", () => {
+  it("returns content and full summary under threshold", async () => {
+    const store = new FileArtifactStore(tmpDir);
+    const content = "line\n".repeat(80);
+    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
+    expect(result.artifactId).toBeUndefined();
+    expect(result.content).toBe(content);
+    expect(result.summary.summary).toBe(content);
+    expect(result.summary.truncated).toBe(false);
+  });
+
   it("returns content unchanged under threshold", async () => {
     const store = new FileArtifactStore(tmpDir);
     const content = "small output";
@@ -40,11 +50,14 @@ describe("maybeSpillToolResult", () => {
   it("spills oversized output to artifact store", async () => {
     vi.stubEnv("MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES", "64");
     const store = new FileArtifactStore(tmpDir);
-    const content = "x".repeat(200);
+    const previewLimit = toolPreviewChars();
+    const content = "x".repeat(previewLimit + 200);
     const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
 
     expect(result.artifactId).toBeDefined();
     expect(result.content).toContain("[artifact:");
+    expect(result.summary.truncated).toBe(true);
+    expect(result.summary.summary.length).toBeLessThanOrEqual(previewLimit);
     expect(result.summary.byteCount).toBeGreaterThan(artifactSpillThresholdBytes());
 
     const artifact = await store.get("sess-1", result.artifactId!);
@@ -52,6 +65,25 @@ describe("maybeSpillToolResult", () => {
     expect(fs.existsSync(artifactPath(tmpDir, "sess-1", result.artifactId!))).toBe(true);
     expect(fs.existsSync(artifactMetaPath(tmpDir, "sess-1", result.artifactId!))).toBe(true);
     expect(fs.readFileSync(artifactPath(tmpDir, "sess-1", result.artifactId!), "utf8")).toBe(content);
+  });
+});
+
+describe("toolPreviewChars", () => {
+  it("derives preview as 20% of spill threshold when unset", () => {
+    vi.stubEnv("MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES", "10000");
+    delete process.env.MOONTIDE_TOOL_PREVIEW_CHARS;
+    expect(toolPreviewChars()).toBe(2000);
+  });
+
+  it("defaults to 1638 when spill threshold is 8192", () => {
+    delete process.env.MOONTIDE_TOOL_PREVIEW_CHARS;
+    delete process.env.MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES;
+    expect(toolPreviewChars()).toBe(1638);
+  });
+
+  it("honors explicit MOONTIDE_TOOL_PREVIEW_CHARS override", () => {
+    vi.stubEnv("MOONTIDE_TOOL_PREVIEW_CHARS", "900");
+    expect(toolPreviewChars()).toBe(900);
   });
 });
 

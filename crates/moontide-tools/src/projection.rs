@@ -20,11 +20,28 @@ impl Default for ToolProjectionConfig {
 }
 
 impl ToolProjectionConfig {
+    const ARTIFACT_SPILL_PREVIEW_RATIO: f64 = 0.2;
+
+    fn spill_threshold_bytes() -> usize {
+        env_usize("MOONTIDE_TOOL_ARTIFACT_MIN", 8192)
+    }
+
+    fn default_preview_chars() -> usize {
+        if let Ok(raw) = env::var("MOONTIDE_TOOL_PREVIEW_CHARS") {
+            if let Ok(n) = raw.parse::<usize>() {
+                if n > 0 {
+                    return n;
+                }
+            }
+        }
+        ((Self::spill_threshold_bytes() as f64) * Self::ARTIFACT_SPILL_PREVIEW_RATIO) as usize
+    }
+
     pub fn from_env() -> Self {
         Self {
             inline_max: env_usize("MOONTIDE_TOOL_INLINE_MAX", 8192),
-            artifact_min: env_usize("MOONTIDE_TOOL_ARTIFACT_MIN", 8192),
-            preview_chars: env_usize("MOONTIDE_TOOL_PREVIEW_CHARS", 500),
+            artifact_min: Self::spill_threshold_bytes(),
+            preview_chars: Self::default_preview_chars(),
             inline_floor: env_usize("MOONTIDE_TOOL_INLINE_FLOOR", 500),
             context_limit: env_usize("MOONTIDE_CONTEXT_LIMIT", 128_000),
             keep_turns: env_u32("MOONTIDE_COMPACT_KEEP_TURNS", 3),
@@ -147,7 +164,7 @@ mod tests {
         let cfg = ToolProjectionConfig {
             inline_max: 8192,
             artifact_min: 8192,
-            preview_chars: 500,
+            preview_chars: ToolProjectionConfig::default_preview_chars(),
             inline_floor: 500,
             context_limit: 128_000,
             keep_turns: 3,

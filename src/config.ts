@@ -8,6 +8,7 @@ import {
   COMPACT_KEEP_TURNS_DEFAULT,
   COMPACT_THRESHOLD_DEFAULT,
   ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT,
+  ARTIFACT_SPILL_PREVIEW_RATIO,
   TRACE_PREVIEW_CHARS_DEFAULT,
   CONTEXT_LIMITS,
   DEFAULT_MODEL,
@@ -88,6 +89,18 @@ export function artifactSpillThresholdBytes(): number {
       ?? String(ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT),
   );
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : ARTIFACT_SPILL_THRESHOLD_BYTES_DEFAULT;
+}
+
+/** Preview length for spilled tool outputs (default: 20% of spill threshold; override via env). */
+export function toolPreviewChars(): number {
+  const raw = env(APP_ENV.TOOL_PREVIEW_CHARS);
+  if (raw !== undefined && raw !== "") {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) {
+      return Math.floor(n);
+    }
+  }
+  return Math.floor(artifactSpillThresholdBytes() * ARTIFACT_SPILL_PREVIEW_RATIO);
 }
 
 export function codeReplDefaultRuntime(): string {

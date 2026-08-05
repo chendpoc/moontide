@@ -1,4 +1,4 @@
-import { artifactSpillThresholdBytes, getWorkdir } from "../../config.js";
+import { artifactSpillThresholdBytes, getWorkdir, toolPreviewChars } from "../../config.js";
 import type { ArtifactStore } from "./artifact-store.js";
 import { summarizeToolResultContent } from "../content-map.js";
 import { formatToolSummary } from "../tool-summary.js";
@@ -36,7 +36,7 @@ export async function maybeSpillToolResult(
   const path = artifactPath(workdir, sessionId, artifactId);
   writeText(path, content);
 
-  const summary = summarizeToolResultContent(content);
+  const summary = summarizeToolResultContent(content, { maxSummaryChars: toolPreviewChars() });
   await artifactStore.put({
     id: artifactId,
     sessionId,
