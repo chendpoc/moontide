@@ -1,4 +1,5 @@
 import type { ContextAlertCode } from "../../context-inspect/types.js";
+import type { BudgetTier } from "../../context/composer/budget/types.js";
 
 export interface ContextCopy {
   title: (turn: string, phase?: "pre" | "post") => string;
@@ -42,6 +43,15 @@ export interface ContextCopy {
   inspectBreakdownThinking: string;
   inspectBreakdownToolResults: string;
   inspectBreakdownTotal: string;
+  inspectTierHeader: string;
+  inspectTierLine: (
+    tier: BudgetTier,
+    used: string,
+    limit: string,
+    percent: string,
+  ) => string;
+  inspectTierWorkingSet: (used: string, limit: string) => string;
+  tierLabel: (tier: BudgetTier) => string;
   inspectMessagesHeader: (count: number) => string;
   inspectUsageLine: (input: string, output: string) => string;
 }

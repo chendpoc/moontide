@@ -1,4 +1,10 @@
-import { contextLimit } from "../config.js";
+import { contextBudgetFlexEnabled } from "../config.js";
+import {
+  findTierUsage,
+  resolveBudgetPolicy,
+  sumInputTierTokens,
+} from "../context/composer/budget/index.js";
+import { resolveModelProfile } from "../llm/models/resolve.js";
 import {
   analyzeStructure,
   buildMessageLines,
@@ -6,22 +12,28 @@ import {
 } from "./metrics.js";
 import type { ContextAlert, ContextReport, ContextSnapshot } from "./types.js";
 
-function buildAlerts(percentUsed: number): ContextAlert[] {
+function buildAlerts(dialoguePercentUsed: number): ContextAlert[] {
   const alerts: ContextAlert[] = [];
-  if (percentUsed >= 90) {
+  if (dialoguePercentUsed >= 90) {
     alerts.push({
       level: "critical",
       code: "compaction_recommended",
-      percentUsed,
+      percentUsed: dialoguePercentUsed,
     });
-  } else if (percentUsed >= 70) {
+  } else if (dialoguePercentUsed >= 70) {
     alerts.push({
       level: "warn",
       code: "approaching_limit",
-      percentUsed,
+      percentUsed: dialoguePercentUsed,
     });
   }
   return alerts;
+}
+
+function resolveInputWindow(policy: ReturnType<typeof resolveBudgetPolicy>): number {
+  const reserved = findTierUsage(policy, "reserved").limitTokens;
+  const flex = findTierUsage(policy, "flex").limitTokens;
+  return Math.max(0, policy.contextWindow - reserved - flex);
 }
 
 export function buildContextReport(
@@ -30,9 +42,25 @@ export function buildContextReport(
 ): ContextReport {
   const breakdown = estimateBreakdown(snapshot);
   const estimatedTokens = breakdown.total;
-  const limit = contextLimit();
+  const modelProfile = resolveModelProfile(snapshot.modelId);
+  const budgetPolicy = resolveBudgetPolicy({
+    modelProfile,
+    system: snapshot.system,
+    tools: snapshot.tools,
+    messages: snapshot.messages,
+    includeFlex: contextBudgetFlexEnabled(),
+  });
+
+  const limit = budgetPolicy.contextWindow;
+  const inputTokens = sumInputTierTokens(budgetPolicy);
+  const inputWindow = resolveInputWindow(budgetPolicy);
+  const dialogueTier = findTierUsage(budgetPolicy, "dialogue");
+  const dialoguePercentUsed =
+    dialogueTier.limitTokens > 0
+      ? (dialogueTier.estimatedTokens / dialogueTier.limitTokens) * 100
+      : 0;
+  const inputPercentUsed = inputWindow > 0 ? (inputTokens / inputWindow) * 100 : 0;
   const headroom = Math.max(0, limit - estimatedTokens);
-  const percentUsed = limit > 0 ? (estimatedTokens / limit) * 100 : 0;
   const hasBaseline = previousEstimated !== undefined;
   const deltaTokens = hasBaseline ? estimatedTokens - previousEstimated! : 0;
 
@@ -42,8 +70,11 @@ export function buildContextReport(
     limit,
     estimatedTokens,
     headroom,
-    percentUsed,
+    percentUsed: dialoguePercentUsed,
+    inputPercentUsed,
+    dialoguePercentUsed,
     breakdown,
+    budgetTiers: budgetPolicy.tiers,
     structure: analyzeStructure(snapshot),
     messageLines: buildMessageLines(snapshot),
     trend: {
@@ -51,7 +82,7 @@ export function buildContextReport(
       cumulativeTokens: estimatedTokens,
       hasBaseline,
     },
-    alerts: buildAlerts(percentUsed),
+    alerts: buildAlerts(dialoguePercentUsed),
     usage: snapshot.response?.usage
       ? {
           inputTokens: snapshot.response.usage.inputTokens,
@@ -63,13 +94,11 @@ export function buildContextReport(
 
 export function withExactTokens(report: ContextReport, exactTokens: number): ContextReport {
   const headroom = Math.max(0, report.limit - exactTokens);
-  const percentUsed = report.limit > 0 ? (exactTokens / report.limit) * 100 : 0;
   return {
     ...report,
     exactTokens,
     headroom,
-    percentUsed,
-    alerts: buildAlerts(percentUsed),
+    alerts: buildAlerts(report.dialoguePercentUsed),
   };
 }
 

@@ -18,13 +18,13 @@ export function collectStatusSnapshot(): StatusSnapshot {
   const workdir = getWorkdir();
   const report = getLatestReport();
   const turn = getRuntimeTurn() || null;
+  const dialogueTier = report?.budgetTiers?.find((tier) => tier.tier === "dialogue");
 
   const contextUsed =
-    report !== undefined
-      ? (report.exactTokens ?? report.estimatedTokens)
-      : null;
-  const contextLimit = report?.limit ?? null;
-  const contextPct = report?.percentUsed ?? null;
+    dialogueTier?.estimatedTokens ??
+    (report !== undefined ? (report.exactTokens ?? report.estimatedTokens) : null);
+  const contextLimit = dialogueTier?.limitTokens ?? report?.limit ?? null;
+  const contextPct = report?.dialoguePercentUsed ?? report?.percentUsed ?? null;
   const contextDelta = report?.trend.hasBaseline ? report.trend.deltaTokens : null;
   const contextHasBaseline = report?.trend.hasBaseline ?? false;
 

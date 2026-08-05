@@ -24,5 +24,5 @@ export function formatContextSegment(snapshot: StatusSnapshot): string | null {
   const limit = formatCompactTokens(snapshot.contextLimit);
   const pct =
     snapshot.contextPct !== null ? `(${snapshot.contextPct.toFixed(1)}%)` : "";
-  return `${used}/${limit}${pct}`;
+  return `L2 ${used}/${limit}${pct}`;
 }

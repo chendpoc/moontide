@@ -49,6 +49,29 @@ export const contextCopyZh = {
   inspectBreakdownThinking: "thinking",
   inspectBreakdownToolResults: "tool_results",
   inspectBreakdownTotal: "合计",
+  inspectTierHeader: "分账层级（估算）：",
+  inspectTierLine: (tier, used, limit, percent) => {
+    const labels: Record<string, string> = {
+      pinned: "L1 固定",
+      dialogue: "L2 对话",
+      reference: "L3 引用",
+      reserved: "L4 预留",
+      flex: "L5 弹性",
+    };
+    const label = labels[tier] ?? tier;
+    return `- ${label}: ${used} / ${limit} tok（${percent}）`;
+  },
+  inspectTierWorkingSet: (used, limit) => `  └─ workingSet: ${used} / ${limit} tok`,
+  tierLabel: (tier) => {
+    const labels: Record<string, string> = {
+      pinned: "L1 固定",
+      dialogue: "L2 对话",
+      reference: "L3 引用",
+      reserved: "L4 预留",
+      flex: "L5 弹性",
+    };
+    return labels[tier] ?? tier;
+  },
   inspectMessagesHeader: (count) => `messages[${count}]`,
   inspectUsageLine: (input, output) => `API 计费: 输入=${input} tok 输出=${output} tok`,
 } satisfies ContextCopy;

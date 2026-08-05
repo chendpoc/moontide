@@ -49,6 +49,20 @@ export const contextCopyEn = {
   inspectBreakdownThinking: "thinking",
   inspectBreakdownToolResults: "tool_results",
   inspectBreakdownTotal: "total",
+  inspectTierHeader: "Budget tiers (estimated):",
+  inspectTierLine: (tier, used, limit, percent) => {
+    const labels: Record<string, string> = {
+      pinned: "L1 pinned",
+      dialogue: "L2 dialogue",
+      reference: "L3 reference",
+      reserved: "L4 reserved",
+      flex: "L5 flex",
+    };
+    const label = labels[tier] ?? tier;
+    return `- ${label}: ${used} / ${limit} tok (${percent})`;
+  },
+  inspectTierWorkingSet: (used, limit) => `  └─ workingSet: ${used} / ${limit} tok`,
+  tierLabel: (tier) => tier,
   inspectMessagesHeader: (count) => `messages[${count}]`,
   inspectUsageLine: (input, output) => `API usage: in=${input} tok out=${output} tok`,
 } satisfies ContextCopy;

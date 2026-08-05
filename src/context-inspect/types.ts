@@ -1,4 +1,5 @@
 import type { LLMResponse, Message, ToolSchema } from "../llm/protocol/types.js";
+import type { BudgetTierUsage } from "../context/composer/budget/types.js";
 import type { MessageLineDetail } from "../session/block-registry.js";
 
 export type { MessageLineDetail } from "../session/block-registry.js";
@@ -65,8 +66,14 @@ export interface ContextReport {
   estimatedTokens: number;
   exactTokens?: number;
   headroom: number;
+  /** L2 dialogue tier usage percent (alerts / statusline). */
   percentUsed: number;
+  /** L1+L2+L3 vs available input window (excludes L4/L5). */
+  inputPercentUsed: number;
+  /** L2_used / L2_limit. */
+  dialoguePercentUsed: number;
   breakdown: TokenBreakdown;
+  budgetTiers: BudgetTierUsage[];
   structure: ContextStructure;
   messageLines: MessageLine[];
   trend: ContextTrend;

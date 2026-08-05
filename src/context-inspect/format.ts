@@ -4,20 +4,44 @@ import {
   formatAlert,
   formatPercent,
 } from "../i18n/context/index.js";
+import type { BudgetTierUsage } from "../context/composer/budget/types.js";
 import type { ContextReport, DetailLevel } from "./types.js";
+
+function formatTierLines(tiers: BudgetTierUsage[]): string[] {
+  const copy = contextCopy();
+  const lines: string[] = [copy.inspectTierHeader];
+  for (const tier of tiers) {
+    const pct =
+      tier.limitTokens > 0
+        ? formatPercent((tier.estimatedTokens / tier.limitTokens) * 100)
+        : formatPercent(0);
+    lines.push(copy.inspectTierLine(tier.tier, fmtNum(tier.estimatedTokens), fmtNum(tier.limitTokens), pct));
+    const ws = tier.subAccounts?.workingSet;
+    if (ws) {
+      lines.push(copy.inspectTierWorkingSet(fmtNum(ws.estimatedTokens), fmtNum(ws.limitTokens)));
+    }
+  }
+  return lines;
+}
 
 export function getSummary(report: ContextReport): string {
   const copy = contextCopy();
-  const tokenLabel = report.exactTokens ?? report.estimatedTokens;
+  const dialogueTier = report.budgetTiers.find((tier) => tier.tier === "dialogue");
+  const tokenLabel = report.exactTokens ?? dialogueTier?.estimatedTokens ?? report.estimatedTokens;
+  const tokenLimit = dialogueTier?.limitTokens ?? report.limit;
   const tokenKind = report.exactTokens !== undefined ? copy.exact : copy.est;
+  const headroom =
+    dialogueTier !== undefined
+      ? Math.max(0, dialogueTier.limitTokens - dialogueTier.estimatedTokens)
+      : report.headroom;
   return [
     copy.inspectTurnSummary(
       report.turn,
       tokenKind,
       fmtNum(tokenLabel),
-      fmtNum(report.limit),
-      formatPercent(report.percentUsed),
-      fmtNum(report.headroom),
+      fmtNum(tokenLimit),
+      formatPercent(report.dialoguePercentUsed),
+      fmtNum(headroom),
     ),
     copy.inspectStructureLine(
       report.structure.messageCount,
@@ -63,6 +87,8 @@ export function getBreakdown(report: ContextReport): string {
     `- ${copy.inspectBreakdownThinking}:     ${fmtNum(b.thinking)}`,
     `- ${copy.inspectBreakdownToolResults}: ${fmtNum(b.toolResults)}`,
     `- ${copy.inspectBreakdownTotal}:        ${fmtNum(b.total)}`,
+    "",
+    ...formatTierLines(report.budgetTiers),
   ].join("\n");
 }
 

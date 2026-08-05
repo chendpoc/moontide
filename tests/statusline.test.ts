@@ -48,7 +48,7 @@ describe("statusline format", () => {
       contextUsed: 2197,
       contextLimit: 128_000,
       contextPct: 1.7,
-    }))).toBe("2.2k/128k(1.7%)");
+    }))).toBe("L2 2.2k/128k(1.7%)");
   });
 
   it("renders resident status line from configured segments only", () => {

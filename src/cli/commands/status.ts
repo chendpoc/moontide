@@ -26,7 +26,7 @@ export async function handleStatusCommand(ctx: ReplCommandContext): Promise<Repl
   if (snapshot.contextUsed !== null && snapshot.contextLimit !== null) {
     const pct = snapshot.contextPct ?? (snapshot.contextUsed / snapshot.contextLimit) * 100;
     reply(
-      `context: ${snapshot.contextUsed.toLocaleString()} / ${snapshot.contextLimit.toLocaleString()} tok (${pct.toFixed(1)}%) · auto at ${compactThreshold()}%`,
+      `context L2: ${snapshot.contextUsed.toLocaleString()} / ${snapshot.contextLimit.toLocaleString()} tok (${pct.toFixed(1)}%) · auto at ${compactThreshold()}%`,
     );
   }
 

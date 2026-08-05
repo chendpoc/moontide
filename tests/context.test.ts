@@ -83,6 +83,7 @@ describe("context analyze/format", () => {
     expect(getSummary(report)).toContain("Turn 1");
     expect(formatContext(report, "struct")).toContain("messages[3]");
     expect(formatContext(report, "breakdown")).toContain("tool_results:");
+    expect(formatContext(report, "breakdown")).toContain("Budget tiers");
   });
 
   it("includes tool_result preview and tool_use_id in message lines", () => {
