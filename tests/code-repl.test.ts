@@ -17,7 +17,7 @@ import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-code-repl-");
+  tmpDir = createTmpWorkdir("moontide-code-repl-");
   setWorkdir(tmpDir);
   installTestRuntime(tmpDir);
 });
@@ -29,7 +29,7 @@ afterEach(() => {
 
 describe("code_repl", () => {
   it("is registered in tool schemas", () => {
-    const names = getToolDefinitions(getTestRuntime()).map((t) => t.name);
+    const names = getToolDefinitions(getTestRuntime().tools).map((t) => t.name);
     expect(names).toContain("code_repl");
     expect(names).toContain("askUserQuestion");
   });

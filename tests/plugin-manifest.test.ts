@@ -12,7 +12,7 @@ const VALID_TRANSPORT = new Set<SidecarTransport>(["stdio", "in-process"]);
 
 describe("plugin manifest conformance", () => {
   it("returns empty manifest when no plugins file exists", () => {
-    const tmpDir = createTmpWorkdir("ocula-plugin-manifest-");
+    const tmpDir = createTmpWorkdir("moontide-plugin-manifest-");
     try {
       expect(loadPluginManifest(tmpDir)).toEqual({ plugins: [] });
     } finally {
@@ -21,7 +21,7 @@ describe("plugin manifest conformance", () => {
   });
 
   it("parses plugins.toml sidecar entries", () => {
-    const tmpDir = createTmpWorkdir("ocula-plugin-manifest-");
+    const tmpDir = createTmpWorkdir("moontide-plugin-manifest-");
     try {
       fs.mkdirSync(dataPath(tmpDir), { recursive: true });
       fs.writeFileSync(
@@ -49,7 +49,7 @@ transport = "in-process"
   });
 
   it("prefers plugins.json over plugins.toml", () => {
-    const tmpDir = createTmpWorkdir("ocula-plugin-manifest-");
+    const tmpDir = createTmpWorkdir("moontide-plugin-manifest-");
     try {
       fs.mkdirSync(dataPath(tmpDir), { recursive: true });
       fs.writeFileSync(
@@ -78,7 +78,7 @@ attach = "startup"
   });
 
   it("drops entries missing required fields", () => {
-    const tmpDir = createTmpWorkdir("ocula-plugin-manifest-");
+    const tmpDir = createTmpWorkdir("moontide-plugin-manifest-");
     try {
       fs.mkdirSync(dataPath(tmpDir), { recursive: true });
       fs.writeFileSync(
@@ -103,7 +103,7 @@ attach = "startup"
   });
 
   it("registers only known kind/attach/transport values", () => {
-    const tmpDir = createTmpWorkdir("ocula-plugin-manifest-");
+    const tmpDir = createTmpWorkdir("moontide-plugin-manifest-");
     try {
       fs.mkdirSync(dataPath(tmpDir), { recursive: true });
       fs.writeFileSync(

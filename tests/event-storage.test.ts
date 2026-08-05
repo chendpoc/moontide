@@ -49,7 +49,7 @@ function readJsonl(filePath: string): AgentEvent[] {
 }
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-storage-");
+  tmpDir = createTmpWorkdir("moontide-storage-");
 });
 
 afterEach(() => {
@@ -179,7 +179,7 @@ describe("persisted event projection", () => {
 
 describe("per-run gzip segments", () => {
   it("leaves the legacy event log untouched", () => {
-    const dataDir = joinPath(tmpDir, ".ocula");
+    const dataDir = joinPath(tmpDir, ".moontide");
     const legacyPath = joinPath(dataDir, "events.jsonl");
     fs.mkdirSync(dataDir, { recursive: true });
     fs.writeFileSync(legacyPath, "legacy-content\n");

@@ -17,7 +17,7 @@ import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-templates-");
+  tmpDir = createTmpWorkdir("moontide-templates-");
   setWorkdir(tmpDir);
   installTestRuntime(tmpDir);
 });
@@ -94,7 +94,7 @@ describe("expandTemplate", () => {
 
 describe("code_repl templates integration", () => {
   it("includes template enum in schema", () => {
-    const schema = getToolDefinitions(getTestRuntime()).find((t) => t.name === "code_repl");
+    const schema = getToolDefinitions(getTestRuntime().tools).find((t) => t.name === "code_repl");
     expect(schema).toBeDefined();
     const props = schema!.input_schema.properties as Record<string, { enum?: string[] }>;
     expect(props.template?.enum).toContain("read_json");

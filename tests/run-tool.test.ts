@@ -6,6 +6,7 @@ import * as permission from "../src/agent/pipeline/permission/index.js";
 import { resolveToolUseOutcome, runToolUse } from "../src/agent/pipeline/runTool.js";
 import { setWorkdir } from "../src/config.js";
 import { Session } from "../src/session/session.js";
+import { setAlwaysAllowOverride, resetAlwaysAllowOverride } from "../src/tools/always-allow-mode.js";
 import { joinPath } from "../src/utils/path.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
@@ -28,7 +29,9 @@ const loopCtx = (interaction = denyAllInteraction): LoopContext => ({
 });
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-run-tool-");
+  delete process.env.MOONTIDE_ALWAYS_ALLOW;
+  resetAlwaysAllowOverride();
+  tmpDir = createTmpWorkdir("moontide-run-tool-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
   testSession = Session.create(tmpDir);
@@ -37,6 +40,7 @@ beforeEach(() => {
 afterEach(() => {
   removeTmpWorkdir(tmpDir);
   vi.restoreAllMocks();
+  resetAlwaysAllowOverride();
   clearTestRuntime();
 });
 
@@ -117,6 +121,41 @@ describe("resolveToolUseOutcome", () => {
     if (outcome.status === "succeeded") {
       expect(outcome.output.length).toBeGreaterThan(0);
     }
+  });
+
+  it("auto-approves ask-class tools when always-allow is enabled", async () => {
+    setAlwaysAllowOverride(true);
+    const approve = vi.fn(async () => false);
+    const outcome = await resolveToolUseOutcome(
+      {
+        turn: 1,
+        toolName: "bash",
+        toolInput: { command: "rm foo.txt" },
+        toolUseId: "toolu_always",
+      },
+      loopCtx({ ...denyAllInteraction, approveTool: approve }),
+    );
+
+    expect(approve).not.toHaveBeenCalled();
+    expect(outcome.status).toBe("succeeded");
+  });
+
+  it("still denies when always-allow is enabled but tool is deny-class", async () => {
+    setAlwaysAllowOverride(true);
+    const outcome = await resolveToolUseOutcome(
+      {
+        turn: 1,
+        toolName: "bash",
+        toolInput: { command: "sudo rm -rf /" },
+        toolUseId: "toolu_deny_always",
+      },
+      loopCtx(),
+    );
+
+    expect(outcome).toEqual({
+      status: "denied",
+      reason: "Permission denied: bash",
+    });
   });
 
   it("returns denied for unknown tools", async () => {

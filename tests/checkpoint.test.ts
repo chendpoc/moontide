@@ -19,7 +19,7 @@ let tmpDir = "";
 let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-checkpoint-");
+  tmpDir = createTmpWorkdir("moontide-checkpoint-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
 });

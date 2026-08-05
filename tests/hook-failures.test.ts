@@ -1,5 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
+import { ErrorCode } from "../src/errors/codes.js";
+import { infraError } from "../src/errors/factories.js";
 import { emitHookError } from "../src/agent/hooks/failures.js";
 import {
   disableTestCollector,
@@ -45,5 +47,20 @@ describe("emitHookError", () => {
     const event = getCollectedEvents().at(-1)!;
     expect(event.channel).toBe("trace");
     expect(event.phase).toBe("pre_llm");
+  });
+
+  it("includes structured errorCode in plugin_error payload", () => {
+    emitHookError("toolUse", "tool-use-log", { turn: 2, toolName: "bash", toolUseId: "t1" }, "boom");
+    const event = getCollectedEvents().at(-1)!;
+    expect(event.payload.errorCode).toBe(ErrorCode.INTERNAL);
+    expect(event.payload.message).toBe("boom");
+    expect(event.payload.source).toBe("hook:tool-use-log");
+  });
+
+  it("maps AppError code into plugin_error payload", () => {
+    emitHookError("llmCall", "context-metrics", { turn: 1 }, infraError("metrics failed", { context: { url: "x" } }));
+    const event = getCollectedEvents().at(-1)!;
+    expect(event.payload.errorCode).toBe(ErrorCode.INFRA);
+    expect(event.payload.context).toEqual({ url: "x" });
   });
 });

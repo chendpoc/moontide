@@ -17,7 +17,7 @@ let tmpDir = "";
 let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-artifact-");
+  tmpDir = createTmpWorkdir("moontide-artifact-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
 });
@@ -38,7 +38,7 @@ describe("maybeSpillToolResult", () => {
   });
 
   it("spills oversized output to artifact store", async () => {
-    vi.stubEnv("OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES", "64");
+    vi.stubEnv("MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES", "64");
     const store = new FileArtifactStore(tmpDir);
     const content = "x".repeat(200);
     const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
@@ -57,7 +57,7 @@ describe("maybeSpillToolResult", () => {
 
 describe("runToolUse artifact spill", () => {
   it("writes tool_outcome with artifactId for large results", async () => {
-    vi.stubEnv("OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
+    vi.stubEnv("MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
 
     const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     const stores = { artifacts: new FileArtifactStore(tmpDir) };
@@ -99,7 +99,7 @@ describe("runToolUse artifact spill", () => {
 
 describe("session reload preserves artifact reference", () => {
   it("hydrates tool_result with artifact hint from item log", async () => {
-    vi.stubEnv("OCULA_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
+    vi.stubEnv("MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
     const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     const store = new FileArtifactStore(tmpDir);
     const content = "z".repeat(400);
@@ -122,7 +122,7 @@ describe("session reload preserves artifact reference", () => {
     }
 
     const logItems = parseItems(
-      fs.readFileSync(`${tmpDir}/.ocula/sessions/${session.sessionId}.jsonl`, "utf8").split("\n").filter(Boolean),
+      fs.readFileSync(`${tmpDir}/.moontide/sessions/${session.sessionId}.jsonl`, "utf8").split("\n").filter(Boolean),
     );
     const outcome = logItems.find((item) => item.kind === "tool_outcome");
     expect(outcome?.kind).toBe("tool_outcome");

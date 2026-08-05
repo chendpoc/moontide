@@ -35,7 +35,7 @@ describe("context compact", () => {
 
   it("preview shows token reduction for old tool results", () => {
     const messages = longToolResultMessage();
-    const preview = previewCompact(messages, system, getToolDefinitions(runtime), 1);
+    const preview = previewCompact(messages, system, getToolDefinitions(runtime.tools), 1);
     expect(preview.wouldChange).toBe(true);
     expect(preview.afterTokens).toBeLessThan(preview.beforeTokens);
     expect(preview.truncatedToolResults).toBeGreaterThan(0);
@@ -43,7 +43,7 @@ describe("context compact", () => {
 
   it("prune mutates tool results in older turns", () => {
     const messages = longToolResultMessage();
-    const result = pruneCompact(messages, system, getToolDefinitions(runtime), 1);
+    const result = pruneCompact(messages, system, getToolDefinitions(runtime.tools), 1);
     expect(result.changed).toBe(true);
     expect(result.afterTokens).toBeLessThan(result.beforeTokens);
     const firstUserTool = result.messages[2];
@@ -57,7 +57,7 @@ describe("context compact", () => {
   });
 
   it("returns unchanged for empty messages", () => {
-    const result = pruneCompact([], system, getToolDefinitions(runtime));
+    const result = pruneCompact([], system, getToolDefinitions(runtime.tools));
     expect(result.changed).toBe(false);
   });
 });

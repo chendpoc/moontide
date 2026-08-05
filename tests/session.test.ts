@@ -13,7 +13,7 @@ let tmpDir = "";
 let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-session-");
+  tmpDir = createTmpWorkdir("moontide-session-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
 });

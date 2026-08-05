@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerDefaultTools } from "../src/tools/register-defaults.js";
 import { runDeepResearch } from "../src/plugins/builtin/deep-research/handler.js";
-import { defineDeepResearchTool } from "../src/plugins/builtin/deep-research/index.js";
+import { defineDeepResearchTools } from "../src/plugins/builtin/deep-research/tools.js";
 import { normalizeMaxResults, tavilySearch } from "../src/plugins/builtin/deep-research/tavily.js";
 
-const ENV_KEY = "OCULA_DEEP_RESEARCH";
-const TAVILY_KEY = "OCULA_TAVILY_API_KEY";
+const ENV_KEY = "MOONTIDE_DEEP_RESEARCH";
+const TAVILY_KEY = "MOONTIDE_TAVILY_API_KEY";
 
 describe("deep_research extension", () => {
   beforeEach(() => {
@@ -21,16 +21,17 @@ describe("deep_research extension", () => {
     vi.restoreAllMocks();
   });
 
-  it("is omitted from tool definitions unless OCULA_DEEP_RESEARCH=1", () => {
-    expect(defineDeepResearchTool()).toBeNull();
+  it("is omitted from tool definitions unless MOONTIDE_DEEP_RESEARCH=1", () => {
+    expect(defineDeepResearchTools()).toBeNull();
     const names = registerDefaultTools().map((tool) => tool.schema.name);
     expect(names).not.toContain("deep_research");
   });
 
-  it("registers when OCULA_DEEP_RESEARCH=1", () => {
+  it("registers when MOONTIDE_DEEP_RESEARCH=1", () => {
     process.env[ENV_KEY] = "1";
-    const tool = defineDeepResearchTool();
-    expect(tool?.schema.name).toBe("deep_research");
+    const tools = defineDeepResearchTools();
+    expect(tools).toHaveLength(1);
+    expect(tools![0]?.schema.name).toBe("deep_research");
 
     const names = registerDefaultTools().map((t) => t.schema.name);
     expect(names).toContain("deep_research");

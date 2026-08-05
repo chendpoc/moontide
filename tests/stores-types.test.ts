@@ -12,7 +12,7 @@ describe("stores types", () => {
       sessionId: "sess-1",
       toolUseId: "tu-1",
       contentType: "text",
-      path: ".ocula/artifacts/sess-1/art-1",
+      path: ".moontide/artifacts/sess-1/art-1",
       byteCount: 12,
       createdAt: "2026-07-31T08:00:00.000Z",
     };

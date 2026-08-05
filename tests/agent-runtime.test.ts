@@ -45,7 +45,7 @@ describe("AgentRuntime", () => {
 
     runtime.reset();
     expect(runtime.hookRegistry.getRegistrations("runStart")).toHaveLength(0);
-    expect(getToolDefinitions(runtime).some((tool) => tool.name === "read_file")).toBe(true);
+    expect(getToolDefinitions(runtime.tools).some((tool) => tool.name === "read_file")).toBe(true);
     expect(runtime.plugins.listAttached()).toEqual([]);
   });
 });

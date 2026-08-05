@@ -36,7 +36,7 @@ function deps(getAgent: () => AgentSession | null): SessionPersistenceDeps {
 
 describe("session-persistence plugin", () => {
   beforeEach(() => {
-    tmpDir = createTmpWorkdir("ocula-session-persist-");
+    tmpDir = createTmpWorkdir("moontide-session-persist-");
     setWorkdir(tmpDir);
     testRuntime = installTestRuntime(tmpDir);
     stderr = "";
@@ -56,7 +56,7 @@ describe("session-persistence plugin", () => {
     const agent = AgentSession.create(tmpDir, testRuntime);
     await agent.session.appendUser(1, "hello");
 
-    fs.mkdirSync(`${tmpDir}/.ocula/sessions`, { recursive: true });
+    fs.mkdirSync(`${tmpDir}/.moontide/sessions`, { recursive: true });
     fs.writeFileSync(
       sessionIndexPath(tmpDir),
       `${JSON.stringify({
@@ -111,7 +111,7 @@ describe("session-persistence plugin", () => {
     });
 
     const otherId = "20260101-120000-abcdef01";
-    fs.mkdirSync(`${tmpDir}/.ocula/sessions`, { recursive: true });
+    fs.mkdirSync(`${tmpDir}/.moontide/sessions`, { recursive: true });
     fs.writeFileSync(sessionLogPath(tmpDir, otherId), '{"kind":"user_message"}\n', "utf8");
     const oldTime = new Date("2020-01-01T00:00:00.000Z");
     fs.utimesSync(sessionLogPath(tmpDir, otherId), oldTime, oldTime);

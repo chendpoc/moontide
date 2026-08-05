@@ -8,7 +8,7 @@ import { joinPath } from "../src/utils/path.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-storage-");
+  tmpDir = createTmpWorkdir("moontide-storage-");
 });
 
 afterEach(() => {

@@ -17,7 +17,7 @@ let tmpDir = "";
 const sessionId = "20260731-160000-a1b2c3d4";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-stores-");
+  tmpDir = createTmpWorkdir("moontide-stores-");
 });
 
 afterEach(() => {
@@ -85,7 +85,7 @@ describe("FileArtifactStore", () => {
       sessionId,
       toolUseId: "tu-1",
       contentType: "text",
-      path: `.ocula/artifacts/${sessionId}/art-1`,
+      path: `.moontide/artifacts/${sessionId}/art-1`,
       byteCount: 42,
       createdAt: "2026-07-31T08:00:00.000Z",
     };

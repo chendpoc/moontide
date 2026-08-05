@@ -22,7 +22,7 @@ let tmpDir = "";
 let testRuntime: ReturnType<typeof installTestRuntime>;
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-compact-summary-");
+  tmpDir = createTmpWorkdir("moontide-compact-summary-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
 });
@@ -60,7 +60,7 @@ describe("coversItemIdsForKeepFrom", () => {
 
 describe("runSummaryCompaction", () => {
   it("writes CompactionSave and returns token stats", async () => {
-    vi.stubEnv("OCULA_COMPACT_KEEP_TURNS", "1");
+    vi.stubEnv("MOONTIDE_COMPACT_KEEP_TURNS", "1");
     setLLMProvider(
       mockLLMProvider(
         vi.fn().mockResolvedValue(
@@ -93,7 +93,7 @@ describe("runSummaryCompaction", () => {
 
 describe("AgentSession.runSummaryCompaction", () => {
   it("persists save, compaction item, and activates compose projection", async () => {
-    vi.stubEnv("OCULA_COMPACT_KEEP_TURNS", "1");
+    vi.stubEnv("MOONTIDE_COMPACT_KEEP_TURNS", "1");
     setLLMProvider(
       mockLLMProvider(
         vi.fn().mockResolvedValue(
@@ -146,7 +146,7 @@ describe("AgentSession.runSummaryCompaction", () => {
 
 describe("AgentSession.runPruneCompaction", () => {
   it("sets force prune for next compose", async () => {
-    vi.stubEnv("OCULA_COMPACT_KEEP_TURNS", "1");
+    vi.stubEnv("MOONTIDE_COMPACT_KEEP_TURNS", "1");
     const agent = AgentSession.create(tmpDir);
     const big = "x".repeat(5000);
     await agent.session.appendUser(1, "read");

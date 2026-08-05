@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
 import { executeTool } from "../src/tools/index.js";
-import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/tools/builtins/git.js";
+import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/tools/builtins/git/lib.js";
 import { checkPermission } from "../src/agent/pipeline/permission/index.js";
 import { joinPath } from "../src/utils/path.js";
 import { clearTestRuntime, getTestRuntime, installTestRuntime, testToolContext } from "./helpers/test-runtime.js";
@@ -38,7 +38,7 @@ function commitFile(relativePath: string, content: string, message: string): voi
 }
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-git-");
+  tmpDir = createTmpWorkdir("moontide-git-");
   setWorkdir(tmpDir);
   installTestRuntime(tmpDir);
 });

@@ -27,7 +27,7 @@ const interaction: UserInteraction = {
 
 beforeEach(() => {
   originalWorkdir = getWorkdir();
-  tmpDir = createTmpWorkdir("ocula-run-storage-");
+  tmpDir = createTmpWorkdir("moontide-run-storage-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
   setupAgentEventPipeline(testRuntime);
@@ -89,6 +89,6 @@ describe("run storage integration", () => {
     }
 
     expect(fs.existsSync(joinPath(dataPath(tmpDir), "context.jsonl"))).toBe(false);
-    expect(fs.existsSync(joinPath(tmpDir, ".ocula-audit.log"))).toBe(false);
+    expect(fs.existsSync(joinPath(tmpDir, ".moontide-audit.log"))).toBe(false);
   });
 });

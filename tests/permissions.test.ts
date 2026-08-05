@@ -38,7 +38,10 @@ describe("permissions", () => {
   });
 
   it("asks before deep_research network tool", () => {
+    process.env.MOONTIDE_DEEP_RESEARCH = "1";
+    installTestRuntime();
     expect(checkPermission(TOOL_NAMES.DEEP_RESEARCH, { query: "latest LLM papers" }, getTestRuntime())).toBe("ask");
+    delete process.env.MOONTIDE_DEEP_RESEARCH;
   });
 
   it("asks before http_fetch", () => {

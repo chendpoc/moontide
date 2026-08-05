@@ -6,7 +6,7 @@ import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-utils-process-");
+  tmpDir = createTmpWorkdir("moontide-utils-process-");
 });
 
 afterEach(() => {

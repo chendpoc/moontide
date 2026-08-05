@@ -4,6 +4,7 @@ import {
   type AgentRuntime,
 } from "../../src/agent/runtime/index.js";
 import { getWorkdir } from "../../src/config.js";
+import { resetAlwaysAllowOverride } from "../../src/tools/always-allow-mode.js";
 
 let active: AgentRuntime | undefined;
 
@@ -34,6 +35,8 @@ export function clearTestRuntime(): void {
   active?.reset();
   setAgentRuntime(undefined);
   active = undefined;
+  resetAlwaysAllowOverride();
+  delete process.env.MOONTIDE_ALWAYS_ALLOW;
 }
 
 export function testToolContext(
@@ -43,6 +46,6 @@ export function testToolContext(
   return {
     workdir,
     userInteraction,
-    runtime: getTestRuntime(),
+    runtime: { tools: getTestRuntime().tools },
   };
 }

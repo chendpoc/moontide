@@ -78,16 +78,16 @@ describe("utils/id", () => {
 
 describe("utils/path", () => {
   it("joinPath joins segments cross-platform", () => {
-    expect(joinPath("/tmp", "ocula", "sessions")).toBe("/tmp/ocula/sessions");
+    expect(joinPath("/tmp", "moontide", "sessions")).toBe("/tmp/moontide/sessions");
   });
 
-  it("dataDir points at workdir/.ocula", () => {
-    expect(dataDir("/tmp/workspace")).toBe("/tmp/workspace/.ocula");
+  it("dataDir points at workdir/.moontide", () => {
+    expect(dataDir("/tmp/workspace")).toBe("/tmp/workspace/.moontide");
   });
 
-  it("dataPath joins under .ocula root", () => {
+  it("dataPath joins under .moontide root", () => {
     expect(dataPath("/tmp/workspace", "sessions", "abc.jsonl")).toBe(
-      "/tmp/workspace/.ocula/sessions/abc.jsonl",
+      "/tmp/workspace/.moontide/sessions/abc.jsonl",
     );
   });
 

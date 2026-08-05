@@ -9,7 +9,7 @@ import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-plugin-host-");
+  tmpDir = createTmpWorkdir("moontide-plugin-host-");
   installTestRuntime(tmpDir);
 });
 

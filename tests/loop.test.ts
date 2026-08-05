@@ -11,6 +11,7 @@ import { setLLMProvider } from "../src/llm/provider.js";
 import type { UserInteraction } from "../src/tools/types.js";
 import { sessionLogPath } from "../src/session/paths.js";
 import { joinPath } from "../src/utils/path.js";
+import { resetAlwaysAllowOverride } from "../src/tools/always-allow-mode.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
@@ -38,7 +39,9 @@ const denyAllInteraction: UserInteraction = {
 };
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-agent-run-");
+  delete process.env.MOONTIDE_ALWAYS_ALLOW;
+  resetAlwaysAllowOverride();
+  tmpDir = createTmpWorkdir("moontide-agent-run-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
   setupAgentEventPipeline(testRuntime);

@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setWorkdir } from "../src/config.js";
-import { normalizeGrepMaxResults, runGrep } from "../src/tools/builtins/grep.js";
+import { normalizeGrepMaxResults, runGrep } from "../src/tools/builtins/search/grep.js";
 import { joinPath } from "../src/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -36,7 +36,7 @@ function mockSpawn(stdout: string, stderr = "", code = 0): void {
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-grep-");
+  tmpDir = createTmpWorkdir("moontide-grep-");
   setWorkdir(tmpDir);
   fs.writeFileSync(joinPath(tmpDir, "demo.ts"), "export const hello = 1;\n");
   vi.mocked(spawn).mockReset();

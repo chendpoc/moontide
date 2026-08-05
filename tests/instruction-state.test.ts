@@ -9,7 +9,7 @@ import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-instruction-");
+  tmpDir = createTmpWorkdir("moontide-instruction-");
 });
 
 afterEach(() => {
@@ -27,7 +27,7 @@ describe("instruction-state", () => {
     expect(buildSystemFromInstructionState(state)).toContain("Always run tests");
   });
 
-  it("loads .ocula/rules/*.md after project instruction files", () => {
+  it("loads .moontide/rules/*.md after project instruction files", () => {
     fs.writeFileSync(joinPath(tmpDir, "AGENTS.md"), "Base agents", "utf8");
     const rulesDir = dataPath(tmpDir, "rules");
     fs.mkdirSync(rulesDir, { recursive: true });

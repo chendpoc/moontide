@@ -13,7 +13,7 @@ import { joinPath } from "../src/utils/path.js";
 let tmpDir = "";
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-utils-fs-");
+  tmpDir = createTmpWorkdir("moontide-utils-fs-");
 });
 
 afterEach(() => {

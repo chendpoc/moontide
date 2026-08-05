@@ -13,39 +13,39 @@ import {
   sessionsDir,
 } from "../src/session/paths.js";
 
-const workdir = "/tmp/ocula-workspace";
+const workdir = "/tmp/moontide-workspace";
 const sessionId = "20260731-160000-a1b2c3d4";
 
 describe("session paths", () => {
-  it("builds session log path under .ocula/sessions", () => {
-    expect(sessionsDir(workdir)).toBe("/tmp/ocula-workspace/.ocula/sessions");
+  it("builds session log path under .moontide/sessions", () => {
+    expect(sessionsDir(workdir)).toBe("/tmp/moontide-workspace/.moontide/sessions");
     expect(sessionLogPath(workdir, sessionId)).toBe(
-      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}.jsonl`,
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}.jsonl`,
     );
-    expect(sessionIndexPath(workdir)).toBe("/tmp/ocula-workspace/.ocula/sessions/index.json");
+    expect(sessionIndexPath(workdir)).toBe("/tmp/moontide-workspace/.moontide/sessions/index.json");
   });
 
   it("builds artifact and store subpaths", () => {
     expect(artifactsDir(workdir, sessionId)).toBe(
-      `/tmp/ocula-workspace/.ocula/artifacts/${sessionId}`,
+      `/tmp/moontide-workspace/.moontide/artifacts/${sessionId}`,
     );
     expect(artifactPath(workdir, sessionId, "art-1")).toBe(
-      `/tmp/ocula-workspace/.ocula/artifacts/${sessionId}/art-1`,
+      `/tmp/moontide-workspace/.moontide/artifacts/${sessionId}/art-1`,
     );
     expect(compactionDir(workdir, sessionId)).toBe(
-      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/compaction`,
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/compaction`,
     );
     expect(compactionSavePath(workdir, sessionId, "cmp-1")).toBe(
-      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/compaction/cmp-1.json`,
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/compaction/cmp-1.json`,
     );
     expect(compactionSavePath(workdir, sessionId, "cmp-1")).toBe(
-      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/compaction/cmp-1.json`,
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/compaction/cmp-1.json`,
     );
     expect(checkpointsDir(workdir, sessionId)).toBe(
-      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/checkpoints`,
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/checkpoints`,
     );
     expect(checkpointPath(workdir, sessionId, "ckpt-1")).toBe(
-      `/tmp/ocula-workspace/.ocula/sessions/${sessionId}/checkpoints/ckpt-1.json`,
+      `/tmp/moontide-workspace/.moontide/sessions/${sessionId}/checkpoints/ckpt-1.json`,
     );
   });
 });

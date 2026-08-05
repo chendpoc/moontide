@@ -53,7 +53,7 @@ function countEvent(
 }
 
 beforeEach(() => {
-  tmpDir = createTmpWorkdir("ocula-log-sync-");
+  tmpDir = createTmpWorkdir("moontide-log-sync-");
   setWorkdir(tmpDir);
   resetRun("run-test");
   testRuntime = installTestRuntime(tmpDir);

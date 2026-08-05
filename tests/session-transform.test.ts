@@ -43,7 +43,7 @@ describe("SessionTransform", () => {
     const { Session } = await import("../src/session/session.js");
     const { createTmpWorkdir, removeTmpWorkdir } = await import("./helpers/tmp-workdir.js");
 
-    const tmpDir = createTmpWorkdir("ocula-session-transform-");
+    const tmpDir = createTmpWorkdir("moontide-session-transform-");
     setWorkdir(tmpDir);
     try {
       const session = Session.create(tmpDir);

@@ -20,6 +20,7 @@ export default defineSidecarPlugin({
   tools: {
     echo: {
       permission: { kind: "fixed", decision: "allow" },
+      capability: "read",
       schema: {
         name: "echo",
         description: "Echo input text.",
