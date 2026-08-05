@@ -1,6 +1,7 @@
 import type { AgentRuntime } from "../agent/runtime/index.js";
 import { getWorkdir } from "../config.js";
 import { configureOutputs, resetEventPlatform } from "../log/setup.js";
+import { registerBuiltinWorkMemPorts } from "../plugins/builtin/work-mem/register.js";
 import { bootstrapPlugins } from "../plugins/host/host.js";
 
 /** Reset and register default sidecar hooks on the runtime. */
@@ -21,6 +22,7 @@ export async function bootstrapAgentPlatform(
   runtime: AgentRuntime,
 ): Promise<void> {
   setupAgentEventPipeline(runtime, workdir);
+  registerBuiltinWorkMemPorts();
   await bootstrapPlugins(workdir, runtime);
 }
 

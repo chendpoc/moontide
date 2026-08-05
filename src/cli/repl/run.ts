@@ -3,6 +3,7 @@ import { stdin as input, stderr as output } from "node:process";
 
 import { continueReplAgent } from "../../agent/loop.js";
 import type { AgentSession } from "../../agent/agent-session.js";
+import { applyDeepPromptGate } from "../../agent/deep-mode.js";
 import { getWorkdir } from "../../config.js";
 import { PRODUCT_NAME } from "../../constants/brand.js";
 import { bootstrapAgentPlatform, teardownAgentPlatform } from "../../app/bootstrap.js";
@@ -88,7 +89,11 @@ export async function runRepl(): Promise<void> {
       }
 
       const agentSession = getOrStartReplSession();
-      const reply = await runAgentTurn(action.prompt, agentSession, userInteraction);
+      const gate = applyDeepPromptGate(action.prompt, agentSession.session.sessionId);
+      if (gate.deepActivated) {
+        getAgentRuntime().tools.refresh();
+      }
+      const reply = await runAgentTurn(gate.prompt, agentSession, userInteraction);
       if (turnCount > 0) {
         writeStderrLine(turnSeparator());
       }
