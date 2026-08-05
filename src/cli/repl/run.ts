@@ -26,6 +26,7 @@ import { createReplUserInteraction } from "./interaction.js";
 import { getOrStartReplSession, getReplAgentSession, resetReplSession } from "./session.js";
 import {
   autoSaveSession,
+  printQuitHint,
   printStartupHint,
 } from "../../plugins/builtin/session-persistence/index.js";
 
@@ -96,7 +97,9 @@ export async function runRepl(): Promise<void> {
       writeStdoutLine("");
     }
   } finally {
-    autoSaveSession(createReplSessionPersistenceDeps());
+    const persistenceDeps = createReplSessionPersistenceDeps();
+    autoSaveSession(persistenceDeps);
+    printQuitHint(persistenceDeps);
     rl.close();
     resetReplSession();
     teardownAgentPlatform(getAgentRuntime());

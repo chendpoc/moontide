@@ -7,9 +7,12 @@ import {
   autoSaveSession,
   formatSessionLine,
   formatStartupHint,
+  formatStartupHintLines,
+  formatQuitHintLines,
   getLatestSessionEntry,
   listSessions,
   loadSessionIndex,
+  printQuitHint,
   printStartupHint,
   upsertSessionEntry,
 } from "../../src/plugins/builtin/session-persistence/index.js";
@@ -91,14 +94,28 @@ describe("session-persistence plugin", () => {
   });
 
   it("formatStartupHint includes resume command", () => {
-    const hint = formatStartupHint({
+    const lines = formatStartupHintLines({
       sessionId: "20260804-195300-a1b2c3d4",
       label: "debug-mode",
       messageCount: 3,
       indexed: true,
     });
-    expect(hint).toContain("20260804-195300-a1b2c3d4 (debug-mode)");
-    expect(hint).toContain("/resume session 20260804-195300-a1b2c3d4");
+    expect(lines[0]).toContain("20260804-195300-a1b2c3d4 (debug-mode)");
+    expect(lines[0]).toContain("3 messages");
+    expect(lines[1]).toBe("Resume: /resume session 20260804-195300-a1b2c3d4");
+    expect(formatStartupHint({
+      sessionId: "20260804-195300-a1b2c3d4",
+      label: "debug-mode",
+      messageCount: 3,
+      indexed: true,
+    })).toContain("/resume session 20260804-195300-a1b2c3d4");
+  });
+
+  it("formatQuitHintLines includes session id and resume command", () => {
+    expect(formatQuitHintLines("20260804-195300-a1b2c3d4", 5, "debug-mode")).toEqual([
+      "Session saved: 20260804-195300-a1b2c3d4 (debug-mode) · 5 messages",
+      "Resume later: /resume session 20260804-195300-a1b2c3d4",
+    ]);
   });
 
   it("getLatestSessionEntry prefers indexed savedAt over older disk file", async () => {
@@ -142,15 +159,35 @@ describe("session-persistence plugin", () => {
     expect(stderr).toBe("");
   });
 
-  it("printStartupHint prints last session line", async () => {
+  it("printStartupHint prints last session lines", async () => {
     const agent = AgentSession.create(tmpDir, testRuntime);
     await agent.session.appendUser(1, "hello");
     upsertSessionEntry(tmpDir, agent.session.sessionId, { messageCount: 1, lastTurn: 1 });
 
     stderr = "";
     printStartupHint(tmpDir);
-    expect(stderr).toContain("Last session:");
+    expect(stderr).toContain("Previous session:");
     expect(stderr).toContain(agent.session.sessionId);
+    expect(stderr).toContain("Resume:");
     expect(stderr).toContain("/resume session");
+  });
+
+  it("printQuitHint prints current session before exit", async () => {
+    const agent = AgentSession.create(tmpDir, testRuntime);
+    await agent.session.appendUser(1, "hello");
+
+    stderr = "";
+    printQuitHint(deps(() => agent));
+    expect(stderr).toContain("Session saved:");
+    expect(stderr).toContain(agent.session.sessionId);
+    expect(stderr).toContain("Resume later:");
+    expect(stderr).toContain("/resume session");
+  });
+
+  it("printQuitHint is silent when session has no messages", () => {
+    const agent = AgentSession.create(tmpDir, testRuntime);
+    stderr = "";
+    printQuitHint(deps(() => agent));
+    expect(stderr).toBe("");
   });
 });

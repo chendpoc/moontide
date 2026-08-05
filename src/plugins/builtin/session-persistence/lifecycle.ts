@@ -1,7 +1,7 @@
 import { writeStderrLine } from "../../../terminal/write.js";
-import { formatStartupHint } from "./format.js";
+import { formatQuitHintLines, formatStartupHintLines } from "./format.js";
 import type { SessionPersistenceDeps } from "./deps.js";
-import { getLatestSessionEntry, upsertSessionEntry } from "./session-index.js";
+import { getLatestSessionEntry, loadSessionIndex, upsertSessionEntry } from "./session-index.js";
 
 function sessionMeta(deps: SessionPersistenceDeps) {
   const agent = deps.getAgentSession();
@@ -12,10 +12,14 @@ function sessionMeta(deps: SessionPersistenceDeps) {
   if (messages.length === 0) {
     return null;
   }
+  const label = loadSessionIndex(deps.workdir).entries.find(
+    (entry) => entry.sessionId === agent.session.sessionId,
+  )?.label;
   return {
     sessionId: agent.session.sessionId,
     messageCount: messages.length,
     lastTurn: messages.at(-1)?.turn ?? 1,
+    label,
   };
 }
 
@@ -36,5 +40,19 @@ export function printStartupHint(workdir: string): void {
   if (!latest) {
     return;
   }
-  writeStderrLine(formatStartupHint(latest));
+  for (const line of formatStartupHintLines(latest)) {
+    writeStderrLine(line);
+  }
+}
+
+/** Print current session id and resume command before REPL exit (after auto-save). */
+export function printQuitHint(deps: SessionPersistenceDeps): void {
+  const meta = sessionMeta(deps);
+  if (!meta) {
+    return;
+  }
+  writeStderrLine("");
+  for (const line of formatQuitHintLines(meta.sessionId, meta.messageCount, meta.label)) {
+    writeStderrLine(line);
+  }
 }

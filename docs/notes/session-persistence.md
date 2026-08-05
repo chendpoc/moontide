@@ -45,14 +45,15 @@
 ```mermaid
 flowchart LR
   append["每条消息 append"] --> jsonl["sessions/sessionId.jsonl"]
-  exit["exit / reset"] --> autoSave["autoSaveSession"]
+  exit["/exit"] --> autoSave["autoSaveSession + printQuitHint"]
   autoSave --> index["sessions/index.json"]
-  startup["REPL 启动"] --> hint["Last session hint"]
+  startup["REPL 启动"] --> hint["printStartupHint"]
   hint --> index
 ```
 
-- **exit / reset** — 当前 session 有消息时静默 upsert index（不打 stderr）
-- **启动 hint** — `Last session: <id> · resume with /resume session <id>`；index 优先，无 index 时 fallback `*.jsonl` mtime；无历史则不打印
+- **exit** — 有消息时 auto-save index，stderr 打印当前 sessionId 与 `/resume session <id>`
+- **reset** — 仅静默 upsert index（不打印 quit hint）
+- **启动 hint** — `Previous session: <id> · N messages` + `Resume: /resume session <id>`；index 优先，无 index 时 fallback `*.jsonl` mtime；无历史则不打印
 - **`/reset`** — auto-save 旧 session 后内存换新 `sessionId`（旧 jsonl 仍保留）
 
 ## 与 Checkpoint 的区别
@@ -71,7 +72,7 @@ flowchart LR
 | [`session-persistence/`](../../src/plugins/builtin/session-persistence/) | index 读写、format、command handler、lifecycle |
 | [`cli/session-persistence-glue.ts`](../../src/cli/session-persistence-glue.ts) | 注入 `SessionPersistenceDeps` |
 | [`session/paths.ts`](../../src/session/paths.ts) | `sessionIndexPath` |
-| [`cli/repl/run.ts`](../../src/cli/repl/run.ts) | 启动 hint、exit auto-save |
+| [`cli/repl/run.ts`](../../src/cli/repl/run.ts) | 启动 hint、exit auto-save + quit hint |
 
 Plugin **不 import** `cli/`（architecture-boundaries 测试覆盖）。
 
