@@ -1,3 +1,4 @@
+import { internalError } from "../errors/factories.js";
 import type { Checkpoint } from "../session/stores/checkpoint-types.js";
 import type { SessionStores } from "../session/stores/index.js";
 import type { Session } from "../session/session.js";
@@ -19,7 +20,7 @@ export class CheckpointService {
   async create(turn: number, label?: string): Promise<Checkpoint> {
     const lastMessage = this.session.getMessages().at(-1);
     if (!lastMessage) {
-      throw new Error("Cannot create checkpoint: session has no messages");
+      throw internalError("Cannot create checkpoint: session has no messages");
     }
 
     const checkpoint: Checkpoint = {

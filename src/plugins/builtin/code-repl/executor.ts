@@ -1,3 +1,4 @@
+import { toMessage } from "../../../errors/normalize.js";
 import { codeReplDefaultRuntime } from "../../../config.js";
 import { getRuntime } from "./registry.js";
 import { cleanupScript, prepareScript, runPreparedScript } from "./runner.js";
@@ -80,7 +81,7 @@ export async function executeCodeRepl(input: CodeReplInput): Promise<string> {
   } catch (error) {
     return JSON.stringify({
       runtime: resolvedRuntimeId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies Partial<CodeReplResult>);
   }
 

@@ -1,3 +1,4 @@
+import { internalError } from "../../errors/factories.js";
 import { checkpointPath, checkpointsDir } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import { listJsonRecords } from "../../storage/list-json.js";
@@ -39,7 +40,7 @@ export function createStubCheckpointStore(): CheckpointStore {
       return [];
     },
     async save() {
-      throw new Error("CheckpointStore not implemented");
+      throw internalError("CheckpointStore not implemented");
     },
   };
 }

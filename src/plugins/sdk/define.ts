@@ -1,7 +1,7 @@
 import type { HookPhase } from "../../agent/hooks/phases.js";
 import type { HookHandler } from "../../agent/hooks/types.js";
 import type { ToolSchema } from "../../llm/protocol/types.js";
-import type { ToolHandler, ToolPermissionRule } from "../../tools/types.js";
+import type { ToolHandler, ToolPermissionRule, ToolCapability } from "../../tools/types.js";
 import type { SidecarHookSpec } from "./types.js";
 
 export type SidecarHookEntry =
@@ -16,6 +16,7 @@ export interface SidecarToolDefinition {
   schema: ToolSchema;
   handler: ToolHandler;
   permission?: ToolPermissionRule;
+  capability?: ToolCapability;
 }
 
 export interface SidecarPluginDefinition {
@@ -62,5 +63,6 @@ export function listSidecarTools(
     schema: tool.schema,
     handler: tool.handler,
     permission: tool.permission,
+    capability: tool.capability,
   }));
 }

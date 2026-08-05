@@ -39,7 +39,7 @@ export class AgentSession {
     this.stores = stores;
     this.runtime = runtime;
     this.resumeFromCheckpointId = resumeFromCheckpointId;
-    this.compaction = new CompactionService(session, stores, getToolDefinitions(runtime), {
+    this.compaction = new CompactionService(session, stores, getToolDefinitions(runtime.tools), {
       getPolicy: () => this.getCompactionPolicy(),
       getActiveCompactionSaveId: () => this.activeCompactionSaveId,
       setActiveCompactionSaveId: (id) => {

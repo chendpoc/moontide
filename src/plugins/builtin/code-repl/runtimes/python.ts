@@ -1,4 +1,5 @@
 import { pythonPath, venvPath } from "../../../../config.js";
+import { APP_ENV, envVarName } from "../../../../constants/env.js";
 import { joinPath, resolvePath } from "../../../../utils/path.js";
 import type { CodeRuntime } from "../types.js";
 import { buildRuntimeEnv } from "./env.js";
@@ -32,7 +33,7 @@ export const pythonRuntime: CodeRuntime = {
 
     return {
       available: false,
-      error: "python interpreter not found (set OCULA_PYTHON or OCULA_VENV)",
+      error: `python interpreter not found (set ${envVarName(APP_ENV.PYTHON)} or ${envVarName(APP_ENV.VENV)})`,
     };
   },
   buildCommand(ctx) {

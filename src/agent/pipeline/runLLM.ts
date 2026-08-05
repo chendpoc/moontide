@@ -1,3 +1,5 @@
+import { infraError } from "../../errors/factories.js";
+import { toFailureOutcome } from "../../errors/outcome.js";
 import type { LLMRequest, LLMResponse } from "../../llm/protocol/types.js";
 import { getLLMProvider } from "../../llm/provider.js";
 import type { AgentRuntime } from "../runtime/index.js";
@@ -16,10 +18,7 @@ export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
     const response = await getLLMProvider().chat(request);
     outcome = { status: "succeeded", response };
   } catch (err) {
-    outcome = {
-      status: "failed",
-      error: err instanceof Error ? err.message : String(err),
-    };
+    outcome = toFailureOutcome(err);
   }
 
   const record: LLMCallRecord = {
@@ -30,7 +29,7 @@ export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
   await runtime.hooks.dispatch("llmCall", record);
 
   if (outcome.status === "failed") {
-    throw new Error(outcome.error);
+    throw infraError(outcome.error);
   }
   return outcome.response;
 }

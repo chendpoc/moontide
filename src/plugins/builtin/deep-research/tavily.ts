@@ -1,3 +1,4 @@
+import { infraError } from "../../../errors/factories.js";
 import { tavilyApiKey } from "../../../config.js";
 import {
   TAVILY_DEFAULT_MAX_RESULTS,
@@ -62,7 +63,7 @@ export async function tavilySearch(
   if (!response.ok) {
     const message =
       body.detail ?? body.error ?? `Tavily search failed (${response.status})`;
-    throw new Error(message);
+    throw infraError(message, { context: { url: TAVILY_SEARCH_URL, status: response.status } });
   }
 
   return (body.results ?? []).map((item) => ({

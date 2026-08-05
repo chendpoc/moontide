@@ -2,6 +2,7 @@
 /**
  * LLM API smoke test — verify API key, base URL, and model before running the REPL.
  */
+import { toMessage } from "../../errors/normalize.js";
 import "../../bootstrap.js";
 import { PING_MAX_TOKENS } from "../../constants/llm.js";
 import { modelId } from "../../config.js";
@@ -31,7 +32,7 @@ async function main(): Promise<void> {
   try {
     console.log(await ping(message));
   } catch (error) {
-    console.error(`Error: ${error instanceof Error ? error.message : error}`);
+    console.error(`Error: ${toMessage(error)}`);
     process.exit(1);
   }
 }

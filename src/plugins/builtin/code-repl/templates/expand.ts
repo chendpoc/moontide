@@ -1,6 +1,7 @@
+import { toMessage } from "../../../../errors/normalize.js";
 import { fileURLToPath } from "node:url";
 
-import { safePath } from "../../../../tools/builtins/fs.js";
+import { safePath } from "../../../../tools/builtins/workspace/fs.js";
 import { exists, readText } from "../../../../utils/fs.js";
 import { dirname, joinPath } from "../../../../utils/path.js";
 import { getTemplate, type TemplateDef, type TemplateVarDef } from "./catalog.js";
@@ -72,7 +73,7 @@ function resolveVars(
             resolved[varDef.name] = safePath(defaultVal);
           } catch (error) {
             return {
-              error: error instanceof Error ? error.message : String(error),
+              error: toMessage(error),
               template: def.id,
             };
           }
@@ -87,7 +88,7 @@ function resolveVars(
         resolved[varDef.name] = safePath(coerced);
       } catch (error) {
         return {
-          error: error instanceof Error ? error.message : String(error),
+          error: toMessage(error),
           template: def.id,
         };
       }

@@ -9,7 +9,7 @@ const skipDirs = new Set([
   "node_modules",
   ".git",
   "dist",
-  ".ocula",
+  ".moontide",
   "__pycache__",
   ".venv",
   "venv",

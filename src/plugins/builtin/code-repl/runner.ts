@@ -1,6 +1,6 @@
 import { codeReplTimeoutMs, getWorkdir } from "../../../config.js";
 import { TMP_DIR } from "../../../constants/storage.js";
-import { safePath, runWrite } from "../../../tools/builtins/fs.js";
+import { safePath, runWrite } from "../../../tools/builtins/workspace/fs.js";
 import { ensureDir } from "../../../storage/fs.js";
 import { exists, removeFile, writeText } from "../../../utils/fs.js";
 import { newEventId } from "../../../utils/id.js";

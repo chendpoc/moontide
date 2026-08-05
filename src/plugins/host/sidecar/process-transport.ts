@@ -1,3 +1,5 @@
+import { APP_ENV, envVarName } from "../../../constants/env.js";
+import { infraError } from "../../../errors/factories.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -42,12 +44,14 @@ export class SidecarProcessTransport {
     this.child = spawn(process.execPath, [RUNNER, this.entryPath], {
       cwd: workdir,
       stdio: ["pipe", "pipe", "inherit"],
-      env: { ...process.env, OCULA_SIDECAR_PLUGIN_ID: this.pluginId },
+      env: { ...process.env, [envVarName(APP_ENV.SIDECAR_PLUGIN_ID)]: this.pluginId },
     });
 
     const stdout = this.child.stdout;
     if (!stdout) {
-      throw new Error("Sidecar process missing stdout");
+      throw infraError("Sidecar process missing stdout", {
+        context: { pluginId: this.pluginId, transport: "stdio" },
+      });
     }
 
     const rl = createInterface({ input: stdout });

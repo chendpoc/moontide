@@ -4,6 +4,14 @@ import fs from "node:fs";
 
 const filePath = __VARS__.path as string;
 const n = Math.max(1, Number(__VARS__.n ?? 10));
+
+function toMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err);
+}
+
 const raw = fs.readFileSync(filePath, "utf8");
 const allLines = raw.split("\n").filter((line) => line.trim().length > 0);
 const tail = allLines.slice(-n);
@@ -17,7 +25,7 @@ for (let i = 0; i < tail.length; i++) {
   } catch (error) {
     errors.push({
       line: lineNum,
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     });
   }
 }

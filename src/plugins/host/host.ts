@@ -1,3 +1,4 @@
+import { infraError } from "../../errors/factories.js";
 import { writeStderrLine } from "../../terminal/write.js";
 import { resolvePath } from "../../utils/path.js";
 import type { AgentRuntime } from "../../agent/runtime/index.js";
@@ -26,7 +27,9 @@ export class PluginHost {
       return;
     }
     if (!entry.entry) {
-      throw new Error(`Sidecar plugin "${entry.id}" missing entry`);
+      throw infraError(`Sidecar plugin "${entry.id}" missing entry`, {
+        context: { pluginId: entry.id },
+      });
     }
     if (this.attached.has(entry.id)) {
       return;

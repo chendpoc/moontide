@@ -4,6 +4,8 @@ import { maybeSpillToolResult } from "../../session/stores/spill-artifact.js";
 import { summarizeToolResultContent } from "../../session/content-map.js";
 import { createToolContext, type LoopContext } from "../deps.js";
 import { executeTool } from "../../tools/index.js";
+import { isAlwaysAllowEnabled } from "../../tools/always-allow-mode.js";
+import { effectiveDecision } from "../../tools/trust-policy.js";
 import { checkPermission } from "./permission/index.js";
 import {
   buildModelToolResult,
@@ -11,6 +13,7 @@ import {
   freezeToolUseRecord,
   outcomeFromToolOutput,
 } from "./tool-result.js";
+import { toFailureOutcome } from "../../errors/outcome.js";
 import type { ToolUseContext, ToolUseOutcome, ToolUseRecord } from "./types.js";
 
 export type ToolResultBlock = {
@@ -25,7 +28,9 @@ export async function resolveToolUseOutcome(
 ): Promise<ToolUseOutcome> {
   const { runtime } = loopCtx;
   try {
-    const decision = checkPermission(ctx.toolName, ctx.toolInput, runtime);
+    const rawDecision = checkPermission(ctx.toolName, ctx.toolInput, runtime);
+    const policy = isAlwaysAllowEnabled() ? "always" : "ask";
+    const decision = effectiveDecision(rawDecision, policy);
     if (decision === "deny") {
       return { status: "denied", reason: `Permission denied: ${ctx.toolName}` };
     }
@@ -51,10 +56,7 @@ export async function resolveToolUseOutcome(
     );
     return outcomeFromToolOutput(output);
   } catch (err) {
-    return {
-      status: "failed",
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return toFailureOutcome(err);
   }
 }
 

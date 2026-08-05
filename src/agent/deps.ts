@@ -1,3 +1,4 @@
+import { internalError } from "../errors/factories.js";
 import { getWorkdir } from "../config.js";
 import type { SessionStores } from "../session/stores/index.js";
 import type { ToolContext, UserInteraction } from "../tools/types.js";
@@ -14,7 +15,7 @@ export interface LoopContext {
 const denyAllInteraction: UserInteraction = {
   approveTool: async () => false,
   askQuestion: async () => {
-    throw new Error("User question prompt is not configured");
+    throw internalError("User question prompt is not configured");
   },
 };
 
@@ -30,7 +31,7 @@ export function createDefaultToolContext(runtime: AgentRuntime): ToolContext {
   return {
     workdir: getWorkdir(),
     userInteraction: denyAllInteraction,
-    runtime,
+    runtime: { tools: runtime.tools },
   };
 }
 
@@ -38,6 +39,6 @@ export function createToolContext(loopCtx: LoopContext): ToolContext {
   return {
     workdir: getWorkdir(),
     userInteraction: loopCtx.userInteraction,
-    runtime: loopCtx.runtime,
+    runtime: { tools: loopCtx.runtime.tools },
   };
 }

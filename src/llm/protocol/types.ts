@@ -1,4 +1,4 @@
-/** Ocula LLM protocol types. See docs/spec/llm-provider.md §9.1. */
+/** MoonTide LLM protocol types. See docs/spec/llm-provider.md §9.1. */
 
 export type Role = "user" | "assistant";
 

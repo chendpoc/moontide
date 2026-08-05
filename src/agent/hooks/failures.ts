@@ -1,6 +1,7 @@
-import { emitDraft } from "../../log/event-hub.js";
-import { getRunId } from "../../log/run.js";
-import { writeStderrLine } from "../../terminal/write.js";
+import { ErrorCode } from "../../errors/codes.js";
+import { reportError } from "../../errors/report.js";
+import { toErrorRecord } from "../../errors/record.js";
+import { toMessage, toStack } from "../../errors/normalize.js";
 import type { HookFailureRecord, ToolUseContext } from "./types.js";
 import { PHASE_DEFS, type HookPhase } from "./phases.js";
 import type { LLMCallRecord, ToolUseRecord } from "../pipeline/types.js";
@@ -8,18 +9,20 @@ import type { LLMCallRecord, ToolUseRecord } from "../pipeline/types.js";
 type HookErrorRecord = LLMCallRecord | ToolUseRecord | ToolUseContext;
 
 export function logHookFailure(failure: HookFailureRecord): void {
-  const location =
-    failure.toolName !== undefined
-      ? ` turn=${failure.turn ?? "?"} tool=${failure.toolName}`
-      : failure.turn !== undefined
-        ? ` turn=${failure.turn}`
-        : "";
-  writeStderrLine(
-    `[hook:${failure.name}] ${failure.phase} failed:${location} ${failure.message}`,
+  reportError(
+    {
+      code: ErrorCode.INTERNAL,
+      message: failure.message,
+      source: `hook:${failure.name}`,
+      hook: failure.name,
+      phase: failure.phase,
+      turn: failure.turn,
+      toolName: failure.toolName,
+      toolUseId: failure.toolUseId,
+      stack: failure.stack,
+    },
+    { event: false },
   );
-  if (failure.stack) {
-    writeStderrLine(failure.stack);
-  }
 }
 
 export function emitHookError(
@@ -28,24 +31,24 @@ export function emitHookError(
   record: HookErrorRecord | undefined,
   err: unknown,
 ): void {
-  const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? err.stack : undefined;
   const { errorChannel, errorPhase } = PHASE_DEFS[phase];
-  emitDraft({
-    turn: record?.turn ?? 0,
-    phase: errorPhase,
-    channel: errorChannel,
-    kind: "plugin_error",
-    payload: {
+  const errorRecord = toErrorRecord(err, `hook:${name}`, {
+    hook: name,
+    phase,
+    turn: record?.turn,
+    toolName: record && "toolName" in record ? record.toolName : undefined,
+    toolUseId: record && "toolUseId" in record ? record.toolUseId : undefined,
+  });
+
+  reportError(errorRecord, {
+    route: {
+      channel: errorChannel,
+      phase: errorPhase,
+      turn: record?.turn,
       hook: name,
-      phase,
-      runId: getRunId(),
-      toolName: record && "toolName" in record ? record.toolName : undefined,
-      toolUseId: record && "toolUseId" in record ? record.toolUseId : undefined,
-      message,
-      stack,
+      toolName: errorRecord.toolName,
+      toolUseId: errorRecord.toolUseId,
     },
-    preview: `${name}/${phase}`,
   });
 }
 
@@ -58,8 +61,8 @@ export function toHookFailureRecord(
   return {
     phase,
     name,
-    message: err instanceof Error ? err.message : String(err),
-    stack: err instanceof Error ? err.stack : undefined,
+    message: toMessage(err),
+    stack: toStack(err),
     turn: record?.turn,
     toolName: record && "toolName" in record ? record.toolName : undefined,
     toolUseId: record && "toolUseId" in record ? record.toolUseId : undefined,

@@ -2,6 +2,13 @@ import { execFileSync } from "node:child_process";
 
 /*__VARS__*/
 
+function toMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err);
+}
+
 function probe(cmd: string, args: string[]): { available: boolean; version?: string; error?: string } {
   try {
     const out = execFileSync(cmd, args, { encoding: "utf8", timeout: 5000 }).trim();
@@ -10,7 +17,7 @@ function probe(cmd: string, args: string[]): { available: boolean; version?: str
   } catch (error) {
     return {
       available: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     };
   }
 }

@@ -79,7 +79,7 @@ export class AgentRun {
       artifactStore: this.stores.artifacts,
       compactionStore: this.stores.compaction,
       checkpointStore: this.stores.checkpoints,
-      toolDefinitions: getToolDefinitions(this.loopCtx.runtime),
+      toolDefinitions: getToolDefinitions(this.loopCtx.runtime.tools),
       modelProfile: resolveModelProfile(),
       compactionPolicy: this.composeOptions.getCompactionPolicy(),
       resumeFromCheckpointId: this.composeOptions.resumeFromCheckpointId,

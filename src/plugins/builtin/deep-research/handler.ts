@@ -1,3 +1,4 @@
+import { toMessage } from "../../../errors/normalize.js";
 import { tavilySearch } from "./tavily.js";
 import type { DeepResearchInput, DeepResearchResult } from "./types.js";
 
@@ -23,7 +24,7 @@ export async function runDeepResearch(input: DeepResearchInput): Promise<string>
       results,
     } satisfies DeepResearchResult);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toMessage(err);
     return JSON.stringify({
       status: "error",
       query,

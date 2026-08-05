@@ -7,7 +7,7 @@ import { byteLengthUtf8 } from "../utils/utf8.js";
 
 const SUMMARY_CHAR_LIMIT = 500;
 
-/** Map SDK assistant blocks to Ocula protocol blocks for Session Log. */
+/** Map SDK assistant blocks to MoonTide protocol blocks for Session Log. */
 export function mapSdkContentBlocks(blocks: SdkContentBlock[]) {
   return mapBlocksFromRegistry(blocks);
 }

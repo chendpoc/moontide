@@ -1,3 +1,4 @@
+import { internalError } from "../../errors/factories.js";
 import { compactionDir, compactionSavePath } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import { listJsonRecords } from "../../storage/list-json.js";
@@ -39,7 +40,7 @@ export function createStubCompactionStore(): CompactionStore {
       return [];
     },
     async save() {
-      throw new Error("CompactionStore not implemented");
+      throw internalError("CompactionStore not implemented");
     },
   };
 }

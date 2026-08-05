@@ -4,7 +4,7 @@ import { dataPath, joinPath } from "../utils/path.js";
 
 const PROJECT_INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md"] as const;
 
-/** Load AGENTS.md / CLAUDE.md and `.ocula/rules/*.md` (first file wins per name). */
+/** Load AGENTS.md / CLAUDE.md and workspace data-dir rules/*.md (first file wins per name). */
 export function loadProjectRules(workdir: string): string {
   const parts: string[] = [];
 

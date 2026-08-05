@@ -4,7 +4,7 @@ import { localBin, probeCommand, resolveCommand } from "./probe.js";
 export const tsxRuntime: CodeRuntime = {
   id: "tsx",
   extensions: [".ts", ".tsx"],
-  description: "TypeScript via tsx — Ocula stack, quick scripts",
+  description: "TypeScript via tsx — MoonTide stack, quick scripts",
   async detect() {
     const cmd = localBin("tsx") ?? (await resolveCommand("tsx")) ?? "tsx";
     const probe = await probeCommand(cmd, ["--version"]);

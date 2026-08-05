@@ -49,6 +49,7 @@ function registerInProcessPlugin(
     },
     handler: tool.handler,
     permission: tool.permission ?? { kind: "fixed", decision: "deny" },
+    capability: tool.capability ?? "mixed",
   }));
   const removeTools = runtime.tools.addPluginTools(tools);
 
@@ -120,6 +121,7 @@ export class SidecarBridge {
       },
       handler: async (input) => this.transport!.dispatchTool(tool.name, input),
       permission: { kind: "fixed", decision: "deny" },
+      capability: "mixed",
     }));
     this.removeTools = this.runtime.tools.addPluginTools(tools);
   }

@@ -1,4 +1,7 @@
 import { emitDraft } from "../../log/event-hub.js";
+import { ErrorCode } from "../../errors/codes.js";
+import { AppError } from "../../errors/app-error.js";
+import { toMessage, toStack } from "../../errors/normalize.js";
 import type { HookRegistry } from "../runtime/hook-registry.js";
 import type { HookPhase } from "./phases.js";
 import { PHASE_DEFS } from "./phases.js";
@@ -16,18 +19,22 @@ import type {
 } from "./types.js";
 import type { LLMCallRecord, ToolUseRecord } from "../pipeline/types.js";
 
-export class HookObserverError extends Error {
+export class HookObserverError extends AppError {
   readonly handlerName: string;
   readonly phase: HookPhase;
 
   constructor(handlerName: string, phase: HookPhase, cause: unknown) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    super(`Hook handler "${handlerName}" failed on ${phase}: ${message}`);
+    super(
+      ErrorCode.INTERNAL,
+      `Hook handler "${handlerName}" failed on ${phase}: ${toMessage(cause)}`,
+      { cause },
+    );
     this.name = "HookObserverError";
     this.handlerName = handlerName;
     this.phase = phase;
-    if (cause instanceof Error && cause.stack) {
-      this.stack = cause.stack;
+    const stack = toStack(cause);
+    if (stack) {
+      this.stack = stack;
     }
   }
 }
@@ -98,7 +105,6 @@ export class HookDispatcher {
             if (this.registry.resolveRegistrationErrorPolicy(entry) === "fail-closed") {
               throw err;
             }
-            logHookFailure(toHookFailureRecord(phase, entry.name, err, record));
             emitHookError(phase, entry.name, record, err);
           }
         },
@@ -126,7 +132,6 @@ export class HookDispatcher {
           throw new HookObserverError(entry.name, phase, err);
         }
         const record = phase === "beforeToolUse" ? (ctx as ToolUseContext) : (ctx as ToolUseRecord);
-        logHookFailure(toHookFailureRecord(phase, entry.name, err, record));
         emitHookError(phase, entry.name, record, err);
       }
     }

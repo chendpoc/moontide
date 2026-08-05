@@ -1,3 +1,4 @@
+import { internalError } from "../../../errors/factories.js";
 import type { Message, ToolSchema } from "../../../llm/protocol/types.js";
 import { summarizeCompact, type CompactResult } from "./operations.js";
 import type { CompactionSave } from "../../../session/stores/compaction-types.js";
@@ -65,7 +66,7 @@ export async function runSummaryCompaction(
   );
 
   if (!compactResult.changed) {
-    throw new Error("Nothing to summarize — keep window already covers full history");
+    throw internalError("Nothing to summarize — keep window already covers full history");
   }
 
   const summaryText = extractSummaryText(compactResult.messages);

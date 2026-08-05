@@ -1,4 +1,4 @@
-/** One bookmarked session in `.ocula/sessions/index.json`. */
+/** One bookmarked session in `.moontide/sessions/index.json`. */
 export interface SessionIndexEntry {
   sessionId: string;
   label?: string;

@@ -1,7 +1,8 @@
 import { getWorkdir } from "../config.js";
+import { COMPANY_NAME, PRODUCT_NAME } from "../constants/brand.js";
 
 export function buildDefaultBasePrompt(workdir = getWorkdir()): string {
-  return `You are Ocula, a focused coding agent.
+  return `You are ${PRODUCT_NAME}, a focused coding agent by ${COMPANY_NAME}.
 
 Workspace: ${workdir}
 
@@ -12,7 +13,7 @@ For a combined git overview (status + log + diff --stat), call git_summary then 
 Plan before acting on multi-step tasks. Be concise in final replies.
 
 ## code_repl runtime selection
-- TypeScript / Ocula code → runtime "tsx"
+- TypeScript / ${PRODUCT_NAME} code → runtime "tsx"
 - Training scripts, numpy/torch, Python notebooks → runtime "python"
 - Existing .js files → runtime "node"
 - Shell pipelines, package installs → use bash tool, not code_repl

@@ -2,6 +2,7 @@
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
+import { APP_ENV, envVarName } from "../../../constants/env.js";
 import {
   defineSidecarPlugin,
   listSidecarHooks,
@@ -9,6 +10,7 @@ import {
   resolveSidecarHookEntry,
   type SidecarPluginDefinition,
 } from "../../sdk/define.js";
+import { toMessage } from "../../../errors/normalize.js";
 import type { HookPhase } from "../../../agent/hooks/phases.js";
 import {
   encodeSidecarMessage,
@@ -18,7 +20,7 @@ import {
 import { createHostMessageHandlers, dispatchHostMessage } from "./message-handlers.js";
 
 let plugin: SidecarPluginDefinition | null = null;
-let pluginId = process.env.OCULA_SIDECAR_PLUGIN_ID ?? "sidecar";
+let pluginId = process.env[envVarName(APP_ENV.SIDECAR_PLUGIN_ID)] ?? "sidecar";
 
 async function loadEntry(entryPath: string): Promise<SidecarPluginDefinition> {
   const mod = (await import(pathToFileURL(entryPath).href)) as {
@@ -67,7 +69,7 @@ async function handleHook(
     send({
       type: "error",
       id: message.id,
-      message: err instanceof Error ? err.message : String(err),
+      message: toMessage(err),
     });
   }
 }
@@ -93,7 +95,7 @@ async function handleTool(
     send({
       type: "error",
       id: message.id,
-      message: err instanceof Error ? err.message : String(err),
+      message: toMessage(err),
     });
   }
 }

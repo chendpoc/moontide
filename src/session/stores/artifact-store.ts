@@ -1,3 +1,4 @@
+import { internalError } from "../../errors/factories.js";
 import { artifactMetaPath } from "../paths.js";
 import { ensureDirForFile, readJson, writeJsonPretty } from "../../storage/fs.js";
 import type { Artifact } from "./artifact-types.js";
@@ -27,7 +28,7 @@ export function createStubArtifactStore(): ArtifactStore {
       return undefined;
     },
     async put() {
-      throw new Error("ArtifactStore not implemented");
+      throw internalError("ArtifactStore not implemented");
     },
   };
 }
