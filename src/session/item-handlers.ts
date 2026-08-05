@@ -77,6 +77,18 @@ const ITEM_TO_MESSAGES_HANDLERS: {
   routing(_item, state) {
     flushPendingToolResults(state);
   },
+  protocol_reminder(item, state) {
+    flushPendingToolResults(state);
+    state.messages.push({
+      id: item.id,
+      sessionId: item.sessionId,
+      turn: item.turn,
+      at: item.at,
+      role: "user",
+      content: item.text,
+    });
+    state.pendingMeta = { sessionId: item.sessionId, turn: item.turn, at: item.at };
+  },
 };
 
 /** Apply one SessionItem to the messages-from-items fold state. */
@@ -102,6 +114,9 @@ export function applyItemToMessages(item: SessionItem, state: MessagesFromItemsS
       break;
     case "routing":
       ITEM_TO_MESSAGES_HANDLERS.routing(item, state);
+      break;
+    case "protocol_reminder":
+      ITEM_TO_MESSAGES_HANDLERS.protocol_reminder(item, state);
       break;
   }
 }

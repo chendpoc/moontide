@@ -61,6 +61,12 @@ export interface RoutingItem extends SessionItemBase {
   decision: RoutingDecision;
 }
 
+export interface ProtocolReminderItem extends SessionItemBase {
+  kind: "protocol_reminder";
+  reminderKind: "orient" | "synthesize";
+  text: string;
+}
+
 /** Persistence DTO — one NDJSON line. */
 export type SessionItem =
   | UserMessageItem
@@ -69,7 +75,8 @@ export type SessionItem =
   | ToolOutcomeItem
   | CompactionItem
   | CheckpointCreatedItem
-  | RoutingItem;
+  | RoutingItem
+  | ProtocolReminderItem;
 
 export type SessionItemKind = SessionItem["kind"];
 
@@ -90,7 +97,8 @@ export type SessionItemBody =
   | Omit<ToolOutcomeItem, keyof SessionItemBase>
   | Omit<CompactionItem, keyof SessionItemBase>
   | Omit<CheckpointCreatedItem, keyof SessionItemBase>
-  | Omit<RoutingItem, keyof SessionItemBase>;
+  | Omit<RoutingItem, keyof SessionItemBase>
+  | Omit<ProtocolReminderItem, keyof SessionItemBase>;
 
 const SESSION_ITEM_KINDS = new Set<SessionItemKind>([
   "user_message",
@@ -100,6 +108,7 @@ const SESSION_ITEM_KINDS = new Set<SessionItemKind>([
   "compaction",
   "checkpoint_created",
   "routing",
+  "protocol_reminder",
 ]);
 
 export function isSessionItem(value: unknown): value is SessionItem {

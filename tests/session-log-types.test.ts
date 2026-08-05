@@ -44,6 +44,12 @@ const FIXTURES: SessionItem[] = [
   },
   {
     ...BASE,
+    kind: "protocol_reminder",
+    reminderKind: "orient",
+    text: "[Deep Task — protocol reminder] example",
+  },
+  {
+    ...BASE,
     kind: "routing",
     decision: {
       logicalModelId: "claude-sonnet",

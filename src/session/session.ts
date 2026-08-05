@@ -26,6 +26,7 @@ import {
   type CompactionItem,
   type CompactionKind,
   type CheckpointCreatedItem,
+  type ProtocolReminderItem,
   type RoutingItem,
   type SessionContext,
   type SessionItem,
@@ -224,6 +225,33 @@ export class Session {
       at: new Date().toISOString(),
       decision,
     };
+    await this.pushItem(item);
+  }
+
+  async appendProtocolReminder(
+    turn: number,
+    reminderKind: ProtocolReminderItem["reminderKind"],
+    text: string,
+  ): Promise<void> {
+    const at = new Date().toISOString();
+    const id = newEventId();
+    const item: ProtocolReminderItem = {
+      kind: "protocol_reminder",
+      id,
+      sessionId: this.sessionId,
+      turn,
+      at,
+      reminderKind,
+      text,
+    };
+    this.messages.push({
+      id,
+      sessionId: this.sessionId,
+      turn,
+      at,
+      role: "user",
+      content: text,
+    });
     await this.pushItem(item);
   }
 

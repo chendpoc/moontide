@@ -96,6 +96,22 @@ const DERIVE_ITEM_HANDLERS: Record<SessionItemKind, DeriveHandler> = {
   },
   checkpoint_created(_item) {},
   routing(_item) {},
+  protocol_reminder(item) {
+    if (item.kind !== "protocol_reminder") {
+      return;
+    }
+    emitDraft({
+      turn: item.turn,
+      phase: "pre_llm",
+      channel: "context",
+      kind: "user_prompt",
+      payload: {
+        text: item.text,
+        protocolReminder: item.reminderKind,
+      },
+      preview: truncateOneLine(item.text, 80),
+    });
+  },
 };
 
 /** Project one Session Item into Agent Event drafts (observability only). */

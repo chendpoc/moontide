@@ -10,6 +10,11 @@ import type { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
 import { composeForSession } from "./compose-for-turn.js";
 import { publishComposeResult } from "./context-status.js";
+import { isDeepModeEnabled } from "./deep-mode.js";
+import {
+  ORIENT_PROTOCOL_REMINDER_TEXT,
+  shouldSendOrientProtocolReminder,
+} from "./deep-task-protocol.js";
 import { runLLM } from "./pipeline/runLLM.js";
 import { runToolUses } from "./pipeline/runTool.js";
 
@@ -25,6 +30,7 @@ export class AgentRun {
   private readonly stores: SessionStores;
   private readonly loopCtx: LoopContext;
   private readonly composeOptions: AgentRunComposeOptions;
+  private orientProtocolReminderSent = false;
 
   constructor(
     session: Session,
@@ -103,6 +109,18 @@ export class AgentRun {
 
     if (response.stopReason !== "tool_use") {
       return { reply: extractText(response.content) };
+    }
+
+    if (
+      isDeepModeEnabled()
+      && runTurn === 1
+      && !this.orientProtocolReminderSent
+      && shouldSendOrientProtocolReminder(response.content)
+    ) {
+      await runToolUses(runTurn, response.content, this.loopCtx);
+      await this.session.appendProtocolReminder(runTurn, "orient", ORIENT_PROTOCOL_REMINDER_TEXT);
+      this.orientProtocolReminderSent = true;
+      return undefined;
     }
 
     await runToolUses(runTurn, response.content, this.loopCtx);
