@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { validationError } from "../errors/factories.js";
 import { getWorkdir } from "../config.js";
 import { DATA_DIR } from "../constants/storage.js";
 
@@ -33,12 +34,12 @@ export function pathDelimiter(): string {
   return path.delimiter;
 }
 
-/** Workspace-local Ocula data root: `<workdir>/.ocula`. */
+/** Workspace-local MoonTide data root: `<workdir>/.moontide`. */
 export function dataDir(workdir: string): string {
   return joinPath(workdir, DATA_DIR);
 }
 
-/** Join segments under `<workdir>/.ocula` (runs, sessions, status.json, …). */
+/** Join segments under `<workdir>/.moontide` (runs, sessions, status.json, …). */
 export function dataPath(workdir: string, ...segments: string[]): string {
   return joinPath(dataDir(workdir), ...segments);
 }
@@ -71,7 +72,7 @@ export function escapesWorkspace(filePath: string, workdir?: string): boolean {
 export function resolveWorkspacePath(relative: string, workdir = getWorkdir()): string {
   const resolved = resolvePath(workdir, relative);
   if (isOutsideWorkspace(resolved, workdir)) {
-    throw new Error(`Path escapes workspace: ${relative}`);
+    throw validationError(`Path escapes workspace: ${relative}`, { context: { path: relative } });
   }
   return resolved;
 }

@@ -4,7 +4,7 @@ import { resolveToolDefinitions } from "../src/context/composer/tool-definitions
 import { getToolDefinitions, registerDefaultTools } from "../src/tools/index.js";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
-const DEEP_RESEARCH_ENV = "OCULA_DEEP_RESEARCH";
+const DEEP_RESEARCH_ENV = "MOONTIDE_DEEP_RESEARCH";
 
 describe("tool definitions", () => {
   beforeEach(() => {
@@ -19,7 +19,7 @@ describe("tool definitions", () => {
 
   it("getToolDefinitions returns ToolSchema shape for default tools", () => {
     const runtime = getTestRuntime();
-    const schemas = getToolDefinitions(runtime);
+    const schemas = getToolDefinitions(runtime.tools);
     expect(schemas.length).toBeGreaterThan(0);
     for (const schema of schemas) {
       expect(schema).toMatchObject({
@@ -30,14 +30,14 @@ describe("tool definitions", () => {
     }
   });
 
-  it("omits deep_research unless OCULA_DEEP_RESEARCH=1", () => {
+  it("omits deep_research unless MOONTIDE_DEEP_RESEARCH=1", () => {
     const runtime = getTestRuntime();
-    const names = getToolDefinitions(runtime).map((s) => s.name);
+    const names = getToolDefinitions(runtime.tools).map((s) => s.name);
     expect(names).not.toContain("deep_research");
 
     process.env[DEEP_RESEARCH_ENV] = "1";
     runtime.tools.reset();
-    const enabled = getToolDefinitions(runtime).map((s) => s.name);
+    const enabled = getToolDefinitions(runtime.tools).map((s) => s.name);
     expect(enabled).toContain("deep_research");
   });
 
@@ -51,7 +51,7 @@ describe("tool definitions", () => {
 
   it("resolveToolDefinitions matches getToolDefinitions content", () => {
     const runtime = getTestRuntime();
-    const fromStore = [...getToolDefinitions(runtime)].sort((a, b) => a.name.localeCompare(b.name));
+    const fromStore = [...getToolDefinitions(runtime.tools)].sort((a, b) => a.name.localeCompare(b.name));
     expect(resolveToolDefinitions(runtime.tools)).toEqual(fromStore);
   });
 });

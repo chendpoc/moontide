@@ -1,3 +1,4 @@
+import { toolError } from "../errors/factories.js";
 import type { ToolContext } from "./types.js";
 
 export async function executeTool(
@@ -6,11 +7,11 @@ export async function executeTool(
   ctx: ToolContext,
 ): Promise<string> {
   if (!ctx.runtime) {
-    throw new Error("ToolContext.runtime is required");
+    throw toolError("ToolContext.runtime is required");
   }
   const tool = ctx.runtime.tools.getTool(name);
   if (!tool) {
-    throw new Error(`Unknown tool: ${name}`);
+    throw toolError(`Unknown tool: ${name}`, { context: { toolName: name } });
   }
   return tool.handler(toolInput, ctx);
 }

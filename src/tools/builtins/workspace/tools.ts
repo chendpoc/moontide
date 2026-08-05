@@ -1,6 +1,6 @@
-import { defineTools, type ToolSpec } from "../define-tool.js";
-import type { ToolDefinition } from "../types.js";
-import { TOOL_NAMES } from "../names.js";
+import { defineTools, type ToolSpec } from "../../define-tool.js";
+import type { ToolDefinition } from "../../types.js";
+import { TOOL_NAMES } from "../../names.js";
 import { runEdit, runGlob, runListDir, runRead, runWrite } from "./fs.js";
 
 const WORKSPACE_TOOL_SPECS: ToolSpec[] = [
@@ -8,6 +8,7 @@ const WORKSPACE_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.READ_FILE,
     description: "Read a file relative to the workspace.",
     permission: { kind: "path", field: "path" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: {
@@ -27,6 +28,7 @@ const WORKSPACE_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.WRITE_FILE,
     description: "Write content to a file relative to the workspace.",
     permission: { kind: "path", field: "path" },
+    capability: "write",
     input_schema: {
       type: "object",
       properties: {
@@ -41,6 +43,7 @@ const WORKSPACE_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.EDIT_FILE,
     description: "Replace the first exact occurrence of old_text in a file.",
     permission: { kind: "path", field: "path" },
+    capability: "write",
     input_schema: {
       type: "object",
       properties: {
@@ -57,6 +60,7 @@ const WORKSPACE_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.GLOB,
     description: "Find files matching a glob pattern in the workspace.",
     permission: { kind: "fixed", decision: "allow" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: { pattern: { type: "string" } },
@@ -68,6 +72,7 @@ const WORKSPACE_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.LIST_DIR,
     description: "List files and directories under a workspace path.",
     permission: { kind: "path", field: "path" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: {

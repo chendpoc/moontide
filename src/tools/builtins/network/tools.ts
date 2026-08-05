@@ -1,7 +1,7 @@
-import { httpFetchEnabled } from "../../config.js";
-import { defineTools, type ToolSpec } from "../define-tool.js";
-import type { ToolDefinition } from "../types.js";
-import { TOOL_NAMES } from "../names.js";
+import { httpFetchEnabled } from "../../../config.js";
+import { defineTools, type ToolSpec } from "../../define-tool.js";
+import type { ToolDefinition } from "../../types.js";
+import { TOOL_NAMES } from "../../names.js";
 import { runHttpFetch } from "./http-fetch.js";
 
 const NETWORK_TOOL_SPECS: ToolSpec[] = [
@@ -10,6 +10,7 @@ const NETWORK_TOOL_SPECS: ToolSpec[] = [
     description:
       "Fetch a URL over HTTP/HTTPS. Requires user approval. Prefer over bash curl/wget.",
     permission: { kind: "fixed", decision: "ask" },
+    capability: "network",
     input_schema: {
       type: "object",
       properties: {

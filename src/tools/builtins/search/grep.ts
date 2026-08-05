@@ -1,8 +1,9 @@
-import { getWorkdir } from "../../config.js";
-import { clampInt } from "../../utils/number.js";
-import { spawnCollect } from "../../utils/process.js";
-import { basename, relativePath as workspaceRelativePath } from "../../utils/path.js";
-import { safePath } from "./fs.js";
+import { toMessage } from "../../../errors/normalize.js";
+import { getWorkdir } from "../../../config.js";
+import { clampInt } from "../../../utils/number.js";
+import { spawnCollect } from "../../../utils/process.js";
+import { basename, relativePath as workspaceRelativePath } from "../../../utils/path.js";
+import { safePath } from "../workspace/fs.js";
 
 export interface GrepInput {
   pattern: string;
@@ -161,7 +162,7 @@ export async function runGrep(input: GrepInput): Promise<string> {
   } catch (error) {
     return JSON.stringify({
       status: "error",
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies GrepResult);
   }
 
@@ -186,7 +187,7 @@ export async function runGrep(input: GrepInput): Promise<string> {
     }
     return JSON.stringify({
       status: "error",
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies GrepResult);
   }
 }

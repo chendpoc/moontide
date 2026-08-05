@@ -1,5 +1,7 @@
-import { httpFetchEnabled } from "../../config.js";
-import { clampInt } from "../../utils/number.js";
+import { APP_ENV, envVarName } from "../../../constants/env.js";
+import { toMessage } from "../../../errors/normalize.js";
+import { httpFetchEnabled } from "../../../config.js";
+import { clampInt } from "../../../utils/number.js";
 
 export interface HttpFetchInput {
   url: string;
@@ -24,7 +26,7 @@ const DEFAULT_MAX_BYTES = 51_200;
 const MAX_BYTES_CAP = 51_200;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-const BLOCKED_HOSTS = new Set([
+const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "127.0.0.1",
   "0.0.0.0",
@@ -32,6 +34,63 @@ const BLOCKED_HOSTS = new Set([
   "metadata.google.internal",
   "169.254.169.254",
 ]);
+
+type Ipv4SecondOctet = number | { min: number; max: number };
+
+interface PrivateIpv4Rule {
+  first: number;
+  second?: Ipv4SecondOctet;
+}
+
+/** RFC1918, loopback, link-local, and this-network — first matching rule wins. */
+const PRIVATE_IPV4_RULES: readonly PrivateIpv4Rule[] = [
+  { first: 0 },
+  { first: 10 },
+  { first: 127 },
+  { first: 169, second: 254 },
+  { first: 172, second: { min: 16, max: 31 } },
+  { first: 192, second: 168 },
+];
+
+function parseIpv4Octets(host: string): [number, number, number, number] | undefined {
+  const parts = host.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return undefined;
+  }
+  return parts as [number, number, number, number];
+}
+
+function matchesSecondOctet(second: number, rule?: Ipv4SecondOctet): boolean {
+  if (rule === undefined) {
+    return true;
+  }
+  if (typeof rule === "number") {
+    return second === rule;
+  }
+  return second >= rule.min && second <= rule.max;
+}
+
+function matchesPrivateIpv4(host: string): boolean {
+  const octets = parseIpv4Octets(host);
+  if (!octets) {
+    return false;
+  }
+  const [first, second] = octets;
+  return PRIVATE_IPV4_RULES.some(
+    (rule) => rule.first === first && matchesSecondOctet(second, rule.second),
+  );
+}
+
+const URL_BLOCK_RULES: readonly { error: string; match: (host: string) => boolean }[] = [
+  {
+    error: "blocked host (SSRF protection)",
+    match: (host) => BLOCKED_HOSTNAMES.has(host) || host.endsWith(".localhost"),
+  },
+  {
+    error: "blocked private IP (SSRF protection)",
+    match: matchesPrivateIpv4,
+  },
+];
 
 export function normalizeMaxBytes(maxBytes?: number): number {
   if (maxBytes === undefined || !Number.isFinite(maxBytes)) {
@@ -47,27 +106,6 @@ export function normalizeTimeoutMs(timeoutMs?: number): number {
   return clampInt(timeoutMs, 1_000, 120_000);
 }
 
-function isPrivateIpv4(host: string): boolean {
-  const parts = host.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
-    return false;
-  }
-  const [a, b] = parts;
-  if (a === 10) {
-    return true;
-  }
-  if (a === 172 && b !== undefined && b >= 16 && b <= 31) {
-    return true;
-  }
-  if (a === 192 && b === 168) {
-    return true;
-  }
-  if (a === 127) {
-    return true;
-  }
-  return false;
-}
-
 export function validateFetchUrl(rawUrl: string): URL | { error: string } {
   let parsed: URL;
   try {
@@ -81,11 +119,10 @@ export function validateFetchUrl(rawUrl: string): URL | { error: string } {
   }
 
   const host = parsed.hostname.toLowerCase();
-  if (BLOCKED_HOSTS.has(host) || host.endsWith(".localhost")) {
-    return { error: "blocked host (SSRF protection)" };
-  }
-  if (isPrivateIpv4(host)) {
-    return { error: "blocked private IP (SSRF protection)" };
+  for (const rule of URL_BLOCK_RULES) {
+    if (rule.match(host)) {
+      return { error: rule.error };
+    }
   }
 
   return parsed;
@@ -97,7 +134,7 @@ export async function runHttpFetch(input: HttpFetchInput): Promise<string> {
   if (!httpFetchEnabled()) {
     return JSON.stringify({
       status: "error",
-      error: "http_fetch is disabled (set OCULA_HTTP unset or not 0)",
+      error: `http_fetch is disabled (set ${envVarName(APP_ENV.HTTP)} unset or not 0)`,
     } satisfies HttpFetchResult);
   }
 
@@ -164,7 +201,7 @@ export async function runHttpFetch(input: HttpFetchInput): Promise<string> {
     return JSON.stringify({
       status: "error",
       url: rawUrl,
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies HttpFetchResult);
   }
 }

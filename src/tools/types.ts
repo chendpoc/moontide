@@ -1,7 +1,9 @@
 import type { ToolSchema } from "../llm/protocol/types.js";
-import type { AgentRuntime } from "../agent/runtime/index.js";
+import type { ToolRegistryPort } from "./registry-port.js";
 
 export type PermissionDecision = "allow" | "deny" | "ask";
+
+export type ToolCapability = "read" | "write" | "network" | "exec" | "mixed";
 
 export type ToolPermissionRule =
   | { kind: "fixed"; decision: PermissionDecision }
@@ -27,7 +29,9 @@ export interface ToolContext {
   workdir: string;
   userInteraction: UserInteraction;
   /** Present when invoked via agent harness; sidecar plugins may omit. */
-  runtime?: AgentRuntime;
+  runtime?: {
+    tools: ToolRegistryPort;
+  };
 }
 
 export type ToolHandler = (
@@ -40,4 +44,5 @@ export interface ToolDefinition {
   schema: ToolSchema;
   handler: ToolHandler;
   permission: ToolPermissionRule;
+  capability: ToolCapability;
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { defineTools, resolveToolManifest, validateToolSpec } from "../src/tools/define-tool.js";
+import { defineTool, defineTools, resolveToolManifest, validateToolSpec } from "../src/tools/define-tool.js";
+import { ErrorCode } from "../src/errors/codes.js";
+import { isAppError } from "../src/errors/app-error.js";
 import type { ToolDefinition } from "../src/tools/types.js";
 
 describe("defineTools", () => {
@@ -11,6 +13,7 @@ describe("defineTools", () => {
         description: "echo",
         input_schema: { type: "object", properties: {} },
         permission: { kind: "fixed", decision: "allow" },
+        capability: "read",
         run: () => "ok",
       },
     ]);
@@ -26,11 +29,27 @@ describe("defineTools", () => {
         description: "off",
         input_schema: { type: "object", properties: {} },
         permission: { kind: "fixed", decision: "deny" },
+        capability: "read",
         enabled: () => false,
         run: () => "nope",
       },
     ]);
     expect(tools).toHaveLength(0);
+  });
+});
+
+describe("defineTool", () => {
+  it("requires capability", () => {
+    expect(() =>
+      defineTool({
+        name: "bad",
+        description: "bad",
+        input_schema: { type: "object", properties: {} },
+        permission: { kind: "fixed", decision: "allow" },
+        capability: "read",
+        run: () => "",
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -42,9 +61,25 @@ describe("validateToolSpec", () => {
         description: "bad",
         input_schema: { type: "object", properties: {} },
         permission: { kind: "path", field: "path" },
+        capability: "read",
         run: () => "",
       }),
     ).toThrow(/requires input_schema.properties.path/);
+    try {
+      validateToolSpec({
+        name: "bad",
+        description: "bad",
+        input_schema: { type: "object", properties: {} },
+        permission: { kind: "path", field: "path" },
+        capability: "read",
+        run: () => "",
+      });
+    } catch (err) {
+      expect(isAppError(err)).toBe(true);
+      if (isAppError(err)) {
+        expect(err.code).toBe(ErrorCode.VALIDATION);
+      }
+    }
   });
 });
 
@@ -54,9 +89,10 @@ describe("resolveToolManifest", () => {
       {
         factory: () => [
           {
-            schema: { name: "a", description: "a", input_schema: {} },
+            schema: { name: "a", description: "a", input_schema: { type: "object", properties: {} } },
             handler: () => "",
             permission: { kind: "fixed", decision: "allow" },
+            capability: "read",
           },
         ],
       },

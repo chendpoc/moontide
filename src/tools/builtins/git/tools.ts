@@ -1,13 +1,14 @@
-import { defineTools, type ToolSpec } from "../define-tool.js";
-import type { ToolDefinition } from "../types.js";
-import { TOOL_NAMES } from "../names.js";
-import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "./git.js";
+import { defineTools, type ToolSpec } from "../../define-tool.js";
+import type { ToolDefinition } from "../../types.js";
+import { TOOL_NAMES } from "../../names.js";
+import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "./lib.js";
 
 const GIT_TOOL_SPECS: ToolSpec[] = [
   {
     name: TOOL_NAMES.GIT_STATUS,
     description: "Read-only git status for the workspace. Prefer over bash git status.",
     permission: { kind: "fixed", decision: "allow" },
+    capability: "read",
     input_schema: { type: "object", properties: {} },
     run: () => runGitStatus(),
   },
@@ -15,6 +16,7 @@ const GIT_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.GIT_DIFF,
     description: "Read-only git diff (default --stat). Prefer over bash git diff.",
     permission: { kind: "path", field: "path" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: {
@@ -42,6 +44,7 @@ const GIT_TOOL_SPECS: ToolSpec[] = [
     name: TOOL_NAMES.GIT_LOG,
     description: "Read-only git log (oneline). Prefer over bash git log.",
     permission: { kind: "path", field: "path" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: {
@@ -62,6 +65,7 @@ const GIT_TOOL_SPECS: ToolSpec[] = [
     description:
       "Combined git overview (status + log + diff --stat). Does not run git directly — returns code_repl template git_summary invocation. Implementation: templates/bodies/bash/git_summary.sh.",
     permission: { kind: "fixed", decision: "allow" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: {

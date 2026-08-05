@@ -1,19 +1,21 @@
-import { getWorkdir } from "../../config.js";
-import { globFiles } from "../../utils/glob.js";
+import { toolFailureMessage } from "../../../errors/outcome.js";
+import { toMessage } from "../../../errors/normalize.js";
+import { getWorkdir } from "../../../config.js";
+import { globFiles } from "../../../utils/glob.js";
 import {
   exists,
   listDir,
   lstat,
   readText,
   writeText,
-} from "../../utils/fs.js";
+} from "../../../utils/fs.js";
 import {
   isAbsolutePath,
   joinPath,
   relativePath,
   resolvePath,
   resolveWorkspacePath,
-} from "../../utils/path.js";
+} from "../../../utils/path.js";
 
 export function safePath(relative: string): string {
   return resolveWorkspacePath(relative);
@@ -31,7 +33,7 @@ export function runRead(filePath: string, limit?: number, offset = 1): string {
     }
     return slice.join("\n");
   } catch (error) {
-    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    return toolFailureMessage(toMessage(error));
   }
 }
 
@@ -40,7 +42,7 @@ export function runWrite(filePath: string, content: string): string {
     writeText(safePath(filePath), content);
     return `Wrote ${content.length} bytes to ${filePath}`;
   } catch (error) {
-    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    return toolFailureMessage(toMessage(error));
   }
 }
 
@@ -56,7 +58,7 @@ export function runEdit(filePath: string, oldText: string, newText: string): str
     writeText(resolved, updated);
     return `Edited ${filePath}`;
   } catch (error) {
-    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    return toolFailureMessage(toMessage(error));
   }
 }
 
@@ -70,7 +72,7 @@ export function runGlob(pattern: string): string {
     });
     return matches.length > 0 ? matches.join("\n") : "(no matches)";
   } catch (error) {
-    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    return toolFailureMessage(toMessage(error));
   }
 }
 
@@ -153,6 +155,6 @@ export function runListDir(relativePath = ".", recursive = false): string {
     const lines = entries.map((entry) => `${entry.kind}\t${entry.path}`);
     return truncated ? [...lines, `... (truncated at ${LIST_DIR_MAX_ENTRIES} entries)`].join("\n") : lines.join("\n");
   } catch (error) {
-    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    return toolFailureMessage(toMessage(error));
   }
 }

@@ -1,12 +1,12 @@
 import { getWorkdir } from "../../config.js";
 import { PluginHost } from "../../plugins/host/host.js";
+import { ToolRegistry } from "../../tools/registry.js";
 import { buildDefaultHookManifest } from "../hooks/manifest.js";
 import { HookDispatcher } from "../hooks/dispatcher.js";
 import { HookRegistry } from "./hook-registry.js";
-import { ToolRegistry } from "./tool-registry.js";
 
 export { HookRegistry, type SidecarHookRegistry } from "./hook-registry.js";
-export { ToolRegistry } from "./tool-registry.js";
+export { ToolRegistry } from "../../tools/registry.js";
 
 export class AgentRuntime {
   readonly hookRegistry = new HookRegistry();

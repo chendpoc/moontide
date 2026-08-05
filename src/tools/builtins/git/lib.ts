@@ -1,8 +1,9 @@
-import { getWorkdir } from "../../config.js";
-import { spawnCollect } from "../../utils/process.js";
-import { clampInt } from "../../utils/number.js";
-import { truncateChars } from "../../utils/text.js";
-import { safePath } from "./fs.js";
+import { toMessage } from "../../../errors/normalize.js";
+import { getWorkdir } from "../../../config.js";
+import { spawnCollect } from "../../../utils/process.js";
+import { clampInt } from "../../../utils/number.js";
+import { truncateChars } from "../../../utils/text.js";
+import { safePath } from "../workspace/fs.js";
 
 const OUTPUT_LIMIT = 50_000;
 const DEFAULT_LOG_N = 10;
@@ -117,7 +118,7 @@ export async function runGitStatus(): Promise<string> {
     }
     return JSON.stringify({
       status: "error",
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies GitStatusResult);
   }
 }
@@ -151,7 +152,7 @@ export async function runGitDiff(input: GitDiffInput = {}): Promise<string> {
     } catch (error) {
       return JSON.stringify({
         status: "error",
-        error: error instanceof Error ? error.message : String(error),
+        error: toMessage(error),
       } satisfies GitDiffResult);
     }
   }
@@ -195,7 +196,7 @@ export async function runGitDiff(input: GitDiffInput = {}): Promise<string> {
     }
     return JSON.stringify({
       status: "error",
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies GitDiffResult);
   }
 }
@@ -224,7 +225,7 @@ export async function runGitLog(input: GitLogInput = {}): Promise<string> {
     } catch (error) {
       return JSON.stringify({
         status: "error",
-        error: error instanceof Error ? error.message : String(error),
+        error: toMessage(error),
       } satisfies GitLogResult);
     }
   }
@@ -264,7 +265,7 @@ export async function runGitLog(input: GitLogInput = {}): Promise<string> {
     }
     return JSON.stringify({
       status: "error",
-      error: error instanceof Error ? error.message : String(error),
+      error: toMessage(error),
     } satisfies GitLogResult);
   }
 }

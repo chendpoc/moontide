@@ -1,3 +1,4 @@
+import { errorCodeFromToolOutcome } from "../../../errors/outcome.js";
 import type { ComposedContext } from "../../../context/composer/types.js";
 import { emitDebugRecord } from "../../../context-inspect/debug-emit.js";
 import type { LLMCallRecord, ToolUseRecord } from "../../../agent/pipeline/types.js";
@@ -21,6 +22,11 @@ export function handleDebugLlmCall(record: LLMCallRecord): void {
 }
 
 export function handleDebugToolUse(record: ToolUseRecord): void {
+  const errorCode =
+    record.outcome.status !== "succeeded"
+      ? errorCodeFromToolOutcome(record.outcome)
+      : undefined;
+
   emitDebugRecord({
     kind: "tool_use",
     turn: record.turn,
@@ -28,5 +34,6 @@ export function handleDebugToolUse(record: ToolUseRecord): void {
     toolUseId: record.toolUseId,
     toolInput: record.toolInput,
     outcome: record.outcome,
+    ...(errorCode !== undefined ? { errorCode } : {}),
   });
 }

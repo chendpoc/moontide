@@ -1,6 +1,6 @@
-import { defineTools, type ToolSpec } from "../define-tool.js";
-import type { ToolDefinition } from "../types.js";
-import { TOOL_NAMES } from "../names.js";
+import { defineTools, type ToolSpec } from "../../define-tool.js";
+import type { ToolDefinition } from "../../types.js";
+import { TOOL_NAMES } from "../../names.js";
 import { runGrep } from "./grep.js";
 
 const SEARCH_TOOL_SPECS: ToolSpec[] = [
@@ -9,6 +9,7 @@ const SEARCH_TOOL_SPECS: ToolSpec[] = [
     description:
       "Search code in the workspace with ripgrep (rg) or grep. Prefer over bash for code search.",
     permission: { kind: "path", field: "path" },
+    capability: "read",
     input_schema: {
       type: "object",
       properties: {

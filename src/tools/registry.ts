@@ -1,6 +1,6 @@
-import { registerDefaultTools } from "../../tools/register-defaults.js";
-import type { ToolDefinition } from "../../tools/types.js";
-import type { ToolSchema } from "../../llm/protocol/types.js";
+import { registerDefaultTools } from "./register-defaults.js";
+import type { ToolDefinition } from "./types.js";
+import type { ToolSchema } from "../llm/protocol/types.js";
 
 function buildToolMap(tools: ToolDefinition[]): Map<string, ToolDefinition> {
   const byName = new Map<string, ToolDefinition>();
@@ -46,6 +46,7 @@ export class ToolRegistry {
     return this.getTools().map((tool) => tool.schema);
   }
 
+  /** Test-only: replace the full builtin + plugin catalog. */
   setTools(tools: ToolDefinition[]): void {
     this.toolsByName = buildToolMap(tools);
   }
