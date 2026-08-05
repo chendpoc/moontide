@@ -31,12 +31,31 @@ export function publishComposeResult(composed: ComposedContext): void {
   status.lastComposedRequest = composed.request as ComposedLLMRequest;
 }
 
+export function patchLastManifestDeepTask(
+  patch: Partial<NonNullable<ContextManifest["deepTask"]>>,
+): void {
+  if (!status.lastManifest?.deepTask) {
+    return;
+  }
+  status.lastManifest = {
+    ...status.lastManifest,
+    deepTask: {
+      ...status.lastManifest.deepTask,
+      ...patch,
+    },
+  };
+}
+
 export function getRuntimeTurn(): number {
   return status.latestReport?.turn ?? status.turn;
 }
 
 export function getLastComposedRequest(): ComposedLLMRequest | undefined {
   return status.lastComposedRequest;
+}
+
+export function getLastManifest(): ContextManifest | undefined {
+  return status.lastManifest;
 }
 
 export function getLatestReport(): ContextReport | undefined {

@@ -50,7 +50,9 @@ describe("AgentRun deep mode compose path", () => {
   });
 
   it("injects Working Set into LLM system via AgentSession.run (composeForSession)", async () => {
-    chatMock.mockResolvedValue(mockLLMResponse([{ type: "text", text: "ok" }]));
+    chatMock
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "ok" }]))
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "ok" }]));
 
     const agentSession = AgentSession.create(workdir);
     const sessionId = agentSession.session.sessionId;
@@ -60,8 +62,11 @@ describe("AgentRun deep mode compose path", () => {
 
     await agentSession.run(gate.prompt, runContext(agentSession));
 
-    expect(chatMock).toHaveBeenCalledTimes(1);
+    expect(chatMock).toHaveBeenCalledTimes(2);
     const request = chatMock.mock.calls[0]![0] as { system?: string };
-    expect(request.system?.length).toBeGreaterThan(0);
+    expect(request.system).toContain("## Deep Task Mode (active)");
+    expect(request.system).toContain("trace auth regression");
+    expect(request.system).toContain("## Working set (Deep Task Mode)");
+    expect(request.system).toContain("Open questions");
   });
 });

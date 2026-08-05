@@ -126,6 +126,8 @@ export async function composeContext(input: ComposeContextInput): Promise<Compos
           active: true,
           workMemId: input.deepTask.workMemId,
           goal: input.deepTask.goal,
+          thinkingBump: input.deepTask.thinkingBump,
+          synthesizeSkipped: input.deepTask.synthesizeSkipped,
         }
       : undefined,
   });

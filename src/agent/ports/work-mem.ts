@@ -31,6 +31,7 @@ export interface ResolvedWorkingSetPort {
 export interface WorkMemAgentPorts {
   startDeepTaskRecord(input: StartDeepTaskRecordInput): void;
   resolveWorkingSetSnapshot(input: ResolveWorkingSetPortInput): ResolvedWorkingSetPort;
+  hasDecisionDraft(input: { sessionId: string; workMemId: string }): boolean;
 }
 
 let ports: WorkMemAgentPorts | undefined;

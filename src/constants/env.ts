@@ -28,6 +28,8 @@ export const APP_ENV = {
   DEEP_RESEARCH: "DEEP_RESEARCH",
   TAVILY_API_KEY: "TAVILY_API_KEY",
   THINKING: "THINKING",
+  /** Reasoning depth override: off | low | medium | high (see llm routing). */
+  THINKING_LEVEL: "THINKING_LEVEL",
   VERBOSE: "VERBOSE",
   TRACE_PREVIEW_CHARS: "TRACE_PREVIEW_CHARS",
   LANG: "LANG",

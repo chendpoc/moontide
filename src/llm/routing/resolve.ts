@@ -2,6 +2,7 @@ import { configError } from "../../errors/factories.js";
 import { modelId, providerPresetId } from "../../config.js";
 import { lookupModelEntry } from "../models/registry.js";
 import { getProviderPreset, PROVIDER_PRESETS } from "../presets/presets.js";
+import { resolveThinkingLevel } from "./thinking.js";
 import type { ResolvedRoute } from "./types.js";
 
 const DEFAULT_PRESET_PREFER = ["deepseek", "anthropic"] as const;
@@ -44,12 +45,15 @@ function resolvePresetId(logicalModelId: string): string {
 }
 
 /** Resolve logical model + env keys to a provider route. */
-export function resolveRoute(logicalModelId = modelId()): ResolvedRoute {
+export function resolveRoute(
+  logicalModelId = modelId(),
+  options?: { deepMode?: boolean },
+): ResolvedRoute {
   const presetId = resolvePresetId(logicalModelId);
   const preset = PROVIDER_PRESETS[presetId]!;
   const entry = lookupModelEntry(logicalModelId);
   const vendorModelId = entry?.routes[presetId]?.modelId ?? logicalModelId;
-  const thinkingLevel = entry?.defaultThinking ?? "off";
+  const thinkingLevel = resolveThinkingLevel({ entry, deepMode: options?.deepMode });
 
   return {
     logicalModelId,

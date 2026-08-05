@@ -1,8 +1,9 @@
 import { registerWorkMemAgentPorts } from "../../../agent/ports/work-mem.js";
+import { getWorkdir } from "../../../config.js";
 
 import { resolveWorkingSetSnapshot } from "./escalation.js";
 import { seedOutlineDraft } from "./seed-outline.js";
-import { appendWorkMemEvent, ensureWorkMemFile } from "./store.js";
+import { appendWorkMemEvent, ensureWorkMemFile, readWorkMemEvents } from "./store.js";
 
 let registered = false;
 
@@ -26,6 +27,16 @@ export function registerBuiltinWorkMemPorts(): void {
     },
     resolveWorkingSetSnapshot(input) {
       return resolveWorkingSetSnapshot(input);
+    },
+    hasDecisionDraft({ sessionId, workMemId }) {
+      const workdir = getWorkdir();
+      const events = readWorkMemEvents(workdir, sessionId, workMemId);
+      return events.some(
+        (event) =>
+          event.kind === "workmem_draft"
+          && event.draftKind === "decision"
+          && event.content.trim().length > 0,
+      );
     },
   });
 }

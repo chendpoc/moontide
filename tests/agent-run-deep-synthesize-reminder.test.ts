@@ -1,20 +1,17 @@
-import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSession } from "../src/agent/agent-session.js";
-import { resetRuntimeStatus } from "../src/agent/context-status.js";
+import { getLastManifest, resetRuntimeStatus } from "../src/agent/context-status.js";
 import { applyDeepPromptGate } from "../src/agent/deep-mode.js";
 import { createDefaultLoopContext } from "../src/agent/deps.js";
-import { ORIENT_PROTOCOL_REMINDER_TEXT } from "../src/agent/deep-task-protocol.js";
+import { SYNTHESIZE_PROTOCOL_REMINDER_TEXT } from "../src/agent/deep-task-protocol.js";
 import { setWorkdir } from "../src/config.js";
 import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
 import { resetEventPlatform } from "../src/log/setup.js";
 import { setLLMProvider } from "../src/llm/provider.js";
-import { TOOL_NAMES } from "../src/tools/names.js";
 import type { UserInteraction } from "../src/tools/types.js";
-import { joinPath } from "../src/utils/path.js";
-import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 const allowAllInteraction: UserInteraction = {
@@ -31,20 +28,19 @@ function runContext(agentSession: AgentSession) {
   };
 }
 
-describe("AgentRun orient protocol reminder", () => {
+describe("AgentRun synthesize protocol reminder", () => {
   let workdir: string;
   let chatMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.stubEnv("MOONTIDE_ENV", "production");
-    workdir = createTmpWorkdir("moontide-deep-orient-reminder-");
+    workdir = createTmpWorkdir("moontide-deep-synth-reminder-");
     setWorkdir(workdir);
     resetRuntimeStatus();
     const runtime = installTestRuntime(workdir);
     setupAgentEventPipeline(runtime);
     chatMock = vi.fn();
     setLLMProvider(mockLLMProvider(chatMock));
-    fs.writeFileSync(joinPath(workdir, "demo.txt"), "hello", "utf8");
   });
 
   afterEach(() => {
@@ -56,32 +52,21 @@ describe("AgentRun orient protocol reminder", () => {
     vi.unstubAllEnvs();
   });
 
-  it("appends one orient protocol reminder when turn 1 skips work_mem", async () => {
+  it("appends one synthesize protocol reminder when ending without decision", async () => {
     chatMock
-      .mockResolvedValueOnce(
-        mockLLMResponse(
-          [
-            {
-              type: "tool_use",
-              id: "tu_1",
-              name: TOOL_NAMES.READ_FILE,
-              input: { path: "demo.txt" },
-            },
-          ],
-          "tool_use",
-        ),
-      )
-      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "done" }]))
-      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "done" }]));
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "first attempt" }]))
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "final answer" }]));
 
     const agentSession = AgentSession.create(workdir);
     const sessionId = agentSession.session.sessionId;
-    const gate = applyDeepPromptGate("deep: read demo", sessionId);
+    const gate = applyDeepPromptGate("deep: pick a cache", sessionId);
     agentSession.runtime.tools.refresh();
 
-    await agentSession.run(gate.prompt, runContext(agentSession));
+    const result = await agentSession.run(gate.prompt, runContext(agentSession));
 
-    expect(chatMock).toHaveBeenCalledTimes(3);
+    expect(result.reply).toBe("final answer");
+    expect(chatMock).toHaveBeenCalledTimes(2);
+
     const secondRequest = chatMock.mock.calls[1]![0] as {
       messages?: { role: string; content: unknown }[];
     };
@@ -89,11 +74,30 @@ describe("AgentRun orient protocol reminder", () => {
       (message) =>
         message.role === "user"
         && typeof message.content === "string"
-        && message.content.includes(ORIENT_PROTOCOL_REMINDER_TEXT),
+        && message.content.includes(SYNTHESIZE_PROTOCOL_REMINDER_TEXT),
     );
     expect(reminderInMessages).toBe(true);
 
     const items = await agentSession.session.readItems();
-    expect(items.some((item) => item.kind === "protocol_reminder")).toBe(true);
+    expect(
+      items.some(
+        (item) => item.kind === "protocol_reminder" && item.reminderKind === "synthesize",
+      ),
+    ).toBe(true);
+  });
+
+  it("records synthesizeSkipped on manifest when still no decision after reminder", async () => {
+    chatMock
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "first attempt" }]))
+      .mockResolvedValueOnce(mockLLMResponse([{ type: "text", text: "still no decision" }]));
+
+    const agentSession = AgentSession.create(workdir);
+    const sessionId = agentSession.session.sessionId;
+    const gate = applyDeepPromptGate("deep: explain redis", sessionId);
+    agentSession.runtime.tools.refresh();
+
+    await agentSession.run(gate.prompt, runContext(agentSession));
+
+    expect(getLastManifest()?.deepTask?.synthesizeSkipped).toBe(true);
   });
 });

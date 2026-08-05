@@ -9,12 +9,17 @@ import { getToolDefinitions } from "../tools/index.js";
 import type { Session } from "../session/session.js";
 import type { LoopContext } from "./deps.js";
 import { composeForSession } from "./compose-for-turn.js";
-import { publishComposeResult } from "./context-status.js";
-import { isDeepModeEnabled } from "./deep-mode.js";
+import { patchLastManifestDeepTask, publishComposeResult } from "./context-status.js";
+import {
+  getActiveWorkMemId,
+  isDeepModeEnabled,
+} from "./deep-mode.js";
 import {
   ORIENT_PROTOCOL_REMINDER_TEXT,
+  SYNTHESIZE_PROTOCOL_REMINDER_TEXT,
   shouldSendOrientProtocolReminder,
 } from "./deep-task-protocol.js";
+import { getWorkMemAgentPorts } from "./ports/work-mem.js";
 import { runLLM } from "./pipeline/runLLM.js";
 import { runToolUses } from "./pipeline/runTool.js";
 
@@ -31,6 +36,7 @@ export class AgentRun {
   private readonly loopCtx: LoopContext;
   private readonly composeOptions: AgentRunComposeOptions;
   private orientProtocolReminderSent = false;
+  private synthesizeProtocolReminderSent = false;
 
   constructor(
     session: Session,
@@ -107,23 +113,47 @@ export class AgentRun {
   ): Promise<{ reply: string } | undefined> {
     await this.session.appendAssistant(runTurn, response.content);
 
-    if (response.stopReason !== "tool_use") {
-      return { reply: extractText(response.content) };
-    }
+    if (response.stopReason === "tool_use") {
+      if (
+        isDeepModeEnabled()
+        && runTurn === 1
+        && !this.orientProtocolReminderSent
+        && shouldSendOrientProtocolReminder(response.content)
+      ) {
+        await runToolUses(runTurn, response.content, this.loopCtx);
+        await this.session.appendProtocolReminder(runTurn, "orient", ORIENT_PROTOCOL_REMINDER_TEXT);
+        this.orientProtocolReminderSent = true;
+        return undefined;
+      }
 
-    if (
-      isDeepModeEnabled()
-      && runTurn === 1
-      && !this.orientProtocolReminderSent
-      && shouldSendOrientProtocolReminder(response.content)
-    ) {
       await runToolUses(runTurn, response.content, this.loopCtx);
-      await this.session.appendProtocolReminder(runTurn, "orient", ORIENT_PROTOCOL_REMINDER_TEXT);
-      this.orientProtocolReminderSent = true;
       return undefined;
     }
 
-    await runToolUses(runTurn, response.content, this.loopCtx);
-    return undefined;
+    if (isDeepModeEnabled() && !this.activeWorkMemHasDecision()) {
+      if (!this.synthesizeProtocolReminderSent) {
+        await this.session.appendProtocolReminder(
+          runTurn,
+          "synthesize",
+          SYNTHESIZE_PROTOCOL_REMINDER_TEXT,
+        );
+        this.synthesizeProtocolReminderSent = true;
+        return undefined;
+      }
+      patchLastManifestDeepTask({ synthesizeSkipped: true });
+    }
+
+    return { reply: extractText(response.content) };
+  }
+
+  private activeWorkMemHasDecision(): boolean {
+    const workMemId = getActiveWorkMemId(this.session.sessionId);
+    if (!workMemId) {
+      return false;
+    }
+    return getWorkMemAgentPorts().hasDecisionDraft({
+      sessionId: this.session.sessionId,
+      workMemId,
+    });
   }
 }

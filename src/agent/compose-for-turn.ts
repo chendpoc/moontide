@@ -4,7 +4,9 @@ import type { CompactionPolicy } from "../context/composer/compaction/policy.js"
 import type { ComposedContext } from "../context/composer/types.js";
 import type { SessionStores } from "../session/stores/index.js";
 import { resolveModelProfile } from "../llm/models/resolve.js";
+import { lookupModelEntry } from "../llm/models/registry.js";
 import type { ModelProfile } from "../llm/models/types.js";
+import { isDeepThinkingBump } from "../llm/routing/thinking.js";
 import { resolveInstructionState } from "../instruction-state/index.js";
 import type { ToolSchema } from "../llm/protocol/types.js";
 import type { Session } from "../session/session.js";
@@ -33,13 +35,19 @@ export async function composeForSession(input: ComposeForSessionInput): Promise<
 
   const modelProfile = input.modelProfile ?? resolveModelProfile();
   let workingSetSnapshot: string | undefined;
-  let deepTask: { goal: string; workMemId: string } | undefined;
+  let deepTask: { goal: string; workMemId: string; thinkingBump?: boolean } | undefined;
 
   if (isDeepModeEnabled()) {
     const workMemId = getActiveWorkMemId(input.session.sessionId);
     const goal = getDeepTaskGoal(input.session.sessionId);
     if (workMemId && goal) {
-      deepTask = { goal, workMemId };
+      const entry = lookupModelEntry(modelProfile.logicalModelId);
+      const thinkingBump = isDeepThinkingBump({ entry, deepMode: true });
+      deepTask = {
+        goal,
+        workMemId,
+        thinkingBump: thinkingBump || undefined,
+      };
       const resolved = resolveWorkingSetForCompose({
         sessionId: input.session.sessionId,
         workMemId,

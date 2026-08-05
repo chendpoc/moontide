@@ -49,4 +49,13 @@ describe("llm routing", () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "");
     expect(() => resolveRoute()).toThrow(/ANTHROPIC_API_KEY/);
   });
+
+  it("does not bump thinking when deep mode but registry model lacks thinking support", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
+
+    const normal = resolveRoute("deepseek-v4-pro");
+    const deep = resolveRoute("deepseek-v4-pro", { deepMode: true });
+    expect(deep.thinkingLevel).toBe(normal.thinkingLevel);
+  });
 });
