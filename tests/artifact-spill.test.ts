@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { ContentBlock } from "../src/llm/protocol/types.js";
 
 import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
 import { runToolUse } from "../src/agent/pipeline/index.js";

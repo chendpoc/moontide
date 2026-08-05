@@ -46,7 +46,7 @@ export {
 } from "./transform/index.js";
 export type { MessagesFromContextOptions } from "./transform/messages-from-context.js";
 export type { SaveSessionMode, SaveSessionOptions } from "./transform.js";
-export { mapSdkContentBlocks, userMessageText, summarizeToolResultContent } from "./content-map.js";
+export { mapContentBlocks, userMessageText, summarizeToolResultContent } from "./content-map.js";
 export {
   artifactPath,
   artifactsDir,

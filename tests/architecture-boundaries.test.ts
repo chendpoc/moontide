@@ -97,8 +97,13 @@ describe("architecture boundaries (structural invariants)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("keeps @anthropic-ai/sdk inside llm adapter and legacy client shim", () => {
-    const allowed = /\/(adapters|client)\//;
+  it("session/ does not import @anthropic-ai/sdk", () => {
+    const offenders = scanTsFiles(repoPath("src/session"), ANTHROPIC_SDK_IMPORT);
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps @anthropic-ai/sdk inside llm adapters only", () => {
+    const allowed = /\/adapters\//;
     const offenders = scanTsFiles(repoPath("src/llm"), ANTHROPIC_SDK_IMPORT).filter(
       ({ file }) => !allowed.test(file),
     );

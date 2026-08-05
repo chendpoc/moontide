@@ -1,18 +1,14 @@
-import type { ContentBlock as SdkContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
-import { mapSdkContentBlocks as mapBlocksFromRegistry } from "./block-registry.js";
+import { mapContentBlocks } from "./block-registry.js";
+import type { ContentBlock } from "../llm/protocol/types.js";
 import type { ToolResultSummary } from "./types.js";
 import { truncateChars } from "../utils/text.js";
 import { byteLengthUtf8 } from "../utils/utf8.js";
 
+export { mapContentBlocks };
+
 export interface SummarizeToolResultOptions {
   /** Cap summary length when output was spilled (default: ~20% of artifact spill threshold). */
   maxSummaryChars?: number;
-}
-
-/** Map SDK assistant blocks to MoonTide protocol blocks for Session Log. */
-export function mapSdkContentBlocks(blocks: SdkContentBlock[]) {
-  return mapBlocksFromRegistry(blocks);
 }
 
 /**
@@ -45,12 +41,12 @@ export function summarizeToolResultContent(
   };
 }
 
-export function userMessageText(content: string | SdkContentBlock[]): string {
+export function userMessageText(content: string | ContentBlock[]): string {
   if (typeof content === "string") {
     return content;
   }
   return content
-    .filter((block): block is Extract<SdkContentBlock, { type: "text" }> => block.type === "text")
+    .filter((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text")
     .map((block) => block.text)
     .join("\n");
 }

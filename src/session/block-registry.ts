@@ -1,5 +1,3 @@
-import type { ContentBlock as SdkContentBlock } from "@anthropic-ai/sdk/resources/messages/messages.js";
-
 import type { ContentBlock } from "../llm/protocol/types.js";
 import type { EventDraft } from "../log/types.js";
 import { truncateOneLine } from "../utils/text.js";
@@ -21,6 +19,7 @@ export type GenericBlock = {
   type?: string;
   text?: string;
   thinking?: string;
+  id?: string;
   name?: string;
   input?: unknown;
   content?: unknown;
@@ -52,7 +51,7 @@ interface BlockHandler {
   toMessageLineDetail(block: GenericBlock, part: TokenSlice): MessageLineDetail;
   toMessageLabel(block: GenericBlock, part: TokenSlice): string;
   toMessagePreview(block: GenericBlock, part: TokenSlice): string;
-  mapFromSdk?(block: SdkContentBlock): ContentBlock[];
+  mapFromExternal?(block: GenericBlock): ContentBlock[];
   toTraceDraft?(block: ContentBlock, turn: number): EventDraft | null;
 }
 
@@ -110,8 +109,8 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
     toMessagePreview(block) {
       return previewText(block.text ?? "");
     },
-    mapFromSdk(block) {
-      if (block.type !== "text") {
+    mapFromExternal(block) {
+      if (block.type !== "text" || block.text === undefined) {
         return [];
       }
       return [{ type: "text", text: block.text }];
@@ -149,8 +148,8 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
     toMessagePreview() {
       return "(thinking)";
     },
-    mapFromSdk(block) {
-      if (block.type !== "thinking") {
+    mapFromExternal(block) {
+      if (block.type !== "thinking" || block.thinking === undefined) {
         return [];
       }
       return [{ type: "thinking", thinking: block.thinking }];
@@ -193,8 +192,8 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
     toMessagePreview(block) {
       return `tool_use:${block.name ?? "unknown"}`;
     },
-    mapFromSdk(block) {
-      if (block.type !== "tool_use") {
+    mapFromExternal(block) {
+      if (block.type !== "tool_use" || !block.id || !block.name) {
         return [];
       }
       return [
@@ -202,7 +201,7 @@ const BLOCK_HANDLERS: Record<KnownBlockType, BlockHandler> = {
           type: "tool_use",
           id: block.id,
           name: block.name,
-          input: block.input as Record<string, unknown>,
+          input: (block.input ?? {}) as Record<string, unknown>,
         },
       ];
     },
@@ -270,10 +269,11 @@ export function blockMessagePreview(block: GenericBlock, part: TokenSlice): stri
   return handler?.toMessagePreview(block, part) ?? block.type ?? "unknown";
 }
 
-export function mapSdkContentBlocks(blocks: SdkContentBlock[]): ContentBlock[] {
+/** Map externally-shaped content blocks (e.g. adapter output) to MoonTide protocol blocks. */
+export function mapContentBlocks(blocks: GenericBlock[]): ContentBlock[] {
   return blocks.flatMap((block) => {
-    const handler = handlerFor(block as GenericBlock);
-    return handler?.mapFromSdk?.(block) ?? [];
+    const handler = handlerFor(block);
+    return handler?.mapFromExternal?.(block) ?? [];
   });
 }
 

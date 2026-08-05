@@ -4,7 +4,7 @@ import {
   blockMessageLabel,
   blockMessagePreview,
   estimateBlockTokens,
-  mapSdkContentBlocks,
+  mapContentBlocks,
   traceDraftsFromBlocks,
 } from "../src/session/block-registry.js";
 
@@ -25,8 +25,8 @@ describe("block-registry", () => {
     expect(part.maxToolResultChars).toBe("output line".length);
   });
 
-  it("maps SDK text blocks", () => {
-    expect(mapSdkContentBlocks([{ type: "text", text: "hi", citations: null }])).toEqual([
+  it("maps external text blocks", () => {
+    expect(mapContentBlocks([{ type: "text", text: "hi", citations: null }])).toEqual([
       { type: "text", text: "hi" },
     ]);
   });

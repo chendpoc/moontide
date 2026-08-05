@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+import type { Message } from "../src/llm/protocol/types.js";
 
 import { previewCompact, pruneCompact } from "../src/context/composer/compaction/operations.js";
 import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
-function longToolResultMessage(): MessageParam[] {
+function longToolResultMessage(): Message[] {
   const big = "x".repeat(5000);
   return [
     { role: "user", content: "read files" },
