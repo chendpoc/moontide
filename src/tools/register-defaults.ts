@@ -1,4 +1,5 @@
 import { defineContextTools } from "./builtins/context/tools.js";
+import { defineArtifactTools } from "./builtins/artifact/tools.js";
 import { defineGitTools } from "./builtins/git/tools.js";
 import { defineInteractionTools } from "./builtins/interaction/tools.js";
 import { defineNetworkTools } from "./builtins/network/tools.js";
@@ -35,6 +36,9 @@ export const INTERACTION_TOOL_MANIFEST: ToolManifestEntry[] = [
 /** Context inspection tools. */
 export const CONTEXT_TOOL_MANIFEST: ToolManifestEntry[] = [{ factory: defineContextTools }];
 
+/** Session artifact tools (read spilled tool output). */
+export const ARTIFACT_TOOL_MANIFEST: ToolManifestEntry[] = [{ factory: defineArtifactTools }];
+
 /** Workspace / shell / search / network / git / interaction / context builtins. */
 export const BUILTIN_TOOL_MANIFEST: ToolManifestEntry[] = [
   ...WORKSPACE_TOOL_MANIFEST,
@@ -44,6 +48,7 @@ export const BUILTIN_TOOL_MANIFEST: ToolManifestEntry[] = [
   ...GIT_TOOL_MANIFEST,
   ...INTERACTION_TOOL_MANIFEST,
   ...CONTEXT_TOOL_MANIFEST,
+  ...ARTIFACT_TOOL_MANIFEST,
 ];
 
 /** Optional built-in plugin tools (code_repl, deep_research, …). */

@@ -28,6 +28,8 @@ export interface UserInteraction {
 export interface ToolContext {
   workdir: string;
   userInteraction: UserInteraction;
+  /** Current session — required for session-scoped tools such as read_artifact. */
+  sessionId?: string;
   /** Present when invoked via agent harness; sidecar plugins may omit. */
   runtime?: {
     tools: ToolRegistryPort;

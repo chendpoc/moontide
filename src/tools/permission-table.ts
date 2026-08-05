@@ -16,6 +16,7 @@ export const TOOL_PERMISSIONS: Record<ToolName, ToolPermissionRule> = {
   [TOOL_NAMES.GIT_LOG]: { kind: "path", field: "path" },
   [TOOL_NAMES.GIT_SUMMARY]: { kind: "fixed", decision: "allow" },
   [TOOL_NAMES.INSPECT_CONTEXT]: { kind: "fixed", decision: "allow" },
+  [TOOL_NAMES.READ_ARTIFACT]: { kind: "fixed", decision: "allow" },
   [TOOL_NAMES.ASK_USER_QUESTION]: { kind: "fixed", decision: "allow" },
   [TOOL_NAMES.CODE_REPL]: { kind: "fixed", decision: "allow" },
   [TOOL_NAMES.DEEP_RESEARCH]: { kind: "fixed", decision: "ask" },

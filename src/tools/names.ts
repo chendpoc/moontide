@@ -14,6 +14,7 @@ export const TOOL_NAMES = {
   GIT_SUMMARY: "git_summary",
   INSPECT_CONTEXT: "inspect_context",
   ASK_USER_QUESTION: "askUserQuestion",
+  READ_ARTIFACT: "read_artifact",
   CODE_REPL: "code_repl",
   DEEP_RESEARCH: "deep_research",
 } as const;

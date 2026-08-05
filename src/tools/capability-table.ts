@@ -16,6 +16,7 @@ export const TOOL_CAPABILITIES: Record<ToolName, ToolCapability> = {
   [TOOL_NAMES.GIT_LOG]: "read",
   [TOOL_NAMES.GIT_SUMMARY]: "read",
   [TOOL_NAMES.INSPECT_CONTEXT]: "read",
+  [TOOL_NAMES.READ_ARTIFACT]: "read",
   [TOOL_NAMES.ASK_USER_QUESTION]: "read",
   [TOOL_NAMES.CODE_REPL]: "exec",
   [TOOL_NAMES.DEEP_RESEARCH]: "network",

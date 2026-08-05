@@ -39,6 +39,7 @@ export function createToolContext(loopCtx: LoopContext): ToolContext {
   return {
     workdir: getWorkdir(),
     userInteraction: loopCtx.userInteraction,
+    sessionId: loopCtx.session.sessionId,
     runtime: { tools: loopCtx.runtime.tools },
   };
 }
