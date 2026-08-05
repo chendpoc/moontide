@@ -1,6 +1,6 @@
 # MoonTide 分段日志存储
 
-> 完整 TODO：[`TODO.md`](../../TODO.md) · Doc Map：[`docs/README.md`](../README.md)
+> 完整 TODO：[`TODO.md`](../../TODO.md)（§15 后续四条轨）· Doc Map：[`docs/README.md`](../README.md)
 
 ## 已确定设计
 

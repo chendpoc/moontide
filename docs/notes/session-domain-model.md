@@ -65,7 +65,7 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 |------|------|
 | [`context-composer.md`](../spec/context-composer.md) | 主 Spec（C0–C6） |
 | [`architecture-remediation.md`](architecture-remediation.md) | Session port · Phase A–C |
-| [`context-window-roadmap.md`](context-window-roadmap.md) | 六件事；#5 A–C done · D–I backlog |
+| [`context-window-roadmap.md`](context-window-roadmap.md) | 六件事 + Budget Tiers **done** · §8 后续四条轨 · Provider D–I backlog |
 | [`session-log-migration.md`](session-log-migration.md) | C1 迁移策略 |
 | [`session-persistence.md`](session-persistence.md) | Index 书签 · `/save` · `/resume session` |
 | [`context-inspect-debug.md`](context-inspect-debug.md) | `/debug` 分级全量 dump |

@@ -20,21 +20,45 @@
 
 - [ ] **5. 虚拟人物**
 
-- [ ] **6. Session — Context Window 后续（C6+）**
-  - C1–C6 **done**（TS harness）
-  - 开发计划（六件事）：[`docs/notes/context-window-roadmap.md`](docs/notes/context-window-roadmap.md)
-    1. ~~runtime-status~~ **done**
-    2. ~~Hook/Plugin 内核机制~~ **done** — HookDispatcher + sidecar
-    3. ~~Session Observe~~ **done** — log-sync · event-hub
-    4. ~~instruction-state~~ **done**
-    5. **LLM Provider A–C** — **进行中**
-    6. ~~legacy / deprecated 清理 + utils 抽离~~ **done**
+- [ ] **6. Session — Context Window（C6+）**
+  - C1–C6 **done**（TS harness）· **Context Budget Tiers done**
+  - 开发计划（六件事）：[`docs/notes/context-window-roadmap.md`](docs/notes/context-window-roadmap.md) — **#1–#6 + Budget Tiers 均 done**
   - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/notes/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/notes/context-backlog.md)
+  - **下一阶段四条轨** → 见 **§15**
+
+- [ ] **15. 后续开发计划（2026-08 起）**
+
+  六件事与 Context Budget Tiers 完成后，按下列顺序推进（详表见 [`context-window-roadmap.md` §8](docs/notes/context-window-roadmap.md)）：
+
+  - [ ] **15.1 Prompt Prefix Cache**
+    - 稳定 system / instruction / tool-definitions prefix 复用，降低 latency 与 input cost
+    - 详设：[`context-backlog.md` §15](docs/notes/context-backlog.md) · [`context-normalization.md` §13](docs/notes/context-normalization.md)
+
+  - [ ] **15.2 需求讨论（Design / Requirements）**
+    - 实现前对齐：Agent Activity Model（7a–7c）、Normalization 边界、Local Fusion 成本模型
+    - 讨论备忘：[`agent-activity-model-discussion.md`](docs/notes/agent-activity-model-discussion.md)
+    - 产出：各轨一页纸 spec / 验收标准，再开实现 PR
+
+  - [ ] **15.3 Local 小模型 + 路由（Local Fusion）**
+    - 本地微调/量化小模型处理低复杂度任务，降低 cloud API token 成本
+    - **类比 OpenRouter Fusion，但是 edge local router** — 在设备侧做 tier 路由，非 provider upstream 竞价
+    - `moontide/router-v1` catalog · Model Router · `moontide-infer` sidecar
+    - 详设：[`edge-local-models.md`](docs/notes/edge-local-models.md) · [`llm-provider.md`](docs/spec/llm-provider.md) §3.4 / §10
+
+  - [ ] **15.4 Conversation Normalization（Preflight / Postflight）**
+    - 每次 LLM request 前：统一 Context Projection + `ContextManifest`（预算、配对、provider 不变量）
+    - 完整 Agent turn 后：usage / delta / 下一轮 preflight 状态
+    - 详设：[`context-normalization.md`](docs/notes/context-normalization.md)
 
 - [ ] **7. Feature 基线性能测试套件**
   - 自动化测试完善
   - 测量与评估
-  - SWE Benchmark
+  - SWE-bench 等公开 agent/coding benchmark
+  - **DeepSeek DSBench（后续讨论需纳入）**
+    - DeepSeek 内部 coding-agent 评测集，含 **DSBench-FullStack**（全栈开发）与 **DSBench-Hard**（高难度 agent 任务）
+    - 官方分数多在 **DeepSeek Harness**（minimal mode）上测得；与 harness 设计强相关，**暂不可独立复现**
+    - 价值：观察 DeepSeek 对 agent 能力的定义与优化方向；设计 MoonTide 基线套件时可对照其任务形态（terminal / multi-tool / 长链路 coding），但不替代 SWE-bench 等第三方 leaderboard
+    - 参考：[DeepSeek-V4-Flash model card](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731) · DeepSeek Harness（待发布）
 
 - [ ] **8. Prompts 评分**
 

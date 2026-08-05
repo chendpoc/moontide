@@ -161,7 +161,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 | loop 原地修改 `messages[]` | 是 | **done** — compose 编译 |
 | auto / manual compact | 仅缩 tool/thinking；summary 截 4K | **done** — CompactionSave + Stores |
 | `sessions.ts` 持 messages 引用 | 是 | **done** — `runtime-status.ts` |
-| model profile 128K | 与 DeepSeek 1M 不一致 | **#5 进行中** — Provider C |
+| model profile 128K | 与 DeepSeek 1M 不一致 | **done** — Provider C（`ModelProfile`） |
 
 建议保持克制，按这个顺序推进（**背景参考**；当前执行顺序以 [roadmap](context-window-roadmap.md) 为准）：
 
