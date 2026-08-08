@@ -1,0 +1,23 @@
+{
+  "name": "@moontide/agent-common",
+  "version": "0.0.1",
+  "description": "Shared agent protocol types (RunEvent, RunConfig, Effect ports)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "license": "MIT"
+}
