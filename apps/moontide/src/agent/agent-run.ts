@@ -1,0 +1,93 @@
+import {
+  createMessageLog,
+  createRunEventBus,
+  resolveRunConfig,
+  runLoop,
+} from "@moontide/agent-core";
+import type { CompactionPolicy } from "@moontide/context-composer";
+import { configureOutputs, createRunEventDeriveListener, resetRun } from "../log/index.js";
+import type { SessionStores } from "@moontide/session/stores";
+import type { Session } from "@moontide/session";
+import type { LoopContext } from "./deps.js";
+import { withRun } from "./lifecycle.js";
+import { createComposeState } from "./harness/compose-state.js";
+import { createLegacyHookBridge } from "./harness/legacy-hook-bridge.js";
+import { createMoonTideRunConfig, createDeepModeRunState } from "./harness/run-config.js";
+import { createRunCommitPort } from "./harness/run-commit-port.js";
+import { createMoonTideStreamFn } from "./harness/stream-fn.js";
+import { createMoonTideToolExecutor } from "./harness/tool-executor.js";
+
+export interface AgentRunComposeOptions {
+  resumeFromCheckpointId?: string;
+  activeCompactionSaveId?: string;
+  getCompactionPolicy: () => CompactionPolicy;
+  onAfterCompose?: () => void;
+}
+
+export class AgentRun {
+  private readonly session: Session;
+  private readonly stores: SessionStores;
+  private readonly loopCtx: LoopContext;
+  private readonly composeOptions: AgentRunComposeOptions;
+
+  constructor(
+    session: Session,
+    stores: SessionStores,
+    loopCtx: LoopContext,
+    composeOptions: AgentRunComposeOptions,
+  ) {
+    this.session = session;
+    this.stores = stores;
+    this.loopCtx = loopCtx;
+    this.composeOptions = composeOptions;
+  }
+
+  async execute(userPrompt: string): Promise<{ reply: string; turn: number }> {
+    const { runtime } = this.loopCtx;
+
+    return withRun(runtime, userPrompt, async () => {
+      configureOutputs();
+      const runId = resetRun();
+      const eventBus = createRunEventBus();
+      const log = createMessageLog();
+      const composeState = createComposeState();
+      const deepModeState = createDeepModeRunState();
+      const hookBridge = createLegacyHookBridge({ runtime });
+
+      const unsubCommit = eventBus.subscribe(createRunCommitPort({ session: this.session }));
+      const unsubHooks = eventBus.subscribe(hookBridge.listener);
+      const unsubDerive = eventBus.subscribe(createRunEventDeriveListener({ runId }));
+
+      try {
+        const config = resolveRunConfig(
+          createMoonTideRunConfig({
+            session: this.session,
+            stores: this.stores,
+            loopCtx: this.loopCtx,
+            composeOptions: this.composeOptions,
+            composeState,
+            deepModeState,
+          }),
+        );
+
+        const result = await runLoop({
+          eventBus,
+          log,
+          config,
+          streamFn: createMoonTideStreamFn({ runtime, composeState }),
+          toolExecutor: createMoonTideToolExecutor({
+            loopCtx: this.loopCtx,
+            getTurn: () => composeState.turn,
+          }),
+          prompts: [{ role: "user", content: userPrompt, timestamp: Date.now() }],
+        });
+
+        return { reply: result.reply, turn: result.turns };
+      } finally {
+        unsubCommit();
+        unsubHooks();
+        unsubDerive();
+      }
+    });
+  }
+}
