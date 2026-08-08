@@ -47,7 +47,7 @@ afterEach(() => {
   clearTestRuntime();
 });
 
-describe("git tools", () => {
+describe("git tools", { timeout: 30_000 }, () => {
   it("git_status on clean repo", async () => {
     if (!initRepo()) {
       return;

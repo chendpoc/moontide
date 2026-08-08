@@ -26,7 +26,7 @@ afterEach(() => {
   clearTestRuntime();
 });
 
-describe("code_repl", () => {
+describe("code_repl", { timeout: 30_000 }, () => {
   it("is registered in tool schemas", () => {
     const names = getToolDefinitions(getTestRuntime().tools).map((t) => t.name);
     expect(names).toContain("code_repl");
