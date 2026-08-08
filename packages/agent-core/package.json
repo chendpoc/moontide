@@ -1,0 +1,27 @@
+{
+  "name": "@moontide/agent-core",
+  "version": "0.0.1",
+  "description": "Agent temporal core: runLoop, RunEvent bus, resolveRunConfig",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@moontide/agent-common": "workspace:*"
+  },
+  "license": "MIT"
+}
