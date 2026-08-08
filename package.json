@@ -1,35 +1,31 @@
 {
-  "name": "moontide",
+  "name": "moontide-workspace",
   "version": "0.1.0",
-  "description": "MoonTide — minimal coding agent harness by OceanSpark (TypeScript)",
-  "author": "OceanSpark",
+  "private": true,
+  "description": "MoonTide monorepo workspace",
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc && cp -r src/plugins/builtin/code-repl/templates/bodies dist/plugins/builtin/code-repl/templates/",
-    "start": "node dist/main.js",
-    "dev": "tsx src/main.ts",
-    "ping": "tsx src/llm/healthcheck/ping.ts",
+    "build": "pnpm build:core && pnpm --filter moontide run build",
+    "start": "pnpm --filter moontide run start",
+    "dev": "pnpm --filter moontide run dev",
+    "ping": "tsx packages/llm/src/healthcheck/ping.ts",
     "test": "vitest run",
     "test:conformance": "vitest run tests/architecture-boundaries.test.ts tests/hook-manifest.test.ts tests/tool-permissions.test.ts tests/trust-policy.test.ts tests/agent-runtime.test.ts tests/plugin-manifest.test.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm typecheck:core && pnpm --filter moontide run typecheck",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare": "husky",
-    "dev:ui": "cargo run --manifest-path ui/Cargo.toml -- --workdir ."
+    "dev:ui": "cargo run --manifest-path ui/Cargo.toml -- --workdir .",
+    "build:core": "pnpm -r --filter '@moontide/*' run build",
+    "typecheck:core": "pnpm -r --filter '@moontide/*' run typecheck",
+    "test:core": "vitest run packages/agent-core/tests"
   },
   "lint-staged": {
     "*.{ts,tsx}": "eslint --fix"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
-    "chalk": "^5.4.1",
-    "dotenv": "^16.4.7",
-    "glob": "^11.0.1",
-    "smol-toml": "^1.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

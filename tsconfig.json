@@ -1,16 +1,9 @@
 {
+  "extends": "./apps/moontide/tsconfig.build.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "rootDir": "src",
-    "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "declaration": true,
-    "sourceMap": true
+    "noEmit": true,
+    "rootDir": "."
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "tests", "src/plugins/builtin/code-repl/templates/bodies"]
+  "include": ["apps/moontide/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "apps/moontide/dist"]
 }

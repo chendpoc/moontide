@@ -11,6 +11,27 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
         version: 0.52.0
+      '@moontide/agent-common':
+        specifier: workspace:*
+        version: link:packages/agent-common
+      '@moontide/agent-core':
+        specifier: workspace:*
+        version: link:packages/agent-core
+      '@moontide/context-composer':
+        specifier: workspace:*
+        version: link:packages/context-composer
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:packages/llm
+      '@moontide/log':
+        specifier: workspace:*
+        version: link:packages/log
+      '@moontide/session':
+        specifier: workspace:*
+        version: link:packages/session
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       chalk:
         specifier: ^5.4.1
         version: 5.6.2
@@ -51,6 +72,55 @@ importers:
       vitest:
         specifier: ^3.0.9
         version: 3.2.7(@types/node@22.20.1)(tsx@4.23.1)(yaml@2.9.0)
+
+  packages/agent-common: {}
+
+  packages/agent-core:
+    dependencies:
+      '@moontide/agent-common':
+        specifier: workspace:*
+        version: link:../agent-common
+
+  packages/context-composer:
+    dependencies:
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@moontide/session':
+        specifier: workspace:*
+        version: link:../session
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/llm:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.52.0
+        version: 0.52.0
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/log:
+    dependencies:
+      '@moontide/agent-common':
+        specifier: workspace:*
+        version: link:../agent-common
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/session:
+    dependencies:
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/shared: {}
 
 packages:
 

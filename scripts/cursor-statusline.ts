@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { loadStatusLineConfig } from "../src/config/status-line.js";
-import { DATA_DIR, STATUS_FILE } from "../src/constants/storage.js";
+import { DATA_DIR, STATUS_FILE } from "@moontide/shared/constants/storage.js";
 import { snapshotToPayload } from "../src/cli/statusline/collect.js";
 import { renderStatusSegments } from "../src/cli/statusline/segments.js";
 import type { StatusSnapshot } from "../src/cli/statusline/types.js";

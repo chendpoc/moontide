@@ -1,14 +1,20 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./apps/moontide/tsconfig.build.json",
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true
   },
   "include": [
-    "src/**/*.ts",
+    "packages/**/*.ts",
+    "apps/**/*.ts",
     "tests/**/*.ts",
     "scripts/**/*.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["node_modules", "dist", "src/plugins/builtin/code-repl/templates/bodies"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "apps/moontide/dist",
+    "packages/tools/src/extensions/code-repl/templates/bodies"
+  ]
 }
