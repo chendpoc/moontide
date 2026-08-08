@@ -210,7 +210,7 @@
 
 **与 §4 / §5 的关系：** §4 要求规则**声明式**表达；§2.1 要求声明与执行**物理分离**，以便 §5 Conformance 只扫 spec 层、单元测试只测 impl 层，互不污染。
 
-**参考：** [`apps/moontide/src/tools/register-defaults.ts`](apps/moontide/src/tools/register-defaults.ts) · [`packages/tools/src/builtins/README.md`](packages/tools/src/builtins/README.md) · [`apps/moontide/src/plugins/builtin/README.md`](apps/moontide/src/plugins/builtin/README.md) · [`tests/architecture-boundaries.test.ts`](tests/architecture-boundaries.test.ts)
+**参考：** [`apps/moontide/src/tools/register-defaults.ts`](apps/moontide/src/tools/register-defaults.ts) · [`packages/tools/src/builtins/README.md`](packages/tools/src/builtins/README.md) · [`apps/moontide/src/plugins/builtin/README.md`](apps/moontide/src/plugins/builtin/README.md) · [`tests/conformance/architecture-boundaries.test.ts`](tests/conformance/architecture-boundaries.test.ts)
 
 ---
 
@@ -279,10 +279,11 @@
 
 | 文件 | 职责 |
 |------|------|
-| [`tests/architecture-boundaries.test.ts`](tests/architecture-boundaries.test.ts) | 结构不变量：`session/` 零 `agent/` import；`agent/`·`context/` 零 SDK；SDK 仅在 `llm/adapters`·`client` |
-| [`tests/tool-permissions.test.ts`](tests/tool-permissions.test.ts) | 遍历 `registerDefaultTools()` → 每条 tool 与 `TOOL_PERMISSIONS` · `TOOL_CAPABILITIES` 表一致 |
-| `tests/hook-manifest.test.ts` | `buildDefaultHookManifest()` → phase / name / errorPolicy；无 `sessionItem/file` |
-| `tests/plugin-manifest.test.ts` | `loadPluginManifest` / manifest 条目 schema；sidecar ready 握手与 hook·tool 列表快照（可选） |
+| [`tests/conformance/`](tests/conformance/) | 规范单测目录；`pnpm run test:conformance` = `vitest run tests/conformance` |
+| [`tests/conformance/architecture-boundaries.test.ts`](tests/conformance/architecture-boundaries.test.ts) | 结构不变量：`session/` 零 `agent/` import；`agent/`·`context/` 零 SDK；SDK 仅在 `llm/adapters`·`client` |
+| [`tests/conformance/tool-permissions.test.ts`](tests/conformance/tool-permissions.test.ts) | 遍历 `registerDefaultTools()` → 每条 tool 与 `TOOL_PERMISSIONS` · `TOOL_CAPABILITIES` 表一致 |
+| `tests/conformance/hook-manifest.test.ts` | `buildDefaultHookManifest()` → phase / name / errorPolicy；无 `sessionItem/file` |
+| `tests/conformance/plugin-manifest.test.ts` | `loadPluginManifest` / manifest 条目 schema；sidecar ready 握手与 hook·tool 列表快照（可选） |
 
 **pre-commit：** `.husky/pre-commit` 跑 `pnpm run test:conformance`（结构边界 + hook manifest + tool permission）；全量 `pnpm test` 仍由 CI / 本地 `pnpm check` 覆盖。
 

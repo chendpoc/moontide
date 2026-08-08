@@ -89,7 +89,7 @@ flowchart TB
 | Legacy | `sessionItem` hook → `plugins/builtin/log-sync/` | **已删除**（M6） |
 | 现行 | RunEvent bus → `createRunEventDeriveListener`（`apps/moontide/src/log/run-event-derive.ts`） | **生产路径** |
 
-Hook manifest **不再**注册 `sessionItem/agent-event-derive`（见 `tests/hook-manifest.test.ts`）。集成不变量见 `tests/log-sync.test.ts`（文件名保留；测 RunEvent derive 路径）。
+Hook manifest **不再**注册 `sessionItem/agent-event-derive`（见 `tests/conformance/hook-manifest.test.ts`）。集成不变量见 `tests/log-sync.test.ts`（文件名保留；测 RunEvent derive 路径）。
 
 ---
 

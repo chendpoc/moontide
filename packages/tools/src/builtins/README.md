@@ -70,7 +70,7 @@ builtins/
 4. **`names.ts`** — 新增 canonical name 常量。
 5. **权限表** — 更新 [`permission-table.ts`](../permission-table.ts)、[`capability-table.ts`](../capability-table.ts)。
 6. **注册** — 新域时在 [`register-defaults.ts`](../register-defaults.ts) 增加 `*_TOOL_MANIFEST` 并并入 `BUILTIN_TOOL_MANIFEST`。
-7. **测试** — impl：`tests/<domain>.test.ts`；注册：[`tests/tool-permissions.test.ts`](../../../tests/tool-permissions.test.ts)（`pnpm test:conformance`）。
+7. **测试** — impl：`tests/<domain>.test.ts`；注册：[`tests/conformance/tool-permissions.test.ts`](../../../tests/conformance/tool-permissions.test.ts)（`pnpm test:conformance`）。
 
 ## 命名与 import
 
@@ -81,7 +81,7 @@ builtins/
 
 ## Conformance
 
-[`tests/architecture-boundaries.test.ts`](../../../tests/architecture-boundaries.test.ts) 扫描本目录 impl 文件：不得含 `ToolSpec` / `defineTool(s)`；不得 export 单数 `defineXxxTool()`。详见 [AGENTS.md §2.1](../../../AGENTS.md#21-声明与实现分离spec--impl-split)。
+[`tests/conformance/architecture-boundaries.test.ts`](../../../tests/conformance/architecture-boundaries.test.ts) 扫描本目录 impl 文件：不得含 `ToolSpec` / `defineTool(s)`；不得 export 单数 `defineXxxTool()`。详见 [AGENTS.md §2.1](../../../AGENTS.md#21-声明与实现分离spec--impl-split)。
 
 ## 相关代码
 

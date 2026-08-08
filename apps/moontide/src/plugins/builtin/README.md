@@ -55,8 +55,8 @@ deep-research/
 2. 新增 **`tools.ts`**：`ToolSpec` + `defineXxxTools()`（复数、返回数组或 `null`）。
 3. **`index.ts`** 仅 re-export impl / 类型，不声明 `ToolSpec`。
 4. 更新 [`names.ts`](../../tools/names.ts)、permission 表、[`register-defaults.ts`](../../tools/register-defaults.ts)。
-5. 跑 `pnpm test:conformance`（含 [`architecture-boundaries.test.ts`](../../../tests/architecture-boundaries.test.ts) §2.1 扫描）。
+5. 跑 `pnpm test:conformance`（含 [`architecture-boundaries.test.ts`](../../../tests/conformance/architecture-boundaries.test.ts) §2.1 扫描）。
 
 ## Conformance
 
-[`tests/architecture-boundaries.test.ts`](../../../tests/architecture-boundaries.test.ts) 对 `plugins/builtin/code-repl` 与 `deep-research` 的 impl 文件扫描：不得出现 `ToolSpec` / `defineTool(s)`；不得 export `defineXxxTool()` 单数工厂。
+[`tests/conformance/architecture-boundaries.test.ts`](../../../tests/conformance/architecture-boundaries.test.ts) 对 `plugins/builtin/code-repl` 与 `deep-research` 的 impl 文件扫描：不得出现 `ToolSpec` / `defineTool(s)`；不得 export `defineXxxTool()` 单数工厂。
