@@ -6,8 +6,10 @@ import { createDefaultLoopContext } from "./deps.js";
 import type { LoopContext } from "./deps.js";
 import { prepareRun } from "./hooks/index.js";
 import { getAgentRuntime } from "./runtime/index.js";
+import { setupToolsPorts } from "./tools-setup.js";
 
 export async function runAgent(userPrompt: string): Promise<string> {
+  setupToolsPorts();
   const runtime = getAgentRuntime();
   await bootstrapAgentPlatform(getWorkdir(), runtime);
   resetRuntimeStatus();

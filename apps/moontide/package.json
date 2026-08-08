@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && cp -r ../../packages/tools/src/extensions/code-repl/templates/bodies dist/plugins/builtin/code-repl/templates/",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "dev": "tsx src/main.ts",
+    "dev": "tsx --tsconfig ../../tsconfig.dev.json src/main.ts",
     "start": "node dist/main.js"
   },
   "dependencies": {

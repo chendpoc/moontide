@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": {
+      "@moontide/agent-common": ["./packages/agent-common/src/index.ts"],
+      "@moontide/agent-core": ["./packages/agent-core/src/index.ts"],
+      "@moontide/shared": ["./packages/shared/src/index.ts"],
+      "@moontide/shared/utils/*": ["./packages/shared/src/utils/*"],
+      "@moontide/shared/constants/*": ["./packages/shared/src/constants/*"],
+      "@moontide/shared/errors/*": ["./packages/shared/src/errors/*"],
+      "@moontide/shared/storage/*": ["./packages/shared/src/storage/*"],
+      "@moontide/llm/protocol": ["./packages/llm/src/protocol/index.ts"],
+      "@moontide/llm/models": ["./packages/llm/src/models/index.ts"],
+      "@moontide/llm": ["./packages/llm/src/index.ts"],
+      "@moontide/session/stores": ["./packages/session/src/stores/index.ts"],
+      "@moontide/session/block-registry": ["./packages/session/src/block-registry.ts"],
+      "@moontide/session": ["./packages/session/src/index.ts"],
+      "@moontide/context-composer/ports": ["./packages/context-composer/src/ports/index.ts"],
+      "@moontide/context-composer/budget": ["./packages/context-composer/src/budget/index.ts"],
+      "@moontide/context-composer/compaction": ["./packages/context-composer/src/compaction/operations.ts"],
+      "@moontide/context-composer": ["./packages/context-composer/src/index.ts"],
+      "@moontide/log": ["./packages/log/src/index.ts"],
+      "@moontide/tools/ports": ["./packages/tools/src/ports/index.ts"],
+      "@moontide/tools/builtins/workspace/fs": ["./packages/tools/src/builtins/workspace/fs.ts"],
+      "@moontide/tools": ["./packages/tools/src/index.ts"],
+      "@moontide/plugins-sdk": ["./packages/plugins-sdk/src/index.ts"],
+      "@moontide/sidecar-host/ports": ["./packages/sidecar-host/src/ports/index.ts"],
+      "@moontide/sidecar-host": ["./packages/sidecar-host/src/index.ts"]
+    }
+  },
+  "include": ["apps/moontide/src/**/*.ts", "packages/**/src/**/*.ts"]
+}

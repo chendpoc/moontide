@@ -8,6 +8,7 @@ import { getWorkdir } from "../../config.js";
 import { PRODUCT_NAME } from "@moontide/shared/constants/brand.js";
 import { bootstrapAgentPlatform, teardownAgentPlatform } from "../../app/bootstrap.js";
 import { getAgentRuntime } from "../../agent/runtime/index.js";
+import { setupToolsPorts } from "../../agent/tools-setup.js";
 import type { UserInteraction } from "@moontide/tools";
 import { reportError, toErrorRecord, toMessage } from "../../errors/index.js";
 import {
@@ -55,7 +56,9 @@ async function runAgentTurn(
 
 /** Interactive REPL loop (readline, slash commands, agent turns). */
 export async function runRepl(): Promise<void> {
-  await bootstrapAgentPlatform(getWorkdir(), getAgentRuntime());
+  setupToolsPorts();
+  const runtime = getAgentRuntime();
+  await bootstrapAgentPlatform(getWorkdir(), runtime);
 
   writeStderrLine(`${PRODUCT_NAME} — type /help for commands`);
   printStartupHint(getWorkdir());
