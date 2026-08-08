@@ -1,0 +1,34 @@
+{
+  "name": "@moontide/sidecar-host",
+  "version": "0.0.1",
+  "description": "Sidecar plugin host (manifest, attach, stdio IPC)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ports": {
+      "types": "./dist/ports/index.d.ts",
+      "import": "./dist/ports/index.js"
+    },
+    "./runner": {
+      "types": "./dist/sidecar/run-sidecar.d.ts",
+      "import": "./dist/sidecar/run-sidecar.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@moontide/llm": "workspace:*",
+    "@moontide/plugins-sdk": "workspace:*",
+    "@moontide/shared": "workspace:*",
+    "@moontide/tools": "workspace:*",
+    "smol-toml": "^1.7.1"
+  },
+  "license": "MIT"
+}

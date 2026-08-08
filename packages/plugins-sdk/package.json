@@ -1,0 +1,23 @@
+{
+  "name": "@moontide/plugins-sdk",
+  "version": "0.0.1",
+  "description": "Sidecar plugin author SDK (defineSidecarPlugin, hook/tool listing)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@moontide/llm": "workspace:*",
+    "@moontide/tools": "workspace:*"
+  },
+  "license": "MIT"
+}
