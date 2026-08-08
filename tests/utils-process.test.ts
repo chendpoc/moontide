@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { execFileCollect, execShell, spawnCollect } from "../src/utils/process.js";
+import { execFileCollect, execShell, spawnCollect } from "@moontide/shared/utils/process.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";

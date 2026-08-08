@@ -4,25 +4,26 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { composeForSession } from "../src/agent/compose-for-turn.js";
+import { composeForSession } from "../apps/moontide/src/agent/compose-for-turn.js";
 import {
   applyDeepPromptGate,
   getActiveWorkMemId,
   resetDeepModeOnNewSession,
-} from "../src/agent/deep-mode.js";
-import { composeContext } from "../src/context/composer/compose.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
-import { setWorkdir } from "../src/config.js";
-import { runWorkMem } from "../src/plugins/builtin/work-mem/handler.js";
-import { readWorkMemEvents } from "../src/plugins/builtin/work-mem/store.js";
-import { Session } from "../src/session/session.js";
+} from "../apps/moontide/src/agent/deep-mode.js";
+import { composeContext } from "@moontide/context-composer";
+import { defaultCompactionPolicy } from "@moontide/context-composer";
+import { resolveToolDefinitions } from "@moontide/context-composer";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { runWorkMem } from "@moontide/tools";
+import { readWorkMemEvents } from "@moontide/tools";
+import { Session } from "@moontide/session";
+import { withComposePorts } from "./helpers/compose-ports.js";
 import {
   createStubArtifactStore,
   createStubCheckpointStore,
   createStubCompactionStore,
-} from "../src/session/stores/index.js";
-import type { SessionMessage } from "../src/session/types.js";
+} from "@moontide/session";
+import type { SessionMessage } from "@moontide/session";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 function userMessage(id: string, turn: number, text: string, sessionId: string): SessionMessage {
@@ -168,31 +169,33 @@ describe("Deep Task Mode compose integration", () => {
       userMessage("e4", 2, "second question", sessionId),
     ];
 
-    const composed = await composeContext({
-      sessionId,
-      turn: 2,
-      messages,
-      instructionState: { basePrompt: "system rules", epoch: 1 },
-      artifactStore: createStubArtifactStore(),
-      compactionStore: createStubCompactionStore(),
-      checkpointStore: createStubCheckpointStore(),
-      toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
-      modelProfile: {
-        logicalModelId: "claude-test",
-        contextWindow: 200_000,
-        maxOutputTokens: 8192,
-        supportsTools: true,
-        supportsThinking: false,
-        tokenCount: "estimate",
-      },
-      compactionPolicy: {
-        ...defaultCompactionPolicy,
-        autoEnabled: false,
-        forcePrune: true,
-        keepTurns: 1,
-      },
-      workingSetSnapshot: "## Decisions\nKeep redis session store\n",
-    });
+    const composed = await composeContext(
+      withComposePorts({
+        sessionId,
+        turn: 2,
+        messages,
+        instructionState: { basePrompt: "system rules", epoch: 1 },
+        artifactStore: createStubArtifactStore(),
+        compactionStore: createStubCompactionStore(),
+        checkpointStore: createStubCheckpointStore(),
+        toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
+        modelProfile: {
+          logicalModelId: "claude-test",
+          contextWindow: 200_000,
+          maxOutputTokens: 8192,
+          supportsTools: true,
+          supportsThinking: false,
+          tokenCount: "estimate",
+        },
+        compactionPolicy: {
+          ...defaultCompactionPolicy,
+          autoEnabled: false,
+          forcePrune: true,
+          keepTurns: 1,
+        },
+        workingSetSnapshot: "## Decisions\nKeep redis session store\n",
+      }),
+    );
 
     expect(composed.request.system).toContain("## Working set (Deep Task Mode)");
     expect(composed.request.system).toContain("Keep redis session store");

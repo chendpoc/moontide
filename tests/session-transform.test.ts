@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { SessionTransform } from "../src/session/transform.js";
-import { messagesFromItems } from "../src/session/transform/messages-from-items.js";
-import { itemsFromMessages } from "../src/session/transform/items-from-messages.js";
-import type { SessionItem } from "../src/session/types.js";
+import { SessionTransform } from "@moontide/session";
+import { messagesFromItems } from "@moontide/session";
+import { itemsFromMessages } from "@moontide/session";
+import type { SessionItem } from "@moontide/session";
 
 function base(over: Partial<SessionItem> & Pick<SessionItem, "kind">): SessionItem {
   return {
@@ -39,8 +39,8 @@ describe("SessionTransform", () => {
   });
 
   it("fromSession reads in-memory context", async () => {
-    const { setWorkdir } = await import("../src/config.js");
-    const { Session } = await import("../src/session/session.js");
+    const { setWorkdir } = await import("../apps/moontide/src/config.js");
+    const { Session } = await import("@moontide/session");
     const { createTmpWorkdir, removeTmpWorkdir } = await import("./helpers/tmp-workdir.js");
 
     const tmpDir = createTmpWorkdir("moontide-session-transform-");

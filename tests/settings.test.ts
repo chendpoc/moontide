@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { handleReplCommand } from "../src/cli/commands/repl.js";
-import { getWorkdir, setWorkdir } from "../src/config.js";
-import { loadUiLang } from "../src/config/ui-settings.js";
-import { resolveContextLang, resetContextLangOverride } from "../src/i18n/context/index.js";
-import { describeLocale, persistLocale, resetLocaleOverride } from "../src/i18n/locale.js";
-import { DATA_DIR } from "../src/constants/storage.js";
-import { APP_ENV, envVarName } from "../src/constants/env.js";
+import { handleReplCommand } from "../apps/moontide/src/cli/commands/repl.js";
+import { getWorkdir, setWorkdir } from "../apps/moontide/src/config.js";
+import { loadUiLang } from "../apps/moontide/src/config/ui-settings.js";
+import { resolveContextLang, resetContextLangOverride } from "../apps/moontide/src/i18n/context/index.js";
+import { describeLocale, persistLocale, resetLocaleOverride } from "../apps/moontide/src/i18n/locale.js";
+import { DATA_DIR } from "@moontide/shared/constants/storage.js";
+import { APP_ENV, envVarName } from "@moontide/shared/constants/env.js";
 
 const configSource = `${DATA_DIR}/config.toml`;
 const langEnv = envVarName(APP_ENV.LANG);

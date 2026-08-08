@@ -1,19 +1,21 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../src/agent/agent-session.js";
-import { composeContext } from "../src/context/composer/compose.js";
+import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
 import {
+  composeContext,
   coversItemIdsForKeepFrom,
   runSummaryCompaction,
-} from "../src/context/composer/compaction/run-summary-compaction.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
-import { compactionSavePath } from "../src/session/paths.js";
-import { setWorkdir } from "../src/config.js";
-import { setLLMProvider } from "../src/llm/provider.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
-import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
-import type { SessionMessage } from "../src/session/types.js";
+  defaultCompactionPolicy,
+  resolveToolDefinitions,
+} from "@moontide/context-composer";
+import { createTextCompletionPort } from "../apps/moontide/src/agent/text-completion-port.js";
+import { composePortsFromConfig } from "../apps/moontide/src/agent/compose-options.js";
+import { compactionSavePath } from "@moontide/session";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setLLMProvider } from "@moontide/llm";
+import { buildDefaultBasePrompt } from "../apps/moontide/src/agent/prompt.js";
+import type { SessionMessage } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
@@ -82,6 +84,8 @@ describe("runSummaryCompaction", () => {
       system: buildDefaultBasePrompt(),
       tools: resolveToolDefinitions(testRuntime.tools),
       keepTurns: 1,
+      modelId: "claude-test",
+      textCompletion: createTextCompletionPort("claude-test"),
     });
 
     expect(result.save.kind).toBe("summary");
@@ -135,6 +139,7 @@ describe("AgentSession.runSummaryCompaction", () => {
       },
       compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
       activeCompactionSaveId: agent.getActiveCompactionSaveId(),
+      ...composePortsFromConfig(tmpDir),
     });
 
     expect(composed.manifest.activeCompactionSaveId).toBe(result.save.id);

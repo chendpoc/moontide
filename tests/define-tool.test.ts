@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { defineTool, defineTools, resolveToolManifest, validateToolSpec } from "../src/tools/define-tool.js";
-import { ErrorCode } from "../src/errors/codes.js";
-import { isAppError } from "../src/errors/app-error.js";
-import type { ToolDefinition } from "../src/tools/types.js";
+import { defineTool, defineTools, resolveToolManifest, validateToolSpec } from "@moontide/tools";
+import { ErrorCode } from "@moontide/shared/errors/codes.js";
+import { isAppError } from "@moontide/shared/errors/app-error.js";
+import type { ToolDefinition } from "@moontide/tools";
 
 describe("defineTools", () => {
   it("builds definitions from specs", () => {

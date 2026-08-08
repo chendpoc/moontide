@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ErrorCode } from "../src/errors/codes.js";
-import { reportError } from "../src/errors/report.js";
+import { ErrorCode } from "@moontide/shared/errors/codes.js";
+import { reportError } from "../apps/moontide/src/errors/report.js";
 import {
   disableTestCollector,
   enableTestCollector,
   getCollectedEvents,
-} from "../src/log/event-hub.js";
-import { resetRun } from "../src/log/run.js";
-import { setDebugOverride, resetDebugOverride } from "../src/context-inspect/debug-mode.js";
-import { setStderrWriterForTest } from "../src/terminal/write.js";
-import { stripAnsi } from "../src/utils/text.js";
+  resetRun,
+} from "../apps/moontide/src/log/index.js";
+import { setDebugOverride, resetDebugOverride } from "../apps/moontide/src/context-inspect/debug-mode.js";
+import { setStderrWriterForTest } from "../apps/moontide/src/terminal/write.js";
+import { stripAnsi } from "@moontide/shared/utils/text.js";
 
 describe("reportError", () => {
   let stderr = "";

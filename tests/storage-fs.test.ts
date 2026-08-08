@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { appendNdjsonLine, ensureDir, writeJsonPretty } from "../src/storage/fs.js";
+import { appendNdjsonLine, ensureDir, writeJsonPretty } from "@moontide/shared/storage/fs.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
-import { joinPath } from "../src/utils/path.js";
+import { joinPath } from "@moontide/shared/utils/path.js";
 
 let tmpDir = "";
 

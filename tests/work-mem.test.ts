@@ -9,11 +9,11 @@ import {
   getActiveWorkMemId,
   isDeepModeEnabled,
   resetDeepModeOnNewSession,
-} from "../src/agent/deep-mode.js";
-import { setWorkdir } from "../src/config.js";
-import { runWorkMem } from "../src/plugins/builtin/work-mem/handler.js";
-import { readWorkMemEvents } from "../src/plugins/builtin/work-mem/store.js";
-import { workMemPath } from "../src/session/paths.js";
+} from "../apps/moontide/src/agent/deep-mode.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { runWorkMem } from "@moontide/tools";
+import { readWorkMemEvents } from "@moontide/tools";
+import { workMemPath } from "@moontide/session";
 
 describe("work_mem handler", () => {
   let workdir: string;

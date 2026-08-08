@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../src/config.js";
-import { runBash } from "../src/tools/builtins/shell/bash.js";
-import { runEdit, runListDir, runRead, runWrite, safePath } from "../src/tools/builtins/workspace/fs.js";
-import { joinPath } from "../src/utils/path.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { runBash, runEdit, runListDir, runRead, runWrite, safePath } from "@moontide/tools";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";
@@ -20,36 +19,36 @@ afterEach(() => {
 
 describe("tools", () => {
   it("writes and reads files", () => {
-    expect(runWrite("demo.txt", "hello\nworld")).toContain("Wrote");
-    expect(runRead("demo.txt")).toContain("hello");
+    expect(runWrite(tmpDir, "demo.txt", "hello\nworld")).toContain("Wrote");
+    expect(runRead(tmpDir, "demo.txt")).toContain("hello");
   });
 
   it("edits files", () => {
-    runWrite("edit.txt", "foo bar baz");
-    expect(runEdit("edit.txt", "bar", "qux")).toContain("Edited");
-    expect(runRead("edit.txt")).toBe("foo qux baz");
+    runWrite(tmpDir, "edit.txt", "foo bar baz");
+    expect(runEdit(tmpDir, "edit.txt", "bar", "qux")).toContain("Edited");
+    expect(runRead(tmpDir, "edit.txt")).toBe("foo qux baz");
   });
 
   it("blocks path escape", () => {
-    expect(() => safePath("../escape.txt")).toThrow(/escapes workspace/);
+    expect(() => safePath("../escape.txt", tmpDir)).toThrow(/escapes workspace/);
   });
 
   it("reads with offset and limit", () => {
-    runWrite("lines.txt", "a\nb\nc\nd\ne");
-    expect(runRead("lines.txt", 2, 2)).toBe("b\nc\n... (2 more lines)");
+    runWrite(tmpDir, "lines.txt", "a\nb\nc\nd\ne");
+    expect(runRead(tmpDir, "lines.txt", 2, 2)).toBe("b\nc\n... (2 more lines)");
   });
 
   it("lists directory entries", () => {
     fs.mkdirSync(joinPath(tmpDir, "src"));
-    runWrite("src/a.ts", "x");
-    runWrite("b.txt", "y");
-    const listing = runListDir(".");
+    runWrite(tmpDir, "src/a.ts", "x");
+    runWrite(tmpDir, "b.txt", "y");
+    const listing = runListDir(tmpDir, ".");
     expect(listing).toContain("dir\tsrc");
     expect(listing).toContain("file\tb.txt");
   });
 
   it("runs bash echo", async () => {
-    const output = await runBash("echo harness");
+    const output = await runBash(tmpDir, "echo harness");
     expect(output).toContain("harness");
   });
 });

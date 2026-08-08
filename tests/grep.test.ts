@@ -3,9 +3,9 @@ import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setWorkdir } from "../src/config.js";
-import { normalizeGrepMaxResults, runGrep } from "../src/tools/builtins/search/grep.js";
-import { joinPath } from "../src/utils/path.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { normalizeGrepMaxResults, runGrep } from "@moontide/tools";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 vi.mock("node:child_process", () => ({
@@ -48,7 +48,7 @@ afterEach(() => {
 
 describe("grep tool", () => {
   it("requires pattern", async () => {
-    const raw = await runGrep({ pattern: "  " });
+    const raw = await runGrep({ workdir: tmpDir, pattern: "  " });
     const result = JSON.parse(raw) as { status: string; error: string };
     expect(result.status).toBe("error");
     expect(result.error).toContain("pattern");
@@ -71,7 +71,7 @@ describe("grep tool", () => {
       0,
     );
 
-    const raw = await runGrep({ pattern: "hello" });
+    const raw = await runGrep({ workdir: tmpDir, pattern: "hello" });
     const result = JSON.parse(raw) as {
       status: string;
       matches: Array<{ file: string; line: number; text: string }>;
@@ -83,7 +83,7 @@ describe("grep tool", () => {
   });
 
   it("rejects path escape", async () => {
-    const raw = await runGrep({ pattern: "x", path: "../outside" });
+    const raw = await runGrep({ workdir: tmpDir, pattern: "x", path: "../outside" });
     const result = JSON.parse(raw) as { status: string; error: string };
     expect(result.status).toBe("error");
     expect(result.error).toContain("escapes workspace");

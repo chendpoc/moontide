@@ -1,14 +1,14 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
-import { ErrorCode } from "../src/errors/codes.js";
-import { infraError } from "../src/errors/factories.js";
-import { emitHookError } from "../src/agent/hooks/failures.js";
+import { ErrorCode } from "@moontide/shared/errors/codes.js";
+import { infraError } from "@moontide/shared/errors/factories.js";
+import { emitHookError } from "../apps/moontide/src/agent/hooks/failures.js";
 import {
   disableTestCollector,
   enableTestCollector,
   getCollectedEvents,
-} from "../src/log/event-hub.js";
-import { resetRun } from "../src/log/run.js";
+  resetRun,
+} from "../apps/moontide/src/log/index.js";
 
 describe("emitHookError", () => {
   beforeEach(() => {

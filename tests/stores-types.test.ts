@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { Artifact } from "../src/session/stores/artifact-types.js";
-import type { Checkpoint } from "../src/session/stores/checkpoint-types.js";
-import type { CompactionSave } from "../src/session/stores/compaction-types.js";
-import { isSessionItem } from "../src/session/types.js";
+import type { Artifact } from "@moontide/session";
+import type { Checkpoint } from "@moontide/session";
+import type { CompactionSave } from "@moontide/session";
+import { isSessionItem } from "@moontide/session";
 
 describe("stores types", () => {
   it("accepts artifact shape", () => {

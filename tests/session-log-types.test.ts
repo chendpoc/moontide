@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isSessionItem, type SessionItem } from "../src/session/types.js";
+import { isSessionItem, type SessionItem } from "@moontide/session";
 
 const BASE = {
   id: "entry-1",

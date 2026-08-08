@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getOutputs } from "../src/log/event-hub.js";
-import { refreshEventOutputs, resetEventPlatform } from "../src/log/setup.js";
-import { JsonlWriter } from "../src/log/outputs/jsonl.js";
-import { StderrRenderer } from "../src/log/outputs/stderr-renderer.js";
+import { getOutputs } from "../apps/moontide/src/log/index.js";
+import { refreshEventOutputs, resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { JsonlWriter } from "@moontide/log";
+import { StderrRenderer } from "../apps/moontide/src/log/outputs/stderr-renderer.js";
 
 describe("event output setup", () => {
   beforeEach(() => {

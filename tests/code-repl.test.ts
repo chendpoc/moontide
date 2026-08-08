@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../src/config.js";
-import { executeTool, getToolDefinitions } from "../src/tools/index.js";
-import { registerRuntime } from "../src/plugins/builtin/code-repl/registry.js";
-import type { CodeRuntime } from "../src/plugins/builtin/code-repl/types.js";
-import { joinPath } from "../src/utils/path.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { executeTool, getToolDefinitions } from "../apps/moontide/src/tools/index.js";
+import { registerRuntime, type CodeRuntime } from "@moontide/tools";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import {
   clearTestRuntime,
   getTestRuntime,

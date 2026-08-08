@@ -4,7 +4,7 @@ import {
   explicitThinkingLevelFromEnv,
   isDeepThinkingBump,
   resolveThinkingLevel,
-} from "../src/llm/routing/thinking.js";
+} from "@moontide/llm";
 
 describe("resolveThinkingLevel", () => {
   afterEach(() => {

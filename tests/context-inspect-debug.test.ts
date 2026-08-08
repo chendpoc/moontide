@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getWorkdir, setWorkdir } from "../src/config.js";
-import { emitDebugRecord } from "../src/context-inspect/debug-emit.js";
-import { debugLogPath } from "../src/context-inspect/debug-file.js";
+import { getWorkdir, setWorkdir } from "../apps/moontide/src/config.js";
+import { emitDebugRecord } from "../apps/moontide/src/context-inspect/debug-emit.js";
+import { debugLogPath } from "../apps/moontide/src/context-inspect/debug-file.js";
 import {
   getDebugLevel,
   isDebugFileEnabled,
@@ -11,15 +11,15 @@ import {
   parseDebugLevelArg,
   resetDebugOverride,
   setDebugOverride,
-} from "../src/context-inspect/debug-mode.js";
-import { formatDebugRecord } from "../src/context-inspect/debug-format.js";
+} from "../apps/moontide/src/context-inspect/debug-mode.js";
+import { formatDebugRecord } from "../apps/moontide/src/context-inspect/debug-format.js";
 import {
   handleDebugCompose,
   handleDebugLlmCall,
   handleDebugToolUse,
-} from "../src/plugins/builtin/context/debug-hook-module.js";
-import { resetRun } from "../src/log/run.js";
-import { setStderrWriterForTest } from "../src/terminal/write.js";
+} from "../apps/moontide/src/plugins/builtin/context/debug-hook-module.js";
+import { resetRun } from "../apps/moontide/src/log/index.js";
+import { setStderrWriterForTest } from "../apps/moontide/src/terminal/write.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 const DEBUG_ENV = "MOONTIDE_DEBUG";

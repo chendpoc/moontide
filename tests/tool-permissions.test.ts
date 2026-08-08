@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { TOOL_CAPABILITIES } from "../src/tools/capability-table.js";
-import { TOOL_NAMES, type ToolName } from "../src/tools/names.js";
-import { TOOL_PERMISSIONS } from "../src/tools/permission-table.js";
-import { registerDefaultTools } from "../src/tools/register-defaults.js";
+import { TOOL_CAPABILITIES } from "@moontide/tools";
+import { TOOL_NAMES, type ToolName } from "@moontide/tools";
+import { TOOL_PERMISSIONS } from "@moontide/tools";
+import { registerDefaultTools } from "../apps/moontide/src/tools/register-defaults.js";
 import { assertToolRegistryConformance } from "./helpers/tool-conformance.js";
 
 describe("tool permission conformance", () => {

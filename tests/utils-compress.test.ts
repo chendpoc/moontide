@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { gunzipBuffer, gzipBuffer } from "../src/utils/compress.js";
+import { gunzipBuffer, gzipBuffer } from "@moontide/shared/utils/compress.js";
 
 describe("utils/compress", () => {
   it("roundtrips gzip buffers", () => {

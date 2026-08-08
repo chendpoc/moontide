@@ -1,21 +1,20 @@
 import { describe, expect, it, afterEach } from "vitest";
 
-import { collectStatusSnapshot, setReplPhase } from "../src/cli/statusline/collect.js";
+import { collectStatusSnapshot, setReplPhase } from "../apps/moontide/src/cli/statusline/collect.js";
 import {
   formatSegmentCatalog,
   formatStatusLine,
-  formatStatusLineVerbose,
-} from "../src/cli/statusline/format.js";
-import { formatCompactTokens, formatContextSegment } from "../src/cli/statusline/format-tokens.js";
-import { formatActivityLine, resetActivityForTest, startActivityLine, stopActivityLine, advanceActivityFrameForTest } from "../src/cli/statusline/activity.js";
-import { renderStatusSegments } from "../src/cli/statusline/segments.js";
-import type { StatusSnapshot } from "../src/cli/statusline/types.js";
-import { resetStatusLineRender, beginAgentActivity, endAgentActivity } from "../src/cli/statusline/render.js";
-import { setVerboseOverride, resetObservabilityOverrides } from "../src/log/modes.js";
-import { formatDeltaColored, formatDeltaPlain } from "../src/log/format/format-delta.js";
-import { resetContextLangOverride } from "../src/i18n/context/index.js";
-import { resetLocaleOverride, setLocaleOverride } from "../src/i18n/locale.js";
-import { stripAnsi } from "../src/utils/text.js";
+} from "../apps/moontide/src/cli/statusline/format.js";
+import { formatCompactTokens, formatContextSegment } from "../apps/moontide/src/cli/statusline/format-tokens.js";
+import { formatActivityLine, resetActivityForTest, startActivityLine, stopActivityLine, advanceActivityFrameForTest } from "../apps/moontide/src/cli/statusline/activity.js";
+import { renderStatusSegments } from "../apps/moontide/src/cli/statusline/segments.js";
+import type { StatusSnapshot } from "../apps/moontide/src/cli/statusline/types.js";
+import { resetStatusLineRender, beginAgentActivity, endAgentActivity } from "../apps/moontide/src/cli/statusline/render.js";
+import { setVerboseOverride, resetObservabilityOverrides } from "../apps/moontide/src/log/modes.js";
+import { formatDeltaColored, formatDeltaPlain } from "../apps/moontide/src/log/format/format-delta.js";
+import { resetContextLangOverride } from "../apps/moontide/src/i18n/context/index.js";
+import { resetLocaleOverride, setLocaleOverride } from "../apps/moontide/src/i18n/locale.js";
+import { stripAnsi } from "@moontide/shared/utils/text.js";
 
 function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   return {
@@ -68,19 +67,6 @@ describe("statusline format", () => {
     expect(text).not.toContain("segments ");
     expect(text).not.toContain("idle");
     expect(text).not.toContain("running");
-  });
-
-  it("formatStatusLineVerbose matches segment-only output", () => {
-    setLocaleOverride("en");
-    const snapshot = baseSnapshot({
-      turn: 2,
-      contextUsed: 1000,
-      contextLimit: 128_000,
-      contextPct: 0.8,
-    });
-    expect(formatStatusLineVerbose(snapshot)).toBe(formatStatusLine(snapshot));
-    expect(stripAnsi(formatStatusLineVerbose(snapshot))).toContain("1k/128k");
-    expect(stripAnsi(formatStatusLineVerbose(snapshot))).not.toContain("segments ");
   });
 
   it("formats delta with git colors", () => {
@@ -144,7 +130,7 @@ describe("statusline render", () => {
     }) as typeof process.stderr.write;
 
     try {
-      const { renderStatusLineAsync } = await import("../src/cli/statusline/render.js");
+      const { renderStatusLineAsync } = await import("../apps/moontide/src/cli/statusline/render.js");
       await renderStatusLineAsync();
       await renderStatusLineAsync();
       expect(writes).toHaveLength(1);
@@ -169,7 +155,7 @@ describe("statusline render", () => {
     try {
       setReplPhase("running");
       startActivityLine();
-      const { renderStatusStackAsync } = await import("../src/cli/statusline/render-stack.js");
+      const { renderStatusStackAsync } = await import("../apps/moontide/src/cli/statusline/render-stack.js");
       await renderStatusStackAsync();
       expect(writes).toHaveLength(2);
 
@@ -228,8 +214,8 @@ describe("statusline unpin", () => {
     Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
 
     try {
-      const { renderStatusStackAsync } = await import("../src/cli/statusline/render-stack.js");
-      const { reply } = await import("../src/cli/commands/io.js");
+      const { renderStatusStackAsync } = await import("../apps/moontide/src/cli/statusline/render-stack.js");
+      const { reply } = await import("../apps/moontide/src/cli/commands/io.js");
 
       await renderStatusStackAsync();
       expect(writes.length).toBeGreaterThan(0);

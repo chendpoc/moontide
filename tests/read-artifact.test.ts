@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setWorkdir } from "../src/config.js";
-import { executeTool } from "../src/tools/index.js";
-import { TOOL_NAMES } from "../src/tools/names.js";
-import { FileArtifactStore, maybeSpillToolResult } from "../src/session/stores/index.js";
+import { setWorkdir, spillOptions } from "../apps/moontide/src/config.js";
+import { executeTool } from "../apps/moontide/src/tools/index.js";
+import { TOOL_NAMES } from "@moontide/tools";
+import { FileArtifactStore, maybeSpillToolResult } from "@moontide/session";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -26,7 +26,7 @@ describe("read_artifact", () => {
     vi.stubEnv("MOONTIDE_ARTIFACT_SPILL_THRESHOLD_BYTES", "32");
     const store = new FileArtifactStore(tmpDir);
     const content = "full tool output\n".repeat(40);
-    const spilled = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
+    const spilled = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir, spillOptions());
 
     const raw = await executeTool(
       TOOL_NAMES.READ_ARTIFACT,

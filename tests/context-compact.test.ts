@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { Message } from "../src/llm/protocol/types.js";
+import type { Message } from "@moontide/llm/protocol";
 
-import { previewCompact, pruneCompact } from "../src/context/composer/compaction/operations.js";
-import { estimateDialogueCompactionTokens } from "../src/context/composer/compaction/apply-prune.js";
-import { buildDefaultBasePrompt } from "../src/agent/prompt.js";
-import { getToolDefinitions } from "../src/tools/index.js";
+import {
+  previewCompact,
+  pruneCompact,
+  estimateDialogueCompactionTokens,
+} from "@moontide/context-composer";
+import { buildDefaultBasePrompt } from "../apps/moontide/src/agent/prompt.js";
+import { getToolDefinitions } from "../apps/moontide/src/tools/index.js";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+
+const compactOptions = { keepTurns: 1, modelId: "claude-test" };
 
 function longToolResultMessage(): Message[] {
   const big = "x".repeat(5000);
@@ -33,10 +38,11 @@ describe("context compact", () => {
   installTestRuntime();
   const runtime = getTestRuntime();
   const system = buildDefaultBasePrompt();
+  const tools = getToolDefinitions(runtime.tools);
 
   it("preview shows token reduction for old tool results", () => {
     const messages = longToolResultMessage();
-    const preview = previewCompact(messages, system, getToolDefinitions(runtime.tools), 1);
+    const preview = previewCompact(messages, system, tools, compactOptions);
     expect(preview.wouldChange).toBe(true);
     expect(preview.afterTokens).toBeLessThan(preview.beforeTokens);
     expect(preview.truncatedToolResults).toBeGreaterThan(0);
@@ -45,7 +51,7 @@ describe("context compact", () => {
 
   it("prune mutates tool results in older turns", () => {
     const messages = longToolResultMessage();
-    const result = pruneCompact(messages, system, getToolDefinitions(runtime.tools), 1);
+    const result = pruneCompact(messages, system, tools, compactOptions);
     expect(result.changed).toBe(true);
     expect(result.afterTokens).toBeLessThan(result.beforeTokens);
     const firstUserTool = result.messages[2];
@@ -59,7 +65,7 @@ describe("context compact", () => {
   });
 
   it("returns unchanged for empty messages", () => {
-    const result = pruneCompact([], system, getToolDefinitions(runtime.tools));
+    const result = pruneCompact([], system, tools, compactOptions);
     expect(result.changed).toBe(false);
   });
 });

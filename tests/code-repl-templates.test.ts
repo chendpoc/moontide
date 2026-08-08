@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../src/config.js";
-import { executeTool, getToolDefinitions } from "../src/tools/index.js";
-import { expandTemplate } from "../src/plugins/builtin/code-repl/templates/expand.js";
-import { listTemplateIds } from "../src/plugins/builtin/code-repl/templates/catalog.js";
-import { joinPath } from "../src/utils/path.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { executeTool, getToolDefinitions } from "../apps/moontide/src/tools/index.js";
+import { expandTemplate, listTemplateIds } from "@moontide/tools";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import {
   clearTestRuntime,
   getTestRuntime,
@@ -42,12 +41,12 @@ describe("expandTemplate", () => {
   });
 
   it("rejects unknown template", () => {
-    const result = expandTemplate("nope");
+    const result = expandTemplate("nope", {}, tmpDir);
     expect(result).toEqual({ error: "unknown template: nope" });
   });
 
   it("rejects missing required vars", () => {
-    const result = expandTemplate("read_json", {});
+    const result = expandTemplate("read_json", {}, tmpDir);
     expect(result).toMatchObject({
       error: "missing required template vars",
       template: "read_json",
@@ -56,7 +55,7 @@ describe("expandTemplate", () => {
   });
 
   it("rejects path escape", () => {
-    const result = expandTemplate("read_json", { path: "../../../etc/passwd" });
+    const result = expandTemplate("read_json", { path: "../../../etc/passwd" }, tmpDir);
     expect(result).toMatchObject({ template: "read_json" });
     expect(result).toHaveProperty("error");
     expect(String((result as { error: string }).error)).toContain("escapes workspace");
@@ -66,7 +65,7 @@ describe("expandTemplate", () => {
     const pkgPath = joinPath(tmpDir, "package.json");
     fs.writeFileSync(pkgPath, JSON.stringify({ name: "demo", scripts: { test: "vitest" } }), "utf8");
 
-    const result = expandTemplate("read_json", { path: "package.json", max_depth: 1 });
+    const result = expandTemplate("read_json", { path: "package.json", max_depth: 1 }, tmpDir);
     expect("code" in result).toBe(true);
     if (!("code" in result)) {
       return;
@@ -77,7 +76,7 @@ describe("expandTemplate", () => {
   });
 
   it("expands git_summary bash with numeric log_n", () => {
-    const result = expandTemplate("git_summary", { log_n: 3 });
+    const result = expandTemplate("git_summary", { log_n: 3 }, tmpDir);
     expect("code" in result).toBe(true);
     if (!("code" in result)) {
       return;
@@ -87,7 +86,7 @@ describe("expandTemplate", () => {
   });
 
   it("requires path or text for json_pretty", () => {
-    const result = expandTemplate("json_pretty", {});
+    const result = expandTemplate("json_pretty", {}, tmpDir);
     expect(result).toEqual({ error: "json_pretty requires path or text", template: "json_pretty" });
   });
 });

@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AgentSession } from "../../src/agent/agent-session.js";
-import { sessionIndexPath, sessionLogPath } from "../../src/session/paths.js";
+import { AgentSession } from "../../apps/moontide/src/agent/agent-session.js";
+import { sessionIndexPath, sessionLogPath } from "@moontide/session";
 import {
   autoSaveSession,
   formatSessionLine,
-  formatStartupHint,
   formatStartupHintLines,
   formatQuitHintLines,
   getLatestSessionEntry,
@@ -15,10 +14,10 @@ import {
   printQuitHint,
   printStartupHint,
   upsertSessionEntry,
-} from "../../src/plugins/builtin/session-persistence/index.js";
-import type { SessionPersistenceDeps } from "../../src/plugins/builtin/session-persistence/index.js";
-import { setWorkdir } from "../../src/config.js";
-import { setStderrWriterForTest } from "../../src/terminal/write.js";
+} from "../../apps/moontide/src/plugins/builtin/session-persistence/index.js";
+import type { SessionPersistenceDeps } from "../../apps/moontide/src/plugins/builtin/session-persistence/index.js";
+import { setWorkdir } from "../../apps/moontide/src/config.js";
+import { setStderrWriterForTest } from "../../apps/moontide/src/terminal/write.js";
 import { clearTestRuntime, installTestRuntime } from "../helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "../helpers/tmp-workdir.js";
 
@@ -103,12 +102,6 @@ describe("session-persistence plugin", () => {
     expect(lines[0]).toContain("20260804-195300-a1b2c3d4 (debug-mode)");
     expect(lines[0]).toContain("3 messages");
     expect(lines[1]).toBe("Resume: /resume session 20260804-195300-a1b2c3d4");
-    expect(formatStartupHint({
-      sessionId: "20260804-195300-a1b2c3d4",
-      label: "debug-mode",
-      messageCount: 3,
-      indexed: true,
-    })).toContain("/resume session 20260804-195300-a1b2c3d4");
   });
 
   it("formatQuitHintLines includes session id and resume command", () => {

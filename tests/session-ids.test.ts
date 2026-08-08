@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { newSessionId } from "../src/session/ids.js";
+import { newSessionId } from "@moontide/session";
 
 describe("newSessionId", () => {
   it("matches runId shape and is filesystem-safe", () => {

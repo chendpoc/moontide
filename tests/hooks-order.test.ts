@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { enableTestCollector, disableTestCollector, getCollectedEvents } from "../src/log/event-hub.js";
-import { resetRun } from "../src/log/run.js";
-import type { LLMCallRecord, ToolUseRecord } from "../src/agent/pipeline/types.js";
+import { enableTestCollector, disableTestCollector, getCollectedEvents, resetRun } from "../apps/moontide/src/log/index.js";
+import type { LLMCallRecord, ToolUseRecord } from "../apps/moontide/src/agent/pipeline/types.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 describe("hook handler order", () => {

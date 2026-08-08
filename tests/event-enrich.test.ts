@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { enrichEvent } from "../src/log/enrich.js";
-import type { AgentEvent } from "../src/log/types.js";
+import { enrichEvent } from "@moontide/log";
+import type { AgentEvent } from "@moontide/log";
 
 function baseEvent(partial: Partial<AgentEvent>): AgentEvent {
   return {

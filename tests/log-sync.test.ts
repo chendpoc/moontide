@@ -2,19 +2,18 @@ import fs from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../src/agent/agent-session.js";
-import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
-import { setWorkdir } from "../src/config.js";
-import { RUNS_DIR } from "../src/constants/storage.js";
-import { setLLMProvider } from "../src/llm/provider.js";
-import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
-import { resetEventPlatform } from "../src/log/setup.js";
-import { getRunId, resetRun } from "../src/log/run.js";
-import { Session } from "../src/session/session.js";
-import { createAgentEventDeriveHandler } from "../src/plugins/builtin/log-sync/index.js";
-import { sessionLogPath } from "../src/session/paths.js";
-import { dataPath, joinPath } from "../src/utils/path.js";
-import type { UserInteraction } from "../src/tools/types.js";
+import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
+import { createSessionCommitPort } from "../apps/moontide/src/agent/session-commit-port.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { RUNS_DIR } from "@moontide/shared/constants/storage.js";
+import { setLLMProvider } from "@moontide/llm";
+import { setupAgentEventPipeline } from "../apps/moontide/src/app/bootstrap.js";
+import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { getRunId, resetRun } from "../apps/moontide/src/log/index.js";
+import { Session } from "@moontide/session";
+import { sessionLogPath } from "@moontide/session";
+import { dataPath, joinPath } from "@moontide/shared/utils/path.js";
+import type { UserInteraction } from "@moontide/tools";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
@@ -79,21 +78,9 @@ describe("session item commit path", () => {
     const log = await session.readItems();
     expect(log).toHaveLength(1);
   });
-
-  it("derives conversation user_prompt from session item", async () => {
-    testRuntime.hookRegistry.sidecar().on("sessionItem", "agent-event-derive", createAgentEventDeriveHandler());
-
-    const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
-    await session.appendUser(1, "derived prompt");
-
-    const activePath = dataPath(tmpDir, RUNS_DIR, `${getRunId()}.active.jsonl`);
-    const lines = fs.readFileSync(activePath, "utf8").trim().split("\n");
-    const kinds = lines.map((line) => (JSON.parse(line) as { kind: string }).kind);
-    expect(kinds).toContain("user_prompt");
-  });
 });
 
-describe("agent event deduplication", () => {
+describe("run event derive (agent event log)", () => {
   it("emits one conversation and trace event per session commit on full run", async () => {
     chatMock.mockResolvedValue(
       mockLLMResponse([{ type: "text", text: "Hello from model" }]),

@@ -9,12 +9,10 @@ import {
   getActiveWorkMemId,
   isDeepModeEnabled,
   resetDeepModeOnNewSession,
-} from "../src/agent/deep-mode.js";
-import { setWorkdir } from "../src/config.js";
-import { readWorkMemEvents } from "../src/plugins/builtin/work-mem/store.js";
-import { registerDefaultTools } from "../src/tools/register-defaults.js";
-import { defineWorkMemTools } from "../src/plugins/builtin/work-mem/tools.js";
-import { ToolRegistry } from "../src/tools/registry.js";
+} from "../apps/moontide/src/agent/deep-mode.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { defineWorkMemTools, readWorkMemEvents, ToolRegistry } from "@moontide/tools";
+import { registerDefaultTools } from "../apps/moontide/src/tools/register-defaults.js";
 
 describe("Deep Task Mode prompt gate", () => {
   let workdir: string;
@@ -75,7 +73,7 @@ describe("Deep Task Mode prompt gate", () => {
 
   it("registers work_mem after refresh when deep mode active", () => {
     applyDeepPromptGate("deep: task", "sess-4");
-    const registry = new ToolRegistry();
+    const registry = new ToolRegistry(registerDefaultTools);
     registry.refresh();
     expect(registry.getTool("work_mem")).toBeDefined();
     const names = registerDefaultTools().map((tool) => tool.schema.name);

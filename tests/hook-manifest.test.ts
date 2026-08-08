@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDefaultHookManifest } from "../src/agent/hooks/manifest.js";
-import { PHASE_DEFS, type HookErrorPolicy } from "../src/agent/hooks/phases.js";
+import { buildDefaultHookManifest } from "../apps/moontide/src/agent/hooks/manifest.js";
+import { PHASE_DEFS, type HookErrorPolicy } from "../apps/moontide/src/agent/hooks/phases.js";
 
 const VALID_ERROR_POLICIES = new Set<HookErrorPolicy>(["fail-open", "fail-closed"]);
 
@@ -31,11 +31,10 @@ describe("default hook manifest conformance", () => {
     expect(deprecated).toEqual([]);
   });
 
-  it("derives agent events via agent-event-derive on sessionItem", () => {
+  it("does not register sessionItem agent-event-derive after M6 RunEvent derive", () => {
     const derive = buildDefaultHookManifest().find(
       (spec) => spec.phase === "sessionItem" && spec.name === "agent-event-derive",
     );
-    expect(derive).toBeDefined();
-    expect(derive?.errorPolicy ?? PHASE_DEFS.sessionItem.defaultErrorPolicy).toBe("fail-open");
+    expect(derive).toBeUndefined();
   });
 });

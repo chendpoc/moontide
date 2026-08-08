@@ -1,4 +1,4 @@
-import type { ContentBlock, LLMResponse } from "../src/llm/protocol/types.js";
+import type { ContentBlock, LLMResponse } from "@moontide/llm/protocol";
 
 export function mockLLMResponse(
   content: ContentBlock[],

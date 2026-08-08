@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { globFiles } from "../src/utils/glob.js";
-import { writeText } from "../src/utils/fs.js";
-import { joinPath } from "../src/utils/path.js";
+import { globFiles } from "@moontide/shared/utils/glob.js";
+import { writeText } from "@moontide/shared/utils/fs.js";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";

@@ -1,5 +1,5 @@
-import type { Message } from "../src/llm/protocol/types.js";
-import type { ModelProfile } from "../src/llm/models/types.js";
+import type { Message } from "@moontide/llm/protocol";
+import type { ModelProfile } from "@moontide/llm/models";
 import {
   DEFAULT_L1_CAP,
   DEFAULT_L3_CAP,
@@ -11,8 +11,10 @@ import {
   resolveBudgetPolicy,
   resolveL4Reserved,
   sumInputTierTokens,
-} from "../src/context/composer/budget/index.js";
+} from "@moontide/context-composer/budget";
+import { defaultBudgetConfig } from "@moontide/context-composer/ports";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { budgetConfigFromEnv } from "./helpers/budget-config.js";
 
 function profile128k(overrides: Partial<ModelProfile> = {}): ModelProfile {
   return {
@@ -43,7 +45,10 @@ describe("context budget policy", () => {
 
   it("computes L2_limit for 128k MVP defaults without flex", () => {
     vi.stubEnv("MOONTIDE_CONTEXT_BUDGET_FLEX", "0");
-    const policy = resolveBudgetPolicy({ modelProfile: profile128k() });
+    const policy = resolveBudgetPolicy({
+      modelProfile: profile128k(),
+      budget: budgetConfigFromEnv(),
+    });
     // C=128k, L4=8192, L1_cap=32k, L3_cap=10k → L2=128000-8192-32000-10000=77808
     expect(policy.dialogueLimitTokens).toBe(77_808);
     expect(findTierUsage(policy, "reserved").limitTokens).toBe(8192);
@@ -57,7 +62,10 @@ describe("context budget policy", () => {
     vi.stubEnv("MOONTIDE_CONTEXT_BUDGET_L3", "8000");
     vi.stubEnv("MOONTIDE_CONTEXT_BUDGET_L4", "10000");
 
-    const policy = resolveBudgetPolicy({ modelProfile: profile128k() });
+    const policy = resolveBudgetPolicy({
+      modelProfile: profile128k(),
+      budget: budgetConfigFromEnv(),
+    });
     expect(findTierUsage(policy, "reserved").limitTokens).toBe(10_000);
     expect(findTierUsage(policy, "pinned").limitTokens).toBe(40_000);
     expect(findTierUsage(policy, "reference").limitTokens).toBe(8_000);
@@ -100,6 +108,7 @@ describe("context budget policy", () => {
   it("includes L5 flex tier by default", () => {
     const policy = resolveBudgetPolicy({
       modelProfile: profile128k(),
+      budget: defaultBudgetConfig,
     });
     expect(findTierUsage(policy, "flex").limitTokens).toBe(6_400);
     expect(policy.dialogueLimitTokens).toBe(77_808 - 6_400);

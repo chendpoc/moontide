@@ -1,4 +1,4 @@
-import { defineSidecarPlugin } from "../../../src/plugins/sdk/define.js";
+import { defineSidecarPlugin } from "@moontide/plugins-sdk";
 
 export default defineSidecarPlugin({
   hooks: {

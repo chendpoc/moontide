@@ -1,20 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { composeContext } from "../src/context/composer/compose.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
 import {
+  composeContext,
+  defaultCompactionPolicy,
   findTierUsage,
   resolveBudgetPolicy,
   sumInputTierTokens,
-} from "../src/context/composer/budget/index.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
+  resolveToolDefinitions,
+} from "@moontide/context-composer";
 import {
   createStubArtifactStore,
   createStubCheckpointStore,
   createStubCompactionStore,
-} from "../src/session/stores/index.js";
-import type { SessionMessage } from "../src/session/types.js";
+} from "@moontide/session";
+import type { SessionMessage } from "@moontide/session";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+import { withComposePorts } from "./helpers/compose-ports.js";
+import { budgetConfigFromEnv } from "./helpers/budget-config.js";
 
 function userMessage(id: string, turn: number, text: string, sessionId = "sess-budget"): SessionMessage {
   return {
@@ -41,24 +43,29 @@ describe("context budget tiers integration", () => {
 
   it("128k MVP: L2_limit matches formula without flex", () => {
     vi.stubEnv("MOONTIDE_CONTEXT_BUDGET_FLEX", "0");
-    const policy = resolveBudgetPolicy({ modelProfile });
+    const policy = resolveBudgetPolicy({
+      modelProfile,
+      budget: budgetConfigFromEnv(),
+    });
     expect(findTierUsage(policy, "reserved").limitTokens).toBe(8192);
     expect(policy.dialogueLimitTokens).toBe(128_000 - 8192 - 32_000 - 10_000);
   });
 
   it("manifest tier sum matches estimatedInputTokens", async () => {
-    const composed = await composeContext({
-      sessionId: "sess-budget",
-      turn: 1,
-      messages: [userMessage("e1", 1, "hello world")],
-      instructionState: { basePrompt: "rules", epoch: 1 },
-      artifactStore: createStubArtifactStore(),
-      compactionStore: createStubCompactionStore(),
-      checkpointStore: createStubCheckpointStore(),
-      toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
-      modelProfile,
-      compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
-    });
+    const composed = await composeContext(
+      withComposePorts({
+        sessionId: "sess-budget",
+        turn: 1,
+        messages: [userMessage("e1", 1, "hello world")],
+        instructionState: { basePrompt: "rules", epoch: 1 },
+        artifactStore: createStubArtifactStore(),
+        compactionStore: createStubCompactionStore(),
+        checkpointStore: createStubCheckpointStore(),
+        toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
+        modelProfile,
+        compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
+      }),
+    );
 
     const tiers = composed.manifest.budgetTiers ?? [];
     const tierSum = tiers
@@ -72,6 +79,7 @@ describe("context budget tiers integration", () => {
           system: composed.request.system,
           tools: composed.request.tools,
           messages: composed.request.messages,
+          budget: budgetConfigFromEnv(),
         }),
       ),
     );

@@ -1,5 +1,5 @@
-import type { Message } from "../src/llm/protocol/types.js";
-import type { ModelProfile } from "../src/llm/models/types.js";
+import type { Message } from "@moontide/llm/protocol";
+import type { ModelProfile } from "@moontide/llm/models";
 import {
   ARTIFACT_FOOTNOTE_PREFIX,
   buildBudgetAlerts,
@@ -10,8 +10,10 @@ import {
   findTierUsage,
   isReferenceToolResultBody,
   resolveBudgetPolicy,
-} from "../src/context/composer/budget/index.js";
-import { createMemoryArtifactStore } from "../src/session/stores/artifact-store.js";
+} from "@moontide/context-composer/budget";
+import { defaultBudgetConfig } from "@moontide/context-composer/ports";
+import { spillOptions } from "../apps/moontide/src/config.js";
+import { createMemoryArtifactStore } from "@moontide/session";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -90,6 +92,7 @@ describe("L3 enforce with spill", () => {
       sessionId: "sess-enforce",
       artifactStore: store,
       workdir: tmpDir,
+      spillOptions: spillOptions(),
     });
 
     expect(enforced.spilledCount).toBe(1);
@@ -131,6 +134,7 @@ describe("L3 enforce with spill", () => {
       sessionId: "sess-compact",
       artifactStore: store,
       workdir: tmpDir,
+      spillOptions: spillOptions(),
     });
 
     expect(enforced.compactedCount).toBeGreaterThan(0);
@@ -149,7 +153,7 @@ describe("L1 workingSet subAccounts", () => {
       workingSetSnapshot: ws,
       tools: [],
       messages: [],
-      includeFlex: false,
+      budget: { ...defaultBudgetConfig, flexEnabled: false },
     });
     const pinned = findTierUsage(policy, "pinned");
     expect(pinned.subAccounts?.workingSet.estimatedTokens).toBeGreaterThan(0);
@@ -162,7 +166,7 @@ describe("reference_over_budget alert", () => {
     const policy = resolveBudgetPolicy({
       modelProfile: profile128k(),
       referenceTokens: 20_000,
-      includeFlex: false,
+      budget: { ...defaultBudgetConfig, flexEnabled: false },
     });
     const alerts = buildBudgetAlerts(policy);
     expect(alerts.some((alert) => alert.code === "reference_over_budget")).toBe(true);

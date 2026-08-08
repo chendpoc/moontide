@@ -1,12 +1,12 @@
 import { describe, expect, it, afterEach } from "vitest";
 
-import { buildContextReport } from "../src/context-inspect/analyze.js";
-import { formatContext, getSummary } from "../src/context-inspect/format.js";
-import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../src/context-inspect/metrics.js";
-import { buildSnapshot } from "../src/context-inspect/snapshot.js";
-import { resetRuntimeStatus, publishContextReport } from "../src/agent/context-status.js";
-import { resetContextLangOverride, setContextLangOverride } from "../src/i18n/context/index.js";
-import type { ContextSnapshot } from "../src/context-inspect/types.js";
+import { buildContextReport } from "../apps/moontide/src/context-inspect/analyze.js";
+import { formatContext, getSummary } from "../apps/moontide/src/context-inspect/format.js";
+import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../apps/moontide/src/context-inspect/metrics.js";
+import { buildSnapshot } from "../apps/moontide/src/context-inspect/snapshot.js";
+import { resetRuntimeStatus, publishContextReport } from "../apps/moontide/src/agent/context-status.js";
+import { resetContextLangOverride, setContextLangOverride } from "../apps/moontide/src/i18n/context/index.js";
+import type { ContextSnapshot } from "../apps/moontide/src/context-inspect/types.js";
 
 function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot {
   return {

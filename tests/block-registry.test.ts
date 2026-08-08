@@ -6,7 +6,7 @@ import {
   estimateBlockTokens,
   mapContentBlocks,
   traceDraftsFromBlocks,
-} from "../src/session/block-registry.js";
+} from "@moontide/session";
 
 describe("block-registry", () => {
   it("estimates text block tokens", () => {

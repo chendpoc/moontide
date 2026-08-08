@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { registerDefaultTools } from "../src/tools/register-defaults.js";
-import { runDeepResearch } from "../src/plugins/builtin/deep-research/handler.js";
-import { defineDeepResearchTools } from "../src/plugins/builtin/deep-research/tools.js";
-import { normalizeMaxResults, tavilySearch } from "../src/plugins/builtin/deep-research/tavily.js";
+import {
+  defineDeepResearchTools,
+  normalizeMaxResults,
+  runDeepResearch,
+  tavilySearch,
+} from "@moontide/tools";
+import { registerDefaultTools as registerHarnessTools } from "../apps/moontide/src/tools/register-defaults.js";
 
 const ENV_KEY = "MOONTIDE_DEEP_RESEARCH";
 const TAVILY_KEY = "MOONTIDE_TAVILY_API_KEY";
@@ -23,7 +26,7 @@ describe("deep_research extension", () => {
 
   it("is omitted from tool definitions unless MOONTIDE_DEEP_RESEARCH=1", () => {
     expect(defineDeepResearchTools()).toBeNull();
-    const names = registerDefaultTools().map((tool) => tool.schema.name);
+    const names = registerHarnessTools().map((tool) => tool.schema.name);
     expect(names).not.toContain("deep_research");
   });
 
@@ -33,7 +36,7 @@ describe("deep_research extension", () => {
     expect(tools).toHaveLength(1);
     expect(tools![0]?.schema.name).toBe("deep_research");
 
-    const names = registerDefaultTools().map((t) => t.schema.name);
+    const names = registerHarnessTools().map((t) => t.schema.name);
     expect(names).toContain("deep_research");
   });
 

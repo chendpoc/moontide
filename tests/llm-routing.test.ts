@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { resolveRoute } from "../src/llm/routing/resolve.js";
+import { resolveRoute } from "@moontide/llm";
 
 describe("llm routing", () => {
   afterEach(() => {

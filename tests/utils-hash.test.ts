@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sha256Hex, sha256UInt32Be } from "../src/utils/hash.js";
+import { sha256Hex, sha256UInt32Be } from "@moontide/shared/utils/hash.js";
 
 describe("utils/hash", () => {
   it("computes stable sha256 hex", () => {

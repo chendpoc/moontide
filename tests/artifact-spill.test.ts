@@ -1,15 +1,15 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ContentBlock } from "../src/llm/protocol/types.js";
+import type { ContentBlock } from "@moontide/llm/protocol";
 
-import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
-import { runToolUse } from "../src/agent/pipeline/index.js";
-import { setWorkdir, artifactSpillThresholdBytes, toolPreviewChars } from "../src/config.js";
-import { FileArtifactStore, maybeSpillToolResult } from "../src/session/stores/index.js";
-import { artifactMetaPath, artifactPath } from "../src/session/paths.js";
-import { Session } from "../src/session/session.js";
-import { parseItems } from "../src/session/io/index.js";
+import { createSessionCommitPort } from "../apps/moontide/src/agent/session-commit-port.js";
+import { runToolUse } from "../apps/moontide/src/agent/pipeline/index.js";
+import { setWorkdir, artifactSpillThresholdBytes, toolPreviewChars, spillOptions } from "../apps/moontide/src/config.js";
+import { FileArtifactStore, maybeSpillToolResult } from "@moontide/session";
+import { artifactMetaPath, artifactPath } from "@moontide/session";
+import { Session } from "@moontide/session";
+import { parseItems } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -32,7 +32,7 @@ describe("maybeSpillToolResult", () => {
   it("returns content and full summary under threshold", async () => {
     const store = new FileArtifactStore(tmpDir);
     const content = "line\n".repeat(80);
-    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
+    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir, spillOptions());
     expect(result.artifactId).toBeUndefined();
     expect(result.content).toBe(content);
     expect(result.summary.summary).toBe(content);
@@ -42,7 +42,7 @@ describe("maybeSpillToolResult", () => {
   it("returns content unchanged under threshold", async () => {
     const store = new FileArtifactStore(tmpDir);
     const content = "small output";
-    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
+    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir, spillOptions());
     expect(result.artifactId).toBeUndefined();
     expect(result.content).toBe(content);
   });
@@ -52,7 +52,7 @@ describe("maybeSpillToolResult", () => {
     const store = new FileArtifactStore(tmpDir);
     const previewLimit = toolPreviewChars();
     const content = "x".repeat(previewLimit + 200);
-    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir);
+    const result = await maybeSpillToolResult("sess-1", "tu-1", content, store, tmpDir, spillOptions());
 
     expect(result.artifactId).toBeDefined();
     expect(result.content).toContain("[artifact:");
@@ -95,7 +95,7 @@ describe("runToolUse artifact spill", () => {
     const stores = { artifacts: new FileArtifactStore(tmpDir) };
     const bigOutput = "y".repeat(500);
 
-    vi.spyOn(await import("../src/tools/index.js"), "executeTool").mockResolvedValue(bigOutput);
+    vi.spyOn(await import("../apps/moontide/src/tools/index.js"), "executeTool").mockResolvedValue(bigOutput);
 
     const block = {
       type: "tool_use" as const,
@@ -135,7 +135,7 @@ describe("session reload preserves artifact reference", () => {
     const session = Session.create(tmpDir, createSessionCommitPort(tmpDir, testRuntime));
     const store = new FileArtifactStore(tmpDir);
     const content = "z".repeat(400);
-    const spilled = await maybeSpillToolResult(session.sessionId, "tu-1", content, store, tmpDir);
+    const spilled = await maybeSpillToolResult(session.sessionId, "tu-1", content, store, tmpDir, spillOptions());
     await session.appendToolOutcome(1, "tu-1", spilled.summary, spilled.artifactId);
 
     const reopened = Session.open(session.sessionId, tmpDir, createSessionCommitPort(tmpDir, testRuntime));

@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { handleHelpCommand } from "../src/cli/commands/help.js";
-import { getWorkdir, setWorkdir } from "../src/config.js";
-import { persistLocale, resetLocaleOverride } from "../src/i18n/locale.js";
+import { handleHelpCommand } from "../apps/moontide/src/cli/commands/help.js";
+import { getWorkdir, setWorkdir } from "../apps/moontide/src/config.js";
+import { persistLocale, resetLocaleOverride } from "../apps/moontide/src/i18n/locale.js";
 import { replyLines } from "./helpers/reply-capture.js";
 
 describe("help i18n", () => {

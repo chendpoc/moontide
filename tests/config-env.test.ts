@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { alwaysAllowDefault, appEnv, isDevEnv } from "../src/config.js";
+import { alwaysAllowDefault, appEnv, isDevEnv } from "../apps/moontide/src/config.js";
 
 beforeEach(() => {
   vi.stubEnv("MOONTIDE_ENV", "");

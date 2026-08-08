@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { contextLimit } from "../src/config.js";
-import { resolveModelProfile } from "../src/llm/models/resolve.js";
+import { contextLimit } from "../apps/moontide/src/config.js";
+import { resolveModelProfile } from "@moontide/llm/models";
 
 describe("llm model registry", () => {
   afterEach(() => {

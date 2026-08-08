@@ -1,17 +1,20 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AgentSession } from "../src/agent/agent-session.js";
-import { composeContext } from "../src/context/composer/compose.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
+import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
+import {
+  composeContext,
+  defaultCompactionPolicy,
+  resolveToolDefinitions,
+} from "@moontide/context-composer";
+import { composePortsFromConfig } from "../apps/moontide/src/agent/compose-options.js";
 import {
   createStubArtifactStore,
   createStubCompactionStore,
   FileCheckpointStore,
-} from "../src/session/stores/index.js";
-import { setWorkdir } from "../src/config.js";
-import { checkpointPath } from "../src/session/paths.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
+} from "@moontide/session";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { checkpointPath } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -93,6 +96,7 @@ describe("AgentSession checkpoint", () => {
       },
       compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
       resumeFromCheckpointId: checkpoint.id,
+      ...composePortsFromConfig(tmpDir),
     });
 
     expect(composed.manifest.sourceItemIds).toHaveLength(3);

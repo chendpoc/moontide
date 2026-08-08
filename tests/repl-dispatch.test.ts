@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Interface } from "node:readline/promises";
 
-import { handleReplCommand } from "../src/cli/commands/repl.js";
-import { resetReplConversation } from "../src/cli/commands/reset.js";
-import { resolveReplLine } from "../src/cli/repl/dispatch.js";
+import { handleReplCommand } from "../apps/moontide/src/cli/commands/repl.js";
+import { resetReplConversation } from "../apps/moontide/src/cli/commands/reset.js";
+import { resolveReplLine } from "../apps/moontide/src/cli/repl/dispatch.js";
 
 const fakeRl = {} as Interface;
 

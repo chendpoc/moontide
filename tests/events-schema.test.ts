@@ -3,11 +3,11 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   disableTestCollector,
   enableTestCollector,
-  emitDraft,
+  emit,
   getCollectedEvents,
-} from "../src/log/event-hub.js";
-import { resetRun } from "../src/log/run.js";
-import { newTimestampedId } from "../src/utils/id.js";
+  resetRun,
+} from "../apps/moontide/src/log/index.js";
+import { newTimestampedId } from "@moontide/shared/utils/id.js";
 
 describe("AgentEvent schema", () => {
   beforeEach(() => {
@@ -20,14 +20,14 @@ describe("AgentEvent schema", () => {
   });
 
   it("assigns monotonic seq and runId", () => {
-    const first = emitDraft({
+    const first = emit({
       turn: 1,
       phase: "pre_llm",
       channel: "context",
       kind: "context_metrics",
       payload: {},
     });
-    const second = emitDraft({
+    const second = emit({
       turn: 1,
       phase: "post_llm",
       channel: "trace",

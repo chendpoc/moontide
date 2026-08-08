@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TOOL_NAMES } from "../src/tools/names.js";
-import { checkPermission } from "../src/agent/pipeline/permission/index.js";
+import { TOOL_NAMES } from "@moontide/tools";
+import { checkPermission } from "../apps/moontide/src/agent/pipeline/permission/index.js";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 describe("permissions", () => {

@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { loadPluginManifest } from "../src/plugins/host/manifest.js";
-import type { PluginAttach, PluginKind, SidecarTransport } from "../src/plugins/host/types.js";
-import { dataPath } from "../src/utils/path.js";
+import { loadPluginManifest } from "@moontide/sidecar-host";
+import type { PluginAttach, PluginKind, SidecarTransport } from "@moontide/sidecar-host";
+import { dataPath } from "@moontide/shared/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 const VALID_KINDS = new Set<PluginKind>(["mcp", "sidecar", "wasm"]);

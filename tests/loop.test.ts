@@ -1,17 +1,17 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../src/agent/agent-session.js";
-import { createDefaultLoopContext } from "../src/agent/deps.js";
-import type { LoopContext } from "../src/agent/deps.js";
-import { setWorkdir } from "../src/config.js";
-import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
-import { resetEventPlatform } from "../src/log/setup.js";
-import { setLLMProvider } from "../src/llm/provider.js";
-import type { UserInteraction } from "../src/tools/types.js";
-import { sessionLogPath } from "../src/session/paths.js";
-import { joinPath } from "../src/utils/path.js";
-import { resetAlwaysAllowOverride } from "../src/tools/always-allow-mode.js";
+import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
+import { createDefaultLoopContext } from "../apps/moontide/src/agent/deps.js";
+import type { LoopContext } from "../apps/moontide/src/agent/deps.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setupAgentEventPipeline } from "../apps/moontide/src/app/bootstrap.js";
+import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { setLLMProvider } from "@moontide/llm";
+import type { UserInteraction } from "@moontide/tools";
+import { sessionLogPath } from "@moontide/session";
+import { joinPath } from "@moontide/shared/utils/path.js";
+import { resetAlwaysAllowOverride } from "../apps/moontide/src/tools/always-allow-mode.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   messagesFromContext,
   type MessagesFromContextOptions,
-} from "../src/session/transform/messages-from-context.js";
-import { messagesFromItems } from "../src/session/transform/messages-from-items.js";
-import type { SessionItem } from "../src/session/types.js";
+} from "@moontide/session";
+import { messagesFromItems } from "@moontide/session";
+import type { SessionItem } from "@moontide/session";
 
 function base(over: Partial<SessionItem> & Pick<SessionItem, "kind">): SessionItem {
   return {

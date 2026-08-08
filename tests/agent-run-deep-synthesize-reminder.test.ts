@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../src/agent/agent-session.js";
-import { getLastManifest, resetRuntimeStatus } from "../src/agent/context-status.js";
-import { applyDeepPromptGate } from "../src/agent/deep-mode.js";
-import { createDefaultLoopContext } from "../src/agent/deps.js";
-import { SYNTHESIZE_PROTOCOL_REMINDER_TEXT } from "../src/agent/deep-task-protocol.js";
-import { setWorkdir } from "../src/config.js";
-import { setupAgentEventPipeline } from "../src/app/bootstrap.js";
-import { resetEventPlatform } from "../src/log/setup.js";
-import { setLLMProvider } from "../src/llm/provider.js";
-import type { UserInteraction } from "../src/tools/types.js";
+import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
+import { getLastManifest, resetRuntimeStatus } from "../apps/moontide/src/agent/context-status.js";
+import { applyDeepPromptGate } from "../apps/moontide/src/agent/deep-mode.js";
+import { createDefaultLoopContext } from "../apps/moontide/src/agent/deps.js";
+import { SYNTHESIZE_PROTOCOL_REMINDER_TEXT } from "../apps/moontide/src/agent/deep-task-protocol.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setupAgentEventPipeline } from "../apps/moontide/src/app/bootstrap.js";
+import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { setLLMProvider } from "@moontide/llm";
+import type { UserInteraction } from "@moontide/tools";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

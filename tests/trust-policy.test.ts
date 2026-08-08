@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { effectiveDecision } from "../src/tools/trust-policy.js";
+import { effectiveDecision } from "@moontide/tools";
 
 describe("trust policy", () => {
   it("deny always wins over always policy", () => {

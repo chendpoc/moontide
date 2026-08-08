@@ -2,11 +2,10 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../src/config.js";
-import { executeTool } from "../src/tools/index.js";
-import { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "../src/tools/builtins/git/lib.js";
-import { checkPermission } from "../src/agent/pipeline/permission/index.js";
-import { joinPath } from "../src/utils/path.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { executeTool, runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "@moontide/tools";
+import { checkPermission } from "../apps/moontide/src/agent/pipeline/permission/index.js";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import { clearTestRuntime, getTestRuntime, installTestRuntime, testToolContext } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -55,7 +54,7 @@ describe("git tools", () => {
     }
     commitFile("README.md", "# demo", "init");
 
-    const raw = await runGitStatus();
+    const raw = await runGitStatus(tmpDir);
     const result = JSON.parse(raw) as {
       status: string;
       branch?: string;
@@ -77,7 +76,7 @@ describe("git tools", () => {
     commitFile("README.md", "# demo", "init");
     fs.writeFileSync(joinPath(tmpDir, "README.md"), "# changed", "utf8");
 
-    const raw = await runGitStatus();
+    const raw = await runGitStatus(tmpDir);
     const result = JSON.parse(raw) as { status: string; unstaged_count?: number };
     expect(result.status).toBe("ok");
     expect(result.unstaged_count).toBeGreaterThan(0);
@@ -90,7 +89,7 @@ describe("git tools", () => {
     commitFile("README.md", "# demo", "init");
     fs.writeFileSync(joinPath(tmpDir, "README.md"), "# changed", "utf8");
 
-    const raw = await runGitDiff({ stat: true });
+    const raw = await runGitDiff(tmpDir, { stat: true });
     const result = JSON.parse(raw) as { status: string; summary?: string };
     expect(result.status).toBe("ok");
     expect(result.summary).toContain("README.md");
@@ -103,7 +102,7 @@ describe("git tools", () => {
     commitFile("a.txt", "a", "first");
     commitFile("b.txt", "b", "second");
 
-    const raw = await runGitLog({ n: 2 });
+    const raw = await runGitLog(tmpDir, { n: 2 });
     const result = JSON.parse(raw) as {
       status: string;
       commits?: Array<{ hash: string; subject: string }>;
@@ -115,7 +114,7 @@ describe("git tools", () => {
   });
 
   it("returns error when not a git repo", async () => {
-    const raw = await runGitStatus();
+    const raw = await runGitStatus(tmpDir);
     const result = JSON.parse(raw) as { status: string; error?: string };
     expect(result.status).toBe("error");
     expect(result.error).toContain("not a git repository");

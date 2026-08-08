@@ -6,9 +6,9 @@ import {
   readText,
   readTextIfExists,
   writeText,
-} from "../src/utils/fs.js";
+} from "@moontide/shared/utils/fs.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
-import { joinPath } from "../src/utils/path.js";
+import { joinPath } from "@moontide/shared/utils/path.js";
 
 let tmpDir = "";
 

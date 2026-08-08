@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { clampInt } from "../src/utils/number.js";
-import { formatIdTimestamp, newEventId, newTimestampedId } from "../src/utils/id.js";
+import { clampInt } from "@moontide/shared/utils/number.js";
+import { formatIdTimestamp, newEventId, newTimestampedId } from "@moontide/shared/utils/id.js";
 import {
   dataDir,
   dataPath,
@@ -9,9 +9,9 @@ import {
   joinPath,
   resolveWorkspacePath,
   shortenHomePath,
-} from "../src/utils/path.js";
-import { escapeRegExp, truncateChars, truncateOneLine } from "../src/utils/text.js";
-import { byteLengthUtf8, truncateUtf8 } from "../src/utils/utf8.js";
+} from "@moontide/shared/utils/path.js";
+import { escapeRegExp, truncateChars, truncateOneLine } from "@moontide/shared/utils/text.js";
+import { byteLengthUtf8, truncateUtf8 } from "@moontide/shared/utils/utf8.js";
 
 describe("utils/text", () => {
   it("truncateOneLine keeps short text unchanged", () => {

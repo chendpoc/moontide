@@ -4,8 +4,8 @@ import {
   ORIENT_PROTOCOL_REMINDER_TEXT,
   shouldSendOrientProtocolReminder,
   SYNTHESIZE_PROTOCOL_REMINDER_TEXT,
-} from "../src/agent/deep-task-protocol.js";
-import { TOOL_NAMES } from "../src/tools/names.js";
+} from "../apps/moontide/src/agent/deep-task-protocol.js";
+import { TOOL_NAMES } from "@moontide/tools";
 
 describe("deep task protocol reminders", () => {
   it("exports orient and synthesize reminder copy", () => {

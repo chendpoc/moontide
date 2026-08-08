@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ComposedContext } from "../src/context/composer/types.js";
-import { HookObserverError } from "../src/agent/hooks/index.js";
-import type { SessionItem } from "../src/session/types.js";
+import type { ComposedContext } from "@moontide/context-composer";
+import { HookObserverError } from "../apps/moontide/src/agent/hooks/index.js";
+import type { SessionItem } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 function userItem(): SessionItem {

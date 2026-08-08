@@ -2,15 +2,15 @@ import {
   createAgentRuntime,
   setAgentRuntime,
   type AgentRuntime,
-} from "../../src/agent/runtime/index.js";
-import { getWorkdir } from "../../src/config.js";
-import { registerBuiltinWorkMemPorts } from "../../src/plugins/builtin/work-mem/register.js";
-import { resetAlwaysAllowOverride } from "../../src/tools/always-allow-mode.js";
+} from "../../apps/moontide/src/agent/runtime/index.js";
+import { getWorkdir } from "../../apps/moontide/src/config.js";
+import { registerBuiltinWorkMemPorts } from "../../apps/moontide/src/plugins/builtin/work-mem/register.js";
+import { resetAlwaysAllowOverride } from "../../apps/moontide/src/tools/always-allow-mode.js";
 
 let active: AgentRuntime | undefined;
 
-import type { UserInteraction, ToolContext } from "../../src/tools/types.js";
-import { getWorkdir } from "../../src/config.js";
+import type { UserInteraction, ToolContext } from "@moontide/tools";
+import { getWorkdir } from "../../apps/moontide/src/config.js";
 
 const denyAllInteraction: UserInteraction = {
   approveTool: async () => false,

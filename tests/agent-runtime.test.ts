@@ -4,8 +4,8 @@ import {
   createAgentRuntime,
   getAgentRuntime,
   setAgentRuntime,
-} from "../src/agent/runtime/index.js";
-import { getToolDefinitions } from "../src/tools/index.js";
+} from "../apps/moontide/src/agent/runtime/index.js";
+import { getToolDefinitions } from "../apps/moontide/src/tools/index.js";
 
 describe("AgentRuntime", () => {
   beforeEach(() => {

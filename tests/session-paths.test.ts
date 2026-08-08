@@ -12,7 +12,7 @@ import {
   sessionsDir,
   workMemDir,
   workMemPath,
-} from "../src/session/paths.js";
+} from "@moontide/session";
 
 const workdir = "/tmp/moontide-workspace";
 const sessionId = "20260731-160000-a1b2c3d4";

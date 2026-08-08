@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { buildSystemFromInstructionState } from "../src/context/composer/system/build-system.js";
-import { loadProjectRules, resolveInstructionState } from "../src/instruction-state/index.js";
-import { dataPath, joinPath } from "../src/utils/path.js";
+import { buildSystemFromInstructionState } from "@moontide/context-composer";
+import { loadProjectRules, resolveInstructionState } from "../apps/moontide/src/instruction-state/index.js";
+import { dataPath, joinPath } from "@moontide/shared/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";

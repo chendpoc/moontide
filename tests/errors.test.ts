@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { ErrorCode } from "../src/errors/codes.js";
+import { ErrorCode } from "@moontide/shared/errors/codes.js";
 import {
   configError,
   infraError,
   internalError,
   toolError,
   validationError,
-} from "../src/errors/factories.js";
-import { errorCodeOf, toMessage, toStack } from "../src/errors/normalize.js";
-import { isAppError } from "../src/errors/app-error.js";
+} from "@moontide/shared/errors/factories.js";
+import { errorCodeOf, toMessage, toStack } from "@moontide/shared/errors/normalize.js";
+import { isAppError } from "@moontide/shared/errors/app-error.js";
 import {
   errorCodeFromToolOutcome,
   toFailureOutcome,
   toolFailureMessage,
-} from "../src/errors/outcome.js";
-import { isErrorRecord, toErrorRecord } from "../src/errors/record.js";
+} from "@moontide/shared/errors/outcome.js";
+import { isErrorRecord, toErrorRecord } from "@moontide/shared/errors/record.js";
 
 describe("AppError", () => {
   it("carries code and context", () => {

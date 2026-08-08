@@ -4,7 +4,7 @@ import {
   normalizeMaxBytes,
   runHttpFetch,
   validateFetchUrl,
-} from "../src/tools/builtins/network/http-fetch.js";
+} from "@moontide/tools";
 
 describe("http_fetch", () => {
   beforeEach(() => {

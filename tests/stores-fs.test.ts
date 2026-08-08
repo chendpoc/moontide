@@ -6,11 +6,11 @@ import {
   FileCheckpointStore,
   FileCompactionStore,
   createSessionStores,
-} from "../src/session/stores/index.js";
-import type { Artifact } from "../src/session/stores/artifact-types.js";
-import type { Checkpoint } from "../src/session/stores/checkpoint-types.js";
-import type { CompactionSave } from "../src/session/stores/compaction-types.js";
-import { artifactMetaPath, checkpointPath, compactionSavePath } from "../src/session/paths.js";
+} from "@moontide/session";
+import type { Artifact } from "@moontide/session";
+import type { Checkpoint } from "@moontide/session";
+import type { CompactionSave } from "@moontide/session";
+import { artifactMetaPath, checkpointPath, compactionSavePath } from "@moontide/session";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 let tmpDir = "";

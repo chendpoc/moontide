@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { ErrorCode } from "../src/errors/codes.js";
-import { formatErrorTerminal, formatPluginErrorEvent } from "../src/log/format/format-error.js";
-import { stripAnsi } from "../src/utils/text.js";
+import { ErrorCode } from "@moontide/shared/errors/codes.js";
+import { formatErrorTerminal, formatPluginErrorEvent } from "../apps/moontide/src/log/format/format-error.js";
+import { stripAnsi } from "@moontide/shared/utils/text.js";
 
 describe("formatErrorTerminal", () => {
   it("renders code, message, and context without stack by default", () => {

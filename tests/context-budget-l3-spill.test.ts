@@ -1,20 +1,21 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { composeContext } from "../src/context/composer/compose.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
 import {
+  composeContext,
+  defaultCompactionPolicy,
   estimateReferenceTokens,
-} from "../src/context/composer/budget/index.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
-import { setWorkdir } from "../src/config.js";
-import { artifactPath } from "../src/session/paths.js";
+  resolveToolDefinitions,
+} from "@moontide/context-composer";
+import { composePortsFromConfig } from "../apps/moontide/src/agent/compose-options.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { artifactPath } from "@moontide/session";
 import {
   createStubCheckpointStore,
   createStubCompactionStore,
   FileArtifactStore,
-} from "../src/session/stores/index.js";
-import type { SessionMessage } from "../src/session/types.js";
+} from "@moontide/session";
+import type { SessionMessage } from "@moontide/session";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -87,6 +88,7 @@ describe("L3 spill integration at compose", () => {
       toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
       modelProfile,
       compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
+      ...composePortsFromConfig(tmpDir),
     });
 
     const toolResult = composed.request.messages
@@ -148,6 +150,7 @@ describe("L3 spill integration at compose", () => {
       toolDefinitions: resolveToolDefinitions(getTestRuntime().tools),
       modelProfile,
       compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
+      ...composePortsFromConfig(tmpDir),
     });
 
     const referenceTier = composed.manifest.budgetTiers?.find((tier) => tier.tier === "reference");

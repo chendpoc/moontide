@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSessionCommitPort } from "../src/agent/session-commit-port.js";
-import { setWorkdir } from "../src/config.js";
-import { Session } from "../src/session/session.js";
-import { sessionLogPath } from "../src/session/paths.js";
-import type { SessionMessage } from "../src/session/types.js";
+import { createSessionCommitPort } from "../apps/moontide/src/agent/session-commit-port.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { Session } from "@moontide/session";
+import { sessionLogPath } from "@moontide/session";
+import type { SessionMessage } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 

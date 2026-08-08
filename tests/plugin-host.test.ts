@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { bootstrapPlugins } from "../src/plugins/host/index.js";
-import { dataPath, joinPath } from "../src/utils/path.js";
+import { bootstrapPlugins } from "@moontide/sidecar-host";
+import { dataPath, joinPath } from "@moontide/shared/utils/path.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
@@ -40,7 +40,7 @@ describe("sidecar plugin attach", () => {
       "utf8",
     );
 
-    await bootstrapPlugins(tmpDir, runtime);
+    await bootstrapPlugins(tmpDir, runtime.plugins);
 
     expect(runtime.plugins.listAttached()).toHaveLength(1);
     expect(runtime.tools.getTool("hello__echo")).toBeDefined();

@@ -4,13 +4,13 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { resolveWorkingSetForCompose } from "../src/agent/working-set-compose.js";
-import { applyDeepPromptGate, getActiveWorkMemId, resetDeepModeOnNewSession } from "../src/agent/deep-mode.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
-import { setWorkdir } from "../src/config.js";
-import { runWorkMem } from "../src/plugins/builtin/work-mem/handler.js";
-import type { SessionMessage } from "../src/session/types.js";
+import { resolveWorkingSetForCompose } from "../apps/moontide/src/agent/working-set-compose.js";
+import { applyDeepPromptGate, getActiveWorkMemId, resetDeepModeOnNewSession } from "../apps/moontide/src/agent/deep-mode.js";
+import { defaultCompactionPolicy } from "@moontide/context-composer";
+import { resolveToolDefinitions } from "@moontide/context-composer";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { runWorkMem } from "@moontide/tools";
+import type { SessionMessage } from "@moontide/session";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 function userMessage(id: string, turn: number, text: string, sessionId: string): SessionMessage {

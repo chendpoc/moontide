@@ -8,12 +8,14 @@ import {
   applyDeepPromptGate,
   getActiveWorkMemId,
   resetDeepModeOnNewSession,
-} from "../src/agent/deep-mode.js";
-import { setWorkdir } from "../src/config.js";
-import { resolveWorkingSetSnapshot } from "../src/plugins/builtin/work-mem/escalation.js";
-import { runWorkMem } from "../src/plugins/builtin/work-mem/handler.js";
-import { WORK_MEM_CAP_NORMAL } from "../src/plugins/builtin/work-mem/config.js";
-import { estimatePackTokens } from "../src/plugins/builtin/work-mem/summarize.js";
+} from "../apps/moontide/src/agent/deep-mode.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import {
+  estimatePackTokens,
+  resolveWorkingSetSnapshot,
+  runWorkMem,
+  WORK_MEM_CAP_NORMAL,
+} from "@moontide/tools";
 
 describe("work_mem budget escalation", () => {
   let workdir: string;
@@ -38,7 +40,7 @@ describe("work_mem budget escalation", () => {
       sessionId,
     });
     const workMemId = getActiveWorkMemId(sessionId)!;
-    const resolved = resolveWorkingSetSnapshot({ sessionId, workMemId, contextWindow });
+    const resolved = resolveWorkingSetSnapshot({ workdir, sessionId, workMemId, contextWindow });
     expect(resolved.stage).toBe("normal");
     expect(resolved.budgetTier).toBe("normal");
     expect(resolved.text).toContain("Small task");
@@ -51,7 +53,7 @@ describe("work_mem budget escalation", () => {
     }
 
     const workMemId = getActiveWorkMemId(sessionId)!;
-    const resolved = resolveWorkingSetSnapshot({ sessionId, workMemId, contextWindow });
+    const resolved = resolveWorkingSetSnapshot({ workdir, sessionId, workMemId, contextWindow });
     expect(resolved.stage).toBe("refined_at_normal");
     expect(resolved.budgetTier).toBe("normal");
     expect(estimatePackTokens(resolved.text)).toBeLessThanOrEqual(WORK_MEM_CAP_NORMAL);
@@ -63,7 +65,7 @@ describe("work_mem budget escalation", () => {
     runWorkMem({ action: "note", content: note }, { workdir, sessionId });
 
     const workMemId = getActiveWorkMemId(sessionId)!;
-    const resolved = resolveWorkingSetSnapshot({ sessionId, workMemId, contextWindow });
+    const resolved = resolveWorkingSetSnapshot({ workdir, sessionId, workMemId, contextWindow });
     expect(resolved.stage).toBe("cap_upgraded");
     expect(resolved.budgetTier).toBe("upgraded");
     expect(estimatePackTokens(resolved.text)).toBeGreaterThan(WORK_MEM_CAP_NORMAL);
@@ -78,7 +80,7 @@ describe("work_mem budget escalation", () => {
     runWorkMem({ action: "note", content: huge }, { workdir, sessionId });
 
     const workMemId = getActiveWorkMemId(sessionId)!;
-    const resolved = resolveWorkingSetSnapshot({ sessionId, workMemId, contextWindow });
+    const resolved = resolveWorkingSetSnapshot({ workdir, sessionId, workMemId, contextWindow });
     expect(["cap_upgraded", "emergency"]).toContain(resolved.stage);
     expect(resolved.budgetTier).toBe("upgraded");
     expect(estimatePackTokens(resolved.text)).toBeLessThanOrEqual(
@@ -91,10 +93,11 @@ describe("work_mem budget escalation", () => {
       workdir,
       sessionId,
     });
-    const resolvedNormal = resolveWorkingSetSnapshot({ sessionId, workMemId: getActiveWorkMemId(sessionId)!, contextWindow });
+    const resolvedNormal = resolveWorkingSetSnapshot({ workdir, sessionId, workMemId: getActiveWorkMemId(sessionId)!, contextWindow });
     expect(resolvedNormal.stage).toBe("normal");
 
     const resolvedCompact = resolveWorkingSetSnapshot({
+      workdir,
       sessionId,
       workMemId: getActiveWorkMemId(sessionId)!,
       contextWindow,

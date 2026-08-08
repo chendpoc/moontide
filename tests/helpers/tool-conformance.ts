@@ -1,10 +1,10 @@
 import { expect } from "vitest";
 
-import { toolDefinitionToSpec, validateToolSpec } from "../../src/tools/define-tool.js";
-import { TOOL_CAPABILITIES } from "../../src/tools/capability-table.js";
-import { TOOL_NAMES, type ToolName } from "../../src/tools/names.js";
-import { TOOL_PERMISSIONS } from "../../src/tools/permission-table.js";
-import type { ToolDefinition } from "../../src/tools/types.js";
+import { toolDefinitionToSpec, validateToolSpec } from "@moontide/tools";
+import { TOOL_CAPABILITIES } from "@moontide/tools";
+import { TOOL_NAMES, type ToolName } from "@moontide/tools";
+import { TOOL_PERMISSIONS } from "@moontide/tools";
+import type { ToolDefinition } from "@moontide/tools";
 
 export function assertToolRegistryConformance(tools: ToolDefinition[]): void {
   const names = tools.map((tool) => tool.schema.name);

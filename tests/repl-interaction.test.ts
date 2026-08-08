@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createReplUserInteraction } from "../src/cli/repl/interaction.js";
+import { createReplUserInteraction } from "../apps/moontide/src/cli/repl/interaction.js";
 
 function mockReadline(answers: string[]) {
   let index = 0;

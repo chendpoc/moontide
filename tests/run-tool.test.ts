@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LoopContext } from "../src/agent/deps.js";
-import * as permission from "../src/agent/pipeline/permission/index.js";
-import { resolveToolUseOutcome, runToolUse } from "../src/agent/pipeline/runTool.js";
-import { setWorkdir } from "../src/config.js";
-import { Session } from "../src/session/session.js";
-import { setAlwaysAllowOverride, resetAlwaysAllowOverride } from "../src/tools/always-allow-mode.js";
-import { joinPath } from "../src/utils/path.js";
+import type { LoopContext } from "../apps/moontide/src/agent/deps.js";
+import * as permission from "../apps/moontide/src/agent/pipeline/permission/index.js";
+import { resolveToolUseOutcome, runToolUse } from "../apps/moontide/src/agent/pipeline/runTool.js";
+import { setWorkdir } from "../apps/moontide/src/config.js";
+import { Session } from "@moontide/session";
+import { setAlwaysAllowOverride, resetAlwaysAllowOverride } from "../apps/moontide/src/tools/always-allow-mode.js";
+import { joinPath } from "@moontide/shared/utils/path.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 

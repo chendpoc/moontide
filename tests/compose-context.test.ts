@@ -1,23 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { composeContext } from "../src/context/composer/compose.js";
-import { shouldCompactDialogue } from "../src/context/composer/budget/policy.js";
 import {
+  composeContext,
+  shouldCompactDialogue,
   applyCompactionPolicy,
   applyPrune,
   applySummary,
   applyTailWindow,
-} from "../src/context/composer/compaction/apply.js";
-import { defaultCompactionPolicy } from "../src/context/composer/compaction/policy.js";
-import { resolveToolDefinitions } from "../src/context/composer/tool-definitions/index.js";
+  defaultCompactionPolicy,
+  resolveToolDefinitions,
+} from "@moontide/context-composer";
 import {
   createStubArtifactStore,
   createStubCheckpointStore,
   createStubCompactionStore,
-} from "../src/session/stores/index.js";
-import type { CompactionSave } from "../src/session/stores/compaction-types.js";
-import type { SessionMessage } from "../src/session/types.js";
+} from "@moontide/session";
+import type { CompactionSave } from "@moontide/session";
+import type { SessionMessage } from "@moontide/session";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+import { withComposePorts } from "./helpers/compose-ports.js";
+import { defaultBudgetConfig } from "@moontide/context-composer/ports";
 
 function userMessage(id: string, turn: number, text: string, sessionId = "sess-1"): SessionMessage {
   return {
@@ -32,7 +34,7 @@ function userMessage(id: string, turn: number, text: string, sessionId = "sess-1
 
 describe("composeContext", () => {
   installTestRuntime();
-  const baseInput = {
+  const baseInput = withComposePorts({
     sessionId: "sess-1",
     turn: 3,
     instructionState: { basePrompt: "system rules", epoch: 1 },
@@ -49,7 +51,7 @@ describe("composeContext", () => {
       tokenCount: "estimate" as const,
     },
     compactionPolicy: { ...defaultCompactionPolicy, autoEnabled: false },
-  };
+  });
 
   it("composes messages and records compiledMessageItemIds", async () => {
     const messages = [
@@ -86,6 +88,8 @@ describe("composeContext", () => {
 });
 
 describe("compaction apply helpers", () => {
+  installTestRuntime();
+
   it("applyTailWindow truncates to lastItemId", () => {
     const messages = [
       userMessage("e1", 1, "a"),
@@ -146,6 +150,7 @@ describe("compaction apply helpers", () => {
     };
     const tools = resolveToolDefinitions(getTestRuntime().tools);
     const policy = { ...defaultCompactionPolicy, autoEnabled: true, thresholdPercent: 50, keepTurns: 1 };
+    const budget = { ...defaultBudgetConfig, flexEnabled: false };
 
     expect(
       shouldCompactDialogue({
@@ -154,6 +159,7 @@ describe("compaction apply helpers", () => {
         tools,
         messages: [{ role: "user", content: "short" }],
         thresholdPercent: 50,
+        budget,
       }),
     ).toBe(false);
 
@@ -179,6 +185,7 @@ describe("compaction apply helpers", () => {
         tools,
         messages: dialogueMessages,
         thresholdPercent: 50,
+        budget,
       }),
     ).toBe(true);
 
@@ -190,6 +197,7 @@ describe("compaction apply helpers", () => {
         system: "x".repeat(60_000),
         tools,
         modelId: modelProfile.logicalModelId,
+        budget,
       },
       modelProfile,
     );
@@ -203,6 +211,7 @@ describe("compaction apply helpers", () => {
         system: "system rules",
         tools,
         modelId: modelProfile.logicalModelId,
+        budget,
       },
       modelProfile,
     );
