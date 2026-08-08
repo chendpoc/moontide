@@ -138,7 +138,7 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 1. `ToolSpec` 必填 `permission: ToolPermissionRule`
 2. `checkPermission` 读 tool 定义，删除硬编码 `TOOL_RULES`
-3. 新建 `tests/tool-permissions.test.ts`；pre-commit 门禁
+3. 新建 `tests/conformance/tool-permissions.test.ts`；pre-commit 门禁
 
 **验收：** 新增 tool 只改 spec 一处；`permission/index.ts` 无 tool 名列表。
 
@@ -188,7 +188,7 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 **方案：** 每条 tool spec 显式 `permission`（[`permission-table.ts`](../../packages/tools/src/permission-table.ts)）；未知 tool **deny**；`list_dir` / `grep` / `git_diff` / `git_log` 使用 `path` kind。
 
-**验收：** `tests/tool-permissions.test.ts` 对照 `TOOL_PERMISSIONS`；`permission/index.ts` 无 tool 名列表。
+**验收：** `tests/conformance/tool-permissions.test.ts` 对照 `TOOL_PERMISSIONS`；`permission/index.ts` 无 tool 名列表。
 
 ---
 
@@ -240,11 +240,12 @@ function createSessionCommitPort(workdir: string, runtime: AgentRuntime): Sessio
 
 **方案：**
 
-1. ✅ `tests/hook-manifest.test.ts` — phase / name / errorPolicy；断言无 `sessionItem/file`
-2. ✅ `tests/architecture-boundaries.test.ts` — 结构不变量（import / SDK 边界）
-3. ✅ `tests/tool-permissions.test.ts` — 注册 tool 与 permission 表对齐（§4 完成前用 `DEFAULT_ALLOW_TOOLS`）
-4. ✅ `tests/plugin-manifest.test.ts` — manifest schema + sidecar fixture
-5. ✅ pre-commit：`pnpm run test:conformance`
+1. ✅ `tests/conformance/hook-manifest.test.ts` — phase / name / errorPolicy；断言无 `sessionItem/file`
+2. ✅ `tests/conformance/architecture-boundaries.test.ts` — 结构不变量（import / SDK 边界）
+3. ✅ `tests/conformance/tool-permissions.test.ts` — 注册 tool 与 permission 表对齐（§4 完成前用 `DEFAULT_ALLOW_TOOLS`）
+4. ✅ `tests/conformance/plugin-manifest.test.ts` — manifest schema + sidecar fixture
+5. ✅ `tests/conformance/dev-startup.test.ts` · `tests/conformance/package-exports.test.ts` — dev 启动链与 package exports 运行时
+6. ✅ pre-commit：`pnpm run test:conformance`（`vitest run tests/conformance`）
 
 Sidecar 协议加固（protocolVersion、timeout）同 Phase C 可选。
 

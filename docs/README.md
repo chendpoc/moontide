@@ -113,6 +113,8 @@ flowchart TB
 
 **新增 / 修改 plugin tool**（code_repl、deep_research、work_mem）— [plugins/builtin/README](../apps/moontide/src/plugins/builtin/README.md) → [deep-mode](notes/deep-mode.md)（`work_mem`）→ 同上 conformance
 
+**本地 dev / REPL 起不来** — [monorepo-packages](notes/monorepo-packages.md) §Dev 启动（根目录 `.env`、`bootstrap-env`、`tsconfig.dev.json`）→ `tests/conformance/dev-startup.test.ts`
+
 **接 MCP / 外部 Plugin** — ecosystem-compat → plugin-host → platform-strategy
 
 **改 context** — [context-window-roadmap](notes/context-window-roadmap.md)（**#1–#6 + Budget Tiers done · §8 后续四条轨**）→ [session-domain-model](notes/session-domain-model.md)（类型/数据流）→ context-composer（主 Spec）→ agent-run-hooks（Session/Turn Observe）→ [utils-infrastructure](notes/utils-infrastructure.md) → context-backlog（C6+ 演进）→ context-analysis（行业背景）
@@ -146,7 +148,7 @@ flowchart TB
 | 主题 | 主文档 | 关联 |
 |------|--------|------|
 | Agent-core 内核 | [agent-core-roadmap](notes/agent-core-roadmap.md) · [agent-core-design](../agent-core-design.md) | agent-events · plugin-host · TODO §16 |
-| Monorepo 布局 | [monorepo-packages](notes/monorepo-packages.md) | architecture-remediation · AGENTS.md §2 |
+| Monorepo 布局 | [monorepo-packages](notes/monorepo-packages.md) | architecture-remediation · AGENTS.md §2 · dev 启动 · conformance |
 | Agent hook 设计（legacy） | [agent-run-hooks](notes/agent-run-hooks.md) | agent-events · session-log-migration · M7 归档 |
 | Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | plugin-host · runtime-multilang · kocoro-architecture · agent-run-hooks |
 | 插件与 MCP 集成 | [plugin-host](notes/plugin-host.md) | platform-strategy · runtime-multilang · scratchpad |
@@ -183,7 +185,7 @@ flowchart TB
 | [context-composer](spec/context-composer.md) | Session Event Log、Context Composer、Compaction 主 Spec |
 | [llm-provider](spec/llm-provider.md) | Provider preset、`local-direct`、API 适配层、`LLMRequest` |
 | [llm-input](spec/llm-input.md) | 一次调用的 `system` / `tools` / `messages` 对表 |
-| [monorepo-packages](notes/monorepo-packages.md) | **Monorepo** 包清单、依赖图、Agent Event derive 路径 |
+| [monorepo-packages](notes/monorepo-packages.md) | **Monorepo** 包清单、依赖图、Dev 启动、conformance 布局 |
 | [agent-core-roadmap](notes/agent-core-roadmap.md) | **开发计划**：agent-common + agent-core · RunEvent bus · resolveRunConfig · M1–M7 |
 | [agent-core-design](../agent-core-design.md) | Agent 时序内核与 Preset 设计 Spec（平台中立） |
 | [agent-events](spec/agent-events.md) | Agent Event Log（run 级 JSONL）schema；M6 迁 RunEvent |

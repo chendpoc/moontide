@@ -105,9 +105,30 @@ Hook manifest **不再**注册 `sessionItem/agent-event-derive`（见 `tests/con
 ## 命令
 
 ```bash
-pnpm dev          # apps/moontide REPL
-pnpm run check    # lint + typecheck(core+app) + test
-pnpm run build    # build:core + apps/moontide dist
+pnpm dev                 # apps/moontide REPL（tsx + tsconfig.dev.json）
+pnpm run test:conformance  # 规范单测（tests/conformance/）
+pnpm run check           # lint + typecheck(core+app) + test
+pnpm run build           # build:core + apps/moontide dist
 ```
 
 Workspace 根：`moontide-workspace`（`package.json`）；可执行应用包名：`moontide`（`apps/moontide/package.json`）。
+
+---
+
+## Dev 启动
+
+Monorepo 下 `pnpm dev` 的 cwd 为 `apps/moontide`，与仓库根目录分离。产品层通过 [`bootstrap-env.ts`](../../apps/moontide/src/bootstrap-env.ts) 在 `main.ts` 最早阶段完成：
+
+| 步骤 | 行为 |
+|------|------|
+| 查找 workspace | 向上读取 `pnpm-workspace.yaml` |
+| 加载 `.env` | 先 workspace 根、后 `apps/moontide/`（后者覆盖） |
+| 默认 workdir | 未设 `MOONTIDE_WORKDIR` 时设为 workspace 根（非 `apps/moontide` cwd） |
+| tsx 路径 | 根 [`tsconfig.dev.json`](../../tsconfig.dev.json) → `packages/*/src`（与 Vitest alias 应对齐） |
+| 工具装配 | `setupToolsPorts()` **先于** `getAgentRuntime()`（REPL 与 `runAgent`） |
+
+**配置约定：** `.env` 放仓库根（与 `.env.example` 同级）；`config.ts` 必须在 `bootstrap.ts` 之后 import（workdir 在模块加载时冻结）。
+
+**规范单测：** [`tests/conformance/`](../../tests/conformance/) — 含 `dev-startup.test.ts`（bootstrap / tools 顺序 / resolveRoute / 冷启动 `runAgent`）、`package-exports.test.ts`（wildcard export 与 Node/tsx 运行时解析）。pre-commit 跑 `pnpm run test:conformance`。
+
+**生产路径：** `pnpm --filter moontide run build` 后 `pnpm start`（`node dist/main.js`），经 workspace `exports` 解析域包，不经过 `tsconfig.dev.json`。

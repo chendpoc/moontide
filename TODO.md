@@ -24,7 +24,7 @@
 
   - 详述：[`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) · [`docs/notes/agent-core-roadmap.md`](docs/notes/agent-core-roadmap.md) §12
   - 包：`@moontide/shared` · `llm` · `session` · `context-composer` · `log` · `tools` · `plugins-sdk` · `sidecar-host` · `apps/moontide`
-  - 验收：architecture-boundaries package 级规则；根无 `src/`（`pnpm run check`）
+  - 验收：architecture-boundaries package 级规则；根无 `src/`（`pnpm run check`）；dev 启动链见 [`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) §Dev 启动
 
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果

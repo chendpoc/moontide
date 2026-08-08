@@ -36,12 +36,14 @@ moontide/                      # pnpm workspace 根（moontide-workspace）
 ```sh
 cd moontide
 pnpm install
-cp .env.example .env   # 填入 DEEPSEEK_API_KEY
+cp .env.example .env   # 仓库根目录；填入 DEEPSEEK_API_KEY
 
 pnpm run ping -- "say hello in one word"
-pnpm dev                 # REPL：statusline + stdout 正文
+pnpm dev                 # REPL（cwd apps/moontide；自动加载根 .env，workdir 默认仓库根）
 pnpm dev:ui              # Slint sidecar（另开终端，或 REPL 运行时启动）
 ```
+
+`pnpm dev` 从 `apps/moontide` 启动，`.env` 与 `MOONTIDE_WORKDIR` 约定见 [`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) §Dev 启动。规范单测：`pnpm run test:conformance`。
 
 Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
