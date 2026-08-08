@@ -1,6 +1,5 @@
-# Deep Task Mode（`deep:` prompt gate）
 
-> **Doc Map：** [`docs/README.md`](../README.md) · 用词规范见 [`agent.md`](../../agent.md)
+> **Doc Map：** [`docs/README.md`](../README.md) · 用词规范见 [`AGENTS.md`](../../AGENTS.md)
 
 Deep Task Mode 是 REPL 内的一种**任务级工作记忆**模式：用户以 `deep:` 前缀发起 prompt，Agent 获得 `work_mem` tool，并在 compose 时注入 **Working Set snapshot**（非 prunable）。
 
@@ -19,8 +18,8 @@ Deep Task Mode 是 REPL 内的一种**任务级工作记忆**模式：用户以 
 
 实现入口：
 
-- Gate：[`src/agent/deep-mode.ts`](../../src/agent/deep-mode.ts) · REPL 调用 [`src/cli/repl/run.ts`](../../src/cli/repl/run.ts)
-- Tool：`work_mem` → [`src/plugins/builtin/work-mem/`](../../src/plugins/builtin/work-mem/)
+- Gate：[`src/agent/deep-mode.ts`](../../apps/moontide/src/agent/deep-mode.ts) · REPL 调用 [`src/cli/repl/run.ts`](../../apps/moontide/src/cli/repl/run.ts)
+- Tool：`work_mem` → [`src/plugins/builtin/work-mem/`](../../apps/moontide/src/plugins/builtin/work-mem/)
 
 ## `work_mem` tool
 
@@ -41,10 +40,10 @@ Deep Task Mode 是 REPL 内的一种**任务级工作记忆**模式：用户以 
 
 ## Working Set 与 budget escalation
 
-Compose 路径（[`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) → [`working-set-compose.ts`](../../src/agent/working-set-compose.ts)）在 deep mode 下：
+Compose 路径（[`compose-for-turn.ts`](../../apps/moontide/src/agent/compose-for-turn.ts) → [`working-set-compose.ts`](../../apps/moontide/src/agent/working-set-compose.ts)）在 deep mode 下：
 
 1. 注入 **Deep Task Protocol** system 块（goal · workMemId · 使用节奏）
-2. 解析 Working Set snapshot，追加到 **system**（[`working-set.ts`](../../src/context/composer/working-set.ts)），不参与 message prune
+2. 解析 Working Set snapshot，追加到 **system**（[`working-set.ts`](../../packages/context-composer/src/working-set.ts)），不参与 message prune
 
 详设：[`deep-mode-redesign.md`](deep-mode-redesign.md) · P1 seed + protocol。
 
@@ -61,9 +60,9 @@ Compose 路径（[`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) �
 
 | 层 | 职责 |
 |----|------|
-| [`agent/deep-mode.ts`](../../src/agent/deep-mode.ts) | REPL 状态 · `deep:` gate · activeWorkMemId |
-| [`agent/ports/work-mem.ts`](../../src/agent/ports/work-mem.ts) | 端口：`startDeepTaskRecord` · `resolveWorkingSetSnapshot` |
-| [`plugins/builtin/work-mem/register.ts`](../../src/plugins/builtin/work-mem/register.ts) | 注册 store + escalation 实现（bootstrap / register-defaults） |
+| [`agent/deep-mode.ts`](../../apps/moontide/src/agent/deep-mode.ts) | REPL 状态 · `deep:` gate · activeWorkMemId |
+| [`agent/ports/work-mem.ts`](../../apps/moontide/src/agent/ports/work-mem.ts) | 端口：`startDeepTaskRecord` · `resolveWorkingSetSnapshot` |
+| [`plugins/builtin/work-mem/register.ts`](../../apps/moontide/src/plugins/builtin/work-mem/register.ts) | 注册 store + escalation 实现（bootstrap / register-defaults） |
 
 与 [Context Budget Tiers](context-backlog.md) 计划独立；L1 子账户集成属后续可选 PR。
 
@@ -87,3 +86,4 @@ Compose 路径（[`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) �
 | 文档 | 内容 |
 |------|------|
 | [`deep-mode-redesign.md`](deep-mode-redesign.md) | **`deep:` 行为优化**：compose 统一、outline seed、protocol、nudge |
+| [`agent-eval-roadmap.md`](agent-eval-roadmap.md) | Feature 评测：**deep_protocol（B 桶）** protocol grader · Impact Card |

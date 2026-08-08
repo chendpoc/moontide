@@ -1,4 +1,3 @@
-# MoonTide Context Composer 与 Session 中间态
 
 > Context window 的数据组成、持久化边界与编译流程。  
 > 一次 API 调用的出口类型见 [`llm-provider.md`](llm-provider.md)（`LLMRequest`）；三参数对表见 [`llm-input.md`](llm-input.md)；行业背景见 [`context-analysis.md`](../notes/context-analysis.md)。
@@ -23,7 +22,7 @@ API 适配层 → 厂商 API
 
 **Context Composer** 是唯一允许产出「发给模型的 immutable input」的模块。Harness（`agent/loop`、tool 执行）只 mutate **SessionContext**（内存）、append **SessionItem**（jsonl）、经 **SessionTransform** 转为协议 `Message[]`，再调用 Composer 与 `LLMProvider`。
 
-> **TypeScript（2026）：** 运行时真相为 [`SessionContext`](../notes/session-domain-model.md)（`{ messages }` only）；**Session Item Log** 存 `SessionItem`；**Context Composer**（`composeContext`）为唯一 LLM 输入出口；Agent 观测在 [`src/log`](../../src/log/)。  
+> **TypeScript（2026）：** 运行时真相为 [`SessionContext`](../notes/session-domain-model.md)（`{ messages }` only）；**Session Item Log** 存 `SessionItem`；**Context Composer**（`composeContext`）为唯一 LLM 输入出口；Agent 观测在 [`src/log`](../../apps/moontide/src/log/)。  
 > **Rust R1：** `moontide-composer` + `moontide-session` 已实现 Artifact Store 分级 spill、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Log append-only 不变。
 
 ### 1.2 与相关文档的分工
@@ -51,7 +50,7 @@ API 适配层 → 厂商 API
 |------|------|----------|
 | **compile / 编译** | 由 Session 状态产出本轮 **`LLMRequest` + Context Manifest** | `composeContext` |
 | **materialize / 还原** | Session Item Log → 内存 **`SessionMessage[]`** | `messagesFromItems` · `applyItemToMessages` |
-| **derive / 派生** | Session Item → **Agent Event**（观测，不写回 Log） | `deriveFromSessionItem` |
+| **derive / 派生** | RunEvent → **Agent Event**（观测，不写回 Session Item Log） | `createRunEventDeriveListener` · [`run-event-derive.ts`](../../apps/moontide/src/log/run-event-derive.ts) |
 | **Fact vs Compile** | Item Log 是事实源；发给模型的是 **Composer 编译产物** | C6 不变量 |
 
 **避免：** 用「投影 / Projection」指上述过程（易与图形学或模糊隐喻混淆）；Rust 侧历史类型名 `ToolProjectionConfig` 指 tool 输出 truncate 策略，TS 文档统一称 **Artifact spill + ToolResultSummary**。
@@ -106,9 +105,9 @@ flowchart TB
 | **CompactionSave** | summary / structured 压缩的持久产物 | 是 | `.moontide/sessions/<sessionId>/compaction/<id>.json` |
 | **Checkpoint** | 某 turn 的可恢复快照 | 是 | `.moontide/sessions/<sessionId>/checkpoints/<id>.json` |
 | **Compaction** | 调整 Composer compose 规则的操作（过程） | 事件写入 Session Item Log | — |
-| **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | [`tools/`](../../src/tools/) `getToolDefinitions()` → Composer |
-| **ModelProfile** | context 上限、token 计数策略等 | model 注册表 + env | [`llm/models/resolve.ts`](../../src/llm/models/resolve.ts) |
-| **Context Composer** | 编译 `LLMRequest` + `Context Manifest` | 否 | [`src/context/composer/`](../../src/context/composer/) |
+| **Tool Definitions** | 本轮 `LLMRequest.tools` 的 schema 集合 | 否（运行时快照） | [`tools/`](../../packages/tools/src/) `getToolDefinitions()` → Composer |
+| **ModelProfile** | context 上限、token 计数策略等 | model 注册表 + env | [`llm/models/resolve.ts`](../../packages/llm/src/models/resolve.ts) |
+| **Context Composer** | 编译 `LLMRequest` + `Context Manifest` | 否 | [`src/context/composer/`](../../packages/context-composer/src/) |
 | **Context Manifest** | 本轮 compose 决策与预算说明 | 可选持久 / 观测 | compose 产出；statusline / inspect |
 | **Bruma** | vision **保留产品名** | — | 本 repo 实现与 Spec 用 **Session Item Log** |
 
@@ -129,7 +128,7 @@ flowchart TB
 - Session Event Log 为权威；Agent Event Log 可从其 **派生** 或 **双写** 观测字段。
 - 第一版实现可并存；不得以 Agent Event Log 反向覆盖 Session Event Log。
 
-**Session Item 提交边界（计划修复）：** [`Session`](../../src/session/session.ts) **不得** `import agent/hooks`。Item 产生后通过注入的 **`SessionItemCommitPort`** 通知外界；**Harness**（`AgentSession.create`）注入 port：先 `FileSessionItemWriter` 落盘，再 `sessionItem` hook **仅 derive** Agent Event（**删除** manifest 中的 `sessionItem/file` handler）。port 注入 Harness 后，Session **零** `agent/` import。
+**Session Item 提交边界（计划修复）：** [`Session`](../../packages/session/src/session.ts) **不得** `import agent/hooks`。Item 产生后通过注入的 **`SessionItemCommitPort`** 通知外界；**Harness**（`AgentSession.create`）注入 port：先 `FileSessionItemWriter` 落盘，再 `sessionItem` hook **仅 derive** Agent Event（**删除** manifest 中的 `sessionItem/file` handler）。port 注入 Harness 后，Session **零** `agent/` import。
 
 详见 [`agent-events.md`](agent-events.md)。
 
@@ -233,7 +232,7 @@ export interface InstructionState {
 }
 ```
 
-- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../src/agent/prompt.ts)；远期 `AGENTS.md`、`.moontide/rules`。
+- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../apps/moontide/src/agent/prompt.ts)；远期 `AGENTS.md`、`.moontide/rules`。
 - **Composer：** 每 turn 拼成 `LLMRequest.system`；**不参与** conversation summary。
 - **`epoch`：** 规则文件变更时递增，便于 cache 与调试。
 
@@ -371,8 +370,8 @@ CLI 报告格式：`preview: 12,000 → 8,500 L2 tok (saved 3,500)`.
 ### 9.1 Tool Definitions
 
 - **含义：** 本轮 `LLMRequest.tools` — 每个 tool 的 `name`、`description`、`input_schema`。
-- **来源：** [`src/tools/`](../../src/tools/) — `getToolDefinitions()` 产出 `ToolSchema[]` 快照；`executeTool()` 执行 handler。
-- **Composer：** [`composer/tool-definitions/`](../../src/context/composer/tool-definitions/) resolve 为 `LLMRequest.tools`。
+- **来源：** [`src/tools/`](../../packages/tools/src/) — `getToolDefinitions()` 产出 `ToolSchema[]` 快照；`executeTool()` 执行 handler。
+- **Composer：** [`composer/tool-definitions/`](../../packages/context-composer/src/tool-definitions/) resolve 为 `LLMRequest.tools`。
 
 ### 9.2 ModelProfile
 
@@ -394,11 +393,11 @@ CLI 报告格式：`preview: 12,000 → 8,500 L2 tok (saved 3,500)`.
 
 | 切片 | 用户可见内容 | API 落点 | 输入模块 | Composer 步骤 |
 |------|--------------|----------|----------|---------------|
-| **S1 身份与策略** | 「You are MoonTide…」、workdir、tool 选用策略 | `system` 首段 | [`instruction-state`](../../src/instruction-state/) → `basePrompt`（[`prompt.ts`](../../src/agent/prompt.ts)） | `buildSystemFromInstructionState` |
+| **S1 身份与策略** | 「You are MoonTide…」、workdir、tool 选用策略 | `system` 首段 | [`instruction-state`](../../apps/moontide/src/instruction-state/) → `basePrompt`（[`prompt.ts`](../../apps/moontide/src/agent/prompt.ts)） | `buildSystemFromInstructionState` |
 | **S2 项目规则** | `AGENTS.md`、`.moontide/rules/*.md` | `system` 中段 | `instruction-state` → `projectRules` | 同上 |
 | **S3 用户偏好 / skills** | 个人 `agent.md`、skills（远期） | `system` 尾段 | `instruction-state` → `userMemory` / skills（**接口预留**） | 同上 |
-| **T 工具表** | 各 tool 的 name · description · schema | `tools[]` | [`tools/`](../../src/tools/) → `ToolSchema[]` | 传入或 `resolveToolDefinitions()` |
-| **M 对话时间线** | 各 turn：user prompt、assistant、tool_use、tool_result | `messages[]` | [`session/`](../../src/session/) → `SessionMessage[]` | `messagesFromContext` |
+| **T 工具表** | 各 tool 的 name · description · schema | `tools[]` | [`tools/`](../../packages/tools/src/) → `ToolSchema[]` | 传入或 `resolveToolDefinitions()` |
+| **M 对话时间线** | 各 turn：user prompt、assistant、tool_use、tool_result | `messages[]` | [`session/`](../../packages/session/src/) → `SessionMessage[]` | `messagesFromContext` |
 | **M′ 压缩与窗口** | summary 注入、prune、checkpoint tail | `messages[]`（编译规则） | Session State Stores + `CompactionPolicy` | `applyTailWindow` · `applySummary` · `applyPrune` |
 | **M″ 大 tool 引用** | Artifact 全文 vs `ToolResultSummary` | `messages[]` 内 `tool_result` 文本 | Artifact Store + Item Log | materialize 时已格式化；compose 不读全文 |
 
@@ -518,13 +517,13 @@ AgentRun:
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| **C0** | Provider A–C | **done** — [`llm/models/registry.ts`](../../src/llm/models/registry.ts) · [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) |
+| **C0** | Provider A–C | **done** — [`llm/models/registry.ts`](../../packages/llm/src/models/registry.ts) · [`llm/routing/resolve.ts`](../../packages/llm/src/routing/resolve.ts) |
 | **C1** | Session Item Log + Composer **prune** compose 输入 | **done** |
 | **C2** | Artifact Store + spill | **done** |
-| **C3** | Instruction State（`AGENTS.md` / rules） | **done** — [`instruction-state/`](../../src/instruction-state/) |
+| **C3** | Instruction State（`AGENTS.md` / rules） | **done** — [`instruction-state/`](../../apps/moontide/src/instruction-state/) |
 | **C4** | CompactionSave + `/compact summary` | **done** |
 | **C5** | Checkpoint + resume | **done** |
-| **C6** | Agent Event Log 与 Session Item Log 同步优化 | **done**（TS harness）— log-sync · event-hub |
+| **C6** | Agent Event Log 与 Session Item Log 同步优化 | **done**（TS harness）— run-event-derive · /log |
 
 > **C6+ 执行计划：** 六件事见 [`context-window-roadmap.md`](../notes/context-window-roadmap.md)（#1–#6 **done** · 下一步 Context Budget Tiers / backlog）。
 
@@ -539,7 +538,7 @@ AgentRun:
 | [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA |
 | [`agent-events.md`](agent-events.md) | Agent Event Log schema |
 | [`vision.md`](../product/vision.md) | Bruma 保留产品名与产品方向 |
-| [`agent.md`](../../agent.md) | 文档用词偏好 |
+| [`AGENTS.md`](../../AGENTS.md) | 文档用词偏好 |
 | [`context-window-roadmap.md`](../notes/context-window-roadmap.md) | C6+ 六件事执行计划（当前开发入口） |
 | [`context-backlog.md`](../notes/context-backlog.md) | Context 演进特性 backlog（分账、IR、实验与 Deferred） |
 

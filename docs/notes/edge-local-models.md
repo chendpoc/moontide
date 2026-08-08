@@ -1,4 +1,3 @@
-# Edge 本地小模型与混合推理（Edge Local Models）
 
 > 产品讨论备忘：在用户设备部署量化小模型，处理简单任务以降低 cloud token 消耗、提升体验。  
 > **后续计划轨 8.3：** [`context-window-roadmap.md`](context-window-roadmap.md) §8.3 · [`TODO.md`](../../TODO.md) §15.3  
@@ -170,7 +169,7 @@ flowchart TB
 └─────────────────────────────────────────────────────────────┘
 ```
 
-与 [`runLLM.ts`](../../src/agent/pipeline/runLLM.ts) 衔接：`local-direct` 是 `LLMProvider` 的一种实现，loop 不改。
+与 [`runLLM.ts`](../../apps/moontide/src/agent/pipeline/runLLM.ts) 衔接：`local-direct` 是 `LLMProvider` 的一种实现，loop 不改。
 
 ```typescript
 // 演进候选：local-direct preset（非 Ollama HTTP）

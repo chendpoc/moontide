@@ -1,4 +1,3 @@
-# Context Window 后续开发计划
 
 > **状态：** 2026-08 定稿 · **#1–#6 主体 done** · **#5 A–C done** · **Context Budget Tiers done**（[`context-composer.md` §16](../spec/context-composer.md#16-context-budget-tiersmvp--2026-08)）· **§8 后续四条轨 planned**  
 > **Spec：** [`context-composer.md`](../spec/context-composer.md) C0–C6  
@@ -123,12 +122,12 @@ Cursor 四类对应 **认知动作模型**：用户关心 agent「在干什么�
 
 | # | 主要目录 | 说明 |
 |---|----------|------|
-| **1** | [`context/runtime-status.ts`](../../src/context/runtime-status.ts) | manifest/report 缓存 |
-| **2** | [`agent/hooks/`](../../src/agent/hooks/) | phases · dispatcher · registry · defaults |
-| **3** | [`plugins/builtin/log-sync/`](../../src/plugins/builtin/log-sync/) · [`tool-use-log/`](../../src/plugins/builtin/tool-use-log/) | SessionItem → AgentEvent |
-| **4** | [`instruction-state/`](../../src/instruction-state/) | load · resolve · epoch |
-| **5** | [`llm/protocol/`](../../src/llm/protocol/) · [`llm/presets/`](../../src/llm/presets/) · [`llm/models/registry.ts`](../../src/llm/models/registry.ts) · [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) | Provider A–C done |
-| **6** | [`utils/`](../../src/utils/) · [`storage/`](../../src/storage/) | 基础设施抽离；`log/event-hub.ts` |
+| **1** | `context/runtime-status.ts`（历史；已移除） | manifest/report 缓存 |
+| **2** | [`agent/hooks/`](../../apps/moontide/src/agent/hooks/) | phases · dispatcher · registry · defaults |
+| **3** | [`run-event-derive.ts`](../../apps/moontide/src/log/run-event-derive.ts) · [`tool-use-log/`](../../apps/moontide/src/plugins/builtin/tool-use-log/) | RunEvent → AgentEvent（legacy log-sync 已删） |
+| **4** | [`instruction-state/`](../../apps/moontide/src/instruction-state/) | load · resolve · epoch |
+| **5** | [`llm/protocol/`](../../packages/llm/src/protocol/) · [`llm/presets/`](../../packages/llm/src/presets/) · [`llm/models/registry.ts`](../../packages/llm/src/models/registry.ts) · [`llm/routing/resolve.ts`](../../packages/llm/src/routing/resolve.ts) | Provider A–C done |
+| **6** | [`utils/`](../../packages/shared/src/utils/) · [`storage/`](../../packages/shared/src/storage/) | 基础设施抽离；`log/event-hub.ts` |
 
 ### CLI 入口
 
@@ -140,7 +139,7 @@ src/main.ts → cli/repl/run.ts → agent/agent-run.ts → composeContext → ru
 
 ## 1. runtime-status — done
 
-[`runtime-status.ts`](../../src/context/runtime-status.ts) 替代 [`sessions.ts`](../../src/context/sessions.ts) 镜像 messages；只存 manifest/report。
+`runtime-status.ts`（历史）替代 `sessions.ts` 镜像 messages；只存 manifest/report。现行见 `@moontide/context-composer` manifest 与 `@moontide/session` stores。
 
 ---
 
@@ -148,8 +147,8 @@ src/main.ts → cli/repl/run.ts → agent/agent-run.ts → composeContext → ru
 
 | 组件 | 状态 |
 |------|------|
-| `HookDispatcher` + `PHASE_DEFS` | done — [`src/agent/hooks/`](../../src/agent/hooks/) |
-| default sidecar 模块 | done — tool-use-log、log-sync、context metrics |
+| `HookDispatcher` + `PHASE_DEFS` | done — [`src/agent/hooks/`](../../apps/moontide/src/agent/hooks/) |
+| default sidecar 模块 | done — tool-use-log、context metrics |
 | `beforeToolUse` decide | done — permission 后、execute 前 |
 | 删除遗留 | done — RunHooks、AgentPlugin、pipeline/registry、session/observe、audit |
 
@@ -162,7 +161,7 @@ Sidecar transport：**stdio pipe IPC**（非 HTTP）；终局 UDS 见 [`plugin-h
 | Observer | 实现 |
 |----------|------|
 | Item 落盘 | Harness `SessionItemCommitPort` → `FileSessionItemWriter` |
-| Agent Event 派生 | `sessionItem` → `log-sync/derive-observer` |
+| Agent Event 派生 | `sessionItem` → `run-event-derive` |
 | context metrics | `llmCall` → context sidecar |
 | tool use log | `toolUse` → tool-use-log sidecar |
 
@@ -224,7 +223,7 @@ src/instruction-state/
 | instruction-state | done |
 | Plugin host `kind: sidecar` | done — [`plugin-host.md`](plugin-host.md) |
 | Utils / storage 分层 | done — [`utils-infrastructure.md`](utils-infrastructure.md) |
-| Provider A–C | **done** — [`llm/models/registry.ts`](../../src/llm/models/registry.ts) · [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) |
+| Provider A–C | **done** — [`llm/models/registry.ts`](../../packages/llm/src/models/registry.ts) · [`llm/routing/resolve.ts`](../../packages/llm/src/routing/resolve.ts) |
 | MCP client | 待 R2 |
 
 ---

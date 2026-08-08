@@ -1,4 +1,3 @@
-# Kocoro 架构参考与 MoonTide 启发
 
 > 竞品 / 参考实现分析：[Kocoro](https://github.com/Kocoro-lab/Kocoro)（本地 agent runtime）与 [Shannon](https://github.com/Kocoro-lab/Shannon)（企业多 agent 编排）。  
 > **非实现承诺** — 用于校准 MoonTide 多进程、sidecar、memory、router 等方向；不表示照搬其技术栈。
@@ -136,8 +135,8 @@ Client → Gateway (Go) → Orchestrator (Go) → Agent Core (Rust) → LLM Serv
 
 | 维度 | Kocoro | MoonTide（现状 / 讨论方向） |
 |------|--------|-------------------------|
-| Agent loop | Go monolith (`internal/agent`) | Node/TS [`loop.ts`](../../src/agent/loop.ts) |
-| LLM seam | Provider 接口（Cloud gateway / Ollama） | [`runLLM`](../../src/agent/pipeline/runLLM.ts) → 规划 `LLMProvider` |
+| Agent loop | Go monolith (`internal/agent`) | Node/TS [`loop.ts`](../../apps/moontide/src/agent/loop.ts) |
+| LLM seam | Provider 接口（Cloud gateway / Ollama） | [`runLLM`](../../apps/moontide/src/agent/pipeline/runLLM.ts) → 规划 `LLMProvider` |
 | UI | 闭源 native Desktop | 开源 Slint sidecar（tail JSONL + status） |
 | 本地 LLM | Ollama 套壳 | 倾向 Rust direct GGUF（见 [edge-local-models.md](edge-local-models.md)） |
 | Memory | `tlm` sidecar + UDS + cloud bundle | Session Event Log spec；episodic backlog |
@@ -187,7 +186,7 @@ Infer **不要**进 WASM；沙箱 **不要**扛 GB 权重。
 | 1 | Memory sidecar + daemon supervise | `moontide-memory` 独立进程；Node 只调 `memory.query` IPC | [context-backlog.md](context-backlog.md)、[session-handoff.md](session-handoff.md) |
 | 2 | `<private_memory>` 当 turn 注入、不落 transcript | Composer 支持 **ephemeral inject block** + Manifest 审计 | [context-composer.md](../spec/context-composer.md) |
 | 3 | Small-tier preflight before main LLM | Model Router v2：0.8B 本地做 intent / memory intent | [edge-local-models.md](edge-local-models.md)、[llm-provider.md](../spec/llm-provider.md) §10 |
-| 4 | `runLLM` 是唯一 LLM 出口 | 已实现 seam；cloud / local-direct 都走 `LLMProvider` | [`runLLM.ts`](../../src/agent/pipeline/runLLM.ts) |
+| 4 | `runLLM` 是唯一 LLM 出口 | 已实现 seam；cloud / local-direct 都走 `LLMProvider` | [`runLLM.ts`](../../apps/moontide/src/agent/pipeline/runLLM.ts) |
 | 5 | Tool spill 三层 budget | 对齐 tool artifact + prune；避免 `messages[]` splice 丢事实 | [context-composer.md](../spec/context-composer.md) |
 | 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 解析一致 | [llm-input.md](../spec/llm-input.md) |
 | 7 | Daemon HTTP + SSE 本地 API | 远期：MoonTide daemon 模式（IM / 自动化），不只 REPL | [runtime-multilang.md](runtime-multilang.md) |

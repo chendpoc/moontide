@@ -1,4 +1,3 @@
-# Feature Doc：Executable Scratchpad
 
 > **状态：** Backlog / 特性候选  
 > **关联：** [`runtime-multilang.md`](runtime-multilang.md)（WASM 沙箱定位）、[`context-composer.md`](../spec/context-composer.md)（Session Event Log）、[`agent-events.md`](../spec/agent-events.md)（Agent Event Log）  

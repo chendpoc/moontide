@@ -2,6 +2,30 @@
 
 > 产品方向：[`docs/product/vision.md`](docs/product/vision.md) · 当前计划：[`docs/product/plan.md`](docs/product/plan.md) · 设计索引：[`docs/README.md`](docs/README.md)
 
+- [ ] **16. Agent-core 内核（2026-08 起 · 优先于 §15 部分轨）**
+
+  终局拆分 pnpm workspace：`@moontide/agent-common`（protocol）+ `@moontide/agent-core`（loop · RunEvent bus · resolveRunConfig · resolveTurnContext）。**clean break**，无 legacy derive / HookPhase 双轨。
+
+  - 详计划：[`docs/notes/agent-core-roadmap.md`](docs/notes/agent-core-roadmap.md)
+  - 设计 Spec：[`docs/agent-core-design.md`](docs/agent-core-design.md)
+  - 术语：[`AGENTS.md`](AGENTS.md) §7.2
+
+  - [x] **16.1** pnpm workspace + `agent-common/protocol` 类型冻结
+  - [x] **16.2** `agent-core`：RunEvent bus + lifecycle + golden tests
+  - [x] **16.3** runLoop + StreamFn + `message_update` 流式
+  - [x] **16.4** resolveRunConfig + Agent 类（abort / settlement）
+  - [x] **16.5** harness 接入：RunCommitPort + composeContext
+  - [ ] **16.6** RunEvent JSONL + Slint subscribe
+  - [ ] **16.7** plugin-host 窄 IPC；删 HookPhase / derive；`pnpm check`
+
+- [x] **17. Monorepo 按域拆包 · 消除根 `src/`（§16 M7 后）**
+
+  **Modular monorepo / package by bounded context**：域包在 `packages/*`，CLI 与装配在 `apps/moontide`；**根无 `src/` monolith**。
+
+  - 详述：[`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) · [`docs/notes/agent-core-roadmap.md`](docs/notes/agent-core-roadmap.md) §12
+  - 包：`@moontide/shared` · `llm` · `session` · `context-composer` · `log` · `tools` · `plugins-sdk` · `sidecar-host` · `apps/moontide`
+  - 验收：architecture-boundaries package 级规则；根无 `src/`（`pnpm run check`）
+
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果
   - 动效
@@ -51,16 +75,20 @@
     - 详设：[`context-normalization.md`](docs/notes/context-normalization.md)
 
 - [ ] **7. Feature 基线性能测试套件**
-  - 自动化测试完善
+  - **详设：** [`docs/notes/agent-eval-roadmap.md`](docs/notes/agent-eval-roadmap.md) — Agent Feature 评测流水线（L0–L3 · 分桶 suite · grader · Impact Card）
+  - **v0 → v3 分期：** PR 档 deterministic grader → nightly 真 LLM + baseline delta → SWE-bench 子集
+  - 自动化测试完善（L0/L1 仍在 `tests/`；L2+ 在 `eval/`）
   - 测量与评估
-  - SWE-bench 等公开 agent/coding benchmark
+  - SWE-bench 等公开 agent/coding benchmark（**L3**，对齐 roadmap §8 v3）
   - **DeepSeek DSBench（后续讨论需纳入）**
     - DeepSeek 内部 coding-agent 评测集，含 **DSBench-FullStack**（全栈开发）与 **DSBench-Hard**（高难度 agent 任务）
     - 官方分数多在 **DeepSeek Harness**（minimal mode）上测得；与 harness 设计强相关，**暂不可独立复现**
-    - 价值：观察 DeepSeek 对 agent 能力的定义与优化方向；设计 MoonTide 基线套件时可对照其任务形态（terminal / multi-tool / 长链路 coding），但不替代 SWE-bench 等第三方 leaderboard
+    - 价值：观察 DeepSeek 对 agent 能力的定义与优化方向；设计 MoonTide 基线 suite（**coding / deep_protocol 桶**）时可对照其任务形态（terminal / multi-tool / 长链路 coding），但不替代 SWE-bench 等第三方 leaderboard
     - 参考：[DeepSeek-V4-Flash model card](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731) · DeepSeek Harness（待发布）
 
 - [ ] **8. Prompts 评分**
+  - 并入 eval **rubric grader**（roadmap v2）· 主要服务 **general_knowledge（C 桶）** guard metrics
+  - 详设：[`docs/notes/agent-eval-roadmap.md`](docs/notes/agent-eval-roadmap.md) §5.2 · §4
 
 - [ ] **9. 日常 Action 统计控件（Tide）**
   - 多 UI 组件之一：可视化「今天做了什么 / 最近做了什么」

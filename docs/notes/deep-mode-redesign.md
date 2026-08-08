@@ -1,4 +1,3 @@
-# Deep Task Mode 优化设计（`deep:` 行为对齐）
 
 > **状态：** 设计草案 · **非实现承诺**  
 > **动机：** 用户期望 `deep:` 触发「深度任务 + work_mem 结构化思考」；当前仅注册可选 tool，模型常跳过，且主 run 路径未注入 Working Set。  
@@ -220,14 +219,14 @@ MoonTide 第一版 **不依赖** 硬约束；以 seed + 协议提醒为主。
 
 | 模块 | 改动 |
 |------|------|
-| [`agent-run.ts`](../../src/agent/agent-run.ts) | `buildInput` → `composeForSession` |
-| [`deep-mode.ts`](../../src/agent/deep-mode.ts) | seed outline；暴露 `getDeepTaskGoal(sessionId)` |
-| [`compose-for-turn.ts`](../../src/agent/compose-for-turn.ts) | 注入 deep system 附录 |
-| [`working-set.ts`](../../src/context/composer/working-set.ts) | 或新模块：append deep protocol |
-| [`work-mem/register.ts`](../../src/plugins/builtin/work-mem/register.ts) | `startDeepTaskRecord` 调 seed helper |
-| [`work-mem/tools.ts`](../../src/plugins/builtin/work-mem/tools.ts) | deep 模式下强化 description |
-| [`llm/routing/resolve.ts`](../../src/llm/routing/resolve.ts) | 可选 `resolveRoute({ deepMode })` |
-| [`context/composer/types.ts`](../../src/context/composer/types.ts) | manifest 增加 `deepTask?: { workMemId, goal, stage }` |
+| [`agent-run.ts`](../../apps/moontide/src/agent/agent-run.ts) | `buildInput` → `composeForSession` |
+| [`deep-mode.ts`](../../apps/moontide/src/agent/deep-mode.ts) | seed outline；暴露 `getDeepTaskGoal(sessionId)` |
+| [`compose-for-turn.ts`](../../apps/moontide/src/agent/compose-for-turn.ts) | 注入 deep system 附录 |
+| [`working-set.ts`](../../packages/context-composer/src/working-set.ts) | 或新模块：append deep protocol |
+| [`work-mem/register.ts`](../../apps/moontide/src/plugins/builtin/work-mem/register.ts) | `startDeepTaskRecord` 调 seed helper |
+| [`work-mem/tools.ts`](../../apps/moontide/src/plugins/builtin/work-mem/tools.ts) | deep 模式下强化 description |
+| [`llm/routing/resolve.ts`](../../packages/llm/src/routing/resolve.ts) | 可选 `resolveRoute({ deepMode })` |
+| [`context/composer/types.ts`](../../packages/context-composer/src/types.ts) | manifest 增加 `deepTask?: { workMemId, goal, stage }` |
 | i18n | deep protocol 中英 |
 
 ---
@@ -262,7 +261,7 @@ MoonTide 第一版 **不依赖** 硬约束；以 seed + 协议提醒为主。
 ### P1.5
 
 - [x] 首 turn 无 `work_mem` 时触发 **一次**协议提醒；仍无则不再拦截（2026-08）
-- [x] manifest 记录 `deepTask.workMemId` + goal（2026-08）；Agent Event 经 log-sync derive
+- [x] manifest 记录 `deepTask.workMemId` + goal（2026-08）；Agent Event 经 RunEvent derive
 
 ### P2
 

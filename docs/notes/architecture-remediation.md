@@ -1,7 +1,6 @@
-# 架构修复计划
 
 > **状态：** 2026-08 定稿 · **Phase A 完成** · **Phase B §3/§4/§5/§6/§9/§16 已实现**（§7 bootstrap 拆分跳过）  
-> **工程原则：** [`agent.md`](../../agent.md) · **Spec：** [`context-composer.md`](../spec/context-composer.md) §4/§10.1  
+> **工程原则：** [`AGENTS.md`](../../AGENTS.md) · **Spec：** [`context-composer.md`](../spec/context-composer.md) §4/§10.1  
 > **功能轨并行：** [`context-window-roadmap.md`](context-window-roadmap.md) #5 LLM Provider
 
 TypeScript Harness 架构 review（成熟度 ~6.5/10）识别的 **16 项**修复项，按 Phase A/B/C 分批实现。
@@ -93,7 +92,7 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 **方案：**
 
-1. [`src/session/ports.ts`](../../src/session/ports.ts)：`SessionItemCommitPort`
+1. [`src/session/ports.ts`](../../packages/session/src/ports.ts)：`SessionItemCommitPort`
 2. `Session` 构造注入 `commitPort`；`pushItem` / `commitItems` 只调 `onItemCommitted`
 3. Harness（`createSessionCommitPort(workdir, runtime)`）composite port（见 §10）
 4. 测试用 noop / spy port
@@ -117,17 +116,17 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 ---
 
-## §3 item-handlers 混 derive（P1 · Phase B）
+## §3 item-handlers 混 derive（P1 · Phase B · **done**）
 
-**现象：** `item-handlers.ts` 同时含 `ITEM_TO_MESSAGES_HANDLERS` 与 `DERIVE_ITEM_HANDLERS`（依赖 `log/event-hub`）。
+**现象：** `item-handlers.ts` 同时含 materialize 与 derive（依赖 `log/event-hub`）。
 
-**方案：**
+**结果（M6）：**
 
-1. `item-handlers.ts` 只保留 materialize
-2. 新建 `plugins/builtin/log-sync/item-derive-handlers.ts` 迁 derive
-3. `session/index.ts` 不 export derive
+1. `packages/session` 的 `item-handlers.ts` 只保留 materialize
+2. Legacy `log-sync` / `sessionItem` derive **已删除**
+3. Agent Event 由 RunEvent bus → [`run-event-derive.ts`](../../apps/moontide/src/log/run-event-derive.ts)（`createRunEventDeriveListener`）
 
-**验收：** `rg 'emitDraft|event-hub' src/session/` 为零。
+**验收：** `rg 'emitDraft|event-hub' packages/session/src/` 为零；hook manifest 无 `sessionItem/agent-event-derive`。
 
 ---
 
@@ -151,7 +150,7 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 **方案：** `AgentRuntime` 为组合根容器；热路径显式 `runtime.hooks` / `runtime.tools` / `runtime.plugins`；`LoopContext.runtime` 必填；仅保留 `getAgentRuntime()` / `setAgentRuntime()` 供 CLI 与测试。
 
-**实现：** [`src/agent/runtime/`](../../src/agent/runtime/) — `HookRegistry` · `ToolRegistry` · `PluginHost`；已删除 [`tools/store.ts`](../../src/tools/store.ts) 与 [`hooks/registry.ts`](../../src/agent/hooks/registry.ts) 门面；测试用 [`tests/helpers/test-runtime.ts`](../../tests/helpers/test-runtime.ts) `installTestRuntime()` 隔离。
+**实现：** [`src/agent/runtime/`](../../apps/moontide/src/agent/runtime/) — `HookRegistry` · `ToolRegistry` · `PluginHost`；已删除 [`tools/store.ts`](../../packages/tools/src/store.ts) 与 [`hooks/registry.ts`](../../apps/moontide/src/agent/hooks/registry.ts) 门面；测试用 [`tests/helpers/test-runtime.ts`](../../tests/helpers/test-runtime.ts) `installTestRuntime()` 隔离。
 
 **非目标：** 多 REPL 并行（未来）· **§7 bootstrap 拆分（按用户要求跳过）**
 
@@ -187,7 +186,7 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 ## §9 Permission 覆盖不全（P1 · Phase B · **已实现**）
 
-**方案：** 每条 tool spec 显式 `permission`（[`permission-table.ts`](../../src/tools/permission-table.ts)）；未知 tool **deny**；`list_dir` / `grep` / `git_diff` / `git_log` 使用 `path` kind。
+**方案：** 每条 tool spec 显式 `permission`（[`permission-table.ts`](../../packages/tools/src/permission-table.ts)）；未知 tool **deny**；`list_dir` / `grep` / `git_diff` / `git_log` 使用 `path` kind。
 
 **验收：** `tests/tool-permissions.test.ts` 对照 `TOOL_PERMISSIONS`；`permission/index.ts` 无 tool 名列表。
 
@@ -253,7 +252,7 @@ Sidecar 协议加固（protocolVersion、timeout）同 Phase C 可选。
 
 ## §14 Store 实现重复 — **不实施**
 
-三份 File store（compaction / checkpoint / artifact）结构相似，**允许简单重复**，不抽 `JsonRecordStore`。见 [`agent.md`](../../agent.md) §3。
+三份 File store（compaction / checkpoint / artifact）结构相似，**允许简单重复**，不抽 `JsonRecordStore`。见 [`AGENTS.md`](../../AGENTS.md) §3。
 
 ---
 
@@ -273,11 +272,11 @@ Sidecar 协议加固（protocolVersion、timeout）同 Phase C 可选。
 
 ## Commit 顺序
 
-1. `docs: agent.md §2 + architecture-remediation`
+1. `docs: AGENTS.md §2 + architecture-remediation`
 2. `test: tool-permissions + hook-manifest; pre-commit`
 3. `refactor(session): SessionItemCommitPort + FileSessionItemWriter` (§1, §10)
 4. `feat(llm): LLMProvider + anthropic adapter` (§2)
-5. `refactor(log-sync): split derive from item-handlers` (§3)
+5. ~~`refactor(log-sync): split derive from item-handlers` (§3)~~ **done** — RunEvent derive；log-sync 已删
 6. `refactor(tools): permission on ToolSpec + manifest split` (§4, §9, §16)
 7. `refactor(agent): CompactionService + CheckpointService` (§6)
 8. `refactor(app): bootstrap split` (§7)
@@ -306,7 +305,7 @@ Sidecar 协议加固（protocolVersion、timeout）同 Phase C 可选。
 
 | 文档 | 关系 |
 |------|------|
-| [`agent.md`](../../agent.md) | 工程原则 §2 内聚/耦合 |
+| [`AGENTS.md`](../../AGENTS.md) | 工程原则 §2 内聚/耦合 |
 | [`context-composer.md`](../spec/context-composer.md) | Spec §4 commit 边界 · §10.1 组装 |
 | [`context-window-roadmap.md`](context-window-roadmap.md) | #5 Provider 与 Phase A §2 并行 |
 | [`session-domain-model.md`](session-domain-model.md) | Session 类型与数据流 |

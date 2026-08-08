@@ -1,4 +1,3 @@
-# Agent Event Log（AgentEvent storage schema）
 
 MoonTide 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session Event Log** 区分；后者见 [`context-composer.md`](context-composer.md)）。
 
@@ -29,9 +28,9 @@ workdir/.moontide/runs/<runId>-0001.jsonl.gz
 The final active segment is also compressed when the run completes. Compressed
 segments are lossless archives; the desktop UI only tails the active JSONL.
 
-TypeScript source: [`src/log/types.ts`](../../src/log/types.ts).
+TypeScript source: [`packages/log/src/types.ts`](../../packages/log/src/types.ts).
 
-**Fan-out 入口：** [`src/log/event-hub.ts`](../../src/log/event-hub.ts) — `emitDraft` · `setOutputs` · `subscribe`。Hook sidecar 与 log-sync 派生均经此模块写入 JSONL / stderr。
+**Fan-out 入口：** [`@moontide/log` event-hub](../../packages/log/src/event-hub.ts)（`emit` · `subscribe`）+ [`apps/moontide/src/log/index.ts`](../../apps/moontide/src/log/index.ts)（装配 re-export）。Hook sidecar 与 **RunEvent derive** 经此写入 JSONL / stderr。
 
 ## Core fields
 

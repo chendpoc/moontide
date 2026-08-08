@@ -1,4 +1,3 @@
-# MoonTide — Platform Strategy
 
 > **文档性质：** product（方向与发布策略，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名与保留产品名见 [`vision.md`](vision.md)  

@@ -1,4 +1,3 @@
-# 跨 Agent 会话交接（Session Handoff）
 
 > 产品讨论备忘：对话内容是否有价值共享给其他 agent、如何处理、业界为何未将其做成一等 feature。  
 > **非实现承诺** — 与 [`context-composer.md`](../spec/context-composer.md) 主路径对齐的演进候选。

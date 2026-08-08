@@ -1,4 +1,3 @@
-# Session Event Log 迁移（C1a / C1b）
 
 > PR1b 定类型与路径；本文描述 loop 从 `MessageParam[]` 迁到 Session Log 的切换策略。
 

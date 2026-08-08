@@ -1,6 +1,5 @@
-# Context Inspect Debug（分级全量 dump）
 
-> 与 **thinking / verbose**（美化摘要、有截断）并列的第三档观测：**无截断全量** compose / llm_call / tool_use。实现位于 [`context-inspect/`](../../src/context-inspect/) + hook 适配 [`debug-hook-module`](../../src/plugins/builtin/context/debug-hook-module.ts)。
+> 与 **thinking / verbose**（美化摘要、有截断）并列的第三档观测：**无截断全量** compose / llm_call / tool_use。实现位于 [`context-inspect/`](../../apps/moontide/src/context-inspect/) + hook 适配 [`debug-hook-module`](../../apps/moontide/src/plugins/builtin/context/debug-hook-module.ts)。
 
 ## 档位
 

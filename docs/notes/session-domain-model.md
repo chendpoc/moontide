@@ -1,4 +1,3 @@
-# Session Domain Model（TypeScript）
 
 > Session 终局架构：内存 `SessionContext` 仅含 `messages`；非对话行写入 **Session Item Log** + State Stores；每 turn 由 **`composeContext`** 编译 LLM 输入。
 
@@ -9,7 +8,7 @@
 | **`SessionMessage`** | 对话 domain 条目（`role` + `content` + metadata） |
 | **`SessionContext`** | `{ messages: SessionMessage[] }`，**内存真相** |
 | **`SessionItem`** | 持久化 DTO，一行 NDJSON（含 user/assistant/tool 与 compaction/checkpoint/routing） |
-| **`Message`** | [`llm/protocol`](../../src/llm/protocol/types.ts)，`LLMRequest.messages` |
+| **`Message`** | [`llm/protocol`](../../packages/llm/src/protocol/types.ts)，`LLMRequest.messages` |
 | **`CompactionSave`** | summary / structured 压缩产物（CompactionStore） |
 | **`Checkpoint`** | 可恢复快照（CheckpointStore） |
 | **`Artifact`** | 大 tool 输出全文（ArtifactStore） |
@@ -38,15 +37,15 @@ cold start: jsonl → messagesFromItems → SessionContext.messages
 
 | 路径 | 职责 | 计划变更 |
 |------|------|----------|
-| [`src/session/session.ts`](../../src/session/session.ts) | 持有 `messages[]`，`append*`，经 port 落盘 | **`SessionItemCommitPort`**（[架构修复 §1](architecture-remediation.md) · 已实现） |
-| [`src/session/transform/`](../../src/session/transform/) | `messagesFromItems` · `itemsFromMessages` · `messagesFromContext` | — |
-| [`src/session/item-handlers.ts`](../../src/session/item-handlers.ts) | `applyItemToMessages`（materialize） | derive 已迁至 `plugins/builtin/log-sync/`（[§3](architecture-remediation.md)） |
-| [`src/session/io/`](../../src/session/io/) | SessionItem ↔ jsonl；`FileSessionItemWriter` | Writer 由 Harness port 调用（[§10](architecture-remediation.md)） |
-| [`src/context/stores/`](../../src/context/stores/) | CompactionSave / Checkpoint / Artifact FS stores | 目标 **`session/stores/`** |
-| [`src/context/composer/`](../../src/context/composer/) | **`composeContext`** — 唯一 LLM 输入出口 | — |
-| [`src/plugins/builtin/session-persistence/`](../../src/plugins/builtin/session-persistence/) | Session Index · `/save` · `/resume session` · exit auto-save | — |
-| [`src/context-inspect/`](../../src/context-inspect/) | context 观测 · `/debug` emit | — |
-| [`src/log/`](../../src/log/) | **Agent Event Log**（与 Session Item Log 严格区分） | — |
+| [`src/session/session.ts`](../../packages/session/src/session.ts) | 持有 `messages[]`，`append*`，经 port 落盘 | **`SessionItemCommitPort`**（[架构修复 §1](architecture-remediation.md) · 已实现） |
+| [`src/session/transform/`](../../packages/session/src/transform/) | `messagesFromItems` · `itemsFromMessages` · `messagesFromContext` | — |
+| [`packages/session/src/item-handlers.ts`](../../packages/session/src/item-handlers.ts) | `applyItemToMessages`（materialize） | Legacy Item derive 已删；Agent Event 见 [`run-event-derive.ts`](../../apps/moontide/src/log/run-event-derive.ts)（[§3](architecture-remediation.md) · done） |
+| [`src/session/io/`](../../packages/session/src/io/) | SessionItem ↔ jsonl；`FileSessionItemWriter` | Writer 由 Harness port 调用（[§10](architecture-remediation.md)） |
+| [`src/context/stores/`](../../packages/session/src/stores/) | CompactionSave / Checkpoint / Artifact FS stores | 目标 **`session/stores/`** |
+| [`src/context/composer/`](../../packages/context-composer/src/) | **`composeContext`** — 唯一 LLM 输入出口 | — |
+| [`src/plugins/builtin/session-persistence/`](../../apps/moontide/src/plugins/builtin/session-persistence/) | Session Index · `/save` · `/resume session` · exit auto-save | — |
+| [`src/context-inspect/`](../../apps/moontide/src/context-inspect/) | context 观测 · `/debug` emit | — |
+| [`src/log/`](../../apps/moontide/src/log/) | **Agent Event Log**（与 Session Item Log 严格区分） | — |
 
 ## Invariant
 

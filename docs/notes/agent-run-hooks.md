@@ -1,4 +1,3 @@
-# Agent Hook 机制（终局设计）
 
 > **文档性质：** notes（机制设计，非 Spec）  
 > **状态：** 2026-08 定稿 · **代码已迁移**（`HookDispatcher` + `src/agent/hooks/` + default sidecar modules）  
@@ -14,7 +13,7 @@
 | **Hook** | 某 phase 上的扩展逻辑；由 **HookDispatcher** 经 IPC 交给 sidecar / shell | 外部 Plugin 包名 |
 | **Hook handler** | sidecar 内具名回调；`name` 用于日志、排序、dispose | tap、plugin 实例 |
 | **Kernel 模块** | loop 内直接调用（Session 落盘、permission、compose） | Extension、Plugin |
-| **Extension** | 官方 sidecar 内置模块（tool-use-log、log-sync …） | 外部 npm |
+| **Extension** | 官方 sidecar 内置模块（tool-use-log …） | 外部 npm |
 | **Plugin** | 用户安装的 MCP / sidecar 扩展 | tool-use-log、context 等官方模块 |
 
 **不引入：** Tap、tapable、parallel/waterfall/bail/around 作为对外 API。
@@ -37,8 +36,8 @@
 
 | 层 | 职责 | 代码/文档 |
 |----|------|-----------|
-| **HookDispatcher** | 固定 phase 点 → dispatch → 收集 outcome | [`src/agent/hooks/`](../../src/agent/hooks/) |
-| **Tool registry** | builtin + MCP + sidecar 暴露的 tools | [`ToolRegistry`](../../src/agent/runtime/tool-registry.ts) · [`plugin-host.md`](plugin-host.md) |
+| **HookDispatcher** | 固定 phase 点 → dispatch → 收集 outcome | [`src/agent/hooks/`](../../apps/moontide/src/agent/hooks/) |
+| **Tool registry** | builtin + MCP + sidecar 暴露的 tools | [`ToolRegistry`](../../apps/moontide/src/agent/runtime/tool-registry.ts) · [`plugin-host.md`](plugin-host.md) |
 | **Plugin host** | MCP attach、sidecar spawn、manifest | [`plugin-host.md`](plugin-host.md) |
 
 ```mermaid
@@ -78,10 +77,12 @@ Session 级 phase 在 REPL 宿主注册；Run/Step 在 `AgentRun` 内 dispatch�
 |------|-------|------|--------|------------------|--------|
 | Session | `sessionItem` | observe | `Session.commitItems` | fail-open | sidecar（file + derive） |
 | Turn | `composeComplete` | observe | compose 后 | fail-open | sidecar |
-| Run | `runStart` | observe | `execute` 开头 | fail-open | sidecar |
-| Run | `runEnd` | observe | 成功返回前 | fail-open | sidecar |
-| Run | `runFinalize` | observe | `finally` | fail-open | sidecar |
-| Run | `runError` | observe | catch | fail-open | sidecar |
+| Turn | `turnStart` | observe | `withTurn` 开头 | fail-open | sidecar |
+| Turn | `turnEnd` | observe | `withTurn` finally | fail-open | sidecar |
+| Run | `runStart` | observe | `withRun` 开头 | fail-open | sidecar |
+| Run | `runEnd` | observe | `withRun` 成功返回前 | fail-open | sidecar |
+| Run | `runFinalize` | observe | `withRun` finally | fail-open | sidecar |
+| Run | `runError` | observe | `withRun` catch | fail-open | sidecar |
 | Step | `beforeToolUse` | decide | tool 前 | fail-closed | **内核 permission** + sidecar |
 | Step | `toolUse` | observe | tool 后 | fail-open | sidecar（**tool-use-log**） |
 | Step | `llmCall` | observe | `runLLM` 后 | fail-open | sidecar |
@@ -132,7 +133,7 @@ Layer 1  纯 loop（buildInput → llm → recordOutcome）
 
 | 机制 | 用途 |
 |------|------|
-| **AgentEvent + emitDraft** | Session 派生 / hook 观测 → JSONL（[`event-hub`](../../src/log/event-hub.ts)） |
+| **AgentEvent + emit** | Session 派生 / hook 观测 → JSONL（[`log/index`](../../apps/moontide/src/log/index.ts)） |
 | **Hook phase + dispatch** | 扩展观测 / 改写 / 拦截 |
 
 **反模式：** loop 内 `for (hooks)`；扩展互 import；在 observe handler 里改 Session 数组（应返回 transform 结果或写 Session API）。
@@ -169,16 +170,16 @@ permission 为 **内核 Decide**，不依赖 sidecar 加载；sidecar handler �
 
 | 模块 | 位置 |
 |------|------|
-| HookDispatcher | [`src/agent/hooks/dispatcher.ts`](../../src/agent/hooks/dispatcher.ts) |
-| default sidecar 注册 | [`src/agent/hooks/defaults.ts`](../../src/agent/hooks/defaults.ts) |
-| Session 派生 | [`src/plugins/builtin/log-sync/`](../../src/plugins/builtin/log-sync/) |
-| tool-use-log | [`src/plugins/builtin/tool-use-log/`](../../src/plugins/builtin/tool-use-log/) |
-| permission（内核 decide） | [`src/agent/pipeline/permission/`](../../src/agent/pipeline/permission/) |
-| Agent Event fan-out | [`src/log/event-hub.ts`](../../src/log/event-hub.ts) |
+| HookDispatcher | [`src/agent/hooks/dispatcher.ts`](../../apps/moontide/src/agent/hooks/dispatcher.ts) |
+| default sidecar 注册 | [`src/agent/hooks/defaults.ts`](../../apps/moontide/src/agent/hooks/defaults.ts) |
+| RunEvent → Agent Event | [`run-event-derive.ts`](../../apps/moontide/src/log/run-event-derive.ts) |
+| tool-use-log | [`src/plugins/builtin/tool-use-log/`](../../apps/moontide/src/plugins/builtin/tool-use-log/) |
+| permission（内核 decide） | [`src/agent/pipeline/permission/`](../../apps/moontide/src/agent/pipeline/permission/) |
+| Agent Event fan-out | [`src/log/event-hub.ts`](../../packages/log/src/event-hub.ts) |
 
 **已删除：** RunHooks、AgentPlugin、pipeline/registry、session/observe、extensions/audit。
 
-**C6 派生不变量：** 一次 `commitSessionItem` → `sessionItem` → file + agent-event-derive；conversation/trace **不**在 step 级重复 emit。
+**C6 派生不变量：** 一次 user turn → RunEvent derive 一条 `user_prompt`；conversation/trace **不**在 step 级重复 emit（见 `tests/log-sync.test.ts`）。
 
 ---
 
@@ -202,11 +203,11 @@ src/agent/hooks/
   registry.ts · defaults.ts · parse-events.ts · index.ts
 
 src/log/
-  event-hub.ts     — emitDraft / subscribe / setOutputs
+  event-hub.ts     — emit / subscribe / setOutputs（经 log/index barrel）
   outputs/jsonl.ts · outputs/stderr-renderer.ts
 
 src/plugins/builtin/
-  tool-use-log/ · log-sync/ · context/hook-module.ts
+  tool-use-log/ · context/hook-module.ts
 
 src/plugins/host/sidecar/
   bridge.ts · process-transport.ts · run-sidecar.ts · protocol.ts

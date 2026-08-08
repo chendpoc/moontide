@@ -1,4 +1,3 @@
-# MoonTide LLM Provider 与 Model 机制
 
 > MoonTide 如何把「选模型、接 API、发请求」从 agent loop 里拆出来。
 > LLM 一次 input 的三参数对表见 [`llm-input.md`](llm-input.md)；context 组装见 [`context-analysis.md`](../notes/context-analysis.md)。
@@ -98,7 +97,7 @@ OpenRouter 在 OpenRouter 命名空间下使用 model 字符串，例如 `anthro
 - **Model 来源** — 仅 [**MoonTide 本地 model catalog**](../notes/edge-local-models.md)（`moontide/router-v1` 等）；用户 **opt-in download**，不提供任意 URL import 或本地 train。
 - **Train** — **MoonTide Cloud / CI only**；详见 [`edge-local-models.md`](../notes/edge-local-models.md)。
 
-**与 Model Router 的关系：** Router 决定 **logical tier**（router / general / cloud）；`local-direct` 是 tier 0–2 的 **执行 preset**，与 `deepseek` 等 cloud preset 并列，经同一 `LLMProvider` 出口（[`runLLM.ts`](../../src/agent/pipeline/runLLM.ts)）。
+**与 Model Router 的关系：** Router 决定 **logical tier**（router / general / cloud）；`local-direct` 是 tier 0–2 的 **执行 preset**，与 `deepseek` 等 cloud preset 并列，经同一 `LLMProvider` 出口（[`runLLM.ts`](../../apps/moontide/src/agent/pipeline/runLLM.ts)）。
 
 ---
 
@@ -313,7 +312,7 @@ src/llm/
     index.ts              # presetId → CompatOverrides
 ```
 
-现状 [`src/llm/client/anthropic.ts`](../../src/llm/client/anthropic.ts) 在实现时迁入 `adapters/anthropic-messages.ts` 并删除。
+现状 [`src/llm/client/anthropic.ts`](../../packages/llm/src/client/anthropic.ts) 在实现时迁入 `adapters/anthropic-messages.ts` 并删除。
 
 ### 8.3 normalize 职责
 
@@ -339,7 +338,7 @@ export interface LLMProvider {
 export function getLLMProvider(route: ResolvedRoute): LLMProvider;
 ```
 
-[`runLLM`](../../src/agent/pipeline/runLLM.ts) 目标形态：接受/返回 MoonTide `LLMRequest` / `LLMResponse`；loop 判断 `stopReason === "tool_use"`，不再依赖 SDK 字段名 `stop_reason`。
+[`runLLM`](../../apps/moontide/src/agent/pipeline/runLLM.ts) 目标形态：接受/返回 MoonTide `LLMRequest` / `LLMResponse`；loop 判断 `stopReason === "tool_use"`，不再依赖 SDK 字段名 `stop_reason`。
 
 ---
 
@@ -590,11 +589,11 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 
 | 项 | 现状（2026-08 A–C 后） | 目标（§13 D–I backlog） |
 |----|-------------------------|-------------------------|
-| Client | [`LLMProvider`](../../src/llm/provider.ts) + [`adapters/anthropic-messages.ts`](../../src/llm/adapters/anthropic-messages.ts) | 多 adapter 族 |
+| Client | [`LLMProvider`](../../packages/llm/src/provider.ts) + [`adapters/anthropic-messages.ts`](../../packages/llm/src/adapters/anthropic-messages.ts) | 多 adapter 族 |
 | API 适配 | **方案 A** — 单 `anthropic-messages` adapter | OpenAI / Gemini 等 adapter |
-| Provider | [`presets/presets.ts`](../../src/llm/presets/presets.ts) + [`resolveRoute()`](../../src/llm/routing/resolve.ts) | + openrouter · custom · kimi… |
-| Model | [`models/registry.ts`](../../src/llm/models/registry.ts) + `resolveModelProfile()` | 扩注册表 + Model Router |
-| 类型泄漏 | SDK 仅 [`src/llm/adapters/**`](../../src/llm/adapters/) | 维持 |
+| Provider | [`presets/presets.ts`](../../packages/llm/src/presets/presets.ts) + [`resolveRoute()`](../../packages/llm/src/routing/resolve.ts) | + openrouter · custom · kimi… |
+| Model | [`models/registry.ts`](../../packages/llm/src/models/registry.ts) + `resolveModelProfile()` | 扩注册表 + Model Router |
+| 类型泄漏 | SDK 仅 [`src/llm/adapters/**`](../../packages/llm/src/adapters/) | 维持 |
 | Compact / ping | 经 `LLMProvider` + `resolveRoute` | 维持 |
 | 路由 | `resolveRoute()`（env + registry `prefer`） | Model Router v1 + CLI |
 | 本地推理 | 无 | `local-direct` + `moontide-infer` |

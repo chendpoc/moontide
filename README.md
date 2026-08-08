@@ -1,4 +1,3 @@
-# MoonTide
 
 **MoonTide** — 最小可用的 coding agent harness（**TypeScript**），由 **OceanSpark** 开发：loop 不变，工具 / 权限 / tool-use-log 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
 
@@ -6,47 +5,29 @@
 
 当前开发优先级与非目标见 [`docs/product/plan.md`](docs/product/plan.md)。设计文档索引见 [`docs/README.md`](docs/README.md)（Doc Map）。
 
-## 从 Ocula 迁移
 
-若已有旧工作区，需手动切换（无自动兼容）：
-
-```sh
-mv .ocula .moontide
-# .env 中 MOONTIDE_* → MOONTIDE_*
-```
 
 ## 项目结构
 
 ```
-moontide/
-├── crates/              # Rust agent（moontide-cli、moontide-agent、session、tools…）
-├── Cargo.toml           # workspace
-├── docs/                # 设计 Spec 与 Doc Map（product / spec / notes）
-├── src/
-│   ├── main.ts          # 进程入口（REPL）
-│   ├── bootstrap.ts     # env / provider 初始化
-│   ├── agent/           # agent-run、loop、hooks、pipeline（runLLM / runTool）
-│   ├── instruction-state/  # AGENTS.md / rules → InstructionState
-│   ├── plugins/
-│   │   ├── builtin/     # built-in plugins：log-sync、code-repl、context、session-persistence、deep-research
-│   │   ├── host/        # external plugins：manifest · sidecar attach · stdio IPC
-│   │   └── sdk/         # defineSidecarPlugin
-│   ├── tools/           # registry · execute · definitions · builtins/
-│   ├── session/         # Session Item Log · stores/ · paths
-│   ├── context-inspect/ # 观测：metrics · format · debug emit
-│   ├── llm/             # protocol · routing · models · client
-│   ├── cli/             # REPL：commands、repl、statusline、session-persistence-glue
-│   ├── log/             # event-hub、JSONL writer、stderr renderer
-│   ├── context/         # composer/（Context Composer 专用）
-│   ├── storage/         # fs 约定 · list-json
-│   ├── utils/           # fs · process · glob · compress · hash · tmp · path
-│   └── constants/       # brand、storage、env 等常量
-├── scripts/
-│   └── cursor-statusline.ts
+moontide/                      # pnpm workspace 根（moontide-workspace）
+├── apps/moontide/             # CLI + harness 装配（npm 包名 moontide）
+│   └── src/
+│       ├── main.ts            # REPL 入口
+│       ├── agent/             # AgentRun、hooks、pipeline、harness
+│       ├── cli/               # REPL commands、statusline
+│       ├── log/               # 观测装配：modes、stderr renderer、run-event-derive
+│       ├── plugins/builtin/   # context、tool-use-log、session-persistence …
+│       ├── tools/             # register-defaults 薄包装 → @moontide/tools
+│       └── config.ts          # 产品配置（不进域包）
+├── packages/                  # @moontide/* 域包（见 docs/notes/monorepo-packages.md）
+│   ├── shared/ · llm/ · session/ · context-composer/
+│   ├── log/ · tools/ · plugins-sdk/ · sidecar-host/
+│   └── agent-common/ · agent-core/
+├── crates/                    # Rust agent（moontide-cli、moontide-agent …）
+├── docs/
 ├── tests/
-├── ui/                  # Rust/Slint desktop sidecar（只读 tail JSONL）
-│   ├── src/             # watcher、event store
-│   └── ui/              # Slint 组件
+├── ui/                        # Slint desktop sidecar（tail JSONL）
 └── package.json
 ```
 
@@ -101,7 +82,7 @@ TypeScript CLI（`pnpm dev`）仍作参考实现与 conformance 对照；release
 | Spec | [`docs/spec/`](docs/spec/) | context-composer、llm-provider、llm-input、agent-events |
 | 参考 | [`docs/notes/`](docs/notes/) | 行业分析、演进 backlog、runtime 讨论 |
 
-Agent 协作用词规范见 [`agent.md`](agent.md)。
+Agent 协作与开发规则见 [`AGENTS.md`](AGENTS.md)。
 
 ## LLM Provider 与模型配置
 
@@ -234,9 +215,9 @@ MoonTide >>
 
 ### 新增 extension tool 模板（`deep_research`）
 
-1. 在 `src/plugins/builtin/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）；core tool 实现放 `src/tools/builtins/`
-2. 在 [`register-defaults.ts`](src/tools/register-defaults.ts) 条件注册
-3. 在 [`permission/index.ts`](src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
+1. 在 `apps/moontide/src/plugins/builtin/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）；core tool 实现放 `packages/tools/src/builtins/`
+2. 在 [`register-defaults.ts`](apps/moontide/src/tools/register-defaults.ts) 条件注册
+3. 在 [`permission/index.ts`](apps/moontide/src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
 
 ### code_repl templates（Tier 1）
 

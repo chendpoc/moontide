@@ -1,4 +1,3 @@
-# MoonTide Context Window 特性 Backlog
 
 > Context Composer **演进特性**候选：优先级、设计要点、代价与阶段。  
 > **非实现承诺** — 当前主路径见 [`context-window-roadmap.md`](context-window-roadmap.md)（六件事）；C6+ 之后择项见本文。
@@ -330,7 +329,7 @@ read（定点） → grep（搜针） → explore（扫库） → act（改/跑�
 | | **When（触发）** | **Validate（验证）** |
 |---|------------------|----------------------|
 | 关注点 | 何时执行 Compaction | Compaction **之后** compose 产出是否仍合法 |
-| 第一版 | token 压力 / 阈值（沿用 [`compact.ts`](../../src/context/compact.ts) 思路） | **不做** |
+| 第一版 | token 压力 / 阈值（沿用 compaction policy 思路） | **不做** |
 | 远期示例 | 分级压力 | instruction 已注入；tool 配对完整；tier 未越界；失败 → mechanical fallback |
 
 Validate 的新意是 **状态转换正确性**（类似 DB constraint），不是替换百分比触发。
@@ -394,9 +393,11 @@ Validate 的新意是 **状态转换正确性**（类似 DB constraint），不�
 | [`llm-input.md`](../spec/llm-input.md) | 三参数对表 |
 | [`context-analysis.md`](context-analysis.md) | 竞品与 SOTA |
 | [`agent-activity-model-discussion.md`](agent-activity-model-discussion.md) | §8 讨论备忘 · 7a–7c checklist |
+| [`web-content-retrieval-discussion.md`](web-content-retrieval-discussion.md) | 外网/HTML/artifact 阅读 · W1–W7 backlog（讨论备忘） |
+| [`agent-eval-roadmap.md`](agent-eval-roadmap.md) | Feature 评测流水线 · D 桶 infra_penalty · TODO §7/§8 |
 | [`agent-events.md`](../spec/agent-events.md) | Agent Event Log |
 | [`vision.md`](../product/vision.md) | Bruma 代号 |
-| [`agent.md`](../../agent.md) | 文档用词 |
+| [`AGENTS.md`](../../AGENTS.md) | 文档用词 |
 | [`session-handoff.md`](session-handoff.md) | 跨 agent 交接与 memory 指针 |
 | [`edge-local-models.md`](edge-local-models.md) | 情景 memory L2–L3、local extract |
 | [`kocoro-architecture.md`](kocoro-architecture.md) | memory bundle pull、ephemeral inject |

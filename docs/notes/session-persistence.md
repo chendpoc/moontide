@@ -1,6 +1,5 @@
-# Session Persistence（REPL 书签与恢复）
 
-> **Session Item Log** 是对话事实源（append-only）；**Session Index** 是可发现性元数据，便于跨 REPL 重启列出与加载 session。实现位于 builtin plugin [`session-persistence`](../../src/plugins/builtin/session-persistence/)。
+> **Session Item Log** 是对话事实源（append-only）；**Session Index** 是可发现性元数据，便于跨 REPL 重启列出与加载 session。实现位于 builtin plugin [`session-persistence`](../../apps/moontide/src/plugins/builtin/session-persistence/)。
 
 ## 两层存储
 
@@ -69,10 +68,10 @@ flowchart LR
 
 | 模块 | 职责 |
 |------|------|
-| [`session-persistence/`](../../src/plugins/builtin/session-persistence/) | index 读写、format、command handler、lifecycle |
-| [`cli/session-persistence-glue.ts`](../../src/cli/session-persistence-glue.ts) | 注入 `SessionPersistenceDeps` |
-| [`session/paths.ts`](../../src/session/paths.ts) | `sessionIndexPath` |
-| [`cli/repl/run.ts`](../../src/cli/repl/run.ts) | 启动 hint、exit auto-save + quit hint |
+| [`session-persistence/`](../../apps/moontide/src/plugins/builtin/session-persistence/) | index 读写、format、command handler、lifecycle |
+| [`cli/session-persistence-glue.ts`](../../apps/moontide/src/cli/session-persistence-glue.ts) | 注入 `SessionPersistenceDeps` |
+| [`session/paths.ts`](../../packages/session/src/paths.ts) | `sessionIndexPath` |
+| [`cli/repl/run.ts`](../../apps/moontide/src/cli/repl/run.ts) | 启动 hint、exit auto-save + quit hint |
 
 Plugin **不 import** `cli/`（architecture-boundaries 测试覆盖）。
 

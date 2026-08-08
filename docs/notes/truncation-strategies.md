@@ -1,4 +1,3 @@
-# Truncated tool output — recovery strategies
 
 When Composer truncates a tool result during compile, MoonTide injects `[strategies]` into the tool result footnote and may add a synthetic user reminder before the next LLM turn.
 

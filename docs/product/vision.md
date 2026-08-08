@@ -1,4 +1,3 @@
-# MoonTide — Product Vision
 
 **当前产品名：MoonTide** · 读音 **/MOON-tide/**
 

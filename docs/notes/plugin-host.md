@@ -1,8 +1,9 @@
-# Plugin Host — 扩展加载与 MCP 集成
 
 > **文档性质：** notes（架构候选，非 Spec、非实现承诺）  
-> **Doc Map：** [`docs/README.md`](../README.md) · 用词规范见 [`agent.md`](../../agent.md)  
+> **Doc Map：** [`docs/README.md`](../README.md) · 用词规范见 [`AGENTS.md`](../../AGENTS.md)  
 > **分工：** Release 方向见 [`platform-strategy.md`](../product/platform-strategy.md)；Desktop IPC / sidecar 监管见 [`runtime-multilang.md`](runtime-multilang.md)；Hook 与 loop 边界见 [`agent-run-hooks.md`](agent-run-hooks.md) §11+
+
+> **实现包（TS）：** `@moontide/sidecar-host`（`packages/sidecar-host/`）。下文 **Plugin host** 指 sidecar attach + manifest 职责；原 `src/plugins/host/` 已迁入该包。
 
 ---
 
@@ -18,7 +19,7 @@
 
 **一词一义：** 本文不使用未定义的「Broker」总称。历史对话中的「Extension Broker」= 本文 **Plugin host** + **MCP client** +（Desktop 下）**Capability Broker** 的组合，落盘时拆开写。
 
-**当前代码：** TS harness 已实现 [`src/plugins/host/`](../../src/plugins/host/)（manifest · `kind: sidecar` attach · in-process + stdio transport）与 [`ToolRegistry`](../../src/agent/runtime/tool-registry.ts)（经 `AgentRuntime.tools`）；**MCP client 尚未实现**。
+**当前代码：** TS harness 已实现 [`@moontide/sidecar-host`](../../packages/sidecar-host/)（manifest · `kind: sidecar` attach · in-process + stdio transport）与 [`ToolRegistry`](../../packages/tools/)（经 `AgentRuntime.tools`）；**MCP client 尚未实现**。
 
 ---
 
@@ -268,7 +269,7 @@ moontide-capability/      # Capability Broker（CLI 可先简化）
 moontide-sidecar/         # Sidecar supervisor（R3+）
 ```
 
-TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`ToolRegistry`](../../src/agent/runtime/tool-registry.ts) 行为对齐 registry 语义。
+TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`ToolRegistry`](../../apps/moontide/src/agent/runtime/tool-registry.ts) 行为对齐 registry 语义。
 
 ---
 
@@ -291,7 +292,7 @@ TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`ToolRegistry
 | [`agent-run-hooks.md`](agent-run-hooks.md) | Loop 与 hook；§13.3 sidecar Transform |
 | [`scratchpad.md`](scratchpad.md) | L0 WASM 候选 |
 | [`kocoro-architecture.md`](kocoro-architecture.md) | 参考 sidecar 监管 |
-| [`agent.md`](../../agent.md) | 术语规范 |
+| [`AGENTS.md`](../../AGENTS.md) | 术语规范 |
 
 ---
 
@@ -299,10 +300,10 @@ TS 仓库：现有 tests + fixture manifest 作 **conformance**；[`ToolRegistry
 
 - **方向：** Plugin host + MCP client 双 attach 模式（startup assembly / runtime attach）；Capability Broker 与 Sidecar supervisor 职责分离。
 - **TS harness（已实现）：**
-  - [`src/plugins/host/`](../../src/plugins/host/) — manifest 解析 · `kind: sidecar` attach
-  - [`src/plugins/host/sidecar/`](../../src/plugins/host/sidecar/) — **stdio pipe IPC**（`process-transport` · `bridge` · NDJSON 协议）
-  - [`src/plugins/sdk/`](../../src/plugins/sdk/) — `defineSidecarPlugin` · hook 注册
-  - [`src/agent/runtime/tool-registry.ts`](../../src/agent/runtime/tool-registry.ts) — tool registry（`AgentRuntime.tools`）
-  - default sidecar：tool-use-log、log-sync、context metrics（见 [`agent-run-hooks.md`](agent-run-hooks.md)）
+  - [`@moontide/sidecar-host`](../../packages/sidecar-host/src/) — manifest 解析 · `kind: sidecar` attach
+  - [`sidecar-host/src/sidecar/`](../../packages/sidecar-host/src/sidecar/) — **stdio pipe IPC**（`process-transport` · `bridge` · NDJSON 协议）
+  - [`@moontide/plugins-sdk`](../../packages/plugins-sdk/src/) — `defineSidecarPlugin` · hook 注册
+  - [`apps/moontide/src/agent/runtime/tool-registry.ts`](../../apps/moontide/src/agent/runtime/tool-registry.ts) — tool registry（`AgentRuntime.tools`）
+  - default sidecar：tool-use-log、context metrics（见 [`agent-run-hooks.md`](agent-run-hooks.md)）
 - **未实现：** MCP client（R2）· Rust Plugin host · UDS transport（终局，与 TS 同协议）
 - **下一步：** R2 MCP client stub；manifest 字段 stabilise 为 Spec 或 ADR

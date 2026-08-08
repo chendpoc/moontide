@@ -1,4 +1,3 @@
-# Utils 基础设施层
 
 > **状态：** 2026-08 · **已实现**（TS harness）  
 > **原则：** 通用 Node/OS 原语集中在 `utils/`；MoonTide 持久化约定在 `storage/`；业务层不直接 `import fs` / `child_process`。
@@ -66,21 +65,21 @@ flowchart TB
 
 | 模块 | 主要 API | 典型消费方 |
 |------|----------|------------|
-| [`utils/fs.ts`](../../src/utils/fs.ts) | `readText` · `writeText` · `exists` · `readLines` · `listDir` · `stat` · `renameFile` | storage、builtins、jsonl、manifest |
-| [`utils/process.ts`](../../src/utils/process.ts) | `spawnCollect` · `execFileCollect` · `execShell` | grep、git、bash、code-repl |
-| [`utils/glob.ts`](../../src/utils/glob.ts) | `globFiles` | instruction-state、tools/builtins/fs |
-| [`utils/compress.ts`](../../src/utils/compress.ts) | `gzipBuffer` · `gunzipBuffer` | log/outputs/jsonl |
-| [`utils/hash.ts`](../../src/utils/hash.ts) | `sha256Hex` · `sha256UInt32Be` | instruction-state epoch |
-| [`utils/tmp.ts`](../../src/utils/tmp.ts) | `createTmpDir` · `removeTmpDir` | tests、code-repl tmp script |
-| [`utils/path.ts`](../../src/utils/path.ts) | `joinPath` · `resolveWorkspacePath` · `dataPath` | 全仓 |
-| [`storage/fs.ts`](../../src/storage/fs.ts) | `appendNdjsonLine` · `readJson` · `writeJsonPretty` | stores、session IO |
-| [`storage/list-json.ts`](../../src/storage/list-json.ts) | `listJsonRecords<T>` | compaction-store、checkpoint-store |
+| [`utils/fs.ts`](../../packages/shared/src/utils/fs.ts) | `readText` · `writeText` · `exists` · `readLines` · `listDir` · `stat` · `renameFile` | storage、builtins、jsonl、manifest |
+| [`utils/process.ts`](../../packages/shared/src/utils/process.ts) | `spawnCollect` · `execFileCollect` · `execShell` | grep、git、bash、code-repl |
+| [`utils/glob.ts`](../../packages/shared/src/utils/glob.ts) | `globFiles` | instruction-state、tools/builtins/fs |
+| [`utils/compress.ts`](../../packages/shared/src/utils/compress.ts) | `gzipBuffer` · `gunzipBuffer` | log/outputs/jsonl |
+| [`utils/hash.ts`](../../packages/shared/src/utils/hash.ts) | `sha256Hex` · `sha256UInt32Be` | instruction-state epoch |
+| [`utils/tmp.ts`](../../packages/shared/src/utils/tmp.ts) | `createTmpDir` · `removeTmpDir` | tests、code-repl tmp script |
+| [`utils/path.ts`](../../packages/shared/src/utils/path.ts) | `joinPath` · `resolveWorkspacePath` · `dataPath` | 全仓 |
+| [`storage/fs.ts`](../../packages/shared/src/storage/fs.ts) | `appendNdjsonLine` · `readJson` · `writeJsonPretty` | stores、session IO |
+| [`storage/list-json.ts`](../../packages/shared/src/storage/list-json.ts) | `listJsonRecords<T>` | compaction-store、checkpoint-store |
 
 ---
 
 ## 3. Agent Event 分发（event-hub）
 
-观测事件不走 `utils/`，而由 [`src/log/event-hub.ts`](../../src/log/event-hub.ts) 负责：
+观测事件不走 `utils/`，而由 [`src/log/event-hub.ts`](../../packages/log/src/event-hub.ts) 负责：
 
 | API | 说明 |
 |-----|------|
@@ -88,7 +87,7 @@ flowchart TB
 | `setOutputs(outputs)` | 注册 JsonlWriter、StderrRenderer |
 | `subscribe(listener)` | 测试 / 扩展监听 |
 
-Hook observe 返回值中的 `EventDraft` 由 `HookDispatcher` 统一 `emitDraft`；Session 派生见 `plugins/builtin/log-sync/`。
+Hook observe 返回值中的 `EventDraft` 由 `HookDispatcher` 统一 `emitDraft`；Session 派生见 `apps/moontide/src/log/run-event-derive.ts`。
 
 Spec：[`agent-events.md`](../spec/agent-events.md)
 

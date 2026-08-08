@@ -1,4 +1,3 @@
-# Context Preflight / Postflight Normalization
 
 > **状态：** 后续计划轨 **8.4** · Backlog / Feature candidate  
 > **入口：** [`context-window-roadmap.md` §8.4](context-window-roadmap.md) · [`TODO.md`](../../TODO.md) §15.4

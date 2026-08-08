@@ -1,4 +1,3 @@
-# Agent Activity Model — 讨论备忘（待续）
 
 > **状态：** 讨论记录 · **非 Spec / 非实现承诺**  
 > **来源：** 对照 Cursor 终端 activity（read · grepped · explored · thought）的启发（2026-08）  

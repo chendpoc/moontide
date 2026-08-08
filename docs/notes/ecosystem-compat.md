@@ -1,4 +1,3 @@
-# 扩展生态兼容策略
 
 > **文档性质：** notes（兼容承诺，非 Spec）  
 > **Hook 机制：** [`agent-run-hooks.md`](agent-run-hooks.md) · **加载实现：** [`plugin-host.md`](plugin-host.md) · **平台：** [`platform-strategy.md`](../product/platform-strategy.md)

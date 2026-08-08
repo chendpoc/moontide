@@ -1,4 +1,3 @@
-# Tool hints (dev collection)
 
 When `MOONTIDE_DEV_TOOL_LEARNING=1`, the agent can call `record_tool_hint` to capture suboptimal tool usage patterns.
 
