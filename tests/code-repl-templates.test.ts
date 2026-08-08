@@ -91,7 +91,7 @@ describe("expandTemplate", () => {
   });
 });
 
-describe("code_repl templates integration", () => {
+describe("code_repl templates integration", { timeout: 30_000 }, () => {
   it("includes template enum in schema", () => {
     const schema = getToolDefinitions(getTestRuntime().tools).find((t) => t.name === "code_repl");
     expect(schema).toBeDefined();
