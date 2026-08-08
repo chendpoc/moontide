@@ -1,4 +1,18 @@
-# Agent 协作偏好
+
+本文件是 MoonTide 的 **Agent 指令源**（经 `instruction-state` 注入 compose）与 **开发规则** 的唯一入口。工程原则、用词规范、命令与 Git 约定均在此维护。
+
+---
+
+## 对话风格
+
+- 回答保持简短精炼
+- 提交信息、issue、PR 评论和代码中不使用 emoji
+- 不要客套话或欢快的填充语（例如："Thanks @user" 而不是 "Thanks so much @user!"）
+- 只写技术性文字，直接了当
+- 用户提问时，先回答问题，再进行编辑或执行实现命令。
+- 回应反馈或分析时，先明确表示同意或不同意，再说明你改了什么。
+
+---
 
 ## 用词：专业、简洁、清晰
 
@@ -15,12 +29,84 @@
 
 **示例（MoonTide）：**
 
-- ✅ 「Harness 与 **API 适配层**分离」— adapter 负责 `LLMRequest` ↔ 厂商 SDK  
-- ❌ 「Harness 与 Wire 分离」— Wire 非通用架构术语，易与 wire protocol 混淆  
+- ✅ 「Harness 与 **API 适配层**分离」— adapter 负责 `LLMRequest` ↔ 厂商 SDK
+- ❌ 「Harness 与 Wire 分离」— Wire 非通用架构术语，易与 wire protocol 混淆
+- ✅ loop **publish** RunEvent，经 **RunEvent bus** fan-out 给 subscribe / EventOutput
+- ❌ 「sink 收日志」— 未定义；用 **RunEvent bus**（进程内 pub/sub 门面）
+- ✅ run 前 **resolveRunConfig**，每 turn LLM 前 **resolveTurnContext**
+- ❌ 「fold hook / fold config」— 用 **resolveRunConfig**（run 级）与 **resolveTurnContext**（turn 级）
 
 **范围：** 架构文档（[`docs/`](docs/README.md)）、PR/Issue、Agent 产出物；口语讨论可临时用简称，**落盘时必须规范化**。
 
 **文档索引：** [`docs/README.md`](docs/README.md) — `product/`（方向）、`spec/`（设计 Spec）、`notes/`（分析与候选）；文件名一律小写 kebab-case。
+
+---
+
+## 代码质量
+
+- 在进行大范围修改、编辑未完整检查过的文件、或要求调查/审计时，先完整读取文件。大范围改动不要依赖搜索片段。
+- 除非绝对必要，否则不用 `any`。
+- 只有一个调用点的单行辅助函数应内联。
+- 检查 node_modules 中的外部 API 类型；不要猜测。
+- **禁止内联导入**（`await import()`、`import("pkg").Type`、动态类型导入）。只用顶层导入。
+- **源码只使用 `.ts`。** 禁止在 `src/`（及 package 源码目录）提交 `.js` / `.mjs`；编译产物仅出现在 `dist/`。TS 内 ESM import 的 `.js` 后缀（NodeNext）除外。
+- **`_` 前缀 = 模块内部。** 函数 / 常量以 `_` 开头表示仅在本文件（编译单元）内使用，**不得 export**。对外 API 用无 `_` 名称；模块内步骤用 `_foo` 拆分。与 ESLint `@typescript-eslint/no-unused-vars` 的 `varsIgnorePattern: "^_"` 一致——有意忽略的未使用参数也用 `_`，二者不冲突（参数位置 vs 模块私有符号）。
+- 删除看似有意的功能或代码前，务必先询问。
+- 除非用户要求，否则不保留向后兼容。
+
+---
+
+## 命令
+
+- 代码变更后（文档除外）：运行 `pnpm run check`（完整输出，不要 tail）。修复所有错误、警告和 info 后再提交。
+- `pnpm run check` = `lint` + `typecheck` + `test`（全量 vitest）。
+- 未经用户要求，绝不运行 `pnpm run build` 或 `pnpm test`。
+- 创建或修改测试文件后，运行该文件并迭代测试或实现直到通过：`pnpm exec vitest run tests/<name>.test.ts`。
+- 规范单测（结构边界、hook manifest、tool permission 等）：`pnpm run test:conformance`（pre-commit 已包含）。
+- 临时脚本用 `write` 写到临时文件（例如 `/tmp`），运行、需要时修改、用后删除。不要把多行脚本嵌在 `bash` 命令里。
+- 未经用户要求，绝不提交。
+
+---
+
+## Git
+
+当前 cwd 可能同时运行多个 agent 会话，各自修改不同文件。凡是触碰你自己变更之外未暂存、已暂存或未跟踪文件的 Git 操作，都会踩坏其他会话的工作。遵守以下规则：
+
+**提交：**
+
+- 只提交你本次会话中自己改过的文件。
+- 显式暂存路径（`git add <path1> <path2>`）；绝不 `git add -A` / `git add .`。
+- 提交前运行 `git status`，确认只暂存了自己的文件。
+- 提交信息格式：`{feat,fix,docs}[(scope)]: <commit message>`（可多行）。信息要有信息量且简洁。
+
+**绝不运行（会毁掉其他 agent 的工作或绕过检查）：**
+
+- `git reset --hard`、`git checkout .`、`git clean -fd`、`git stash`、`git add -A`、`git add .`、`git commit --no-verify`。
+
+**rebase 冲突时：**
+
+- 只解决你修改过的文件中的冲突。
+- 冲突出现在你未修改的文件中时，中止并询问用户。
+- 绝不 force push。
+
+---
+
+## Issue 与 PR
+
+审查 PR 时：
+
+- 除非用户明确要求，不运行 `gh pr checkout`、`git switch` 或任何把工作树切到 PR 分支的操作。
+- 用 `gh pr view`、`gh pr diff`、`gh api` 和本地 `git show`/`git diff`（针对已 fetch 的 ref）检查 PR 元数据、提交和补丁，不切换分支。
+- 需要 PR 文件内容时，fetch/读取到临时文件，或用 `git show <ref>:<path>`，不切换分支。
+
+发布 issue/PR 评论时：
+
+- 评论写到临时文件，用 `gh issue/pr comment --body-file` 发布（绝不用 `--body` 传多行 markdown）。
+- 评论保持简洁、技术性、贴合用户的语气。
+
+通过提交关闭 issue 时：
+
+- 在提交信息中包含 `fixes #<number>` 或 `closes #<number>`，合并时自动关闭 issue。多个 issue 时每个 issue 重复关键字（`closes #1, closes #2`）；共享关键字（`closes #1, #2`）只关闭第一个。
 
 ---
 
@@ -38,7 +124,7 @@
 
 **配套做法：**
 
-- **单一入口** — 横切能力只暴露一个门面（如 `checkPermission`、`emitDraft`、`resolveInstructionState`）；调用方不认实现细节。
+- **单一入口** — 横切能力只暴露一个门面（如 `checkPermission`、`emit`、`resolveInstructionState`）；调用方不认实现细节。
 - **例外显式** — 必须越层的场景（如 sidecar IPC spawn、注入沙箱的用户脚本）单独列出，不默许扩散。
 - **可验收** — 用不变量测试 / grep 验证 import 边界，而不只写在 README（见 §6）。
 
@@ -47,8 +133,8 @@
 **示例（MoonTide）：**
 
 - ✅ `tools/builtins/workspace/fs` → `utils/fs` → `node:fs`；`storage/fs` 只做 MoonTide 路径约定
-- ✅ Session Item Log 为事实源，Agent Event Log 仅派生，不反向写 Session  
-- ❌ 业务模块直接 `import fs from "node:fs"`，或 observability 与 compose 共用可变 messages 数组  
+- ✅ Session Item Log 为事实源，Agent Event Log 仅派生，不反向写 Session
+- ❌ 业务模块直接 `import fs from "node:fs"`，或 observability 与 compose 共用可变 messages 数组
 
 **参考：** [`docs/notes/utils-infrastructure.md`](docs/notes/utils-infrastructure.md)
 
@@ -62,7 +148,7 @@
 
 | | 高内聚 | 低耦合 |
 |---|--------|--------|
-| **偏好** | 一模块一变更理由；materialize / derive / compile 分文件；`AgentSession` 不兼 compact + checkpoint + run | 依赖 port / 接口而非具体实现；`src/session/` 不知 Harness hook；permission 随 `ToolSpec` 注册 |
+| **偏好** | 一模块一变更理由；materialize / derive / compile 分文件；`AgentSession` 不兼 compact + checkpoint + run | 依赖 port / 接口而非具体实现；`packages/session` 不知 Harness hook；permission 随 `ToolSpec` 注册 |
 | **避免** | 同文件混 Item 还原与 Agent Event 派生；门面类堆叠无关命令 | `session/` import `agent/`；tool 权限与 manifest 两处手工同步 |
 
 **与 §1 分工：** §1 管**纵向层间**依赖；§2 管**横向模块**职责纯度与接口宽度。
@@ -74,11 +160,11 @@
 
 **示例（MoonTide）：**
 
-- ✅ [`instruction-state`](src/instruction-state/) — `load` / `resolve` 分离  
-- ❌ [`session.ts`](src/session/session.ts) `import agent/hooks`  
-- ❌ [`item-handlers.ts`](src/session/item-handlers.ts) 混 materialize + derive  
+- ✅ [`instruction-state`](apps/moontide/src/instruction-state/) — `load` / `resolve` 分离
+- ❌ [`session.ts`](packages/session/src/session.ts) `import agent/hooks`
+- ❌ [`item-handlers.ts`](packages/session/src/item-handlers.ts) 混 materialize + derive
 
-**可验收：** `rg 'from.*agent/' src/session/` 为零；新模块声明 public API（`index.ts` 或 `types.ts`）。
+**可验收：** `rg 'from.*agent/' packages/session/src/` 为零；新模块声明 public API（`index.ts` 或 `types.ts`）。
 
 **工程取舍：** 允许简单冗余，见 §3；高内聚、低耦合 **不意味着** 凡相似必合并。
 
@@ -115,16 +201,16 @@
 
 **示例（MoonTide）：**
 
-- ✅ [`tools/builtins/shell/bash.ts`](src/tools/builtins/shell/bash.ts)（`runBash`）+ [`shell/tools.ts`](src/tools/builtins/shell/tools.ts)（`ToolSpec` + `defineShellTools`）
-- ✅ [`tools/builtins/context/inspect-context.ts`](src/tools/builtins/context/inspect-context.ts) + [`context/tools.ts`](src/tools/builtins/context/tools.ts)
-- ✅ [`plugins/builtin/code-repl/tools.ts`](src/plugins/builtin/code-repl/tools.ts)（spec）+ [`executor.ts`](src/plugins/builtin/code-repl/executor.ts)（impl）
-- ✅ [`agent/hooks/manifest.ts`](src/agent/hooks/manifest.ts)（声明） vs 各 handler 文件（实现）
+- ✅ [`tools/builtins/shell/bash.ts`](packages/tools/src/builtins/shell/bash.ts)（`runBash`）+ [`shell/tools.ts`](packages/tools/src/builtins/shell/tools.ts)（`ToolSpec` + `defineShellTools`）
+- ✅ [`tools/builtins/context/inspect-context.ts`](packages/tools/src/builtins/context/inspect-context.ts) + [`context/tools.ts`](packages/tools/src/builtins/context/tools.ts)
+- ✅ [`plugins/builtin/code-repl/tools.ts`](apps/moontide/src/plugins/builtin/code-repl/tools.ts)（spec）+ [`executor.ts`](apps/moontide/src/plugins/builtin/code-repl/executor.ts)（impl）
+- ✅ [`agent/hooks/manifest.ts`](apps/moontide/src/agent/hooks/manifest.ts)（声明） vs 各 handler 文件（实现）
 - ✅ Sidecar：`plugins.json`（attach 契约） vs `entry` 脚本（运行时）— 天然 spec/impl 分进程
 - ❌ 单文件内 `const SPEC: ToolSpec = { …, run: async () => { spawn… } }` + `export function defineFooTool()`
 
 **与 §4 / §5 的关系：** §4 要求规则**声明式**表达；§2.1 要求声明与执行**物理分离**，以便 §5 Conformance 只扫 spec 层、单元测试只测 impl 层，互不污染。
 
-**参考：** [`src/tools/register-defaults.ts`](src/tools/register-defaults.ts) · [`src/tools/builtins/README.md`](src/tools/builtins/README.md) · [`src/plugins/builtin/README.md`](src/plugins/builtin/README.md) · [`tests/architecture-boundaries.test.ts`](tests/architecture-boundaries.test.ts)
+**参考：** [`apps/moontide/src/tools/register-defaults.ts`](apps/moontide/src/tools/register-defaults.ts) · [`packages/tools/src/builtins/README.md`](packages/tools/src/builtins/README.md) · [`apps/moontide/src/plugins/builtin/README.md`](apps/moontide/src/plugins/builtin/README.md) · [`tests/architecture-boundaries.test.ts`](tests/architecture-boundaries.test.ts)
 
 ---
 
@@ -143,9 +229,9 @@
 
 **示例（MoonTide）：**
 
-- ✅ `FileCompactionStore` · `FileCheckpointStore` · `FileArtifactStore` 三份独立实现 — 各文件的 get/list/save 与路径约定同屏可读  
-- ❌ `JsonRecordStore<T>` + 三个 thin wrapper — 共性只有「JSON 文件 CRUD」，差异（`compactionDir` vs `artifactId` 布局）被藏进 factory 参数  
-- ✅ 新增 builtin / extension / plugin tool 必须过规范单测 — 测试失败则不能提交（见 §5）  
+- ✅ `FileCompactionStore` · `FileCheckpointStore` · `FileArtifactStore` 三份独立实现 — 各文件的 get/list/save 与路径约定同屏可读
+- ❌ `JsonRecordStore<T>` + 三个 thin wrapper — 共性只有「JSON 文件 CRUD」，差异（`compactionDir` vs `artifactId` 布局）被藏进 factory 参数
+- ✅ 新增 builtin / extension / plugin tool 必须过规范单测 — 测试失败则不能提交（见 §5）
 - ❌ `to-message-params` 加 runtime assert — compose / transform oracle 测试已覆盖即可（见 §6）
 
 **与其他原则的关系：** §1 分层、§4 声明式解决**边界与扩展**；本条约束**层内与模块间**何时不值得抽象。高内聚、低耦合 **不意味着** 凡相似必合并。
@@ -167,10 +253,10 @@
 
 **示例（MoonTide）：**
 
-- ✅ `BASH_COMMAND_RULES` — deny / ask pattern 分组，顺序匹配  
-- ✅ `ToolSpec.permission` — `fixed` / `bash` / `path` 三种 kind；permission 表见 [`permission-table.ts`](src/tools/permission-table.ts)；未知 tool **deny**  
-- ✅ `HookDispatcher` + `PHASE_DEFS` — phase 名、mode、errorPolicy 一处定义  
-- ❌ `matchesNetworkAsk` / `matchesGrepAsk` 各写一条 `if`，或 tool 权限用 20 个 `case`  
+- ✅ `BASH_COMMAND_RULES` — deny / ask pattern 分组，顺序匹配
+- ✅ `ToolSpec.permission` — `fixed` / `bash` / `path` 三种 kind；permission 表见 [`permission-table.ts`](packages/tools/src/permission-table.ts)；未知 tool **deny**
+- ✅ `HookDispatcher` + `PHASE_DEFS` — phase 名、mode、errorPolicy 一处定义
+- ❌ `matchesNetworkAsk` / `matchesGrepAsk` 各写一条 `if`，或 tool 权限用 20 个 `case`
 
 **与分层的关系：** 分层定「谁该在哪」；声明式定「在那层里怎么表达规则」——二者配合，控制复杂度随功能线性增长，而非指数增长。
 
@@ -184,10 +270,10 @@
 
 | 来源 | 注册入口 | 规范单测关注点 |
 |------|----------|----------------|
-| **Builtin** | [`register-defaults.ts`](src/tools/register-defaults.ts) · [`builtins/<domain>/tools.ts`](src/tools/builtins/README.md) | 每条 `ToolSpec` 含 `permission` 与 `capability`；name 与 `TOOL_NAMES` 一致；impl 与 spec 分层（§2.1） |
-| **Extension** | 同上 manifest 的 plugin 工厂（[`code_repl`](src/plugins/builtin/code-repl/tools.ts)、[`deep_research`](src/plugins/builtin/deep-research/tools.ts)） | 与 builtin **同一套** permission / schema 规则；optional 工厂返回 null 时跳过 |
-| **Hook（内置）** | [`buildDefaultHookManifest()`](src/agent/hooks/manifest.ts) | `phase` ∈ `PHASE_DEFS`；同 phase 内 `name` 唯一；`errorPolicy` 合法 |
-| **Plugin（sidecar）** | [`defineSidecarPlugin`](src/plugins/sdk/define.ts) · [`plugins.json`](src/plugins/host/manifest.ts) | manifest 条目 `id/kind/attach` 合法；sidecar 暴露的 hook（`listSidecarHooks`）与 tool 经 attach 后同样受检 |
+| **Builtin** | [`register-defaults.ts`](apps/moontide/src/tools/register-defaults.ts) · [`builtins/<domain>/tools.ts`](packages/tools/src/builtins/README.md) | 每条 `ToolSpec` 含 `permission` 与 `capability`；name 与 `TOOL_NAMES` 一致；impl 与 spec 分层（§2.1） |
+| **Extension** | 同上 manifest 的 plugin 工厂（[`code_repl`](apps/moontide/src/plugins/builtin/code-repl/tools.ts)、[`deep_research`](apps/moontide/src/plugins/builtin/deep-research/tools.ts)） | 与 builtin **同一套** permission / schema 规则；optional 工厂返回 null 时跳过 |
+| **Hook（内置）** | [`buildDefaultHookManifest()`](apps/moontide/src/agent/hooks/manifest.ts) | `phase` ∈ `PHASE_DEFS`；同 phase 内 `name` 唯一；`errorPolicy` 合法 |
+| **Plugin（sidecar）** | [`defineSidecarPlugin`](packages/plugins-sdk/src/define.ts) · [`plugins.json`](packages/sidecar-host/src/manifest.ts) | manifest 条目 `id/kind/attach` 合法；sidecar 暴露的 hook（`listSidecarHooks`）与 tool 经 attach 后同样受检 |
 
 **计划测试文件：**
 
@@ -200,11 +286,11 @@
 
 **pre-commit：** `.husky/pre-commit` 跑 `pnpm run test:conformance`（结构边界 + hook manifest + tool permission）；全量 `pnpm test` 仍由 CI / 本地 `pnpm check` 覆盖。
 
-**Plugin tool 命名：** sidecar 注册 tool 使用 `pluginId__toolName`（[`ToolRegistry.pluginToolName`](src/tools/registry.ts)）；permission 随 `ToolDefinition` 一并声明，默认 **deny**，显式 opt-in。
+**Plugin tool 命名：** sidecar 注册 tool 使用 `pluginId__toolName`（[`ToolRegistry.pluginToolName`](packages/tools/src/registry.ts)）；permission 随 `ToolDefinition` 一并声明，默认 **deny**，显式 opt-in。
 
 **与 §6 关系：** §5 是 §6「注册表类不变量」的子集；§6 覆盖变换、行为、架构等更广的不变量。
 
-**参考：** [`docs/notes/architecture-remediation.md`](docs/notes/architecture-remediation.md)（架构修复计划）· [`docs/notes/plugin-host.md`](docs/notes/plugin-host.md) · [`docs/notes/agent-run-hooks.md`](docs/notes/agent-run-hooks.md)
+**参考：** [`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) · [`docs/notes/architecture-remediation.md`](docs/notes/architecture-remediation.md) · [`docs/notes/plugin-host.md`](docs/notes/plugin-host.md)（sidecar-host 实现）· [`docs/notes/agent-run-hooks.md`](docs/notes/agent-run-hooks.md)
 
 ---
 
@@ -231,7 +317,7 @@
 | **注册表** | 声明式表条目合法、唯一 | 遍历 manifest + 断言 | §5 · [`tests/hooks-registry.test.ts`](tests/hooks-registry.test.ts) |
 | **变换** | 纯函数：Log/Item → Message/Request | 表格用例 + 精确 `toEqual` | [`tests/log-to-messages.test.ts`](tests/log-to-messages.test.ts) · [`tests/session-transform.test.ts`](tests/session-transform.test.ts) |
 | **行为** | 解释器语义：顺序、errorPolicy、隔离 | spy 顺序 / 副作用收集 | [`tests/hooks-order.test.ts`](tests/hooks-order.test.ts) · [`tests/hook-failures.test.ts`](tests/hook-failures.test.ts) |
-| **集成状态** | 一次 run 后跨模块状态一致 | 端到端 + 读 log/event 快照 | [`tests/log-sync.test.ts`](tests/log-sync.test.ts) · [`tests/run-storage.test.ts`](tests/run-storage.test.ts) |
+| **集成状态** | 一次 run 后跨模块状态一致 | 端到端 + 读 log/event 快照 | [`tests/log-sync.test.ts`](tests/log-sync.test.ts)（RunEvent derive）· [`tests/run-storage.test.ts`](tests/run-storage.test.ts) |
 | **事件形状** | 派生 event 字段、seq、channel | schema / 快照断言 | [`tests/events-schema.test.ts`](tests/events-schema.test.ts) |
 
 **配套做法：**
@@ -246,27 +332,76 @@
 
 **示例（MoonTide）：**
 
-- ✅ `log-to-messages` — tool_use 后 tool_outcome 必须合并为带 `tool_result` 的 user message  
-- ✅ `hooks-order` — 某 handler throw 时同 phase 后续 handler 仍执行（`errorPolicy: observe`）  
-- ✅ `log-sync` — 一次 user commit 只 derive 一条 `user_prompt`，tool 轮不重复 trace  
-- ❌ 只在 PR 描述写「Session 不依赖 Harness」，无 [`session-ports.test.ts`](tests/session-ports.test.ts) 类门禁  
-- ❌ 为 `toMessageParams` 加 runtime typeof 检查 — compose / transform 已有 oracle 测试即可  
+- ✅ `log-to-messages` — tool_use 后 tool_outcome 必须合并为带 `tool_result` 的 user message
+- ✅ `hooks-order` — 某 handler throw 时同 phase 后续 handler 仍执行（`errorPolicy: observe`）
+- ✅ `log-sync.test` — 一次 run 只 derive 一条 `user_prompt`，tool 轮不重复 trace（RunEvent 路径）
+- ❌ 只在 PR 描述写「Session 不依赖 Harness」，无 [`session-ports.test.ts`](tests/session-ports.test.ts) 类门禁
+- ❌ 为 `toMessageParams` 加 runtime typeof 检查 — compose / transform 已有 oracle 测试即可
 
 **参考：** Meyer, *Object-Oriented Software Construction*（Design by Contract）· Ford et al., *Building Evolutionary Architectures*（Fitness Functions）· [`docs/spec/context-composer.md`](docs/spec/context-composer.md) §1.4 术语与 materialize/compile/derive 边界
 
 ---
 
-### 7. 术语（Session / Context）
+### 7. 术语（一词一义）
 
-一词一义，完整表见 [`docs/spec/context-composer.md` §1.4](docs/spec/context-composer.md#14-术语一词一义)：
+#### 7.1 Session / Context（产品层）
+
+完整表见 [`docs/spec/context-composer.md` §1.4](docs/spec/context-composer.md#14-术语一词一义)：
 
 | 过程 | 用词 | 代码 |
 |------|------|------|
 | Item Log → `SessionMessage[]` | **materialize / 还原** | `messagesFromItems` · `applyItemToMessages` |
 | Session → `LLMRequest` | **compile / 编译** | `composeContext` |
-| Item → Agent Event | **derive / 派生** | `plugins/builtin/log-sync/item-derive-handlers` · `deriveFromSessionItem` |
+| RunEvent → Agent Event | **derive / 派生** | `apps/moontide/src/log/run-event-derive.ts` · `createRunEventDeriveListener` |
 
 文档与讨论中**避免**用「投影 / Projection」指上述过程。
+
+**说明：** Legacy `sessionItem` → `log-sync` 已删除；Agent Event 由 RunEvent bus 订阅派生（M6）。
+
+#### 7.2 Agent-core / Run（内核层）
+
+设计 Spec：[`docs/agent-core-design.md`](docs/agent-core-design.md) · 开发计划：[`docs/notes/agent-core-roadmap.md`](docs/notes/agent-core-roadmap.md)
+
+| 术语 | 含义 | 包 / 模块 |
+|------|------|-----------|
+| **Temporal core / 时序内核** | 唯一决定 run 下一步：`runLoop` + compositor | `@moontide/agent-core` |
+| **RunEvent** | run 内语义事件 union（`run_start`、`turn_start`、`message_update`…） | `@moontide/agent-common` → `protocol/` |
+| **RunEvent protocol** | common 包内共享契约（类型 + Effect 端口签名） | `packages/agent-common/src/protocol/` |
+| **Semantic event** | 持久化/策略用完整事件（message/tool start/end） | RunEvent 子集 |
+| **Rendering event** | 仅 `message_update`（流式 delta）；不进 Session Item Log | RunEvent |
+| **RunEvent bus** | 进程内 RunEvent pub/sub 门面；loop **publish**，订阅者与 EventOutput **subscribe** | `agent-core`（实现）；文档不用 sink |
+| **RunConfig** | run 开始前冻结的策略对象（决策回调 + transform/convert） | common/protocol |
+| **resolveRunConfig** | run 前从 Preset / 内置 / extension adapter **合并并 freeze** RunConfig | `agent-core` |
+| **resolveTurnContext** | 每 turn、每次 LLM 前：`transformContext` → `convertToLlm` | `agent-core` |
+| **Hook composition** | resolveRunConfig 内 first / waterfall / blockable 组合语义 | 实现细节；文档主词用 resolveRunConfig |
+| **Decision callback** | RunConfig 槽（如 `beforeToolCall`）；只返回决策 | 非 HookPhase 注册表 |
+| **Effect port** | `StreamFn`、`ToolExecutor` 注入边界 | common/protocol |
+| **Extension adapter** | sidecar 在 run 前 fold 进 RunConfig 的适配层；**不得** publish RunEvent | `@moontide/sidecar-host` + apps/moontide 装配 |
+
+**硬边界：**
+
+| | **resolveTurnContext**（core） | **composeContext**（产品） |
+|---|-------------------------------|----------------------------|
+| 输入 | 内存 `AgentMessage[]` | Session + stores + Instruction State |
+| 输出 | LLM `Message[]` | `LLMRequest` + Context Manifest |
+| 职责 | transform + convert | checkpoint、compaction、budget、manifest |
+
+**扩展约束（不可违反）：**
+
+- 插件 **不能定义 lifecycle phase**；阶段名只存在于 RunEvent union（协议版本 bump，非 runtime 注册）。
+- 观测：**subscribe(RunEvent)**；决策：**RunConfig decision callback**。
+- Sidecar：**tools** + resolveRunConfig 适配 + 只读 subscribe；无 `sessionItem` observe emit。
+
+#### 7.3 弃用表述（迁移期）
+
+| 避免 | 改用 |
+|------|------|
+| sink | **RunEvent bus** |
+| fold（config/context） | **resolveRunConfig** / **resolveTurnContext** |
+| 可注册 HookPhase / observe 返回 EventDraft | **RunEvent bus** + **RunConfig** |
+| channel/kind AgentEvent（run 观测） | **RunEvent** |
+
+现行代码中的 `HookDispatcher` · `PHASE_DEFS` · `legacy-hook-bridge` 属 **迁移期 harness**；新观测写在 RunEvent subscribe；新代码写在 `packages/agent-common` / `packages/agent-core`，不扩展 legacy phase 表。
 
 ---
 
@@ -294,3 +429,9 @@
 **context 字段约定：** 网络错误带 `url`、路径错误带 `path`、sidecar 带 `pluginId`。
 
 Tool 预期失败继续 return `"Error: ..."` 字符串协议（见 `agent/pipeline/tool-result.ts`）；debug `tool_use` 记录在 failed/denied/rejected 时附加 `errorCode`。
+
+---
+
+## 用户覆盖
+
+如果用户的指令与本文档任何规则冲突，先请求显式确认再覆盖。确认后才可以执行他们的指令。
