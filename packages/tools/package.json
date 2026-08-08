@@ -1,0 +1,32 @@
+{
+  "name": "@moontide/tools",
+  "version": "0.0.1",
+  "description": "MoonTide tool registry, builtins, and extension tools",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ports": {
+      "types": "./dist/ports/index.d.ts",
+      "import": "./dist/ports/index.js"
+    },
+    "./builtins/workspace/fs": {
+      "types": "./dist/builtins/workspace/fs.d.ts",
+      "import": "./dist/builtins/workspace/fs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && cp -r src/extensions/code-repl/templates/bodies dist/extensions/code-repl/templates/",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@moontide/llm": "workspace:*",
+    "@moontide/session": "workspace:*",
+    "@moontide/shared": "workspace:*"
+  },
+  "license": "MIT"
+}
