@@ -7,43 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.52.0
-        version: 0.52.0
-      '@moontide/agent-common':
-        specifier: workspace:*
-        version: link:packages/agent-common
-      '@moontide/agent-core':
-        specifier: workspace:*
-        version: link:packages/agent-core
-      '@moontide/context-composer':
-        specifier: workspace:*
-        version: link:packages/context-composer
-      '@moontide/llm':
-        specifier: workspace:*
-        version: link:packages/llm
-      '@moontide/log':
-        specifier: workspace:*
-        version: link:packages/log
-      '@moontide/session':
-        specifier: workspace:*
-        version: link:packages/session
-      '@moontide/shared':
-        specifier: workspace:*
-        version: link:packages/shared
-      chalk:
-        specifier: ^5.4.1
-        version: 5.6.2
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
-      glob:
-        specifier: ^11.0.1
-        version: 11.1.0
-      smol-toml:
-        specifier: ^1.7.1
-        version: 1.7.1
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -72,6 +35,64 @@ importers:
       vitest:
         specifier: ^3.0.9
         version: 3.2.7(@types/node@22.20.1)(tsx@4.23.1)(yaml@2.9.0)
+
+  apps/moontide:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.52.0
+        version: 0.52.0
+      '@moontide/agent-common':
+        specifier: workspace:*
+        version: link:../../packages/agent-common
+      '@moontide/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@moontide/context-composer':
+        specifier: workspace:*
+        version: link:../../packages/context-composer
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      '@moontide/log':
+        specifier: workspace:*
+        version: link:../../packages/log
+      '@moontide/plugins-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugins-sdk
+      '@moontide/session':
+        specifier: workspace:*
+        version: link:../../packages/session
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@moontide/sidecar-host':
+        specifier: workspace:*
+        version: link:../../packages/sidecar-host
+      '@moontide/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
+      chalk:
+        specifier: ^5.4.1
+        version: 5.6.2
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      glob:
+        specifier: ^11.0.1
+        version: 11.1.0
+      smol-toml:
+        specifier: ^1.7.1
+        version: 1.7.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.1
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.1
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
 
   packages/agent-common: {}
 
@@ -111,6 +132,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/plugins-sdk:
+    dependencies:
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@moontide/tools':
+        specifier: workspace:*
+        version: link:../tools
+
   packages/session:
     dependencies:
       '@moontide/llm':
@@ -120,7 +150,41 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      glob:
+        specifier: ^11.0.1
+        version: 11.1.0
+
+  packages/sidecar-host:
+    dependencies:
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@moontide/plugins-sdk':
+        specifier: workspace:*
+        version: link:../plugins-sdk
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@moontide/tools':
+        specifier: workspace:*
+        version: link:../tools
+      smol-toml:
+        specifier: ^1.7.1
+        version: 1.7.1
+
+  packages/tools:
+    dependencies:
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@moontide/session':
+        specifier: workspace:*
+        version: link:../session
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
 
 packages:
 
@@ -756,6 +820,7 @@ packages:
   glob@11.1.0:
     resolution: {integrity: sha512-vuNwKSaKiqm7g0THUBu2x7ckSs3XJLXE+2ssL7/MfTGPLLcrJQ/4Uq1CjPTtO5cCIiRxqvN6Twy1qOwhL0Xjcw==}
     engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   husky@9.1.7:

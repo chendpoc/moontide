@@ -10,19 +10,19 @@
     },
     "./utils/*": {
       "types": "./dist/utils/*.d.ts",
-      "import": "./dist/utils/*.js"
+      "import": "./dist/utils/*"
     },
     "./constants/*": {
       "types": "./dist/constants/*.d.ts",
-      "import": "./dist/constants/*.js"
+      "import": "./dist/constants/*"
     },
     "./errors/*": {
       "types": "./dist/errors/*.d.ts",
-      "import": "./dist/errors/*.js"
+      "import": "./dist/errors/*"
     },
     "./storage/*": {
       "types": "./dist/storage/*.d.ts",
-      "import": "./dist/storage/*.js"
+      "import": "./dist/storage/*"
     },
     "./package.json": "./package.json"
   },
@@ -30,6 +30,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "glob": "^11.0.1"
   },
   "license": "MIT"
 }
