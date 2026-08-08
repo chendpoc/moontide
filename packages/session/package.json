@@ -1,0 +1,31 @@
+{
+  "name": "@moontide/session",
+  "version": "0.0.1",
+  "description": "MoonTide session item log, stores, and materialize transforms",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./stores": {
+      "types": "./dist/stores/index.d.ts",
+      "import": "./dist/stores/index.js"
+    },
+    "./block-registry": {
+      "types": "./dist/block-registry.d.ts",
+      "import": "./dist/block-registry.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@moontide/llm": "workspace:*",
+    "@moontide/shared": "workspace:*"
+  },
+  "license": "MIT"
+}
