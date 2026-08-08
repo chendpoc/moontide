@@ -13,7 +13,7 @@
     "dev": "pnpm --filter moontide run dev",
     "ping": "tsx packages/llm/src/healthcheck/ping.ts",
     "test": "vitest run",
-    "test:conformance": "vitest run tests/architecture-boundaries.test.ts tests/hook-manifest.test.ts tests/tool-permissions.test.ts tests/trust-policy.test.ts tests/agent-runtime.test.ts tests/plugin-manifest.test.ts",
+    "test:conformance": "vitest run tests/conformance",
     "typecheck": "pnpm typecheck:core && pnpm --filter moontide run typecheck",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "eslint .",

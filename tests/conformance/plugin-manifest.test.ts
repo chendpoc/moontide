@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { loadPluginManifest } from "@moontide/sidecar-host";
 import type { PluginAttach, PluginKind, SidecarTransport } from "@moontide/sidecar-host";
 import { dataPath } from "@moontide/shared/utils/path.js";
-import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "../helpers/tmp-workdir.js";
 
 const VALID_KINDS = new Set<PluginKind>(["mcp", "sidecar", "wasm"]);
 const VALID_ATTACH = new Set<PluginAttach>(["startup", "runtime", "manual"]);

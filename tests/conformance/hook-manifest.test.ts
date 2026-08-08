@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDefaultHookManifest } from "../apps/moontide/src/agent/hooks/manifest.js";
-import { PHASE_DEFS, type HookErrorPolicy } from "../apps/moontide/src/agent/hooks/phases.js";
+import { buildDefaultHookManifest } from "../../apps/moontide/src/agent/hooks/manifest.js";
+import { PHASE_DEFS, type HookErrorPolicy } from "../../apps/moontide/src/agent/hooks/phases.js";
 
 const VALID_ERROR_POLICIES = new Set<HookErrorPolicy>(["fail-open", "fail-closed"]);
 

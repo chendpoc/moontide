@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { collectTsFiles, repoPath, scanTsFiles, type SourceMatch } from "./helpers/source-scan.js";
+import { collectTsFiles, repoPath, scanTsFiles, type SourceMatch } from "../helpers/source-scan.js";
 
 const AGENT_IMPORT = /from\s+["'].*agent\//;
 const ANTHROPIC_SDK_IMPORT = /from\s+["']@anthropic-ai\/sdk/;
@@ -326,7 +326,7 @@ describe("architecture boundaries (structural invariants)", () => {
 
   it("src/ and tests/ do not reference legacy emitDraft identifier", () => {
     const pattern = /\bemitDraft\b/;
-    const excluded = repoPath("tests/architecture-boundaries.test.ts");
+    const excluded = repoPath("tests/conformance/architecture-boundaries.test.ts");
     const offenders = [
       ...scanTsFiles(repoPath("apps/moontide/src"), pattern),
       ...scanTsFiles(repoPath("tests"), pattern),
