@@ -1,5 +1,6 @@
 import { APP_ENV, envVarName } from "@moontide/shared/constants/env.js";
 import { toMessage } from "@moontide/shared/errors/normalize.js";
+import { getHttpFetchExecutor } from "../../ports/http-fetch.js";
 import { getToolsProductConfig } from "../../ports/product-config.js";
 import { clampInt } from "@moontide/shared/utils/number.js";
 
@@ -130,14 +131,7 @@ export function validateFetchUrl(rawUrl: string): URL | { error: string } {
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
-export async function runHttpFetch(input: HttpFetchInput): Promise<string> {
-  if (!getToolsProductConfig().httpFetchEnabled()) {
-    return JSON.stringify({
-      status: "error",
-      error: `http_fetch is disabled (set ${envVarName(APP_ENV.HTTP)} unset or not 0)`,
-    } satisfies HttpFetchResult);
-  }
-
+export async function runHttpFetchNetwork(input: HttpFetchInput): Promise<string> {
   const rawUrl = String(input.url ?? "").trim();
   if (!rawUrl) {
     return JSON.stringify({
@@ -204,4 +198,20 @@ export async function runHttpFetch(input: HttpFetchInput): Promise<string> {
       error: toMessage(error),
     } satisfies HttpFetchResult);
   }
+}
+
+export async function runHttpFetch(input: HttpFetchInput): Promise<string> {
+  if (!getToolsProductConfig().httpFetchEnabled()) {
+    return JSON.stringify({
+      status: "error",
+      error: `http_fetch is disabled (set ${envVarName(APP_ENV.HTTP)} unset or not 0)`,
+    } satisfies HttpFetchResult);
+  }
+
+  const delegate = getHttpFetchExecutor();
+  if (delegate) {
+    return delegate(input);
+  }
+
+  return runHttpFetchNetwork(input);
 }

@@ -1,0 +1,111 @@
+{
+  "version": "2",
+  "bucket": "B",
+  "cases": [
+    {
+      "id": "deep-investigate-latency",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "expectLift": true,
+      "steps": [{ "type": "prompt", "content": "deep: read demo.txt, note findings, and recommend next steps for the hourly latency spike" }],
+      "setup": { "files": { "demo.txt": "Service latency spikes every hour on the hour. CPU normal; queue depth rises 2 min before each spike." } }
+    },
+    {
+      "id": "deep-cache-decision",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "expectLift": true,
+      "steps": [{ "type": "prompt", "content": "deep: compare redis vs memcached for session cache when persistence across restarts matters; record a decision" }]
+    },
+    {
+      "id": "deep-incident-summary",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: read notes.md and produce an executive summary with root cause and fix" }],
+      "setup": {
+        "files": {
+          "notes.md": "# Incident 2026-08-01\n- Symptom: stale reads after deploy\n- Root cause: cache not invalidated on deploy\n- Fix: invalidate cache keys on version bump\n- Follow-up: add integration test"
+        }
+      }
+    },
+    {
+      "id": "deep-migration-plan",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: read legacy.md and outline a phased migration plan to the new API with risks and rollback" }],
+      "setup": {
+        "files": {
+          "legacy.md": "# Legacy API\n- v1 uses POST /sync\n- v2 uses POST /events with idempotency keys\n- 30% traffic still on v1\n- Deadline: end of quarter"
+        }
+      }
+    },
+    {
+      "id": "deep-debug-flaky-test",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: read flaky.log and test spec; hypothesize why the test is flaky and propose verification steps" }],
+      "setup": {
+        "files": {
+          "flaky.log": "FAIL: expected 200 got 429\nRetry 1: pass\nFAIL: timeout after 5000ms",
+          "checkout.test.ts": "it('charges card', async () => { /* calls payment API */ });"
+        }
+      }
+    },
+    {
+      "id": "deep-security-review",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: review auth.ts for authz gaps; list findings by severity and suggest fixes" }],
+      "setup": {
+        "files": {
+          "auth.ts": "export function canEdit(user: { role: string }, doc: { ownerId: string }) {\n  if (user.role === 'admin') return true;\n  return doc.ownerId === user.role;\n}\n"
+        }
+      }
+    },
+    {
+      "id": "deep-feature-breakdown",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "expectLift": true,
+      "steps": [{ "type": "prompt", "content": "deep: read feature.md and break the notification feature into implementable tasks with dependencies" }],
+      "setup": {
+        "files": {
+          "feature.md": "# Notifications v2\n- Email + in-app\n- User opt-out per channel\n- Rate limit 10/hour\n- Must not block checkout"
+        }
+      }
+    },
+    {
+      "id": "deep-oncall-handoff",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: read oncall.md and write a structured handoff: status, open risks, next actions" }],
+      "setup": {
+        "files": {
+          "oncall.md": "# Shift notes\n- Deploy 2.3.1 rolled back in EU\n- Disk 85% on db-replica-2\n- Ticket INC-4421 awaiting vendor"
+        }
+      }
+    },
+    {
+      "id": "deep-refactor-strategy",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: read monolith.md; propose a refactor strategy to split the billing module without big-bang rewrite" }],
+      "setup": {
+        "files": {
+          "monolith.md": "# Billing in monolith\n- 12k LOC mixed with invoicing UI\n- Shared DB tables with subscriptions\n- No contract tests"
+        }
+      }
+    },
+    {
+      "id": "deep-data-pipeline-review",
+      "category": "deep_task",
+      "gradingMode": "subjective",
+      "steps": [{ "type": "prompt", "content": "deep: read pipeline.txt; identify bottlenecks and recommend monitoring metrics" }],
+      "setup": {
+        "files": {
+          "pipeline.txt": "Stage1: ingest 50k/s\nStage2: enrich (CPU bound, p95 2s)\nStage3: warehouse load (fails when batch > 10k rows)"
+        }
+      }
+    }
+  ]
+}

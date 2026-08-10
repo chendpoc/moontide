@@ -58,6 +58,7 @@ flowchart TB
 | **@moontide/sidecar-host** | `packages/sidecar-host/` | manifest、sidecar attach、stdio IPC、`run-sidecar` runner |
 | **@moontide/agent-common** | `packages/agent-common/` | RunEvent / RunConfig protocol |
 | **@moontide/agent-core** | `packages/agent-core/` | `runLoop`、RunEvent bus、resolveRunConfig / resolveTurnContext |
+| **@moontide/evals** | `packages/evals/` | Harness feature A/B eval（dev-tool；依赖 `moontide` app） |
 
 **文档别名：** 设计笔记中的 **plugin-host** 指 sidecar 加载与 attach；实现包名为 **`@moontide/sidecar-host`**（见 [plugin-host.md](plugin-host.md) 文首说明）。
 

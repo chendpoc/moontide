@@ -4,6 +4,7 @@ import {
   anthropicMessagesChat,
   anthropicMessagesCountTokens,
 } from "./adapters/anthropic-messages.js";
+import { deepseekOpenAiChat } from "./adapters/deepseek-openai-chat.js";
 
 export interface LLMProvider {
   chat(request: LLMRequest): Promise<LLMResponse>;
@@ -17,7 +18,12 @@ export function getLLMProvider(route: ResolvedRoute): LLMProvider {
     return providerOverride;
   }
   return {
-    chat: (request) => anthropicMessagesChat(request, route),
+    chat: (request) => {
+      if (request.responseFormat === "json_object" && route.providerPresetId === "deepseek") {
+        return deepseekOpenAiChat(request, route);
+      }
+      return anthropicMessagesChat(request, route);
+    },
     countTokens: (request) => anthropicMessagesCountTokens(request, route),
   };
 }

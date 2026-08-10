@@ -14,8 +14,9 @@
 
 以下名称已登记为 **未来产品线保留名**，仅供愿景与 TODO 引用；**不是**本仓库现行产品名，也不应在 user-facing 文案、README 或实现注释中替代 MoonTide。
 
-| 保留产品名 | 天象意象 | 设想方向（远期） |
-|------------|----------|------------------|
+| 保留产品名 | 意象 | 设想方向（远期） |
+|------------|------|------------------|
+| **Spark** | 火花（OceanSpark 下钻） | 移动端 capture / 成长助手（**随形**）；见 [`spark.md`](spark.md) |
 | **Ciel** | 天 | 产品家族 / 天象母题总称 |
 | **Lyra** | 天琴（星） | 独立 agent harness 产品线（若与 MoonTide 分叉） |
 | **Zephyr** | 风 | 跨 agent 产品切换与迁移 |
@@ -33,7 +34,7 @@
 |----------|------|------|
 | **Tide** | MoonTide | 日常 action 摘要 panel |
 | **Fleet** | MoonTide | 多 agent 运行监控 panel |
-| **Buoy** | MoonTide | Pin notes |
+| **Buoy** | MoonTide | Pin notes · 桌面 pending **spark** 收件箱（对接 Spark 移动端） |
 
 ---
 
@@ -45,11 +46,14 @@ flowchart TB
   Now --> Ctx["context / events · 演进中"]
 
   subgraph products [保留产品名 · 未作为现行产品名]
+    Spark["Spark · 随形"]
     Ciel["Ciel"]
     Lyra["Lyra"]
     Zephyr["Zephyr"]
     Bruma["Bruma"]
   end
+
+  Spark -.->|"sync spark"| Buoy
 
   subgraph panels [组件代号 · MoonTide 内]
     Tide["Tide"]
@@ -70,7 +74,8 @@ flowchart TB
 ### 备忘（非现行规格）
 
 - **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 **`LLMRequest` 编译产物**。Spec：[`context-composer.md`](../spec/context-composer.md)；在 MoonTide 中由 `src/context/` 等模块逐步演进。
-- **MoonTide / Tide / Fleet / Buoy** — MoonTide 桌面 shell 与 panel 设想，见 [`TODO.md`](../../TODO.md)。
+- **Spark** — OceanSpark 移动端 capture / 成长助手（**随形**）；内容原语 **`spark`**；详 [`spark.md`](spark.md)。
+- **MoonTide / Tide / Fleet / Buoy** — MoonTide 桌面 shell 与 panel 设想；**Buoy** 承接 Spark sync，见 [`TODO.md`](../../TODO.md)。
 - **Zephyr** — 跨 Cursor / Claude Code / Codex 等工具的会话管理与迁移，远期。
 - **Lyra** — 曾为 harness 候选名；若未来单独发产品线再启用，当前 harness 即 **MoonTide**。
 
@@ -78,7 +83,7 @@ flowchart TB
 
 ## 命名母题（保留产品名共用）
 
-**天象层**：天 · 星 · 月潮 · 风 · 雾。
+**天象 / 海洋层**：天 · 星 · 月潮 · 风 · 雾 · **火花（Spark / OceanSpark）**。
 
 - 英文保留名有隐喻，避免 Code / Studio 等直白命名
 - 不走地理分类感（Atoll / Estuary 等已弃）

@@ -33,6 +33,8 @@
   - 渐入渐出过渡
 
 - [ ] **2. Pin Notes 随手记（Buoy）**
+  - 桌面 pending **spark** 收件箱；对接 Spark 移动端 sync
+  - 产品方向：[`docs/product/spark.md`](docs/product/spark.md)
 
 - [ ] **3. 功能树设计**
   - 类似 Project 树结构
@@ -77,9 +79,11 @@
 - [ ] **7. Feature 基线性能测试套件**
   - **详设：** [`docs/notes/agent-eval-roadmap.md`](docs/notes/agent-eval-roadmap.md) — Agent Feature 评测流水线（L0–L3 · 分桶 suite · grader · Impact Card）
   - **v0 → v3 分期：** PR 档 deterministic grader → nightly 真 LLM + baseline delta → SWE-bench 子集
-  - 自动化测试完善（L0/L1 仍在 `tests/`；L2+ 在 `eval/`）
-  - 测量与评估
-  - SWE-bench 等公开 agent/coding benchmark（**L3**，对齐 roadmap §8 v3）
+  - [x] `@moontide/evals` v2 六类 58 case · subprocess agent worker · HTTP VCR（`external_research`）
+  - [x] `baseline.json` · `--merge-gate` · `liftAlerts` / `byFeatureSurface` / efficiency 聚合
+  - [x] `pnpm eval:test` 进 `pnpm check` · [Impact Card](.github/eval-impact-card.md)
+  - [ ] nightly 真 LLM 全量 + CI artifact
+  - [ ] SWE-bench 等公开 agent/coding benchmark（**L3**，对齐 roadmap §8 v3）
   - **DeepSeek DSBench（后续讨论需纳入）**
     - DeepSeek 内部 coding-agent 评测集，含 **DSBench-FullStack**（全栈开发）与 **DSBench-Hard**（高难度 agent 任务）
     - 官方分数多在 **DeepSeek Harness**（minimal mode）上测得；与 harness 设计强相关，**暂不可独立复现**
@@ -107,7 +111,7 @@
 - [x] **11. 产品命名 — 已定稿**
   - 见 [`docs/product/vision.md`](docs/product/vision.md)
   - **当前产品：MoonTide**（repo `moontide/`、工作区 `.moontide/`、`MOONTIDE_*`）
-  - **MoonTide** 为当前产品名，由 **OceanSpark** 开发；**Ciel · Lyra · Zephyr · Bruma** 为保留产品名；**Tide · Fleet · Buoy** 为 MoonTide 内组件代号
+  - **MoonTide** 为当前产品名，由 **OceanSpark** 开发；**Spark · Ciel · Lyra · Zephyr · Bruma** 为保留产品名；**Tide · Fleet · Buoy** 为 MoonTide 内组件代号；Spark 见 [`docs/product/spark.md`](docs/product/spark.md)
 
 - [ ] **12. 多 Agent 进程监控（Fleet）**
   - 在 **MoonTide** 中实时查看多个 agent 的运行状态（进行中 / 等待 / 完成 / 失败）

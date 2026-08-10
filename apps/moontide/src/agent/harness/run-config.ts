@@ -18,6 +18,7 @@ import {
 } from "../deep-task-protocol.js";
 import { getWorkMemAgentPorts } from "../ports/work-mem.js";
 import { freezeToolUseContext } from "../pipeline/tool-result.js";
+import { isEvalProtocolRemindersEnabled } from "./eval-overrides.js";
 import { assistantMessageToContentBlocks } from "./message-map.js";
 import { llmProtocolMessagesToPort } from "./message-map.js";
 import { setComposeRequest, type ComposeState } from "./compose-state.js";
@@ -98,12 +99,13 @@ export function createMoonTideRunConfig(options: MoonTideRunConfigOptions): RunC
         isAssistantMessage(turnAssistantMessage)
         && turnAssistantMessage.content.some((block) => block.type === "toolCall")
       ) {
-        if (
-          isDeepModeEnabled()
-          && runTurn === 1
-          && !deepModeState.orientProtocolReminderSent
-          && shouldSendOrientProtocolReminder(assistantMessageToContentBlocks(turnAssistantMessage))
-        ) {
+      if (
+        isDeepModeEnabled()
+        && runTurn === 1
+        && !deepModeState.orientProtocolReminderSent
+        && isEvalProtocolRemindersEnabled()
+        && shouldSendOrientProtocolReminder(assistantMessageToContentBlocks(turnAssistantMessage))
+      ) {
           await session.appendProtocolReminder(runTurn, "orient", ORIENT_PROTOCOL_REMINDER_TEXT);
           deepModeState.orientProtocolReminderSent = true;
         }
@@ -111,7 +113,7 @@ export function createMoonTideRunConfig(options: MoonTideRunConfigOptions): RunC
       }
 
       if (isDeepModeEnabled() && !_activeWorkMemHasDecision(session)) {
-        if (!deepModeState.synthesizeProtocolReminderSent) {
+        if (isEvalProtocolRemindersEnabled() && !deepModeState.synthesizeProtocolReminderSent) {
           await session.appendProtocolReminder(
             runTurn,
             "synthesize",

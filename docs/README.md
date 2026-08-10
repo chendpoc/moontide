@@ -17,6 +17,7 @@ flowchart TB
     V[vision]
     P[plan]
     PS[platform-strategy]
+    SPK[spark]
   end
 
   subgraph spec["spec/"]
@@ -49,6 +50,7 @@ flowchart TB
     AFP[architecture-remediation]
   end
 
+  V --> SPK
   V --> CC
   V --> PS
   PS --> RM
@@ -95,7 +97,7 @@ flowchart TB
 
 | 目录 | 性质 | 文档 |
 |------|------|------|
-| [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) |
+| [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) · [spark](product/spark.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
 | [`notes/`](notes/) | 参考 / 候选 | [monorepo-packages](notes/monorepo-packages.md) · [agent-core-roadmap](notes/agent-core-roadmap.md) · [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [deep-mode](notes/deep-mode.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [agent-activity-model-discussion](notes/agent-activity-model-discussion.md) · [context-normalization](notes/context-normalization.md) · [self-review-mode](notes/self-review-mode.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
@@ -163,7 +165,7 @@ flowchart TB
 | Session 书签 / 恢复 | [session-persistence](notes/session-persistence.md) | `/save` · `/resume session` · index.json |
 | Context debug dump | [context-inspect-debug](notes/context-inspect-debug.md) | `/debug` · context-inspect |
 | Context 演进 / 后续计划 | [context-window-roadmap](notes/context-window-roadmap.md) §8 · [TODO.md](../TODO.md) §15 | context-backlog · context-normalization · edge-local-models |
-| Agent Feature 评测 | [agent-eval-roadmap](notes/agent-eval-roadmap.md) | [TODO.md](../TODO.md) §7 · §8 · deep-mode · SWE-bench |
+| Agent Feature 评测 | [harness-eval-1.0](spec/harness-eval-1.0.md) · [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) · [agent-eval-roadmap](notes/agent-eval-roadmap.md) | [packages/evals](../packages/evals/) · [TODO.md](../TODO.md) §7 · §8 |
 | Prompt Prefix Cache | [context-backlog](notes/context-backlog.md) §15 | context-normalization §13 · context-composer |
 | Local Fusion（edge 路由） | [edge-local-models](notes/edge-local-models.md) §2.1 | llm-provider · runtime-multilang · TODO §15.3 |
 | Context Preflight / Postflight | [context-normalization](notes/context-normalization.md) | context-composer · agent-run-hooks · deep-mode |
@@ -178,7 +180,8 @@ flowchart TB
 
 | 文档 | 一句话 |
 |------|--------|
-| [vision](product/vision.md) | 产品定位（MoonTide）与远期保留产品名（Bruma 等） |
+| [vision](product/vision.md) | 产品定位（MoonTide）与保留产品名（Spark、Bruma 等） |
+| [spark](product/spark.md) | **Spark / 随形** 移动端 capture、成长助手、L1–L3 分层与 MoonTide 协同 |
 | [platform-strategy](product/platform-strategy.md) | Release 架构、竞争定位、MCP/sidecar 边界与非目标 |
 | [plugin-host](notes/plugin-host.md) | Plugin host、MCP client、startup assembly 与 runtime attach |
 | [plan](product/plan.md) | 当前优先级、分段 JSONL 存储与非目标 |
@@ -195,6 +198,9 @@ flowchart TB
 | [web-content-retrieval-discussion](notes/web-content-retrieval-discussion.md) | 外研 artifact 嵌套问题 · 正文提取 / artifact 搜索 backlog（讨论备忘） |
 | [context-window-roadmap](notes/context-window-roadmap.md) | **开发计划**：六件事 done · §8 后续四条轨（Prefix Cache / 需求讨论 / Local Fusion / Normalization） |
 | [agent-eval-roadmap](notes/agent-eval-roadmap.md) | **开发计划**：Feature 评测流水线 L0–L3 · 分桶 suite · grader · Impact Card（对齐 TODO §7/§8） |
+| [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) | **调研**：业界 agent task taxonomy · case 分类 / gradingMode / eval 规模设计依据 |
+| [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) | **调研**：业界 task taxonomy · MoonTide case 分类 / gradingMode / 规模设计依据 |
+| [harness-eval-1.0](spec/harness-eval-1.0.md) | **Spec + 实现 1.0**：`@moontide/evals` feature A/B · grader · suites/v1 |
 | [architecture-remediation](notes/architecture-remediation.md) | **架构修复计划**：16 项 review · Phase A–C |
 | [utils-infrastructure](notes/utils-infrastructure.md) | Utils / storage 分层、event-hub、import 约束 |
 | [session-domain-model](notes/session-domain-model.md) | Session 类型、模块职责与 compose 数据流 |

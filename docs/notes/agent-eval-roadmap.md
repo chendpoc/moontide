@@ -1,8 +1,8 @@
 
-> **状态：** 2026-08 定稿 · **planned**（尚未实现）  
+> **状态：** 2026-08 定稿 · **部分实现**（[`packages/evals`](../../packages/evals/) v2）  
 > **动机：** 单元测试只能证明 feature「机制正确」，不能证明「对 agent 能力有 good impact」；Deep Task Mode 外研对比实验（地铁题）表明同一 feature 在不同任务类型上 impact 符号可能相反。  
 > **入口：** 根 [`TODO.md`](../../TODO.md) §7 · §8  
-> **关联：** [`deep-mode.md`](deep-mode.md) · [`deep-mode-redesign.md`](deep-mode-redesign.md) · [`web-content-retrieval-discussion.md`](web-content-retrieval-discussion.md) · [`agent-events.md`](../spec/agent-events.md) · [`context-inspect-debug.md`](context-inspect-debug.md)
+> **关联：** [`agent-eval-task-taxonomy.md`](agent-eval-task-taxonomy.md)（case 分类 / 判分设计依据） · [`deep-mode.md`](deep-mode.md) · [`deep-mode-redesign.md`](deep-mode-redesign.md) · [`web-content-retrieval-discussion.md`](web-content-retrieval-discussion.md) · [`agent-events.md`](../spec/agent-events.md) · [`context-inspect-debug.md`](context-inspect-debug.md)
 
 **范围：** MoonTide TS harness（`AgentRun` / REPL / Session Log / debug jsonl）。**不含** Rust UI、第三方 leaderboard 托管。
 
@@ -169,18 +169,22 @@ Primary 升、guard 降 → **文档标注适用桶** 或 **默认 flag off**，
 | 阶段 | 内容 | 用户可感知 |
 |------|------|------------|
 | **v0** | 10–20 题手写 suite；`protocol.ts` + `efficiency.ts` grader；CLI 批量跑 + 读 session log | 可本地对比两 branch |
-| **v1** | `eval/baseline.json` 持久化；PR 注释或 CI artifact 输出 guard delta | feature PR 有客观准入参考 |
-| **v2** | D 桶 recorded HTTP；rubric grader；对齐 TODO §8 | 外研题可复现 |
+| **Harness Eval 1.0** | [`@moontide/evals`](../../packages/evals/) + [`docs/spec/harness-eval-1.0.md`](../spec/harness-eval-1.0.md) | feature A/B、B/E seed suite、`pnpm eval:pr` |
+| **v1（进行中）** | `baseline.json` · `--merge-gate` · subprocess agent worker · session 落盘 | feature PR 有客观准入参考 |
+| **v2（进行中）** | `external_research` + HTTP VCR · protocol/efficiency/rubric grader · v2 六类 58 case | 外研题可复现 |
 | **v3** | SWE-bench mini + TODO §7 DSBench 形态对照；nightly dashboard | 能力回归可见 |
 
 **建议目录（实现时）：**
 
 ```text
-eval/
-  suites/v1/          # A–E 分桶 YAML/JSON
-  graders/            # protocol · efficiency · rubric
-  runner.ts           # 调 AgentRun，写 report
-  baseline.json
+packages/evals/          # @moontide/evals（1.0 实现）
+  suites/v1/             # A–E 分桶 JSON
+  src/graders/           # protocol · efficiency · regression
+  scripts/run-evals.ts   # CLI
+  runs/                  # 产物（gitignore）
+
+eval/                    # 规划别名；1.0 已落在 packages/evals
+  baseline.json          # v1.1
 ```
 
 ---
@@ -221,3 +225,4 @@ eval/
 | 日期 | 说明 |
 |------|------|
 | 2026-08 | 初稿：L0–L3 分层、分桶 suite、grader、Impact Card、与 TODO §7/§8 对齐 |
+| 2026-08 | v2 suite（58 case）· HTTP VCR · baseline/merge-gate · [Impact Card](../../.github/eval-impact-card.md) |

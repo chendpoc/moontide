@@ -1,0 +1,4 @@
+{
+  "name": "@acme/billing",
+  "main": "src/index.ts"
+}

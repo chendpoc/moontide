@@ -26,6 +26,8 @@ export interface LLMRequest {
   tools: ToolSchema[];
   maxTokens: number;
   thinkingLevel?: "off" | "low" | "medium" | "high";
+  /** OpenAI-compatible JSON mode (`json_object`). DeepSeek judge path uses Chat Completions. */
+  responseFormat?: "text" | "json_object";
   sessionId?: string;
   fallbacks?: string[];
 }

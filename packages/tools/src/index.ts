@@ -35,9 +35,13 @@ export {
   getToolsProductConfig,
   setInspectContextPort,
   setWorkMemToolPort,
+  setHttpFetchExecutor,
+  getHttpFetchExecutor,
+  resetHttpFetchExecutor,
   type ToolsProductConfig,
   type InspectContextPort,
   type WorkMemToolPort,
+  type HttpFetchExecutor,
 } from "./ports/index.js";
 export type {
   PermissionDecision,
@@ -50,7 +54,8 @@ export type {
 } from "./types.js";
 
 export { runGrep, normalizeGrepMaxResults } from "./builtins/search/grep.js";
-export { runHttpFetch, validateFetchUrl, normalizeMaxBytes, normalizeTimeoutMs } from "./builtins/network/http-fetch.js";
+export { runHttpFetch, runHttpFetchNetwork, validateFetchUrl, normalizeMaxBytes, normalizeTimeoutMs } from "./builtins/network/http-fetch.js";
+export type { HttpFetchInput, HttpFetchResult } from "./builtins/network/http-fetch.js";
 export { runBash } from "./builtins/shell/bash.js";
 export { safePath, runRead, runWrite, runEdit, runGlob, runListDir } from "./builtins/workspace/fs.js";
 export { runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "./builtins/git/lib.js";

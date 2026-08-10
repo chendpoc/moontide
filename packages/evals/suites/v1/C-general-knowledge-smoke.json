@@ -1,0 +1,100 @@
+{
+  "version": "2",
+  "bucket": "C",
+  "cases": [
+    {
+      "id": "gk-capital-france",
+      "category": "general",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "What is the capital of France? Reply with the city name only." }],
+      "expectedChecks": [{ "kind": "reply_matches", "pattern": "(?i)^\\s*Paris\\s*\\.?$" }]
+    },
+    {
+      "id": "gk-http-404-meaning",
+      "category": "general",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "In HTTP, what does status code 404 mean? One short phrase." }],
+      "expectedChecks": [{ "kind": "reply_matches", "pattern": "(?i)(not found|resource not found)" }]
+    },
+    {
+      "id": "gk-binary-search-complexity",
+      "category": "general",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "What is the time complexity of binary search on a sorted array? Big-O only." }],
+      "expectedChecks": [{ "kind": "reply_matches", "pattern": "O\\(\\s*log" }]
+    },
+    {
+      "id": "gk-json-definition",
+      "category": "general",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "What does JSON stand for? Full expansion only." }],
+      "expectedChecks": [{ "kind": "reply_matches", "pattern": "(?i)JavaScript Object Notation" }]
+    },
+    {
+      "id": "gk-drive-left-history",
+      "category": "general",
+      "gradingMode": "subjective",
+      "steps": [
+        {
+          "type": "prompt",
+          "content": "Why do some countries drive on the left? Answer in three short bullets without using tools."
+        }
+      ]
+    },
+    {
+      "id": "gk-hash-table-use-case",
+      "category": "general",
+      "gradingMode": "subjective",
+      "steps": [
+        {
+          "type": "prompt",
+          "content": "When is a hash table a good choice vs a sorted array for lookups? Two bullets, no tools."
+        }
+      ]
+    },
+    {
+      "id": "gk-explain-git-merge-vs-rebase",
+      "category": "general",
+      "gradingMode": "subjective",
+      "steps": [
+        {
+          "type": "prompt",
+          "content": "Explain merge vs rebase for a junior developer in 3-4 sentences. No tools."
+        }
+      ]
+    },
+    {
+      "id": "gk-cap-tradeoff",
+      "category": "general",
+      "gradingMode": "subjective",
+      "steps": [
+        {
+          "type": "prompt",
+          "content": "In distributed systems, what tradeoff does the CAP theorem describe? Plain language, no tools."
+        }
+      ]
+    },
+    {
+      "id": "gk-sql-index-when",
+      "category": "general",
+      "gradingMode": "subjective",
+      "steps": [
+        {
+          "type": "prompt",
+          "content": "When should you add a database index, and when can it hurt? Short answer, no tools."
+        }
+      ]
+    },
+    {
+      "id": "gk-rest-vs-graphql",
+      "category": "general",
+      "gradingMode": "subjective",
+      "steps": [
+        {
+          "type": "prompt",
+          "content": "Give one scenario where REST is simpler and one where GraphQL is preferable. No tools."
+        }
+      ]
+    }
+  ]
+}

@@ -14,3 +14,9 @@ export {
   getWorkMemToolPort,
   type WorkMemToolPort,
 } from "./work-mem-tool.js";
+export {
+  setHttpFetchExecutor,
+  getHttpFetchExecutor,
+  resetHttpFetchExecutor,
+  type HttpFetchExecutor,
+} from "./http-fetch.js";

@@ -1,0 +1,142 @@
+{
+  "version": "2",
+  "bucket": "D",
+  "cases": [
+    {
+      "id": "explore-find-export-file",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Which file exports runLoop? Reply with the filename only." }],
+      "setup": {
+        "files": {
+          "sample.ts": "export function runLoop() { return 'ok'; }",
+          "other.ts": "export function other() {}"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "sample.ts" }]
+    },
+    {
+      "id": "explore-find-health-route",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Find which file registers the GET /health route. Reply with filename only." }],
+      "setup": {
+        "files": {
+          "routes/user.ts": "export const userRoutes = ['/users'];",
+          "routes/health.ts": "export const healthRoute = 'GET /health';",
+          "app.ts": "import './routes/health.js';"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "health" }]
+    },
+    {
+      "id": "explore-database-url-file",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Which file defines DATABASE_URL? Reply with the path only." }],
+      "setup": {
+        "files": {
+          "config/app.ts": "export const APP_NAME = 'demo';",
+          "config/db.ts": "export const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://local';"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "db.ts" }]
+    },
+    {
+      "id": "explore-entry-main-field",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Read package.json. What is the main entry file?" }],
+      "setup": {
+        "files": {
+          "package.json": "{\n  \"name\": \"svc\",\n  \"main\": \"dist/index.js\",\n  \"type\": \"module\"\n}\n",
+          "dist/index.js": "console.log('ok');"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "dist/index.js" }]
+    },
+    {
+      "id": "explore-count-todo-markers",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Search the repo for TODO comments. How many TODO markers exist? Number only." }],
+      "setup": {
+        "files": {
+          "a.ts": "// TODO: fix retry\nexport const a = 1;",
+          "b.ts": "export const b = 2;",
+          "c.ts": "// TODO: add tests\n// TODO: docs\nexport const c = 3;"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_matches", "pattern": "\\b3\\b" }]
+    },
+    {
+      "id": "explore-find-user-interface",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Which file defines interface User? Filename only." }],
+      "setup": {
+        "files": {
+          "models/order.ts": "export interface Order { id: string; }",
+          "models/user.ts": "export interface User { id: string; email: string; }"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "user.ts" }]
+    },
+    {
+      "id": "explore-read-version",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Find the project version string. Reply with version only." }],
+      "setup": {
+        "files": {
+          "package.json": "{\n  \"name\": \"demo\",\n  \"version\": \"2.4.1\"\n}\n"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "2.4.1" }]
+    },
+    {
+      "id": "explore-find-custom-error",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Which file defines class CustomError? Path only." }],
+      "setup": {
+        "files": {
+          "errors/base.ts": "export class AppError extends Error {}",
+          "errors/custom.ts": "export class CustomError extends Error { code = 'CUSTOM'; }"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "custom.ts" }]
+    },
+    {
+      "id": "explore-list-test-files",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "List all *.test.ts files in this workspace. Comma-separated filenames only." }],
+      "setup": {
+        "files": {
+          "src/math.ts": "export const add = (a: number, b: number) => a + b;",
+          "src/math.test.ts": "import { add } from './math';",
+          "src/util.test.ts": "export {};",
+          "src/index.ts": "export {};"
+        }
+      },
+      "expectedChecks": [
+        { "kind": "reply_contains", "value": "math.test.ts" },
+        { "kind": "reply_contains", "value": "util.test.ts" }
+      ]
+    },
+    {
+      "id": "explore-index-import-from",
+      "category": "exploration",
+      "gradingMode": "objective",
+      "steps": [{ "type": "prompt", "content": "Read index.ts. Which module does it import from (path in import statement)?" }],
+      "setup": {
+        "files": {
+          "lib/core.ts": "export function core() { return 1; }",
+          "index.ts": "import { core } from './lib/core.js';\nexport { core };\n"
+        }
+      },
+      "expectedChecks": [{ "kind": "reply_contains", "value": "lib/core" }]
+    }
+  ]
+}
