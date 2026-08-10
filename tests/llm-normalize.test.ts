@@ -7,6 +7,7 @@ import {
   buildOpenAiChatRequestBody,
   toOpenAiChatMessages,
 } from "../packages/llm/src/normalize/to-openai-chat-messages.js";
+import { toAnthropicCountTokensBody } from "../packages/llm/src/normalize/to-anthropic-count-tokens-body.js";
 
 describe("llm normalize", () => {
   it("toOpenAiChatMessages maps thinking and tool_use for assistant replay", () => {
@@ -96,6 +97,47 @@ describe("llm normalize", () => {
       type: "tool_use",
       id: "b",
       argumentStatus: "malformed_tool_arguments",
+    });
+  });
+
+  it("toAnthropicCountTokensBody maps system, tools, and assistant thinking", () => {
+    expect(
+      toAnthropicCountTokensBody({
+        model: "deepseek-v4-pro",
+        system: "sys",
+        maxTokens: 1,
+        tools: [{ name: "grep", description: "search", input_schema: { type: "object" } }],
+        messages: [
+          { role: "user", content: "hello" },
+          {
+            role: "assistant",
+            content: [
+              { type: "thinking", thinking: "plan" },
+              { type: "text", text: "ok" },
+            ],
+          },
+        ],
+      }),
+    ).toEqual({
+      model: "deepseek-v4-pro",
+      system: "sys",
+      tools: [
+        {
+          name: "grep",
+          description: "search",
+          input_schema: { type: "object" },
+        },
+      ],
+      messages: [
+        { role: "user", content: "hello" },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "plan" },
+            { type: "text", text: "ok" },
+          ],
+        },
+      ],
     });
   });
 });

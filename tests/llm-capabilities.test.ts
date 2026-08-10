@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +6,7 @@ import {
   listAdapterCapabilityDeclarations,
   lookupCapabilityStatus,
 } from "../packages/llm/src/capabilities/index.js";
+import { repoPath } from "./helpers/source-scan.js";
 
 describe("llm capabilities", () => {
   it("lists DeepSeek chat and responses declarations", () => {
@@ -20,7 +22,7 @@ describe("llm capabilities", () => {
         providerPresetId: "deepseek",
         adapterFamily: "openai-chat-completions",
       }),
-    ).toBe("rejected");
+    ).toBe("supported");
     expect(
       lookupCapabilityStatus({
         capability: "count_tokens",
@@ -72,6 +74,15 @@ describe("llm capabilities", () => {
       expect(row.capability.length).toBeGreaterThan(0);
       expect(["supported", "ignored", "rejected", "emulated"]).toContain(row.status);
       expect(findCapabilityDeclaration(row)).toEqual(row);
+    }
+  });
+
+  it("every contractTest references an existing test file", () => {
+    for (const row of listAdapterCapabilityDeclarations()) {
+      if (!row.contractTest) {
+        continue;
+      }
+      expect(existsSync(repoPath(`tests/${row.contractTest}.test.ts`))).toBe(true);
     }
   });
 });

@@ -62,4 +62,12 @@ export const DEEPSEEK_CHAT_CAPABILITIES: AdapterCapabilityDeclaration[] = [
     adapterFamily: "openai-chat-completions",
     status: "supported",
   },
+  {
+    capability: "count_tokens",
+    providerPresetId: "deepseek",
+    adapterFamily: "openai-chat-completions",
+    status: "supported",
+    contractTest: "llm-count-tokens.contract",
+    notes: "POST /anthropic/v1/messages/count_tokens (Anthropic body shape)",
+  },
 ];

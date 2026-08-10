@@ -2,7 +2,7 @@ import type { Message, ToolSchema } from "@moontide/llm/protocol";
 
 import { modelId } from "../config.js";
 import { internalError } from "@moontide/shared/errors/factories.js";
-import { getLLMProvider, resolveRoute } from "@moontide/llm";
+import { getLLMProvider, lookupCapabilityStatus, resolveRoute } from "@moontide/llm";
 import {
   blockMessageLabel,
   blockMessageLineDetail,
@@ -144,6 +144,20 @@ export async function exactTokenCount(
   tools: ToolSchema[],
 ): Promise<number> {
   const route = resolveRoute(modelId());
+  const status = lookupCapabilityStatus({
+    capability: "count_tokens",
+    providerPresetId: route.providerPresetId,
+    adapterFamily: route.adapterFamily,
+  });
+  if (status !== "supported") {
+    throw internalError("count_tokens unsupported for route", {
+      context: {
+        reason: "count_tokens_unsupported",
+        providerPresetId: route.providerPresetId,
+        adapterFamily: route.adapterFamily,
+      },
+    });
+  }
   const provider = getLLMProvider(route);
   if (!provider.countTokens) {
     throw internalError("LLM provider does not support countTokens");
