@@ -1,3 +1,5 @@
+import { configError, infraError } from "@moontide/shared/errors/factories.js";
+
 import type { LLMRequest, LLMResponse } from "../protocol/types.js";
 import type { LLMCallOptions } from "../provider.js";
 import type { ResolvedRoute } from "../routing/types.js";
@@ -12,18 +14,41 @@ export function adapterChat(
     case "openai-chat-completions":
       return openAiChatCompletions(request, route, options);
     case "openai-responses":
-      throw new Error("openai-responses adapter not implemented");
+      return Promise.reject(
+        configError("openai-responses adapter not implemented", {
+          context: {
+            reason: "adapter_not_implemented",
+            adapterFamily: route.adapterFamily,
+          },
+        }),
+      );
     default: {
       const _exhaustive: never = route.adapterFamily;
-      throw new Error(`Unsupported adapterFamily: ${String(_exhaustive)}`);
+      throw configError(`Unsupported adapterFamily: ${String(_exhaustive)}`, {
+        context: {
+          reason: "adapter_not_supported",
+          adapterFamily: route.adapterFamily,
+        },
+      });
     }
   }
 }
 
-export function adapterCountTokens(
+export async function adapterCountTokens(
   _request: LLMRequest,
-  _route: ResolvedRoute,
+  route: ResolvedRoute,
   _options?: LLMCallOptions,
 ): Promise<number> {
-  return Promise.resolve(0);
+  if (route.providerPresetId === "deepseek") {
+    throw infraError("DeepSeek count_tokens unavailable", {
+      context: { reason: "count_tokens_unsupported" },
+    });
+  }
+  throw infraError("count_tokens unsupported for provider preset", {
+    context: {
+      reason: "count_tokens_unsupported",
+      providerPresetId: route.providerPresetId,
+      adapterFamily: route.adapterFamily,
+    },
+  });
 }

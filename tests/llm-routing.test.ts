@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resolveRoute } from "@moontide/llm";
+import { adapterChat } from "../packages/llm/src/adapters/index.js";
 
 describe("llm routing", () => {
   afterEach(() => {
@@ -73,5 +74,28 @@ describe("llm routing", () => {
     const deep = resolveRoute("deepseek-v4-pro", { deepMode: true });
     expect(normal.thinkingLevel).toBe("medium");
     expect(deep.thinkingLevel).toBe("high");
+  });
+
+  it("adapterChat rejects openai-responses with adapter_not_implemented", async () => {
+    await expect(
+      adapterChat(
+        {
+          model: "deepseek-v4-flash",
+          system: "",
+          messages: [{ role: "user", content: "hi" }],
+          tools: [],
+          maxTokens: 1,
+        },
+        {
+          logicalModelId: "deepseek-v4-flash",
+          providerPresetId: "deepseek",
+          vendorModelId: "deepseek-v4-flash",
+          adapterFamily: "openai-responses",
+          thinkingLevel: "off",
+        },
+      ),
+    ).rejects.toMatchObject({
+      context: { reason: "adapter_not_implemented", adapterFamily: "openai-responses" },
+    });
   });
 });

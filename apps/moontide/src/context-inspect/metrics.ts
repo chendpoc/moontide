@@ -2,8 +2,7 @@ import type { Message, ToolSchema } from "@moontide/llm/protocol";
 
 import { modelId } from "../config.js";
 import { internalError } from "@moontide/shared/errors/factories.js";
-import { getLLMProvider } from "@moontide/llm";
-import { resolveRoute } from "@moontide/llm";
+import { getLLMProvider, resolveRoute } from "@moontide/llm";
 import {
   blockMessageLabel,
   blockMessageLineDetail,

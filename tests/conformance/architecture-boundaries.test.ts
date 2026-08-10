@@ -212,6 +212,11 @@ describe("architecture boundaries (structural invariants)", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("packages/llm does not throw bare Error", () => {
+    const offenders = scanTsFiles(repoPath("packages/llm/src"), /throw new Error\(/);
+    expect(offenders).toEqual([]);
+  });
+
   it("src/ does not import monolith llm/ (use @moontide/llm)", () => {
     const legacyImport = /from\s+["'](?:\.\.?\/)+llm\//;
     const offenders = scanTsFiles(repoPath("apps/moontide/src"), legacyImport);

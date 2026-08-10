@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { runLLM, setLLMProvider } from "../packages/llm/src/index.js";
+import { resolveRoute, runLLM, setLLMProvider } from "../packages/llm/src/index.js";
 import type { LLMProvider } from "../packages/llm/src/provider.js";
 
 describe("runLLM resolvedRequest observation", () => {
@@ -84,5 +84,36 @@ describe("runLLM resolvedRequest observation", () => {
         maxTokens: 100,
       }),
     ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("forces openai-chat-completions routing for json_object even when adapter override is responses", async () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("MOONTIDE_ADAPTER_FAMILY", "openai-responses");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-flash");
+
+    expect(resolveRoute("deepseek-v4-flash").adapterFamily).toBe("openai-responses");
+
+    setLLMProvider({
+      chat: async () => ({
+        content: [{ type: "text", text: "{}" }],
+        stopReason: "end_turn",
+      }),
+    });
+
+    let recordedAdapterFamily: string | undefined;
+    await runLLM({
+      turn: 1,
+      model: "deepseek-v4-flash",
+      system: "sys",
+      messages: [{ role: "user", content: "hi" }],
+      tools: [],
+      maxTokens: 100,
+      responseFormat: "json_object",
+      onLLMCall: (record) => {
+        recordedAdapterFamily = record.routing.adapterFamily;
+      },
+    });
+
+    expect(recordedAdapterFamily).toBe("openai-chat-completions");
   });
 });

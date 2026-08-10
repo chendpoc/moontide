@@ -13,6 +13,40 @@ describe("llm capabilities", () => {
     expect(rows.some((row) => row.adapterFamily === "openai-responses")).toBe(true);
   });
 
+  it("count_tokens is chat route only, not responses", () => {
+    expect(
+      lookupCapabilityStatus({
+        capability: "count_tokens",
+        providerPresetId: "deepseek",
+        adapterFamily: "openai-chat-completions",
+      }),
+    ).toBe("rejected");
+    expect(
+      lookupCapabilityStatus({
+        capability: "count_tokens",
+        providerPresetId: "deepseek",
+        adapterFamily: "openai-responses",
+      }),
+    ).toBe("rejected");
+  });
+
+  it("max_output_tokens is responses-only capability", () => {
+    expect(
+      lookupCapabilityStatus({
+        capability: "max_output_tokens",
+        providerPresetId: "deepseek",
+        adapterFamily: "openai-responses",
+      }),
+    ).toBe("supported");
+    expect(
+      lookupCapabilityStatus({
+        capability: "max_output_tokens",
+        providerPresetId: "deepseek",
+        adapterFamily: "openai-chat-completions",
+      }),
+    ).toBe("rejected");
+  });
+
   it("lookupCapabilityStatus returns declared status", () => {
     expect(
       lookupCapabilityStatus({

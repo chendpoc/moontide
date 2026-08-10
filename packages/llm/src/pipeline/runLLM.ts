@@ -20,7 +20,10 @@ export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
-  const route = resolveRoute(request.model, { deepMode });
+  const route = resolveRoute(request.model, {
+    deepMode,
+    jsonObject: request.responseFormat === "json_object",
+  });
   const resolvedRequest: LLMRequest = {
     ...request,
     model: route.vendorModelId,
