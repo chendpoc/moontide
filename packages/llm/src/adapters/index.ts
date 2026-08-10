@@ -11,7 +11,7 @@ export function adapterChat(
 ): Promise<LLMResponse> {
   switch (route.adapterFamily) {
     case "openai-chat-completions":
-      return openAiChatCompletions(request, route);
+      return openAiChatCompletions(request, route, _options);
     case "anthropic-messages":
       return anthropicMessagesChat(request, route);
     case "openai-responses":
