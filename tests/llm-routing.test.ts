@@ -76,26 +76,26 @@ describe("llm routing", () => {
     expect(deep.thinkingLevel).toBe("high");
   });
 
-  it("adapterChat rejects openai-responses with adapter_not_implemented", async () => {
+  it("adapterChat rejects pro model on openai-responses route", async () => {
     await expect(
       adapterChat(
         {
-          model: "deepseek-v4-flash",
+          model: "deepseek-v4-pro",
           system: "",
           messages: [{ role: "user", content: "hi" }],
           tools: [],
           maxTokens: 1,
         },
         {
-          logicalModelId: "deepseek-v4-flash",
+          logicalModelId: "deepseek-v4-pro",
           providerPresetId: "deepseek",
-          vendorModelId: "deepseek-v4-flash",
+          vendorModelId: "deepseek-v4-pro",
           adapterFamily: "openai-responses",
           thinkingLevel: "off",
         },
       ),
     ).rejects.toMatchObject({
-      context: { reason: "adapter_not_implemented", adapterFamily: "openai-responses" },
+      context: { reason: "responses_model_not_supported", model: "deepseek-v4-pro" },
     });
   });
 });

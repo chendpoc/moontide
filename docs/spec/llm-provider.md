@@ -299,11 +299,12 @@ packages/llm/src/
   routing/resolve.ts          # env + registry → ResolvedRoute
   adapters/
     openai-chat-completions.ts  # DeepSeek default（fetch）
+    openai-responses.ts         # Responses API（flash only，fetch）
     deepseek-count-tokens.ts    # count_tokens（Anthropic endpoint）
     index.ts                    # adapterFamily 分发
 ```
 
-现状：DeepSeek agent 经 `openai-chat-completions` fetch adapter；`openai-responses` 与多 preset 仍在 backlog（§13）。
+现状：DeepSeek agent 默认经 `openai-chat-completions`；可选 `MOONTIDE_ADAPTER_FAMILY=openai-responses`（flash only）。多 preset 仍在 backlog（§13）。
 
 ### 8.3 normalize 职责
 

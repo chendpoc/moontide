@@ -78,6 +78,7 @@ export const DEEPSEEK_RESPONSES_CAPABILITIES: AdapterCapabilityDeclaration[] = [
     providerPresetId: "deepseek",
     adapterFamily: "openai-responses",
     status: "supported",
+    contractTest: "llm-adapter-responses.contract",
   },
   {
     capability: "tool_choice.required",

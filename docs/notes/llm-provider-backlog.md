@@ -48,7 +48,7 @@
 
 ## 5. Responses API adapter
 
-**状态：** **pending**（Phase 6）。capability 表已声明；`adapterChat` 对 `openai-responses` 返回 `adapter_not_implemented`。
+**状态：** **done**（Phase 6）。`openai-responses.ts` fetch adapter；flash only；pro → `configError`。
 
 **目标：** OpenAI Responses API 兼容路径（fetch），base URL `https://api.deepseek.com/responses`。
 
@@ -56,7 +56,7 @@
 
 **用途：** Codex 兼容、`max_output_tokens` 单次输出上限；**非** eval judge 必需（judge 已用 Chat Completions `response_format: json_object`）。
 
-**验收：** flash smoke；eval 不依赖。
+**验收：** `llm-adapter-responses.contract.test.ts`；live 需 `DEEPSEEK_API_KEY` + `MOONTIDE_LIVE_LLM=1`。
 
 **Spec 分期：** §6.1「按需」
 
@@ -67,7 +67,7 @@
 1. ~~`normalize/` tool 块互转~~（done）
 2. ~~`openai-chat-completions.ts`~~（done）
 3. ~~DeepSeek count_tokens~~（done）
-4. `openai-responses.ts` fetch adapter（Phase 6）
+4. ~~`openai-responses.ts` fetch adapter（Phase 6）~~（done）
 5. `custom` preset（§13-F）
 
 ---
@@ -76,5 +76,6 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08 | Phase 6 Responses adapter + contract/live tests |
 | 2026-08 | Phase 5 count_tokens；capability gate；Responses Phase 6 pending |
 | 2026-08 | 初稿：自 Feature Eval PR 计划移出；对齐 llm-provider §13 |

@@ -5,6 +5,7 @@ import type { LLMCallOptions } from "../provider.js";
 import type { ResolvedRoute } from "../routing/types.js";
 import { deepseekCountTokens } from "./deepseek-count-tokens.js";
 import { openAiChatCompletions } from "./openai-chat-completions.js";
+import { openAiResponses } from "./openai-responses.js";
 
 export function adapterChat(
   request: LLMRequest,
@@ -15,14 +16,7 @@ export function adapterChat(
     case "openai-chat-completions":
       return openAiChatCompletions(request, route, options);
     case "openai-responses":
-      return Promise.reject(
-        configError("openai-responses adapter not implemented", {
-          context: {
-            reason: "adapter_not_implemented",
-            adapterFamily: route.adapterFamily,
-          },
-        }),
-      );
+      return openAiResponses(request, route, options);
     default: {
       const _exhaustive: never = route.adapterFamily;
       throw configError(`Unsupported adapterFamily: ${String(_exhaustive)}`, {
