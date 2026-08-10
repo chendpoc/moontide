@@ -1,6 +1,7 @@
 .env
 node_modules/
 dist/
+*.tsbuildinfo
 /target/
 .venv/
 __pycache__/
