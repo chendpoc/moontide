@@ -50,6 +50,18 @@ describe("llm routing", () => {
     expect(() => resolveRoute()).toThrow(/ANTHROPIC_API_KEY/);
   });
 
+  it("uses openai-chat-completions for json_object judge route on deepseek", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-flash");
+
+    const agent = resolveRoute("deepseek-v4-flash");
+    expect(agent.adapterFamily).toBe("anthropic-messages");
+
+    const judge = resolveRoute("deepseek-v4-flash", { jsonObject: true });
+    expect(judge.adapterFamily).toBe("openai-chat-completions");
+    expect(judge.providerPresetId).toBe("deepseek");
+  });
+
   it("does not bump thinking when deep mode but registry model lacks thinking support", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
     vi.stubEnv("MODEL_ID", "deepseek-v4-pro");

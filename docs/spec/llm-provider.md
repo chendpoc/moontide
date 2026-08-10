@@ -604,7 +604,8 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 
 ## 13. 后续实现分期（代码指引）
 
-> **本节描述代码落地顺序，非当前文档交付范围。** 实现时按小 PR 推进，行为每阶段可验收。
+> **本节描述代码落地顺序，非当前文档交付范围。** 实现时按小 PR 推进，行为每阶段可验收。  
+> **Backlog（eval 计划外）：** [llm-provider-backlog.md](../notes/llm-provider-backlog.md) — Agent OpenAI Chat tool loop · tool_calls normalize · custom preset · Responses API。
 
 | 阶段 | 内容 | 验收 |
 |------|------|------|

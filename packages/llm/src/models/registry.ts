@@ -19,11 +19,11 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
   },
   "deepseek-v4-flash": {
     displayName: "DeepSeek V4 Flash",
-    contextWindow: 128_000,
+    contextWindow: 1_000_000,
     supportsTools: true,
     supportsThinking: false,
     maxOutputTokens: 8192,
-    defaultThinking: "medium",
+    defaultThinking: "off",
     routes: {
       deepseek: { modelId: "deepseek-v4-flash" },
       anthropic: { modelId: "deepseek-v4-flash" },

@@ -1,10 +1,6 @@
 import type { LLMRequest, LLMResponse } from "./protocol/types.js";
 import type { ResolvedRoute } from "./routing/types.js";
-import {
-  anthropicMessagesChat,
-  anthropicMessagesCountTokens,
-} from "./adapters/anthropic-messages.js";
-import { deepseekOpenAiChat } from "./adapters/deepseek-openai-chat.js";
+import { adapterChat, adapterCountTokens } from "./adapters/index.js";
 
 export interface LLMProvider {
   chat(request: LLMRequest): Promise<LLMResponse>;
@@ -18,13 +14,8 @@ export function getLLMProvider(route: ResolvedRoute): LLMProvider {
     return providerOverride;
   }
   return {
-    chat: (request) => {
-      if (request.responseFormat === "json_object" && route.providerPresetId === "deepseek") {
-        return deepseekOpenAiChat(request, route);
-      }
-      return anthropicMessagesChat(request, route);
-    },
-    countTokens: (request) => anthropicMessagesCountTokens(request, route),
+    chat: (request) => adapterChat(request, route),
+    countTokens: (request) => adapterCountTokens(request, route),
   };
 }
 

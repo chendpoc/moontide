@@ -48,7 +48,7 @@ function resolvePresetId(logicalModelId: string): string {
 /** Resolve logical model + env keys to a provider route. */
 export function resolveRoute(
   logicalModelId = modelId(),
-  options?: { deepMode?: boolean },
+  options?: { deepMode?: boolean; jsonObject?: boolean },
 ): ResolvedRoute {
   const presetId = resolvePresetId(logicalModelId);
   const preset = PROVIDER_PRESETS[presetId]!;
@@ -56,11 +56,16 @@ export function resolveRoute(
   const vendorModelId = entry?.routes[presetId]?.modelId ?? logicalModelId;
   const thinkingLevel = resolveThinkingLevel({ entry, deepMode: options?.deepMode });
 
+  let adapterFamily = preset.adapter;
+  if (options?.jsonObject && preset.openAiChatBaseUrl) {
+    adapterFamily = "openai-chat-completions";
+  }
+
   return {
     logicalModelId,
     providerPresetId: presetId,
     vendorModelId,
-    adapterFamily: preset.adapter,
+    adapterFamily,
     thinkingLevel,
   };
 }
