@@ -21,6 +21,7 @@ const MAX_REPLY_CHARS = 8_000;
 export interface LlmJudgeOptions {
   judgeModel?: string;
   batchSize?: number;
+  onJudgeUsage?: (usage: { inputTokens: number; outputTokens: number }, modelId: string) => void;
 }
 
 function _clampScore(value: number): PairwiseScore {
@@ -184,8 +185,12 @@ function _formatPairBlock(
   return lines.join("\n\n");
 }
 
-async function _chatJudge(system: string, user: string, judgeModel?: string): Promise<string> {
-  const route = resolveRoute(judgeModel);
+async function _chatJudge(
+  system: string,
+  user: string,
+  judgeModel?: string,
+): Promise<{ text: string; usage?: { inputTokens: number; outputTokens: number } }> {
+  const route = resolveRoute(judgeModel, { jsonObject: true });
   const response = await withRetry(
     () =>
       getLLMProvider(route).chat({
@@ -199,11 +204,18 @@ async function _chatJudge(system: string, user: string, judgeModel?: string): Pr
     { isRetryable: isRateLimitError },
   );
 
-  return response.content
+  const text = response.content
     .filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")
     .map((block) => block.text)
     .join("\n")
     .trim();
+
+  return {
+    text,
+    usage: response.usage
+      ? { inputTokens: response.usage.inputTokens, outputTokens: response.usage.outputTokens }
+      : undefined,
+  };
 }
 
 /** Single pair LLM judge (subjective or objective fallback). */
@@ -212,7 +224,7 @@ export async function gradePairWithLlm(
   mode: "subjective" | "objective",
   options: LlmJudgeOptions = {},
 ): Promise<{ verdict: PairwiseJudgeVerdict; judgeModel: string; rawText: string }> {
-  const route = resolveRoute(options.judgeModel ?? item.caseDef.judgeModel);
+  const route = resolveRoute(options.judgeModel ?? item.caseDef.judgeModel, { jsonObject: true });
   const judgeModel = route.logicalModelId;
   const system =
     mode === "subjective"
@@ -220,9 +232,12 @@ export async function gradePairWithLlm(
       : objectiveFallbackSystem();
 
   const user = _formatPairBlock(item, mode === "objective");
-  const rawText = await _chatJudge(system, user, options.judgeModel ?? item.caseDef.judgeModel);
-  const parsed = parsePairwiseVerdictText(rawText, item.caseId);
-  return { verdict: parsed, judgeModel, rawText };
+  const judged = await _chatJudge(system, user, options.judgeModel ?? item.caseDef.judgeModel);
+  if (judged.usage) {
+    options.onJudgeUsage?.(judged.usage, judgeModel);
+  }
+  const parsed = parsePairwiseVerdictText(judged.text, item.caseId);
+  return { verdict: parsed, judgeModel, rawText: judged.text };
 }
 
 /** Batch LLM judge; on parse failure caller should retry singles. */
@@ -237,17 +252,20 @@ export async function gradePairBatchWithLlm(
 
   const category = items[0]!.caseDef.category;
   const judgeModelRef = options.judgeModel ?? items[0]!.caseDef.judgeModel;
-  const route = resolveRoute(judgeModelRef);
+  const route = resolveRoute(judgeModelRef, { jsonObject: true });
   const judgeModel = route.logicalModelId;
   const system = batchJudgeSystem(category, mode);
   const user = items
     .map((item) => _formatPairBlock(item, mode === "objective"))
     .join("\n\n---\n\n");
 
-  const rawText = await _chatJudge(system, user, judgeModelRef);
+  const judged = await _chatJudge(system, user, judgeModelRef);
+  if (judged.usage) {
+    options.onJudgeUsage?.(judged.usage, judgeModel);
+  }
   const caseIds = items.map((item) => `${item.caseId}::${item.baseline.repetition}`);
-  const verdicts = parseBatchVerdictsText(rawText, caseIds);
-  return { verdicts, judgeModel, rawText };
+  const verdicts = parseBatchVerdictsText(judged.text, caseIds);
+  return { verdicts, judgeModel, rawText: judged.text };
 }
 
 export function chunkPairItems(items: PairGradeItem[], batchSize = DEFAULT_BATCH_SIZE): PairGradeItem[][] {

@@ -121,15 +121,35 @@ describe("parseEvalCliArgs", () => {
     const args = parseEvalCliArgs([
       "v2/coding",
       "--merge-gate",
+      "--verbose",
       "--baseline-from=packages/evals/baseline.json",
       "--baseline-name=off",
       "--candidate-name=on",
     ]);
     expect(args.mergeGate).toBe(true);
+    expect(args.verbose).toBe(true);
     expect(args.baselineFromPath).toBe("packages/evals/baseline.json");
     expect(args.harness.baseline.name).toBe("off");
     expect(args.harness.candidate.name).toBe("on");
     expect(args.harness.baseline.disableProtocolReminders).toBe(true);
+  });
+
+  it("rejects revision intervention", () => {
+    expect(() =>
+      parseEvalCliArgs(["v2/coding", "--intervention=revision"]),
+    ).toThrow(/revision intervention is not supported/);
+  });
+
+  it("rejects base-ref", () => {
+    expect(() => parseEvalCliArgs(["v2/coding", "--base-ref=main"])).toThrow(
+      /--base-ref is not supported/,
+    );
+  });
+
+  it("rejects invalid intervention mode", () => {
+    expect(() => parseEvalCliArgs(["v2/coding", "--intervention=invalid"])).toThrow(
+      /Invalid --intervention/,
+    );
   });
 
   it("parses agent-only phase", () => {

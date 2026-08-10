@@ -1,7 +1,8 @@
+# Agent Eval Taxonomy：Workload 与 Harness Contract
 
-> **状态：** 2026-08 调研备忘 · **notes**（非 Spec）  
-> **用途：** Feature A/B eval 的 **test case 分类** 与 **判分模式** 设计依据  
-> **关联：** [`harness-eval-1.0.md`](../spec/harness-eval-1.0.md) · [`agent-eval-roadmap.md`](agent-eval-roadmap.md) · [`feature-ab-eval-guide.md`](../feature-ab-eval-guide.md) · [`packages/evals`](../../packages/evals/)
+> **状态：** 2026-08 调研备忘 · 2026-08 Harness 视角修订 · **notes**（非 Spec）
+> **用途：** 区分 **workload taxonomy**、**Harness contract taxonomy**、API profile 与判分 oracle
+> **关联：** [`harness-eval-1.0.md`](../spec/harness-eval-1.0.md) · [`harness-eval-refactor-plan.md`](harness-eval-refactor-plan.md) · [`agent-eval-roadmap.md`](agent-eval-roadmap.md) · [`feature-ab-eval-guide.md`](../feature-ab-eval-guide.md) · [`packages/evals`](../../packages/evals/)
 
 ---
 
@@ -9,11 +10,12 @@
 
 MoonTide `@moontide/evals` 需要回答：
 
-1. **case 按什么维度分类？** 几类够用？与业界生产流量是否同构？
-2. **有明确答案 vs 主观题** 如何判分？
-3. **一轮 merge 前 eval** 每类多少题、judge 是否 batch？
+1. **Workload 按什么维度分类？** 哪些标签只描述任务内容或生产流量？
+2. **Harness contract 按什么维度分类？** 如何验证 request、tool loop、state 与 failure handling？
+3. **API profile 是否生效？** 配置是 supported、ignored、rejected，还是由 MoonTide emulated？
+4. **有明确答案 vs 主观题** 如何判分？一次 merge 前 eval 如何选择 case 与重复次数？
 
-本文汇总 **公开资料** 中的 task taxonomy，并给出 MoonTide **eval 可操作** 的设计结论（非产品 telemetry 规范）。
+本文汇总 **公开资料** 中的 task taxonomy，但修订后的结论是：生产任务分类只能提供 workload sampling，不能直接证明 MoonTide Harness 正确。Harness eval 还需要独立的 contract taxonomy、API profile 与分层 oracle（非产品 telemetry 规范）。
 
 ---
 
@@ -166,80 +168,162 @@ flowchart LR
 | 多步规划/深度 | Claude planning ~14%；MoonTide `deep:` 协议 |
 | 简单 Q&A / guard | LLM-only 20.2%；Chat-only 7.6% |
 
-**结论：** MoonTide feature eval 用 **5 类粗分** 有公开数据支撑；不必复制 OpenAI 40+ label 或 REAP 17 类。
+**结论：** MoonTide 用 5 类左右的粗粒度 workload 标签覆盖生产任务有公开数据支撑；不必复制 OpenAI 40+ label 或 REAP 17 类。
+
+但这些分类描述的是“用户要完成什么”或“LLM 正在处理什么形态的任务”，不是“MoonTide Harness 的哪条契约正在被验证”。`coding`、`exploration`、`deep_task`、`general`、`regression`，以及实现中后来加入的 `external_research`，都只能作为 workload sampling 维度，不能单独承担 Harness 正确性证明。
 
 ---
 
-## 5. MoonTide 设计：case 分类
+## 5. MoonTide 设计：四个正交维度
 
-### 5.1 两个正交维度
+### 5.1 Case 不是一个 `category`
 
-| 维度 | 字段 | 作用 |
-|------|------|------|
-| **任务形态** | `category` | 决定 prompt/setup 形态、judge system prompt |
-| **判分方式** | `gradingMode` | `objective`（checks）vs `subjective`（pairwise） |
+Harness contract case 包含四个正交维度；只评估用户结果的历史 case 必须显式标为 workload outcome case，不能伪装成 Harness contract 覆盖：
 
-与业界对应：
+| 维度 | 建议字段 | 作用 |
+|------|----------|------|
+| **Case kind** | `kind` | 区分 `harness_contract` 与 `workload_outcome`，决定能否计入 Harness coverage |
+| **Workload** | `workloadCategory` / tags | 提供 prompt、fixture、领域与任务形态；用于 workload sampling |
+| **Harness contract** | `harnessClasses[]` | 声明本 case 要验证哪条 request / loop / state / recovery 契约 |
+| **API profile** | `apiProfile` | 声明 baseline/candidate 的单变量配置和 provider capability 预期 |
+| **Oracle** | `expected.request` / `expected.trace` / `expected.outcome` | 分别验证请求、运行协议与用户结果 |
 
-- `category` ≈ 粗粒度 task type / workflow archetype
-- `gradingMode` ≈ REAP testable vs untestable；Programming by Chat 中 Validation vs Authoring
+`outcomeGrading` 只描述 outcome oracle 是确定性检查还是主观 judge；它不替代 request 和 trace contract。
 
-### 5.2 五类 `category`（eval v2 拟定）
+建议结构：
 
-| `category` | 对齐的业界簇 | 典型 prompt | 默认 `gradingMode` |
-|------------|-------------|-------------|-------------------|
-| `coding` | Implementation + Validation（有 oracle） | Read/edit 单文件 | **objective** |
-| `exploration` | Deep-loop read；Inquiry·Comprehension | Find / grep / 读结构 | **objective** |
-| `deep_task` | Planning + multi-step；MoonTide `deep:` | deep: investigate / decide | **subjective** |
-| `general` | LLM-only Q&A | 常识、解释 | **subjective**（可标 objective） |
-| `regression` | Guard；Chat-only baseline | 极简任务 | **objective** |
-
-`regression` 是 **guard 桶**（测 feature 是否误伤简单能力），可与其它类 prompt 形态重叠。
-
-**按需跑子集：** feature 若只影响 deep 协议，merge 前可全量 `deep_task` + `regression`，其余 smoke。
-
-### 5.3 `gradingMode` 细则
-
-#### objective — 有明确可验证标准
-
-- Case 带声明式 `expectedChecks`（非长 rubric）：
-
-```json
-{
-  "expectedChecks": [
-    { "kind": "reply_contains", "value": "runLoop" },
-    { "kind": "file_contains", "path": "out.txt", "value": "ok" }
-  ]
-}
+```yaml
+id: tool-required-read-file
+kind: harness_contract
+workloadCategory: coding
+harnessClasses: [tool_decision, tool_loop]
+apiProfile: responses-function-required
+steps:
+  - type: prompt
+    content: Read version.txt and return its exact content.
+expected:
+  request:
+    - kind: tool_available
+      name: read_file
+    - kind: tool_choice
+      value: required
+  trace:
+    - kind: tool_called
+      name: read_file
+    - kind: tool_result_followed_by_request
+  outcome:
+    - kind: reply_contains
+      value: 1.2.3
 ```
 
-- Runner：**先确定性 checks**（零 LLM）；双方均过或仅一方过 → 直接判 winner
-- checks 无法区分 → **fallback 一次 pairwise LLM**（prompt 内嵌 checklist）
+`workload_outcome` case 可以只有 `expected.outcome`，用于衡量真实任务完成率；它不需要虚构 `harnessClasses`，也不得计入 request / trace contract coverage。只有 `harness_contract` case 才必须声明至少一个 Harness class，并提供对应的 request 或 trace oracle。
 
-#### subjective — 无单一标准答案
+### 5.2 Workload taxonomy：只负责抽样
 
-- **必须** baseline vs candidate pairwise
-- Judge 输出：1–5 分 + `baselineGood/Bad` + `candidateGood/Bad` + `rationale`
-- 固定 A=baseline、B=candidate，减少 position bias
+现有 `coding`、`exploration`、`deep_task`、`general`、`regression`、`external_research` 可继续作为迁移输入，但不再决定 Harness contract：
 
-### 5.4 规模建议
+| Workload 标签 | 主要用途 | 不证明什么 |
+|---------------|----------|------------|
+| `coding` | 文件、仓库、修改与测试 fixture | 不自动证明 tool loop 正确 |
+| `exploration` | 查找、读取、理解多文件结构 | 不自动证明 context 编译正确 |
+| `deep_task` | 多步调查、计划与决策 | 不自动证明 reasoning 或 work_mem 有效 |
+| `general` | 无外部 fixture 的问答与解释 | 不自动证明“不该调用工具” |
+| `regression` | 简单任务 guard | 不是独立领域，可以与其他 workload 重叠 |
+| `external_research` | HTTP fixture、来源和 artifact 场景 | 更接近环境/工具标签，不是稳定的第六任务本体 |
 
-| 阶段 | 每类 case | repetitions | 用途 |
-|------|-----------|-------------|------|
-| 开发迭代 | 3–5 | 1–2 | 调 harness / judge |
-| **合并决策** | **10–20** | **2–3** | 主决策区间 |
-| 重要 feature 对外 | 15–20 | 3 | 更强信号 |
+后续可以把 workload 从单值 enum 改为非互斥 tags，但这不是 Harness contract 重构的前置条件。
 
-粗算：5 类 × 15 case × 2 rep × 2 harness ≈ **300 agent runs**；与 [`feature-ab-eval-guide.md`](../feature-ab-eval-guide.md)「总计 30–50 case」同量级（5×10=50）。
+### 5.3 Harness contract taxonomy：五类
 
-### 5.5 Judge batch
+| `harnessClass` | 要验证的问题 | 典型 contract |
+|----------------|----------------|------------------|
+| `request_shaping` | Composer / RunConfig 是否产生正确的语义请求 | system、roles、messages、tools schema、response format、max tokens、reasoning level |
+| `tool_decision` | Agent 是否正确选择、拒绝或被约束使用工具 | none / auto / required / specified；正确工具、正确参数、无无效调用 |
+| `tool_loop` | tool call → execution → result → next request → final 是否闭环 | 顺序、参数、result 关联、重复调用、停止条件、多工具 |
+| `state_context` | 多轮、reload、compaction 后事实是否正确进入下一次请求 | history、Session Item、tool result、context manifest、事实连续性 |
+| `constraint_recovery` | 约束与失败路径是否符合协议 | structured output、stream、截断、timeout、tool error、abort、retry、budget |
 
-单 case 单次 judge 适合 debug；整轮 50+ 题应 **batch**（同 `category` + `gradingMode`，默认 8 条/次）：
+这五类与领域无关。同一条 coding prompt 可以验证 `tool_decision`，也可以验证 `state_context`；同一条 general prompt 可以验证 `tool_not_called`、structured output 或 max-token failure。
 
-- 减少 RTT；长上下文模型可一次评多 pair
-- 解析失败 → 整批降级逐条 retry
-- **不跨 category 混 batch**（system prompt 不同）
-- 单条 response 截断（如 8k chars）防撑爆 context
+### 5.4 API profile 与 capability status
+
+API 配置不是天然有效的 feature。每个 provider / adapter 应声明并通过 contract test 验证以下状态之一：
+
+| 状态 | 含义 | Eval 行为 |
+|------|------|-----------|
+| `supported` | provider 按声明语义执行 | request + behavior 均须通过 |
+| `ignored` | provider 接收但不执行 | 不得把 HTTP success 当能力通过 |
+| `rejected` | provider 明确报错 | 验证稳定 error code / message |
+| `emulated` | MoonTide 在 Harness 或 adapter 中补足语义 | 验证补偿逻辑和边界 |
+
+以 DeepSeek Responses API 为例：`tool_choice` 支持 none / auto / required / 指定工具；`function` 与 `web_search` tools 支持；`parallel_tool_calls` 被忽略且始终开启；`previous_response_id`、`conversation`、`store` 与 `truncation` 不支持；不支持的部分参数可能被静默忽略。详见 [DeepSeek Responses API](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)。
+
+因此每个 API profile 必须同时记录：语义配置、resolved provider route、capability status、实际生效策略。不能只记录用户传入的参数。
+
+### 5.5 三层 oracle
+
+#### Request oracle：我们实际发了什么
+
+从最终 `LLMRequest` / `LLMCallRecord` 验证：
+
+- system / messages / roles / content blocks；
+- tool schema 与 tool choice；
+- response format、reasoning level、max tokens；
+- resolved route 与 adapter family。
+
+Provider wire 的字段映射只在 adapter contract test 中断言，避免把厂商字段泄漏进 Agent Core。
+
+#### Trace oracle：Harness 如何执行
+
+从 RunEvent、Session Item 和 tool execution trace 验证：
+
+- tool 应调用 / 不应调用；
+- 调用顺序与参数；
+- tool result 是否与 call id 配对；
+- result 后是否形成下一次 LLM request；
+- timeout、abort、retry、error 和 stop reason；
+- 是否出现不必要的重复调用。
+
+#### Outcome oracle：用户结果是否正确
+
+继续使用文件、回复、测试、artifact、rubric 等结果检查。Outcome 通过不代表 request / trace 一定正确；request / trace 通过也不代表用户目标已经完成。
+
+### 5.6 Tool 不是天然正向指标
+
+`tool_called` 只能证明发生过调用，不能证明调用有价值。工具相关 case 必须包含正向与负向 control：
+
+| 场景 | 正确行为 |
+|------|----------|
+| 事实只存在于 fixture / tool 中 | 调用正确工具并使用结果 |
+| 模型自身可可靠回答的简单问题 | 不产生无必要 tool call |
+| `tool_choice=none` | 不调用工具 |
+| `tool_choice=required` | final 前至少有一次合法调用 |
+| 工具返回错误 | 恢复、换路径或明确报告，不能编造成功 |
+| 工具结果已充分 | 停止调用并完成结果 |
+
+其他配置的正向作用可能体现在格式合规、恢复率、成本、延迟或安全边界，而不是 task score：stream 应测语义重建与首 token 延迟；reasoning level 应测质量/成本 trade-off；max tokens 应测 incomplete 处理；response format 应测机器可解析率。
+
+### 5.7 A/B 必须是单变量 intervention
+
+每个 L2 API profile eval 先写可证伪 claim：
+
+```text
+在固定 model、prompt、tools、fixture 与 judge 下，
+只改变 tool_choice=auto → required，
+要求 tool-required case 的合法调用率提高，
+同时 no-tool guard 不参与该比较。
+```
+
+Baseline 与 candidate 必须只有一个已记录的 config 差异；否则结果不能归因。对于预期无 effect 的配置，也应允许结论为 neutral，而不是强迫 candidate 获得正向 lift。
+
+### 5.8 `outcomeGrading`、规模与 batch
+
+- `objective`：request / trace / outcome 的声明式 checks 优先，零 LLM judge；
+- `subjective`：只用于无法由确定性 oracle 判定的 outcome；
+- LLM judge 不应判定 request 是否包含某字段或 tool event 顺序；
+- batch 应按相同 `harnessClasses` + `outcomeGrading` + API profile 分组，不能只按 workload category 分组。
+
+规模由 intervention 决定，而不是固定“每个 workload 15 题”：开发迭代每条 Harness contract 先有 1 个正向 control、1 个负向 guard、1 个 failure case；真 LLM merge 决策再根据方差增加 repetitions。
 
 ---
 
@@ -247,7 +331,8 @@ flowchart LR
 
 | 文档 | 职责 |
 |------|------|
-| **本文（notes）** | 业界调研 + case 分类 / 判分 **设计依据** |
+| **本文（notes）** | Workload 调研 + Harness contract / API profile / oracle 分类依据 |
+| [`harness-eval-refactor-plan.md`](harness-eval-refactor-plan.md) | 从当前 v2 schema 迁到 contract-first eval 的重构计划 |
 | [`harness-eval-1.0.md`](../spec/harness-eval-1.0.md) | 实现 Spec **1.1**（pairwise judge、schema、runner） |
 | [`agent-eval-roadmap.md`](agent-eval-roadmap.md) | L0–L3 路线、分桶 A–E、Impact Card |
 | [`feature-ab-eval-guide.md`](../feature-ab-eval-guide.md) | 工作流与成本；Pi upstream 参考 |
@@ -263,3 +348,4 @@ flowchart LR
 5. Programming by Chat — https://arxiv.org/html/2604.00436v1  
 6. LongCLI-Bench — https://aclanthology.org/2026.findings-acl.1497/  
 7. EvoCode-Bench — https://arxiv.org/html/2605.24110  
+8. DeepSeek — *使用 Responses API* — https://api-docs.deepseek.com/zh-cn/guides/responses_api/

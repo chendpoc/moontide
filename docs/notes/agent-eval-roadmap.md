@@ -2,9 +2,11 @@
 > **状态：** 2026-08 定稿 · **部分实现**（[`packages/evals`](../../packages/evals/) v2）  
 > **动机：** 单元测试只能证明 feature「机制正确」，不能证明「对 agent 能力有 good impact」；Deep Task Mode 外研对比实验（地铁题）表明同一 feature 在不同任务类型上 impact 符号可能相反。  
 > **入口：** 根 [`TODO.md`](../../TODO.md) §7 · §8  
-> **关联：** [`agent-eval-task-taxonomy.md`](agent-eval-task-taxonomy.md)（case 分类 / 判分设计依据） · [`deep-mode.md`](deep-mode.md) · [`deep-mode-redesign.md`](deep-mode-redesign.md) · [`web-content-retrieval-discussion.md`](web-content-retrieval-discussion.md) · [`agent-events.md`](../spec/agent-events.md) · [`context-inspect-debug.md`](context-inspect-debug.md)
+> **关联：** [`agent-eval-task-taxonomy.md`](agent-eval-task-taxonomy.md)（workload + Harness contract 分类依据） · [`harness-eval-refactor-plan.md`](harness-eval-refactor-plan.md)（contract-first 重构） · [`deep-mode.md`](deep-mode.md) · [`deep-mode-redesign.md`](deep-mode-redesign.md) · [`web-content-retrieval-discussion.md`](web-content-retrieval-discussion.md) · [`agent-events.md`](../spec/agent-events.md) · [`context-inspect-debug.md`](context-inspect-debug.md)
 
 **范围：** MoonTide TS harness（`AgentRun` / REPL / Session Log / debug jsonl）。**不含** Rust UI、第三方 leaderboard 托管。
+
+> **分类修订：** 本文的 A–E 分桶继续作为 workload sampling；它们不再等同于 Harness 正确性分类。Request、tool loop、state 与 recovery 的 contract-first 设计见重构计划。
 
 ---
 

@@ -1,6 +1,9 @@
 import type { SessionItem } from "@moontide/session";
 import type { WorkMemEvent } from "@moontide/tools";
 
+import type { BudgetSummary } from "./budget.js";
+import type { EvalRunManifest } from "./manifest-types.js";
+
 export type EvalBucket = "A" | "B" | "C" | "D" | "E";
 
 export type EvalCaseCategory =
@@ -80,6 +83,8 @@ export interface EvalSuiteFile {
 export interface MoonTideEvalHarnessConfig {
   name: string;
   disableProtocolReminders?: boolean;
+  /** Eval-only harness toggles (merged with disableProtocolReminders for A/B diff). */
+  featureToggles?: Record<string, boolean>;
   model?: string;
   judgeModel?: string;
 }
@@ -233,6 +238,13 @@ export interface EvalReport {
   pairs: EvalPairRecord[];
   compare?: CompareSummary;
   baselineDelta?: BaselineDelta;
+  /** Full run manifest (also written to manifest.json). */
+  manifest?: EvalRunManifest;
+  /** Soft budget summary when --budget-micro-cny is set. */
+  budget?: BudgetSummary;
+  /** False when agent/judge models differ between arms; merge-gate skipped. */
+  comparable?: boolean;
+  comparabilityReason?: string;
 }
 
 export interface PairGradeItem {
@@ -245,6 +257,7 @@ export interface PairGradeItem {
 export interface JudgeOptions {
   judgeModel?: string;
   batchSize?: number;
+  onJudgeUsage?: (usage: { inputTokens: number; outputTokens: number }, modelId: string) => void;
 }
 
 export interface HarnessConfigFile {

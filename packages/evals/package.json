@@ -13,7 +13,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "eval:pr": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts tests",
+    "test:integration": "vitest run --config vitest.config.ts examples",
+    "eval:pr": "pnpm run test"
   },
   "dependencies": {
     "@moontide/llm": "workspace:*",

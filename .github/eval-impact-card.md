@@ -10,8 +10,7 @@
 
 | 字段 | 值 |
 |------|-----|
-| **Suite** | `v2/<category>` 或 `v2` 全量 |
-| **featureSurface** | `tooling` / `deep_protocol` / … |
+| **featureSurface** | `tooling` / `deep_protocol` / `context` / `prompt` / `model_only` |
 | **Primary 指标** | `meanScore`、`byCategory.<cat>.meanScore`、`liftAlerts` 为空 |
 | **Baseline sha** | `main` @ `<git sha>` 或 `--baseline-from=packages/evals/baseline.json` |
 
@@ -19,24 +18,35 @@
 
 | Guard | 阈值 / 期望 |
 |-------|-------------|
-| `regression` | 无 `regressionAlerts`（任一 pair score ≤ 2） |
-| `general` / `model_only` | 均分 ≥ 3.0，无意外 tool 调用回归 |
+| `v2/regression` | 无 `regressionAlerts`（任一 pair score ≤ 2） |
+| `model_only` | 均分 ≥ 3.0，无意外 tool 调用回归 |
 | `efficiency` | candidate `meanToolCalls` / token 增幅可接受（PR 中说明） |
 | L0 / L1 CI | `pnpm test` + `pnpm eval:test` 绿 |
 
 ## 命令
 
 ```bash
-# 与 feature 相关的面 + regression guard
-pnpm eval -- v2/deep_task --feature-surface=deep_protocol --merge-gate
-pnpm eval -- v2/regression --merge-gate
+# PR 默认入口：regression guard → primary，进度日志 + merge-gate + impact snippet
+pnpm eval:feature -- --feature-surface=deep_protocol --agent-concurrency=4
+pnpm eval:feature -- --list-surfaces
+pnpm eval:summarize   # 查看最新 run 摘要
+```
 
-# 写 baseline / 对比 delta
+跑完后 primary artifact 目录会生成 `impact-snippet.md`，可直接贴进 PR。
+
+`--merge-gate` 失败条件（exit 1）：`meanScore < 3.5`、存在 `regressionAlerts` 或 `liftAlerts`。
+
+<details>
+<summary>Debug（低层 CLI，非 PR 默认）</summary>
+
+```bash
+pnpm eval -- v2/deep_task --feature-surface=deep_protocol --merge-gate --verbose
+pnpm eval -- v2/regression --merge-gate
 pnpm eval -- v2/deep_task --write-baseline=packages/evals/baseline.json
 pnpm eval -- v2/deep_task --baseline-from=packages/evals/baseline.json --merge-gate
 ```
 
-`--merge-gate` 失败条件（exit 1）：`meanScore < 3.5`、存在 `regressionAlerts` 或 `liftAlerts`。
+</details>
 
 ## 结果摘要
 

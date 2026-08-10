@@ -9,9 +9,16 @@ import "../../../apps/moontide/src/tools/register-defaults.js";
 setupToolsPorts();
 registerBuiltinWorkMemPorts();
 
+import { EVAL_EXIT_BUDGET_EXCEEDED } from "../src/budget.js";
 import { parseEvalCliArgs } from "../src/cli-args.js";
 import {
+  EvalInterventionError,
+  EVAL_EXIT_INTERVENTION_INVALID,
+  resolveEvalIntervention,
+} from "../src/intervention.js";
+import {
   createMoonTideEvalHarness,
+  EvalBudgetExceededError,
   formatCompareSummary,
   hasEvalApiKey,
   runSuiteAbWithGate,
@@ -50,33 +57,62 @@ async function main(): Promise<void> {
   const baseline = createMoonTideEvalHarness(cli.harness.baseline);
   const candidate = createMoonTideEvalHarness(cli.harness.candidate);
 
+  let intervention;
+  try {
+    intervention = resolveEvalIntervention({
+      mode: cli.interventionMode,
+      baseline: cli.harness.baseline,
+      candidate: cli.harness.candidate,
+    });
+  } catch (err) {
+    if (err instanceof EvalInterventionError) {
+      process.stderr.write(`${err.message}\n`);
+      process.exitCode = EVAL_EXIT_INTERVENTION_INVALID;
+      return;
+    }
+    throw err;
+  }
+
   let mergeGateFailed = false;
   let lastSummary: string | undefined;
 
-  for (const suitePath of cli.suitePaths) {
-    process.stderr.write(`[eval] suite=${suitePath}\n`);
-    const { report, mergeGateFailed: failed } = await runSuiteAbWithGate({
-      suitePath,
-      baseline,
-      candidate,
-      repetitions: cli.repetitions,
-      caseId: cli.caseId,
-      caseFilter: cli.caseFilter,
-      featureSurface: cli.featureSurface,
-      judgeBatchSize: cli.judgeBatchSize,
-      agentConcurrency: cli.agentConcurrency,
-      phase: cli.phase,
-      judgeFromPath: cli.judgeFromPath,
-      artifactBaseDir,
-      recordHttpFixtures: cli.recordHttpFixtures,
-      baselineFromPath: cli.baselineFromPath,
-      writeBaselinePath: cli.writeBaselinePath,
-      mergeGate: cli.mergeGate,
-    });
-    mergeGateFailed ||= failed;
-    if (report.compare) {
-      lastSummary = formatCompareSummary(report.compare);
+  try {
+    for (const suitePath of cli.suitePaths) {
+      process.stderr.write(`[eval] suite=${suitePath}\n`);
+      const { report, mergeGateFailed: failed } = await runSuiteAbWithGate({
+        suitePath,
+        baseline,
+        candidate,
+        repetitions: cli.repetitions,
+        caseId: cli.caseId,
+        caseFilter: cli.caseFilter,
+        featureSurface: cli.featureSurface,
+        judgeBatchSize: cli.judgeBatchSize,
+        agentConcurrency: cli.agentConcurrency,
+        phase: cli.phase,
+        judgeFromPath: cli.judgeFromPath,
+        artifactBaseDir,
+        recordHttpFixtures: cli.recordHttpFixtures,
+        baselineFromPath: cli.baselineFromPath,
+        writeBaselinePath: cli.writeBaselinePath,
+        mergeGate: cli.mergeGate,
+        verbose: cli.verbose,
+        intervention,
+        budgetMicroCny: cli.budgetMicroCny,
+        maxCases: cli.maxCases,
+      });
+      mergeGateFailed ||= failed;
+      if (report.compare) {
+        lastSummary = formatCompareSummary(report.compare);
+      }
     }
+  } catch (err) {
+    if (err instanceof EvalBudgetExceededError) {
+      process.stderr.write(`${err.message}\n`);
+      process.exitCode = EVAL_EXIT_BUDGET_EXCEEDED;
+      return;
+    }
+    throw err;
   }
 
   if (lastSummary) {

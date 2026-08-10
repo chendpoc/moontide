@@ -12,15 +12,37 @@ MoonTide harness **feature A/B evaluation**（真 LLM + pairwise judge）。Spec
 
 ## 命令
 
-```bash
-pnpm eval -- v2/coding
-pnpm eval -- v2/deep_task --feature-surface=deep_protocol
-pnpm eval -- v2/external_research --case-id=ext-capital-api
-pnpm eval -- v2                          # 六类全量（58 case）
+| 层 | 命令 | 说明 |
+|----|------|------|
+| **L0** | `pnpm check` | lint + typecheck + test + `eval:test`（单测） |
+| **L1** | `pnpm eval:l1` | mock LLM agent-only + protocol 检查（无 API key） |
+| **L2** | `pnpm eval:feature` | 真 LLM A/B + judge（opt-in） |
 
-pnpm eval:test                           # 单元测试（无真 LLM）
-pnpm eval:integration                    # examples/ 真 LLM smoke（需 API key）
+```bash
+# L1 mock（无 API key）
+pnpm eval:l1
+
+# L2 PR 编排（guard regression + primary suite，带进度日志 + impact snippet）
+pnpm eval:feature -- --feature-surface=deep_protocol --agent-concurrency=4 --verbose
+pnpm eval:feature -- --list-surfaces
+pnpm eval:feature -- --help
+pnpm eval:summarize                      # 打印最新 runs/*/report.json
+
+# 在 packages/evals 目录内（pnpm --filter @moontide/evals）
+pnpm test                                # = 根目录 eval:test
+pnpm test:integration                    # = 根目录 eval:integration
 ```
+
+### 目录
+
+| 路径 | 用途 |
+|------|------|
+| `scripts/run-evals.ts` | 低层 CLI 入口 |
+| `scripts/run-feature-pr.ts` | PR 编排（guard → primary） |
+| `scripts/run-agent-job.ts` | 子进程 worker |
+| `dev/` | 手工 debug 脚本（见 [`dev/README.md`](dev/README.md)） |
+| `src/` | 库逻辑 |
+| `tests/` | vitest 单测 |
 
 | 参数 | 作用 |
 |------|------|
@@ -35,10 +57,35 @@ pnpm eval:integration                    # examples/ 真 LLM smoke（需 API key
 | `--baseline-from=` | 与 `baseline.json` 对比 delta |
 | `--write-baseline` | 写入 `packages/evals/baseline.json` |
 | `--merge-gate` | meanScore / regression / lift 门禁（exit 1） |
+| `--verbose` | 转发子进程 stderr（`[eval:job:<case-id>]`） |
 | `--record-http-fixtures` | external_research 录制 HTTP 快照 |
 | `--harness-config=` | JSON 文件覆盖 baseline/candidate 配置 |
 
-产物：`packages/evals/runs/<YYYY-MM-DD_HH-mm-ss_ssRR>/`（本地时间；`_` 分隔日期 / 时分秒 / 厘秒+随机；`pairs.jsonl`、`report.json`、session/debug 副本）
+产物：`packages/evals/runs/<YYYY-MM-DD_HH-mm-ss_ssRR>/`（`pairs.jsonl`、`report.json`、`impact-snippet.md`（feature-pr）、session/debug 副本）
+
+### feature-pr 参数
+
+| 参数 | 作用 |
+|------|------|
+| `--feature-surface=` | **必填**；见 `--list-surfaces` |
+| `--list-surfaces` | 打印 surface → primary suite 映射 |
+| `--help` | 用法 |
+| `--log=` | stderr tee 到文件（默认 `runs/feature-pr_<surface>_<ts>.log`） |
+| `--no-write-impact` | 不写 `impact-snippet.md` |
+| `--repetitions=N` | 每题重复次数（默认 1） |
+
+### 低层 CLI
+
+```bash
+pnpm eval -- v2/coding
+pnpm eval -- v2/deep_task --feature-surface=deep_protocol
+pnpm eval -- v2/external_research --case-id=ext-capital-api
+pnpm eval -- v2                          # 六类全量（58 case）
+pnpm eval:test                           # 单元测试（无真 LLM）
+pnpm eval:integration                    # examples/ 真 LLM smoke（需 API key）
+```
+
+> `pnpm eval:pr` 是 `eval:test` 的别名（L0 单测门禁），不是 PR 真 LLM 编排；PR L2 用 `eval:feature`；mock 协议跑通用 `eval:l1`。
 
 ## Case 格式（`cases.jsonl` 一行）
 

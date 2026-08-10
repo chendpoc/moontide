@@ -36,7 +36,7 @@ export async function gradeWithRubric(
     return undefined;
   }
 
-  const route = resolveRoute(judgeModel ?? caseDef.judgeModel);
+  const route = resolveRoute(judgeModel ?? caseDef.judgeModel, { jsonObject: true });
   const system = [
     "You grade an agent response against rubric bullets.",
     "Return JSON: { score: 0-1, rationale: string, missedBullets: string[] }",

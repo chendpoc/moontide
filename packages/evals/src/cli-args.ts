@@ -9,6 +9,12 @@ import type {
   JudgeMode,
   MoonTideEvalHarnessConfig,
 } from "./types.js";
+import type { EvalInterventionMode } from "./intervention.js";
+import {
+  DEFAULT_EVAL_AGENT_MODEL,
+  DEFAULT_EVAL_JUDGE_MODEL,
+  normalizeHarnessConfig,
+} from "./harness-env.js";
 
 export type { EvalRunPhase, JudgeMode };
 
@@ -28,6 +34,10 @@ export interface ParsedEvalCliArgs {
   baselineFromPath?: string;
   writeBaselinePath?: string;
   mergeGate: boolean;
+  verbose: boolean;
+  interventionMode?: EvalInterventionMode;
+  budgetMicroCny?: number;
+  maxCases?: number;
   harness: {
     baseline: MoonTideEvalHarnessConfig;
     candidate: MoonTideEvalHarnessConfig;
@@ -112,22 +122,32 @@ function _resolveHarnessConfig(args: string[]): {
   const configPath = _argValue(args, "--harness-config=");
   if (configPath) {
     const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as HarnessConfigFile;
-    return parsed;
+    return {
+      baseline: normalizeHarnessConfig(parsed.baseline),
+      candidate: normalizeHarnessConfig(parsed.candidate),
+    };
   }
 
   const baselineDisable = _flag(args, "--baseline-disable-protocol-reminders") ||
     !_flag(args, "--baseline-enable-protocol-reminders");
   const candidateDisable = _flag(args, "--candidate-disable-protocol-reminders");
 
+  const agentModel = _argValue(args, "--agent-model=") ?? DEFAULT_EVAL_AGENT_MODEL;
+  const judgeModel = _argValue(args, "--judge-model=") ?? DEFAULT_EVAL_JUDGE_MODEL;
+
   return {
-    baseline: {
+    baseline: normalizeHarnessConfig({
       name: _argValue(args, "--baseline-name=") ?? "baseline",
       disableProtocolReminders: baselineDisable,
-    },
-    candidate: {
+      model: agentModel,
+      judgeModel,
+    }),
+    candidate: normalizeHarnessConfig({
       name: _argValue(args, "--candidate-name=") ?? "with-feature",
       disableProtocolReminders: candidateDisable,
-    },
+      model: agentModel,
+      judgeModel,
+    }),
   };
 }
 
@@ -185,6 +205,36 @@ export function parseEvalCliArgs(argv: string[]): ParsedEvalCliArgs {
     ? _argValue(argv, "--write-baseline=") ?? path.join("packages/evals/baseline.json")
     : undefined;
 
+  const interventionRaw = _argValue(argv, "--intervention=");
+  let interventionMode: EvalInterventionMode | undefined;
+  if (interventionRaw === "toggle") {
+    interventionMode = interventionRaw;
+  } else if (interventionRaw === "revision") {
+    throw new Error(
+      "revision intervention is not supported; use harness toggle (--harness-config=) on the same checkout",
+    );
+  } else if (interventionRaw !== undefined) {
+    throw new Error(`Invalid --intervention=${interventionRaw} (use toggle)`);
+  }
+
+  if (_argValue(argv, "--base-ref=")) {
+    throw new Error(
+      "--base-ref is not supported; use harness toggle (--harness-config=) for A/B on the same checkout",
+    );
+  }
+
+  const budgetRaw = _argValue(argv, "--budget-micro-cny=");
+  const budgetMicroCny = budgetRaw ? Number(budgetRaw) : undefined;
+  if (budgetRaw && (!Number.isFinite(budgetMicroCny!) || budgetMicroCny! <= 0)) {
+    throw new Error(`Invalid --budget-micro-cny=${budgetRaw}`);
+  }
+
+  const maxCasesRaw = _argValue(argv, "--max-cases=");
+  const maxCases = maxCasesRaw ? Number(maxCasesRaw) : undefined;
+  if (maxCasesRaw && (!Number.isFinite(maxCases!) || maxCases! <= 0)) {
+    throw new Error(`Invalid --max-cases=${maxCasesRaw}`);
+  }
+
   return {
     suitePaths,
     repetitions: Number.isFinite(repetitions) ? repetitions : DEFAULT_REPETITIONS,
@@ -200,6 +250,10 @@ export function parseEvalCliArgs(argv: string[]): ParsedEvalCliArgs {
     baselineFromPath: _argValue(argv, "--baseline-from="),
     writeBaselinePath,
     mergeGate: _flag(argv, "--merge-gate"),
+    verbose: _flag(argv, "--verbose"),
+    interventionMode,
+    budgetMicroCny,
+    maxCases,
     harness: _resolveHarnessConfig(argv),
   };
 }

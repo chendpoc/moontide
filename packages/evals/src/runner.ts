@@ -1,8 +1,12 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { modelId } from "../../../apps/moontide/src/config.js";
-import { compareToBaseline, loadBaseline, writeBaseline } from "./baseline.js";
+import { BudgetLedger, EVAL_EXIT_BUDGET_EXCEEDED } from "./budget.js";
+import { checkArmsComparable } from "./comparability.js";
+import { normalizeHarnessConfig } from "./harness-env.js";
+import { buildEvalRunManifest } from "./manifest.js";
+import type { ResolvedEvalIntervention } from "./intervention.js";
+import { compareToBaseline, loadBaseline, shouldFailMergeGate, writeBaseline } from "./baseline.js";
 import { AGENT_ONLY_VERDICT, selectSuiteCases } from "./cli-args.js";
 import { runConcurrent } from "./concurrency.js";
 import { gradePairBatch } from "./graders/index.js";
@@ -11,6 +15,7 @@ import { gradeWithRubric } from "./graders/rubric-judge.js";
 import { spawnAgentJob } from "./agent-worker.js";
 import { createArtifactDir, gitSha, readPairsJsonl, writeEvalReport } from "./artifacts.js";
 import { createMoonTideEvalHarness } from "./moontide-harness.js";
+import { evalLog, evalVerbose, formatAgentJobSummary } from "./progress-log.js";
 import { loadSuite, suitePath } from "./suite-loader.js";
 import { formatCompareSummary, summarizeComparison } from "./summary.js";
 import type {
@@ -42,6 +47,10 @@ export interface RunSuiteOptions {
   baselineFromPath?: string;
   writeBaselinePath?: string;
   mergeGate?: boolean;
+  verbose?: boolean;
+  intervention?: ResolvedEvalIntervention;
+  budgetMicroCny?: number;
+  maxCases?: number;
 }
 
 async function _runAgentPairs(
@@ -49,30 +58,62 @@ async function _runAgentPairs(
   cases: ReturnType<typeof loadSuite>["cases"],
   repetitions: number,
   artifactDir: string,
+  budget?: BudgetLedger,
 ): Promise<PairGradeItem[]> {
   const jobs: Array<() => Promise<PairGradeItem>> = [];
+  const verbose = options.verbose ?? false;
+  const totalJobs = cases.length * repetitions;
+  let jobIndex = 0;
+  const agentModel = normalizeHarnessConfig(options.baseline).model!;
 
   for (const caseDef of cases) {
     for (let repetition = 1; repetition <= repetitions; repetition += 1) {
       const rep = repetition;
-      jobs.push(async () =>
-        spawnAgentJob({
-          baseline: options.baseline,
-          candidate: options.candidate,
-          caseDef,
-          repetition: rep,
-          artifactDir,
-          recordHttpFixtures: options.recordHttpFixtures,
-        }),
-      );
+      const index = jobIndex;
+      jobIndex += 1;
+      jobs.push(async () => {
+        const label = `${caseDef.id} rep=${rep}`;
+        evalLog(`agent start ${index + 1}/${totalJobs} case=${label}`);
+        const wallStart = Date.now();
+        const result = await spawnAgentJob({
+              baseline: options.baseline,
+              candidate: options.candidate,
+              caseDef,
+              repetition: rep,
+              artifactDir,
+              recordHttpFixtures: options.recordHttpFixtures,
+              verbose,
+            });
+        budget?.recordAgentOutput(result.baseline, agentModel);
+        budget?.recordAgentOutput(result.candidate, agentModel);
+        if (budget?.exceedsLimit()) {
+          throw new EvalBudgetExceededError(budget.summary());
+        }
+        const wallMs = Date.now() - wallStart;
+        const summary = formatAgentJobSummary(result.baseline, result.candidate);
+        evalLog(`agent done ${index + 1}/${totalJobs} case=${label} wall=${wallMs}ms ${summary}`);
+        return result;
+      });
     }
   }
 
   const concurrency = options.agentConcurrency ?? 4;
-  process.stderr.write(
-    `[eval] agent jobs=${jobs.length} concurrency=${concurrency} (subprocess)\n`,
-  );
+  evalLog(`agent queue jobs=${jobs.length} concurrency=${concurrency} (subprocess)`);
   return runConcurrent(jobs, concurrency);
+}
+
+export class EvalBudgetExceededError extends Error {
+  readonly exitCode = EVAL_EXIT_BUDGET_EXCEEDED;
+  readonly summary: ReturnType<BudgetLedger["summary"]>;
+
+  constructor(summary: ReturnType<BudgetLedger["summary"]>) {
+    super(
+      `Eval budget exceeded: cost=${summary.costMicroCny.toFixed(0)} micro-CNY` +
+        (summary.budgetMicroCny !== undefined ? ` limit=${summary.budgetMicroCny}` : ""),
+    );
+    this.name = "EvalBudgetExceededError";
+    this.summary = summary;
+  }
 }
 
 function _caseDefById(
@@ -159,11 +200,12 @@ export async function runSuiteAb(options: RunSuiteOptions): Promise<EvalReport> 
 }
 
 export async function runSuiteAbWithGate(options: RunSuiteOptions): Promise<RunSuiteAbResult> {
+  const startedAt = new Date().toISOString();
   const suite = loadSuite(options.suitePath);
   const repetitions = options.repetitions ?? 1;
   const phase = options.phase ?? "full";
   const suiteLabel = suitePath(options.suitePath);
-  const cases = selectSuiteCases(
+  let cases = selectSuiteCases(
     suite.cases,
     {
       caseId: options.caseId,
@@ -172,7 +214,15 @@ export async function runSuiteAbWithGate(options: RunSuiteOptions): Promise<RunS
     },
     suiteLabel,
   );
+  if (options.maxCases !== undefined && options.maxCases > 0) {
+    cases = cases.slice(0, options.maxCases);
+  }
   const caseById = _caseDefById(suite.cases);
+  const comparability = checkArmsComparable(options.baseline, options.candidate);
+  const budget =
+    options.budgetMicroCny !== undefined ? new BudgetLedger(options.budgetMicroCny) : undefined;
+  const agentModel = normalizeHarnessConfig(options.baseline).model!;
+  const judgeModel = normalizeHarnessConfig(options.baseline).judgeModel!;
 
   const defaultRunsDir = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -204,18 +254,28 @@ export async function runSuiteAbWithGate(options: RunSuiteOptions): Promise<RunS
       };
     });
   } else if (artifactDir) {
-    pendingGrades = await _runAgentPairs(options, cases, repetitions, artifactDir);
+    pendingGrades = await _runAgentPairs(options, cases, repetitions, artifactDir, budget);
     if (phase === "agent-only") {
       pairs = _agentOnlyPairs(pendingGrades);
     }
   }
 
   if (phase !== "agent-only") {
-    const judgeModel = options.baseline.judgeModel ?? options.candidate.judgeModel;
+    const judgeBatch = options.judgeBatchSize ?? 8;
+    evalLog(`judge start pairs=${pendingGrades.length} batch=${judgeBatch}`);
+    const judgeStart = Date.now();
     const graded = await gradePairBatch(pendingGrades, {
       judgeModel,
-      batchSize: options.judgeBatchSize,
+      batchSize: judgeBatch,
+      onJudgeUsage: (usage, model) => {
+        budget?.recordJudgeUsage(usage, model);
+        if (budget?.exceedsLimit()) {
+          throw new EvalBudgetExceededError(budget.summary());
+        }
+      },
     });
+    evalVerbose(options.verbose ?? false, `judge done wall=${Date.now() - judgeStart}ms`);
+    evalLog(`judge done pairs=${pendingGrades.length}`);
     pairs = await _pairsFromPendingEnriched(pendingGrades, graded, phase);
   }
 
@@ -233,20 +293,43 @@ export async function runSuiteAbWithGate(options: RunSuiteOptions): Promise<RunS
     }
   }
 
+  const finishedAt = new Date().toISOString();
+  const budgetSummary = budget?.summary();
+  const intervention = options.intervention ?? { mode: "toggle" as const, headSha: gitSha() };
+  const runManifest = buildEvalRunManifest({
+    suiteVersion: suite.version,
+    suitePath: options.suitePath,
+    cases,
+    repetitions,
+    gitSha: gitSha(),
+    intervention,
+    baseline: options.baseline,
+    candidate: options.candidate,
+    comparable: comparability.comparable,
+    comparabilityReason: comparability.reason,
+    budget: budgetSummary,
+    startedAt,
+    finishedAt,
+  });
+
   const report: EvalReport = {
     suiteVersion: suite.version,
     gitSha: gitSha(),
-    model: process.env.MOONTIDE_MODEL ?? process.env.MOONTIDE_MODEL_ID ?? modelId(),
-    provider: process.env.MOONTIDE_PROVIDER,
+    model: agentModel,
+    provider: runManifest.baseline.route.providerPresetId,
     artifactDir,
     pairs,
     compare: pairs.some((p) => p.phase !== "agent-only") ? compare : undefined,
     baselineDelta,
+    manifest: runManifest,
+    budget: budgetSummary,
+    comparable: comparability.comparable,
+    comparabilityReason: comparability.reason,
   };
 
   if (artifactDir) {
     writeEvalReport(artifactDir, report);
-    process.stderr.write(`[eval] phase=${phase} artifacts=${artifactDir}\n`);
+    evalLog(`phase=${phase} artifacts=${artifactDir}`);
   }
 
   if (options.writeBaselinePath && report.compare) {
@@ -254,24 +337,29 @@ export async function runSuiteAbWithGate(options: RunSuiteOptions): Promise<RunS
       suiteVersion: report.suiteVersion,
       gitSha: report.gitSha,
     }, options.writeBaselinePath);
-    process.stderr.write(`[eval] baseline written to ${options.writeBaselinePath}\n`);
+    evalLog(`baseline written to ${options.writeBaselinePath}`);
   }
 
   if (report.compare) {
     process.stderr.write(`${formatCompareSummary(report.compare)}\n`);
     if (baselineDelta) {
-      process.stderr.write(
-        `[eval] baseline delta: meanScore ${baselineDelta.meanScoreDelta >= 0 ? "+" : ""}${baselineDelta.meanScoreDelta.toFixed(2)} winRate ${baselineDelta.winRateDeltaPct >= 0 ? "+" : ""}${baselineDelta.winRateDeltaPct.toFixed(1)}%\n`,
+      evalLog(
+        `baseline delta: meanScore ${baselineDelta.meanScoreDelta >= 0 ? "+" : ""}${baselineDelta.meanScoreDelta.toFixed(2)} ` +
+          `winRate ${baselineDelta.winRateDeltaPct >= 0 ? "+" : ""}${baselineDelta.winRateDeltaPct.toFixed(1)}%`,
       );
     }
   }
 
-  const mergeGateFailed =
-    Boolean(options.mergeGate && report.compare && (
-      report.compare.meanScore < 3.5 ||
-      report.compare.regressionAlerts.length > 0 ||
-      report.compare.liftAlerts.length > 0
-    ));
+  const mergeGateFailed = Boolean(
+    options.mergeGate &&
+      comparability.comparable &&
+      report.compare &&
+      shouldFailMergeGate(report.compare),
+  );
+
+  if (options.mergeGate && !comparability.comparable) {
+    evalLog(`merge-gate skipped: ${comparability.reason}`);
+  }
 
   return { report, mergeGateFailed };
 }

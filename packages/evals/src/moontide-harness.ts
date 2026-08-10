@@ -18,6 +18,8 @@ import { disableTestCollector, enableTestCollector, getCollectedEvents, getRunId
 import type { AgentEvent } from "@moontide/log";
 
 import type { AgentJobPayload, AgentJobResult } from "./agent-worker.js";
+import { installEvalMockLlm, isEvalL1Mode } from "./eval-mock-llm.js";
+import { applyHarnessRuntimeEnv } from "./harness-env.js";
 import { clearEvalHttpFixtures, installEvalHttpFixtures } from "./http-fixtures.js";
 import { filePathsFromChecks } from "./graders/objective-checks.js";
 import { runProtocolChecks } from "./graders/protocol-checks.js";
@@ -103,6 +105,8 @@ export async function runEvalCase(
 ): Promise<EvalRunOutput> {
   const workdir = createTmpDir(`moontide-eval-${caseDef.id}-`);
 
+  const restoreEnv = applyHarnessRuntimeEnv(harness);
+  const restoreMockLlm = isEvalL1Mode() ? installEvalMockLlm() : () => {};
   setEvalProtocolRemindersEnabled(!harness.disableProtocolReminders);
   resetDeepModeOnNewSession();
   resetRuntimeStatus();
@@ -198,6 +202,8 @@ export async function runEvalCase(
     clearEvalRuntime();
     removeTmpDir(workdir);
     resetEvalHarnessOverrides();
+    restoreEnv();
+    restoreMockLlm();
   }
 
   return {

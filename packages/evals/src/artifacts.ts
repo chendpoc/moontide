@@ -34,19 +34,21 @@ export function writeEvalReport(artifactDir: string, report: EvalReport): void {
   const pairsLines = report.pairs.map((pair) => JSON.stringify(pair)).join("\n");
   fs.writeFileSync(path.join(artifactDir, "pairs.jsonl"), `${pairsLines}\n`, "utf8");
 
+  const manifest =
+    report.manifest ??
+    ({
+      suiteVersion: report.suiteVersion,
+      gitSha: report.gitSha,
+      model: report.model,
+      provider: report.provider,
+      compare: report.compare,
+      budget: report.budget,
+      comparable: report.comparable,
+    } as Record<string, unknown>);
+
   fs.writeFileSync(
     path.join(artifactDir, "manifest.json"),
-    `${JSON.stringify(
-      {
-        suiteVersion: report.suiteVersion,
-        gitSha: report.gitSha,
-        model: report.model,
-        provider: report.provider,
-        compare: report.compare,
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify(manifest, null, 2)}\n`,
     "utf8",
   );
 }

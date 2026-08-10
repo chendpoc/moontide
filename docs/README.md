@@ -46,6 +46,7 @@ flowchart TB
     PH[plugin-host]
     SP[scratchpad]
     ACR[agent-core-roadmap]
+    ARPD[agent-runtime-product-direction]
     ACD[agent-core-design]
     AFP[architecture-remediation]
   end
@@ -99,7 +100,7 @@ flowchart TB
 |------|------|------|
 | [`product/`](product/) | 方向 | [vision](product/vision.md) · [plan](product/plan.md) · [platform-strategy](product/platform-strategy.md) · [spark](product/spark.md) |
 | [`spec/`](spec/) | 设计 Spec | [context-composer](spec/context-composer.md) · [llm-provider](spec/llm-provider.md) · [llm-input](spec/llm-input.md) · [agent-events](spec/agent-events.md) |
-| [`notes/`](notes/) | 参考 / 候选 | [monorepo-packages](notes/monorepo-packages.md) · [agent-core-roadmap](notes/agent-core-roadmap.md) · [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [deep-mode](notes/deep-mode.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [agent-activity-model-discussion](notes/agent-activity-model-discussion.md) · [context-normalization](notes/context-normalization.md) · [self-review-mode](notes/self-review-mode.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
+| [`notes/`](notes/) | 参考 / 候选 | [monorepo-packages](notes/monorepo-packages.md) · [agent-core-roadmap](notes/agent-core-roadmap.md) · [agent-runtime-product-direction](notes/agent-runtime-product-direction.md) · [context-window-roadmap](notes/context-window-roadmap.md) · [architecture-remediation](notes/architecture-remediation.md) · [deep-mode](notes/deep-mode.md) · [session-domain-model](notes/session-domain-model.md) · [session-log-migration](notes/session-log-migration.md) · [session-persistence](notes/session-persistence.md) · [context-inspect-debug](notes/context-inspect-debug.md) · [agent-run-hooks](notes/agent-run-hooks.md) · [utils-infrastructure](notes/utils-infrastructure.md) · [ecosystem-compat](notes/ecosystem-compat.md) · [context-analysis](notes/context-analysis.md) · [context-backlog](notes/context-backlog.md) · [agent-activity-model-discussion](notes/agent-activity-model-discussion.md) · [context-normalization](notes/context-normalization.md) · [self-review-mode](notes/self-review-mode.md) · [edge-local-models](notes/edge-local-models.md) · [kocoro-architecture](notes/kocoro-architecture.md) · [plugin-host](notes/plugin-host.md) · [session-handoff](notes/session-handoff.md) · [runtime-multilang](notes/runtime-multilang.md) · [scratchpad](notes/scratchpad.md) |
 
 ## 阅读路径
 
@@ -150,6 +151,7 @@ flowchart TB
 | 主题 | 主文档 | 关联 |
 |------|--------|------|
 | Agent-core 内核 | [agent-core-roadmap](notes/agent-core-roadmap.md) · [agent-core-design](../agent-core-design.md) | agent-events · plugin-host · TODO §16 |
+| Agent Runtime 与产品方向 | [agent-runtime-product-direction](notes/agent-runtime-product-direction.md) | platform-strategy · spark · vision · agent-core-design |
 | Monorepo 布局 | [monorepo-packages](notes/monorepo-packages.md) | architecture-remediation · AGENTS.md §2 · dev 启动 · conformance |
 | Agent hook 设计（legacy） | [agent-run-hooks](notes/agent-run-hooks.md) | agent-events · session-log-migration · M7 归档 |
 | Release 与平台策略 | [platform-strategy](product/platform-strategy.md) | plugin-host · runtime-multilang · kocoro-architecture · agent-run-hooks |
@@ -165,7 +167,8 @@ flowchart TB
 | Session 书签 / 恢复 | [session-persistence](notes/session-persistence.md) | `/save` · `/resume session` · index.json |
 | Context debug dump | [context-inspect-debug](notes/context-inspect-debug.md) | `/debug` · context-inspect |
 | Context 演进 / 后续计划 | [context-window-roadmap](notes/context-window-roadmap.md) §8 · [TODO.md](../TODO.md) §15 | context-backlog · context-normalization · edge-local-models |
-| Agent Feature 评测 | [harness-eval-1.0](spec/harness-eval-1.0.md) · [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) · [agent-eval-roadmap](notes/agent-eval-roadmap.md) | [packages/evals](../packages/evals/) · [TODO.md](../TODO.md) §7 · §8 |
+| Agent Feature 评测 | [harness-eval-1.0](spec/harness-eval-1.0.md) · [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) · [harness-eval-refactor-plan](notes/harness-eval-refactor-plan.md) · [agent-eval-roadmap](notes/agent-eval-roadmap.md) | [packages/evals](../packages/evals/) · [TODO.md](../TODO.md) §7 · §8 |
+| LLM API 适配层 backlog | [llm-provider-backlog](notes/llm-provider-backlog.md) | [llm-provider](spec/llm-provider.md) §13 · eval PR 计划外 |
 | Prompt Prefix Cache | [context-backlog](notes/context-backlog.md) §15 | context-normalization §13 · context-composer |
 | Local Fusion（edge 路由） | [edge-local-models](notes/edge-local-models.md) §2.1 | llm-provider · runtime-multilang · TODO §15.3 |
 | Context Preflight / Postflight | [context-normalization](notes/context-normalization.md) | context-composer · agent-run-hooks · deep-mode |
@@ -190,6 +193,7 @@ flowchart TB
 | [llm-input](spec/llm-input.md) | 一次调用的 `system` / `tools` / `messages` 对表 |
 | [monorepo-packages](notes/monorepo-packages.md) | **Monorepo** 包清单、依赖图、Dev 启动、conformance 布局 |
 | [agent-core-roadmap](notes/agent-core-roadmap.md) | **开发计划**：agent-common + agent-core · RunEvent bus · resolveRunConfig · M1–M7 |
+| [agent-runtime-product-direction](notes/agent-runtime-product-direction.md) | **方向记录**：元 agent 问题、Agent Runtime、产品 Preset / Shell 与产品族边界 |
 | [agent-core-design](../agent-core-design.md) | Agent 时序内核与 Preset 设计 Spec（平台中立） |
 | [agent-events](spec/agent-events.md) | Agent Event Log（run 级 JSONL）schema；M6 迁 RunEvent |
 | [agent-run-hooks](notes/agent-run-hooks.md) | Agent 运行时 hook：生命周期、四类语义、注册实践与 §11+ 工程落地 |
@@ -198,8 +202,8 @@ flowchart TB
 | [web-content-retrieval-discussion](notes/web-content-retrieval-discussion.md) | 外研 artifact 嵌套问题 · 正文提取 / artifact 搜索 backlog（讨论备忘） |
 | [context-window-roadmap](notes/context-window-roadmap.md) | **开发计划**：六件事 done · §8 后续四条轨（Prefix Cache / 需求讨论 / Local Fusion / Normalization） |
 | [agent-eval-roadmap](notes/agent-eval-roadmap.md) | **开发计划**：Feature 评测流水线 L0–L3 · 分桶 suite · grader · Impact Card（对齐 TODO §7/§8） |
-| [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) | **调研**：业界 agent task taxonomy · case 分类 / gradingMode / eval 规模设计依据 |
-| [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) | **调研**：业界 task taxonomy · MoonTide case 分类 / gradingMode / 规模设计依据 |
+| [agent-eval-task-taxonomy](notes/agent-eval-task-taxonomy.md) | **调研**：业界 workload taxonomy · Harness contract / API profile / oracle 分类依据 |
+| [harness-eval-refactor-plan](notes/harness-eval-refactor-plan.md) | **重构计划**：contract-first case schema · request/trace/outcome grader · adapter capability contract |
 | [harness-eval-1.0](spec/harness-eval-1.0.md) | **Spec + 实现 1.0**：`@moontide/evals` feature A/B · grader · suites/v1 |
 | [architecture-remediation](notes/architecture-remediation.md) | **架构修复计划**：16 项 review · Phase A–C |
 | [utils-infrastructure](notes/utils-infrastructure.md) | Utils / storage 分层、event-hub、import 约束 |

@@ -16,6 +16,7 @@ export interface AgentJobPayload {
   repetition: number;
   artifactDir?: string;
   recordHttpFixtures?: boolean;
+  verbose?: boolean;
 }
 
 export interface AgentJobResult {
@@ -104,7 +105,16 @@ export async function spawnAgentJob(
       stdout += chunk.toString("utf8");
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stderr += text;
+      if (payload.verbose) {
+        for (const line of text.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed.length > 0) {
+            process.stderr.write(`[eval:job:${payload.caseDef.id}] ${trimmed}\n`);
+          }
+        }
+      }
     });
 
     child.on("error", (err) => {
