@@ -165,29 +165,30 @@ flowchart TB
 
 **硬规则：**
 
-- `runLLM`、`compact` 摘要、`ping` **只经** `getLLMProvider()`；禁止在 `src/agent/`、`src/context/` 直连厂商 SDK。
-- `@anthropic-ai/sdk`、`openai`、`@google/genai` 只允许出现在 `src/llm/adapters/**`（及 healthcheck 脚本）。
+- `runLLM`、`compact` 摘要、`ping` **只经** `getLLMProvider()`；禁止在 `src/agent/`、`src/context/` 直连厂商 HTTP 或 SDK。
+- **DeepSeek 产品 default（2026-08）：** [`adapters/openai-chat-completions.ts`](../../packages/llm/src/adapters/openai-chat-completions.ts) 使用 **fetch**，零 vendor npm SDK；`count_tokens` 经 `POST /anthropic/v1/messages/count_tokens`（独立 normalize，非 agent chat 路径）。
+- 其他 preset 目标态：`@anthropic-ai/sdk`、`openai`、`@google/genai` 仅允许出现在 `packages/llm/src/adapters/**`（及 healthcheck 脚本）。
 
 ---
 
 ## 5. API 适配选型：方案 A
 
-MoonTide 将 **Harness（loop + 中间态）** 与 **API 适配层（adapter 层）** 严格分离：后者负责把 `LLMRequest` 译为厂商 HTTP API 并发包（adapter + normalize + 官方 SDK）。API 适配层采用 **方案 A**，Harness 控制力可与 Pi Agent 同档——控制力来自自有 ModelInput / loop，不来自是否自研 HTTP。
+MoonTide 将 **Harness（loop + 中间态）** 与 **API 适配层（adapter 层）** 严格分离：后者负责把 `LLMRequest` 译为厂商 HTTP API 并发包（adapter + normalize）。**DeepSeek 产品 default** 已落地为 **fetch adapter + 自管 normalize**（零 vendor SDK）；其他 preset 目标态仍为官方 SDK 或 fetch，按 §8.1。Harness 控制力来自自有 ModelInput / loop，不来自是否自研 HTTP。
 
 ### 5.1 三方案对比
 
 | 方案 | 做法 | MoonTide 决策 |
 |------|------|--------------|
-| **A** | 4 协议族 × **官方 SDK** + 自管 `normalize/`（可摘录 Apache-2.0 纯函数） | **采用** |
+| **A** | 4 协议族 × **官方 HTTP API** + 自管 `normalize/`（DeepSeek default：**fetch**；其他 preset 可用 SDK） | **采用** |
 | **B** | 仅 `@ai-sdk/*` + `provider-utils`，**不装** `ai` 包 | 不采用 |
 | **C** | A/B 混搭；长尾 preset 走 `@ai-sdk/*` | 不采用（长尾现阶段抛弃） |
 
 ### 5.2 为何选 A
 
 - **支持边界 ~20%**：DeepSeek、Kimi、三巨头官方、OpenRouter、`custom` 中转，全部落在 4 个 `AdapterFamily` 内；无需 Cherry 式 50+ relay Registry。
-- **调试直观**：主路径读厂商官方 SDK 文档与类型；比整包 `ai` 的 `streamText` agent 范式更易与 MoonTide 自研 loop 对齐。
-- **依赖最小**：不装 Vercel AI SDK（`ai` 包）；不默认引入 `@ai-sdk/*` provider 包。
-- **与 Pi 同哲学**：中间态自控 + compat 配置；差别仅在 API 适配层用官方 SDK 而非 Pi 式全自研 HTTP——在既定 preset 范围内 **不牺牲** steering、session 连续、扩展 register。
+- **调试直观**：主路径读厂商官方 API 文档；比整包 `ai` 的 `streamText` agent 范式更易与 MoonTide 自研 loop 对齐。
+- **依赖最小**：DeepSeek default 无 vendor npm SDK；不装 Vercel AI SDK（`ai` 包）；不默认引入 `@ai-sdk/*` provider 包。
+- **与 Pi 同哲学**：中间态自控 + compat 配置；差别仅在 API 适配层实现方式（fetch 或 SDK）——在既定 preset 范围内 **不牺牲** steering、session 连续、扩展 register。
 
 ### 5.3 竞品对照（简表）
 
@@ -273,46 +274,36 @@ export interface CompatOverrides {
 
 ### 8.1 Preset → Adapter 映射
 
-| Preset | AdapterFamily | 官方 SDK | baseUrl（默认） |
-|--------|---------------|----------|-----------------|
-| `deepseek` | `anthropic-messages` | `@anthropic-ai/sdk` | `https://api.deepseek.com/anthropic` |
-| `anthropic` | `anthropic-messages` | `@anthropic-ai/sdk` | `https://api.anthropic.com` |
-| `kimi` | `openai-chat-completions` | `openai` | Moonshot 官方 endpoint |
-| `openai` | `openai-chat-completions` / `openai-responses` | `openai` | `https://api.openai.com/v1` |
-| `gemini` | `google-generate-content` | `@google/genai` | Google AI 官方 endpoint |
-| `openrouter` | `openai-chat-completions` | `openai` | `https://openrouter.ai/api/v1` |
+| Preset | AdapterFamily（agent default） | 传输 | baseUrl（默认） |
+|--------|-------------------------------|------|-----------------|
+| `deepseek` | `openai-chat-completions` | fetch | `https://api.deepseek.com` |
+| | | count_tokens：`POST /anthropic/v1/messages/count_tokens` | `https://api.deepseek.com/anthropic` |
+| `anthropic` | `anthropic-messages` | SDK（目标） | `https://api.anthropic.com` |
+| `kimi` | `openai-chat-completions` | SDK（目标） | Moonshot 官方 endpoint |
+| `openai` | `openai-chat-completions` / `openai-responses` | SDK（目标） | `https://api.openai.com/v1` |
+| `gemini` | `google-generate-content` | SDK（目标） | Google AI 官方 endpoint |
+| `openrouter` | `openai-chat-completions` | SDK（目标） | `https://openrouter.ai/api/v1` |
 | `custom` | 用户选 anthropic 或 openai 形 | 同上 | `MOONTIDE_CUSTOM_BASE_URL` |
-| `glm`（可选） | `openai-chat-completions` | `openai` | 智谱官方 endpoint |
+| `glm`（可选） | `openai-chat-completions` | SDK（目标） | 智谱官方 endpoint |
 
 ### 8.2 目标目录结构
 
 ```
-src/llm/
-  protocol/types.ts       # MoonTide Message / ToolSchema / LLMRequest / LLMResponse
-  normalize/
-    index.ts              # extractText、handoff 清洗
-    openai.ts             # tool_calls round-trip
-    gemini.ts             # Gemini 块映射
-    stream.ts             # stream chunk 合并（分期）
-  provider.ts             # LLMProvider 接口 + getLLMProvider()
-  presets/
-    presets.ts            # ProviderPreset 静态表
-  models/
-    registry.ts           # model 注册表（logical id → 各 preset vendor model id）
-    capabilities.ts       # MODEL_ID + env → ModelProfile
-  routing/
-    resolve.ts            # env + model 注册表 → ResolvedRoute
-    types.ts              # RoutingDecision、ResolvedRoute
+packages/llm/src/
+  protocol/types.ts           # MoonTide Message / ToolSchema / LLMRequest / LLMResponse
+  capabilities/               # AdapterCapabilityDeclaration（spec 层）
+  normalize/                  # 跨协议纯函数（to-openai-chat-messages、finish-reason…）
+  provider.ts                 # LLMProvider + getLLMProvider()
+  presets/presets.ts          # ProviderPreset 静态表
+  models/registry.ts          # logical id → vendor model + adapterFamilies
+  routing/resolve.ts          # env + registry → ResolvedRoute
   adapters/
-    anthropic-messages.ts
-    openai-chat.ts
-    gemini.ts
-    index.ts              # adapterFamily → 实现
-  compat/
-    index.ts              # presetId → CompatOverrides
+    openai-chat-completions.ts  # DeepSeek default（fetch）
+    deepseek-count-tokens.ts    # count_tokens（Anthropic endpoint）
+    index.ts                    # adapterFamily 分发
 ```
 
-现状 [`src/llm/client/anthropic.ts`](../../packages/llm/src/client/anthropic.ts) 在实现时迁入 `adapters/anthropic-messages.ts` 并删除。
+现状：DeepSeek agent 经 `openai-chat-completions` fetch adapter；`openai-responses` 与多 preset 仍在 backlog（§13）。
 
 ### 8.3 normalize 职责
 
@@ -324,7 +315,7 @@ src/llm/
 | `handoff` | 换 preset/model 时清洗不兼容 block |
 | `stream` | 统一 stream 事件供 trace / UI（分期） |
 
-Adapter **只做** MoonTide 协议 ↔ 厂商 SDK 请求/响应形状；语义转换优先走 normalize，避免每个 preset 复制逻辑。
+Adapter **只做** MoonTide 协议 ↔ 厂商 HTTP 请求/响应形状；语义转换优先走 normalize，避免每个 preset 复制逻辑。
 
 ### 8.4 核心接口
 
@@ -590,10 +581,10 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 | 项 | 现状（2026-08 A–C 后） | 目标（§13 D–I backlog） |
 |----|-------------------------|-------------------------|
 | Client | [`LLMProvider`](../../packages/llm/src/provider.ts) + [`adapters/openai-chat-completions.ts`](../../packages/llm/src/adapters/openai-chat-completions.ts) | 多 adapter 族 |
-| API 适配 | **DeepSeek default** — `openai-chat-completions` fetch adapter | Responses · count_tokens · 多 preset |
+| API 适配 | **DeepSeek default** — `openai-chat-completions` fetch adapter；`count_tokens` 经 Anthropic endpoint | Responses adapter · 多 preset |
 | Provider | [`presets/presets.ts`](../../packages/llm/src/presets/presets.ts) + [`resolveRoute()`](../../packages/llm/src/routing/resolve.ts) | + openrouter · custom · kimi… |
 | Model | [`models/registry.ts`](../../packages/llm/src/models/registry.ts) + `resolveModelProfile()` | 扩注册表 + Model Router |
-| 类型泄漏 | SDK 仅 [`src/llm/adapters/**`](../../packages/llm/src/adapters/) | 维持 |
+| 类型泄漏 | 无 vendor SDK（DeepSeek fetch）；目标态 SDK 仅 `adapters/**` | 维持 |
 | Compact / ping | 经 `LLMProvider` + `resolveRoute` | 维持 |
 | 路由 | `resolveRoute()`（env + registry `prefer`） | Model Router v1 + CLI |
 | 本地推理 | 无 | `local-direct` + `moontide-infer` |
@@ -649,4 +640,4 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 
 ## 15. 一句话
 
-**API 适配方案 A：4 协议族 × 官方 SDK + 自管 normalize；官方六家 + OpenRouter + custom 中转 + 演进中的 `local-direct` = Provider Preset 表；MoonTide 做 Model Routing（任务 + thinking + local tier），不做 Provider upstream 路由与长尾怪协议；loop 只认 MoonTide 协议与 `LLMProvider`。**
+**API 适配方案 A：4 协议族 × 官方 HTTP API + 自管 normalize（DeepSeek default 已 fetch-only）；官方六家 + OpenRouter + custom 中转 + 演进中的 `local-direct` = Provider Preset 表；MoonTide 做 Model Routing（任务 + thinking + local tier），不做 Provider upstream 路由与长尾怪协议；loop 只认 MoonTide 协议与 `LLMProvider`。**

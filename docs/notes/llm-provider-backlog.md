@@ -24,21 +24,19 @@
 
 ## 2. 通用 tool_calls normalize
 
-**目标：** 跨协议语义转换独立为 `packages/llm/src/normalize/`，供各 adapter 复用。
-
-| 转换 | 说明 |
-|------|------|
-| MoonTide `ContentBlock` tool_use | → OpenAI assistant `tool_calls` |
-| MoonTide tool_result | → OpenAI `tool` role message |
-| stream chunk 合并 | 分期；首版可仅 non-stream |
-
-**验收：** 纯函数 oracle 测试；无 SDK import。
-
-**Spec 分期：** §5.4、§13-D
+**状态：** **done**（Phase 2–4）。`packages/llm/src/normalize/` 含 OpenAI Chat round-trip；oracle 测试覆盖。
 
 ---
 
-## 3. `custom` Preset
+## 3. count_tokens preflight
+
+**状态：** **done**（Phase 5）。DeepSeek `count_tokens` 经 `POST /anthropic/v1/messages/count_tokens`（fetch）；capability 声明在 `openai-chat-completions`；`exactTokenCount` 经 `lookupCapabilityStatus` gate。
+
+**验收：** `llm-count-tokens.contract.test.ts`；live preflight 需 `DEEPSEEK_API_KEY` + `MOONTIDE_LIVE_LLM=1`。
+
+---
+
+## 4. `custom` Preset
 
 **目标：** 用户自建 OpenAI 形或 Anthropic 形中转：`MOONTIDE_CUSTOM_BASE_URL` + `MOONTIDE_CUSTOM_ADAPTER` + `CUSTOM_API_KEY`。
 
@@ -48,9 +46,11 @@
 
 ---
 
-## 4. Responses API adapter
+## 5. Responses API adapter
 
-**目标：** OpenAI Responses API 兼容路径（`client.responses.create`），base URL `https://api.deepseek.com`。
+**状态：** **pending**（Phase 6）。capability 表已声明；`adapterChat` 对 `openai-responses` 返回 `adapter_not_implemented`。
+
+**目标：** OpenAI Responses API 兼容路径（fetch），base URL `https://api.deepseek.com/responses`。
 
 **约束（厂商，2026-08）：** 暂主要支持 `deepseek-v4-flash`；v4-pro 支持待厂商开放。
 
@@ -62,18 +62,19 @@
 
 ---
 
-## 5. 建议实施顺序
+## 6. 建议实施顺序
 
-1. `normalize/` tool 块互转  
-2. `openai-chat-completions.ts`（chat + tools + json_object）  
-3. DeepSeek / Kimi Preset 可选 OpenAI Chat agent 路径（与 Anthropic 并存或 env 切换）  
-4. `custom` preset（§13-F）  
-5. Responses API（有产品需求再做）
+1. ~~`normalize/` tool 块互转~~（done）
+2. ~~`openai-chat-completions.ts`~~（done）
+3. ~~DeepSeek count_tokens~~（done）
+4. `openai-responses.ts` fetch adapter（Phase 6）
+5. `custom` preset（§13-F）
 
 ---
 
-## 6. 变更记录
+## 7. 变更记录
 
 | 日期 | 说明 |
 |------|------|
+| 2026-08 | Phase 5 count_tokens；capability gate；Responses Phase 6 pending |
 | 2026-08 | 初稿：自 Feature Eval PR 计划移出；对齐 llm-provider §13 |

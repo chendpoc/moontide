@@ -107,12 +107,12 @@ Composer 显式组装 `system` + `tools` + `messages` → `LLMRequest` + Manifes
 
 **方案：** 按 [`llm-provider.md`](../spec/llm-provider.md) §8.4：
 
-1. `src/llm/provider.ts` — `LLMProvider` + `getLLMProvider()`
-2. `src/llm/adapters/anthropic-messages.ts` — 唯一 SDK 边界之一
+1. `packages/llm/src/provider.ts` — `LLMProvider` + `getLLMProvider()`
+2. `packages/llm/src/adapters/openai-chat-completions.ts` — DeepSeek default（fetch，零 SDK）
 3. Harness：`composeContext` → protocol `Message[]`；`runLLM` → `LLMResponse`
 4. `compact` / `metrics` / healthcheck 经 Provider
 
-**验收：** `rg '@anthropic-ai/sdk' src/agent src/context` 为零（adapter 目录除外）；mock Provider 可单测 `runLLM`。
+**验收：** `rg '@anthropic-ai/sdk' apps/moontide/src packages/llm/src` 为零；mock Provider 可单测 `runLLM`。
 
 ---
 
