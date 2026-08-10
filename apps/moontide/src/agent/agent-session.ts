@@ -8,7 +8,7 @@ import { resolveCompactionPolicy } from "@moontide/llm/models";
 import { getToolDefinitions } from "../tools/index.js";
 import { Session } from "@moontide/session";
 import type { LoopContext } from "./deps.js";
-import { AgentRun, type AgentRunComposeOptions } from "./agent-run.js";
+import { AgentRun, type AgentRunComposeOptions, type AgentRunExecuteOptions } from "./agent-run.js";
 import { CheckpointService } from "./checkpoint-service.js";
 import { CompactionService } from "./compaction-service.js";
 import { createSessionCommitPort } from "./session-commit-port.js";
@@ -146,6 +146,7 @@ export class AgentSession {
   async run(
     userPrompt: string,
     ctx: LoopContext,
+    executeOptions: AgentRunExecuteOptions = {},
   ): Promise<{ reply: string; turn: number }> {
     const loopCtx: LoopContext = {
       ...ctx,
@@ -155,8 +156,9 @@ export class AgentSession {
     };
     return new AgentRun(this.session, this.stores, loopCtx, this.composeOptions()).execute(
       userPrompt,
+      executeOptions,
     );
   }
 }
 
-export type { SummaryCompactionResult };
+export type { AgentRunExecuteOptions, SummaryCompactionResult };

@@ -43,9 +43,10 @@ export async function runLoop(input: RunLoopInput): Promise<RunLoopResult> {
     }
 
     let turns = 0;
+    let reply = "";
+    let priorTurnHadTextWithTools = false;
     while (true) {
       turns += 1;
-      let reply = "";
 
       const stop = await withTurn(eventBus, async (scope) => {
         const compiled = await resolveTurnContext(config, log.messages, turns, signal);
@@ -62,8 +63,10 @@ export async function runLoop(input: RunLoopInput): Promise<RunLoopResult> {
         );
         log.push(assistant);
 
+        const turnText = extractTextReply(assistant);
+        const hasToolCalls = assistantHasToolCalls(assistant);
         let toolResults: ToolResultMessage[] = [];
-        if (assistantHasToolCalls(assistant)) {
+        if (hasToolCalls) {
           toolResults = await executeToolCalls(
             eventBus,
             log,
@@ -72,9 +75,18 @@ export async function runLoop(input: RunLoopInput): Promise<RunLoopResult> {
             toolExecutor,
             signal,
           );
-        } else {
-          reply = extractTextReply(assistant);
         }
+
+        if (turnText.length > 0) {
+          if (hasToolCalls) {
+            reply = reply.length > 0 ? `${reply}\n\n${turnText}` : turnText;
+          } else if (priorTurnHadTextWithTools && reply.length > 0) {
+            reply = `${reply}\n\n${turnText}`;
+          } else {
+            reply = turnText;
+          }
+        }
+        priorTurnHadTextWithTools = hasToolCalls && turnText.length > 0;
 
         scope.finish(assistant, toolResults);
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { StreamAssistantEvent, StreamFn } from "@moontide/agent-common";
 import { createMessageLog } from "../src/message-log.js";
 import { createRunEventBus } from "../src/run-event-bus.js";
 import { runLoop } from "../src/loop.js";
@@ -37,6 +38,106 @@ describe("runLoop golden sequences", () => {
       "turn_end",
       "run_end",
     ]);
+  });
+
+  it("keeps co-emitted answer text when assistant also calls tools", async () => {
+    let call = 0;
+    const streamFn: StreamFn = async function* (): AsyncIterable<StreamAssistantEvent> {
+      call += 1;
+      if (call === 1) {
+        yield {
+          type: "done",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "| 排名 | 话题 |\n| 1 | Sophie |" },
+              {
+                type: "toolCall",
+                toolCallId: "call-1",
+                toolName: "work_mem",
+                args: { action: "note", content: "hot topics" },
+              },
+            ],
+            timestamp: Date.now(),
+          },
+        };
+        return;
+      }
+      yield {
+        type: "done",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          timestamp: Date.now(),
+        },
+      };
+    };
+
+    const eventBus = createRunEventBus();
+    const log = createMessageLog();
+
+    const result = await runLoop({
+      eventBus,
+      log,
+      config: identityRunConfig(),
+      streamFn,
+      toolExecutor: noopToolExecutor("ok"),
+      llmDefaults: {},
+      prompts: [{ role: "user", content: "top trends", timestamp: 1 }],
+    });
+
+    expect(result.reply).toContain("Sophie");
+    expect(result.turns).toBe(2);
+  });
+
+  it("keeps table answer when a follow-up text turn runs after text+tool", async () => {
+    let call = 0;
+    const streamFn: StreamFn = async function* (): AsyncIterable<StreamAssistantEvent> {
+      call += 1;
+      if (call === 1) {
+        yield {
+          type: "done",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "| 1 | Sophie |" },
+              {
+                type: "toolCall",
+                toolCallId: "call-1",
+                toolName: "work_mem",
+                args: { action: "note" },
+              },
+            ],
+            timestamp: Date.now(),
+          },
+        };
+        return;
+      }
+      yield {
+        type: "done",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "extra note" }],
+          timestamp: Date.now(),
+        },
+      };
+    };
+
+    const eventBus = createRunEventBus();
+    const log = createMessageLog();
+    const result = await runLoop({
+      eventBus,
+      log,
+      config: identityRunConfig(),
+      streamFn,
+      toolExecutor: noopToolExecutor("ok"),
+      llmDefaults: {},
+      prompts: [{ role: "user", content: "top trends", timestamp: 1 }],
+    });
+
+    expect(result.reply).toContain("Sophie");
+    expect(result.reply).toContain("extra note");
+    expect(result.turns).toBe(2);
   });
 
   it("runs tool turn then follow-up assistant turn", async () => {

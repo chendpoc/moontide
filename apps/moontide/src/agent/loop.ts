@@ -1,3 +1,4 @@
+import type { AgentRunExecuteOptions } from "./agent-run.js";
 import { getWorkdir } from "../config.js";
 import { resetRuntimeStatus } from "./context-status.js";
 import { bootstrapAgentPlatform } from "../app/bootstrap.js";
@@ -27,7 +28,8 @@ export async function continueReplAgent(
   agentSession: AgentSession,
   loopCtx: LoopContext,
   preparedRunId?: string,
+  executeOptions: AgentRunExecuteOptions = {},
 ): Promise<{ reply: string; turn: number }> {
   prepareRun(preparedRunId);
-  return agentSession.run(userPrompt, loopCtx);
+  return agentSession.run(userPrompt, loopCtx, executeOptions);
 }

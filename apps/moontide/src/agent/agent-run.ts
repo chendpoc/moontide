@@ -1,3 +1,4 @@
+import type { RunEventListener } from "@moontide/agent-core";
 import {
   createMessageLog,
   createRunEventBus,
@@ -24,6 +25,10 @@ export interface AgentRunComposeOptions {
   onAfterCompose?: () => void;
 }
 
+export interface AgentRunExecuteOptions {
+  extraRunEventListeners?: RunEventListener[];
+}
+
 export class AgentRun {
   private readonly session: Session;
   private readonly stores: SessionStores;
@@ -42,7 +47,10 @@ export class AgentRun {
     this.composeOptions = composeOptions;
   }
 
-  async execute(userPrompt: string): Promise<{ reply: string; turn: number }> {
+  async execute(
+    userPrompt: string,
+    options: AgentRunExecuteOptions = {},
+  ): Promise<{ reply: string; turn: number }> {
     const { runtime } = this.loopCtx;
 
     return withRun(runtime, userPrompt, async () => {
@@ -57,6 +65,9 @@ export class AgentRun {
       const unsubCommit = eventBus.subscribe(createRunCommitPort({ session: this.session }));
       const unsubHooks = eventBus.subscribe(hookBridge.listener);
       const unsubDerive = eventBus.subscribe(createRunEventDeriveListener({ runId }));
+      const extraUnsubs = (options.extraRunEventListeners ?? []).map((listener) =>
+        eventBus.subscribe(listener),
+      );
 
       try {
         const config = resolveRunConfig(
@@ -87,6 +98,9 @@ export class AgentRun {
         unsubCommit();
         unsubHooks();
         unsubDerive();
+        for (const unsub of extraUnsubs) {
+          unsub();
+        }
       }
     });
   }

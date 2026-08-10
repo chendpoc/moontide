@@ -9,6 +9,7 @@ import { PRODUCT_NAME } from "@moontide/shared/constants/brand.js";
 import { bootstrapAgentPlatform, teardownAgentPlatform } from "../../app/bootstrap.js";
 import { getAgentRuntime } from "../../agent/runtime/index.js";
 import { setupToolsPorts } from "../../agent/tools-setup.js";
+import { createReplConversationStreamListener } from "../../log/repl-conversation-stream.js";
 import type { UserInteraction } from "@moontide/tools";
 import { reportError, toErrorRecord, toMessage } from "../../errors/index.js";
 import {
@@ -36,19 +37,31 @@ async function runAgentTurn(
   prompt: string,
   agentSession: AgentSession,
   userInteraction: UserInteraction,
-): Promise<string> {
+): Promise<{ reply: string; streamed: boolean }> {
   beginAgentActivity();
 
   try {
-    const { reply } = await continueReplAgent(prompt, agentSession, {
-      userInteraction,
-      session: agentSession.session,
-      runtime: agentSession.runtime,
+    const stream = createReplConversationStreamListener({
+      onText: (text) => {
+        writeStdoutLine(text);
+        writeStdoutLine("");
+      },
     });
-    return reply;
+    const { reply } = await continueReplAgent(
+      prompt,
+      agentSession,
+      {
+        userInteraction,
+        session: agentSession.session,
+        runtime: agentSession.runtime,
+      },
+      undefined,
+      { extraRunEventListeners: [stream.listener] },
+    );
+    return { reply, streamed: stream.hadOutput() };
   } catch (err) {
     reportError(toErrorRecord(err, "repl:runAgentTurn"));
-    return toMessage(err);
+    return { reply: toMessage(err), streamed: false };
   } finally {
     endAgentActivity();
   }
@@ -96,13 +109,15 @@ export async function runRepl(): Promise<void> {
       if (gate.deepActivated) {
         getAgentRuntime().tools.refresh();
       }
-      const reply = await runAgentTurn(gate.prompt, agentSession, userInteraction);
+      const { reply, streamed } = await runAgentTurn(gate.prompt, agentSession, userInteraction);
       if (turnCount > 0) {
         writeStderrLine(turnSeparator());
       }
       turnCount += 1;
-      writeStdoutLine(reply);
-      writeStdoutLine("");
+      if (!streamed && reply.length > 0) {
+        writeStdoutLine(reply);
+        writeStdoutLine("");
+      }
     }
   } finally {
     const persistenceDeps = createReplSessionPersistenceDeps();

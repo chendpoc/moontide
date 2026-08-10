@@ -19,6 +19,31 @@ export function mockTextStreamFn(text: string): StreamFn {
   };
 }
 
+export function mockTextAndToolStream(
+  text: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): StreamFn {
+  return async function* (): AsyncIterable<StreamAssistantEvent> {
+    yield {
+      type: "done",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "text", text },
+          {
+            type: "toolCall",
+            toolCallId: "call-1",
+            toolName,
+            args,
+          },
+        ],
+        timestamp: Date.now(),
+      },
+    };
+  };
+}
+
 export function mockToolThenTextStream(
   toolName: string,
   args: Record<string, unknown>,
