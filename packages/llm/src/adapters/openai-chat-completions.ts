@@ -13,9 +13,6 @@ function _openAiChatBaseUrl(route: ResolvedRoute): string {
   if (!preset) {
     throw configError(`Unknown provider preset: ${route.providerPresetId}`);
   }
-  if (preset.openAiChatBaseUrl) {
-    return preset.openAiChatBaseUrl;
-  }
   return preset.baseUrl;
 }
 

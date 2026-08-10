@@ -34,4 +34,3 @@ export {
   type CapabilityLookup,
   type CapabilityStatus,
 } from "./capabilities/index.js";
-export { resetAnthropicClients } from "./adapters/anthropic-messages.js";

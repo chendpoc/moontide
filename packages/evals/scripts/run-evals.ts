@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   const needsJudge = cli.phase !== "agent-only";
   if (needsJudge && !hasEvalApiKey()) {
     process.stderr.write(
-      "[eval] Set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in .env before running judge.\n",
+      "[eval] Set DEEPSEEK_API_KEY in .env before running judge.\n",
     );
     process.exitCode = 1;
     return;
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
 
   if (cli.phase === "agent-only" && !hasEvalApiKey()) {
     process.stderr.write(
-      "[eval] Set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY for agent runs.\n",
+      "[eval] Set DEEPSEEK_API_KEY for agent runs.\n",
     );
     process.exitCode = 1;
     return;

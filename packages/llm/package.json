@@ -24,7 +24,6 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
     "@moontide/shared": "workspace:*"
   },
   "license": "MIT"

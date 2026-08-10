@@ -71,7 +71,7 @@ cargo build -p moontide-cli --release && ./target/release/moontide
 
 **权限：** ask 类工具（如 `bash` 含 curl、`http_fetch`）默认提示 `Allow tool? [y/N]`；`MOONTIDE_ENV=dev` 或 `/always-allow on` 或 `--always-allow` 或 `MOONTIDE_ALWAYS_ALLOW=1` 自动批准（deny 规则仍生效）。
 
-需 `.env` 中 `DEEPSEEK_API_KEY`（或 `ANTHROPIC_API_KEY`）。
+需 `.env` 中 `DEEPSEEK_API_KEY`。
 
 TypeScript CLI（`pnpm dev`）仍作参考实现与 conformance 对照；release 方向见 [`docs/product/platform-strategy.md`](docs/product/platform-strategy.md)。
 
@@ -92,7 +92,7 @@ MoonTide 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 norm
 
 设计详述见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)（API 适配层）与 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/spec/llm-input.md`](docs/spec/llm-input.md)。
 
-**今天（实现前）**：默认 DeepSeek + Anthropic 兼容端点，配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标配置面见 `.env.example` 中的 `MOONTIDE_PROVIDER` 与各厂商 key。
+**今天（实现）：** 产品默认 **DeepSeek** preset，agent 走 `openai-chat-completions`（fetch，零 vendor npm SDK）。配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标多 preset 配置面见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)。
 
 ## AgentEvent 架构
 

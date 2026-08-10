@@ -1,19 +1,16 @@
 import type { LLMRequest, LLMResponse } from "../protocol/types.js";
 import type { LLMCallOptions } from "../provider.js";
 import type { ResolvedRoute } from "../routing/types.js";
-import { anthropicMessagesChat, anthropicMessagesCountTokens } from "./anthropic-messages.js";
 import { openAiChatCompletions } from "./openai-chat-completions.js";
 
 export function adapterChat(
   request: LLMRequest,
   route: ResolvedRoute,
-  _options?: LLMCallOptions,
+  options?: LLMCallOptions,
 ): Promise<LLMResponse> {
   switch (route.adapterFamily) {
     case "openai-chat-completions":
-      return openAiChatCompletions(request, route, _options);
-    case "anthropic-messages":
-      return anthropicMessagesChat(request, route);
+      return openAiChatCompletions(request, route, options);
     case "openai-responses":
       throw new Error("openai-responses adapter not implemented");
     default: {
@@ -24,12 +21,9 @@ export function adapterChat(
 }
 
 export function adapterCountTokens(
-  request: LLMRequest,
-  route: ResolvedRoute,
+  _request: LLMRequest,
+  _route: ResolvedRoute,
   _options?: LLMCallOptions,
 ): Promise<number> {
-  if (route.adapterFamily === "anthropic-messages") {
-    return anthropicMessagesCountTokens(request, route);
-  }
   return Promise.resolve(0);
 }

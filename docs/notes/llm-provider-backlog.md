@@ -9,23 +9,16 @@
 
 ## 1. Agent tool loop 切 OpenAI Chat
 
-**现状：** DeepSeek Preset 的 agent 走 `anthropic-messages`（`api.deepseek.com/anthropic`）。Judge 的 `json_object` 走 OpenAI Chat Completions（[`deepseek-openai-chat.ts`](../../packages/llm/src/adapters/deepseek-openai-chat.ts)）。
+**状态：** **done**（Phase 4）。DeepSeek preset agent 默认走 `openai-chat-completions`（`https://api.deepseek.com/chat/completions`）。Judge `json_object` 同族。
 
-**目标：** 实现完整 `openai-chat-completions` adapter，使 agent tool loop 可选用 OpenAI Chat 形态访问 DeepSeek（及 Kimi、OpenRouter 等同族 Preset）。
+**历史：** 曾走 `anthropic-messages`（`api.deepseek.com/anthropic`）与 deprecated `deepseek-openai-chat.ts` re-export；已删除 Anthropic SDK 与 `anthropic` preset。
 
-**依赖：**
+**验收（已通过）：**
 
-- [`normalize/`](../../packages/llm/src/normalize/)：`tool_use` / `tool_result` ↔ OpenAI `tool_calls` / `tool` role
-- [`getLLMProvider`](../../packages/llm/src/provider.ts) 已按 `adapterFamily` 分发（eval 计划 Phase 3）
-
-**验收：**
-
-- `.env` 切换 adapter 或 Preset 后，tool loop smoke 通过（grep、read、单轮 tool call）
-- 行为与 Anthropic Messages 路径 observably 等价（允许 vendor 差异，无 harness 回归）
+- tool loop smoke（grep、read、单轮 tool call）
+- `pnpm run check` 全绿
 
 **Spec 分期：** [`llm-provider.md`](../spec/llm-provider.md) §13-D
-
-**不做为 eval 前置：** L2 eval 测 Harness feature lift，不应与「换 API 形态」绑在同一批 PR。详见 [agent-eval-roadmap.md](agent-eval-roadmap.md) §6。
 
 ---
 

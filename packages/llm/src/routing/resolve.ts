@@ -7,7 +7,7 @@ import { type AdapterFamily, getProviderPreset, PROVIDER_PRESETS } from "../pres
 import { resolveThinkingLevel } from "./thinking.js";
 import type { ResolvedRoute } from "./types.js";
 
-const DEFAULT_PRESET_PREFER = ["deepseek", "anthropic"] as const;
+const DEFAULT_PRESET_PREFER = ["deepseek"] as const;
 
 function presetHasApiKey(presetId: string): boolean {
   const preset = getProviderPreset(presetId);
@@ -43,7 +43,7 @@ function resolvePresetId(logicalModelId: string): string {
     }
   }
 
-  throw configError("Set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in .env");
+  throw configError("Set DEEPSEEK_API_KEY in .env");
 }
 
 function _allowedAdapterFamilies(
@@ -56,9 +56,9 @@ function _allowedAdapterFamilies(
 function _resolveAdapterFamily(
   presetAdapter: AdapterFamily,
   modelRoute: ModelRoute | undefined,
-  options?: { jsonObject?: boolean; openAiChatBaseUrl?: string },
+  options?: { jsonObject?: boolean },
 ): AdapterFamily {
-  if (options?.jsonObject && options.openAiChatBaseUrl) {
+  if (options?.jsonObject) {
     return "openai-chat-completions";
   }
 
@@ -73,8 +73,8 @@ function _resolveAdapterFamily(
     return explicit as AdapterFamily;
   }
 
-  // Phase 4 switches product default to route allowlist[0]; until then keep preset adapter.
-  return presetAdapter;
+  // Product default: first entry on model route allowlist.
+  return allowed[0] ?? presetAdapter;
 }
 
 /** Resolve logical model + env keys to a provider route. */
@@ -90,7 +90,6 @@ export function resolveRoute(
   const thinkingLevel = resolveThinkingLevel({ entry, deepMode: options?.deepMode });
   const adapterFamily = _resolveAdapterFamily(preset.adapter, modelRoute, {
     jsonObject: options?.jsonObject,
-    openAiChatBaseUrl: preset.openAiChatBaseUrl,
   });
 
   return {

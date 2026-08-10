@@ -41,7 +41,7 @@ async function main(): Promise<void> {
 
   if (!hasEvalApiKey()) {
     process.stderr.write(
-      "[eval] Set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in .env before running feature-pr.\n",
+      "[eval] Set DEEPSEEK_API_KEY in .env before running feature-pr.\n",
     );
     process.exitCode = 1;
     return;

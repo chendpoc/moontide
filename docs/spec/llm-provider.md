@@ -50,7 +50,7 @@ Provider Preset（1） ──提供──▶ Model（N）
 
 | Preset ID | 厂商 | 协议族 | API Key 环境变量 | 第一版 |
 |-----------|------|--------|------------------|--------|
-| `deepseek` | DeepSeek 官方 | `anthropic-messages` | `DEEPSEEK_API_KEY` | 是 |
+| `deepseek` | DeepSeek 官方 | `openai-chat-completions` | `DEEPSEEK_API_KEY` | 是（**产品 default**） |
 | `kimi` | Moonshot / Kimi | `openai-chat-completions` | `MOONSHOT_API_KEY` | 是 |
 | `openai` | OpenAI 官方 | `openai-chat-completions` / `openai-responses` | `OPENAI_API_KEY` | 是 |
 | `anthropic` | Anthropic 官方 | `anthropic-messages` | `ANTHROPIC_API_KEY` | 是 |
@@ -589,8 +589,8 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 
 | 项 | 现状（2026-08 A–C 后） | 目标（§13 D–I backlog） |
 |----|-------------------------|-------------------------|
-| Client | [`LLMProvider`](../../packages/llm/src/provider.ts) + [`adapters/anthropic-messages.ts`](../../packages/llm/src/adapters/anthropic-messages.ts) | 多 adapter 族 |
-| API 适配 | **方案 A** — 单 `anthropic-messages` adapter | OpenAI / Gemini 等 adapter |
+| Client | [`LLMProvider`](../../packages/llm/src/provider.ts) + [`adapters/openai-chat-completions.ts`](../../packages/llm/src/adapters/openai-chat-completions.ts) | 多 adapter 族 |
+| API 适配 | **DeepSeek default** — `openai-chat-completions` fetch adapter | Responses · count_tokens · 多 preset |
 | Provider | [`presets/presets.ts`](../../packages/llm/src/presets/presets.ts) + [`resolveRoute()`](../../packages/llm/src/routing/resolve.ts) | + openrouter · custom · kimi… |
 | Model | [`models/registry.ts`](../../packages/llm/src/models/registry.ts) + `resolveModelProfile()` | 扩注册表 + Model Router |
 | 类型泄漏 | SDK 仅 [`src/llm/adapters/**`](../../packages/llm/src/adapters/) | 维持 |

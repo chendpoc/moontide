@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
   vi.mock("@moontide/llm", () => ({
-  resolveRoute: (modelId: string, options?: { jsonObject?: boolean }) => ({
+  resolveRoute: (modelId: string) => ({
     logicalModelId: modelId,
     providerPresetId: "deepseek",
     vendorModelId: modelId,
-    adapterFamily: options?.jsonObject ? "openai-chat-completions" : "anthropic-messages",
+    adapterFamily: "openai-chat-completions",
     thinkingLevel: "off",
   }),
 }));
@@ -49,7 +49,7 @@ describe("buildEvalRunManifest", () => {
 
     expect(manifest.suiteHash).toBeTruthy();
     expect(manifest.caseIds).toEqual(["case-a"]);
-    expect(manifest.baseline.route.adapterFamily).toBe("anthropic-messages");
+    expect(manifest.baseline.route.adapterFamily).toBe("openai-chat-completions");
     expect(manifest.candidate.judgeRoute.adapterFamily).toBe("openai-chat-completions");
     expect(manifest.candidate.featureToggles.protocolReminders).toBe(false);
     expect(manifest.intervention.mode).toBe("toggle");

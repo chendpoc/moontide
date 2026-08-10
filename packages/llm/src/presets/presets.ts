@@ -1,17 +1,12 @@
-import { DEEPSEEK_ANTHROPIC_BASE_URL, DEEPSEEK_OPENAI_BASE_URL, PROVIDER_ENV } from "@moontide/shared/constants/index.js";
+import { DEEPSEEK_OPENAI_BASE_URL, PROVIDER_ENV } from "@moontide/shared/constants/index.js";
 
-export type AdapterFamily =
-  | "anthropic-messages"
-  | "openai-chat-completions"
-  | "openai-responses";
+export type AdapterFamily = "openai-chat-completions" | "openai-responses";
 
 export interface ProviderPreset {
   id: string;
   displayName: string;
   adapter: AdapterFamily;
   baseUrl: string;
-  /** OpenAI Chat Completions base URL when preset uses a dual endpoint (e.g. DeepSeek judge). */
-  openAiChatBaseUrl?: string;
   apiKeyEnv: string;
   official: boolean;
 }
@@ -20,18 +15,9 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   deepseek: {
     id: "deepseek",
     displayName: "DeepSeek",
-    adapter: "anthropic-messages",
-    baseUrl: DEEPSEEK_ANTHROPIC_BASE_URL,
-    openAiChatBaseUrl: DEEPSEEK_OPENAI_BASE_URL,
+    adapter: "openai-chat-completions",
+    baseUrl: DEEPSEEK_OPENAI_BASE_URL,
     apiKeyEnv: PROVIDER_ENV.DEEPSEEK_API_KEY,
-    official: true,
-  },
-  anthropic: {
-    id: "anthropic",
-    displayName: "Anthropic",
-    adapter: "anthropic-messages",
-    baseUrl: "https://api.anthropic.com",
-    apiKeyEnv: PROVIDER_ENV.ANTHROPIC_API_KEY,
     official: true,
   },
 };

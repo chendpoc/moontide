@@ -14,7 +14,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     routes: {
       deepseek: {
         modelId: "deepseek-v4-pro",
-        adapterFamilies: ["anthropic-messages", "openai-chat-completions"],
+        adapterFamilies: ["openai-chat-completions"],
         thinkingLevels: {
           off: "supported",
           low: "supported",
@@ -22,9 +22,8 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
           high: "supported",
         },
       },
-      anthropic: { modelId: "deepseek-v4-pro" },
     },
-    prefer: ["deepseek", "anthropic"],
+    prefer: ["deepseek"],
   },
   "deepseek-v4-flash": {
     displayName: "DeepSeek V4 Flash",
@@ -36,7 +35,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     routes: {
       deepseek: {
         modelId: "deepseek-v4-flash",
-        adapterFamilies: ["anthropic-messages", "openai-chat-completions", "openai-responses"],
+        adapterFamilies: ["openai-chat-completions", "openai-responses"],
         thinkingLevels: {
           off: "supported",
           low: "supported",
@@ -44,9 +43,8 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
           high: "supported",
         },
       },
-      anthropic: { modelId: "deepseek-v4-flash" },
     },
-    prefer: ["deepseek", "anthropic"],
+    prefer: ["deepseek"],
   },
 };
 

@@ -207,11 +207,8 @@ describe("architecture boundaries (structural invariants)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("keeps @anthropic-ai/sdk inside llm adapters only", () => {
-    const allowed = /\/adapters\//;
-    const offenders = scanTsFiles(repoPath("packages/llm/src"), ANTHROPIC_SDK_IMPORT).filter(
-      ({ file }) => !allowed.test(file),
-    );
+  it("llm/ does not import @anthropic-ai/sdk", () => {
+    const offenders = scanTsFiles(repoPath("packages/llm/src"), ANTHROPIC_SDK_IMPORT);
     expect(offenders).toEqual([]);
   });
 

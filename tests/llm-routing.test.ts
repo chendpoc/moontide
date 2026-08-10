@@ -7,55 +7,41 @@ describe("llm routing", () => {
     vi.unstubAllEnvs();
   });
 
-  it("defaults to deepseek when only DEEPSEEK_API_KEY is set", () => {
+  it("defaults to deepseek openai-chat-completions when DEEPSEEK_API_KEY is set", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
-    vi.stubEnv("ANTHROPIC_API_KEY", "");
     vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
 
     const route = resolveRoute();
     expect(route.providerPresetId).toBe("deepseek");
     expect(route.vendorModelId).toBe("deepseek-v4-pro");
-    expect(route.adapterFamily).toBe("anthropic-messages");
+    expect(route.adapterFamily).toBe("openai-chat-completions");
   });
 
-  it("uses explicit MOONTIDE_PROVIDER when key is present", () => {
+  it("throws for unknown MOONTIDE_PROVIDER", () => {
     vi.stubEnv("MOONTIDE_PROVIDER", "anthropic");
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
     vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
 
-    const route = resolveRoute();
-    expect(route.providerPresetId).toBe("anthropic");
-    expect(route.vendorModelId).toBe("deepseek-v4-pro");
-  });
-
-  it("prefers deepseek over anthropic when both keys exist and model prefers deepseek", () => {
-    vi.stubEnv("DEEPSEEK_API_KEY", "sk-ds");
-    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant");
-    vi.stubEnv("MODEL_ID", "deepseek-v4-flash");
-
-    const route = resolveRoute();
-    expect(route.providerPresetId).toBe("deepseek");
-    expect(route.vendorModelId).toBe("deepseek-v4-flash");
+    expect(() => resolveRoute()).toThrow(/Unknown provider preset: anthropic/);
   });
 
   it("throws when no provider API key is configured", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "");
-    vi.stubEnv("ANTHROPIC_API_KEY", "");
-    expect(() => resolveRoute()).toThrow(/DEEPSEEK_API_KEY or ANTHROPIC_API_KEY/);
+    expect(() => resolveRoute()).toThrow(/DEEPSEEK_API_KEY/);
   });
 
   it("throws when explicit preset lacks API key", () => {
-    vi.stubEnv("MOONTIDE_PROVIDER", "anthropic");
-    vi.stubEnv("ANTHROPIC_API_KEY", "");
-    expect(() => resolveRoute()).toThrow(/ANTHROPIC_API_KEY/);
+    vi.stubEnv("MOONTIDE_PROVIDER", "deepseek");
+    vi.stubEnv("DEEPSEEK_API_KEY", "");
+    expect(() => resolveRoute()).toThrow(/DEEPSEEK_API_KEY/);
   });
 
-  it("uses openai-chat-completions for json_object judge route on deepseek", () => {
+  it("uses openai-chat-completions for json_object judge route", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
     vi.stubEnv("MODEL_ID", "deepseek-v4-flash");
 
     const agent = resolveRoute("deepseek-v4-flash");
-    expect(agent.adapterFamily).toBe("anthropic-messages");
+    expect(agent.adapterFamily).toBe("openai-chat-completions");
 
     const judge = resolveRoute("deepseek-v4-flash", { jsonObject: true });
     expect(judge.adapterFamily).toBe("openai-chat-completions");
