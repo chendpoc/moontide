@@ -42,4 +42,47 @@ describe("runLLM resolvedRequest observation", () => {
     expect(records[0]?.request.model).toBe("deepseek-v4-flash");
     expect(records[0]?.request).toBe(capturedRequest);
   });
+
+  it("re-throws AbortError instead of recording failed outcome", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    setLLMProvider({
+      chat: async () => ({
+        content: [{ type: "text", text: "ok" }],
+        stopReason: "end_turn",
+      }),
+    });
+
+    await expect(
+      runLLM({
+        turn: 1,
+        model: "deepseek-v4-flash",
+        system: "sys",
+        messages: [{ role: "user", content: "hi" }],
+        tools: [],
+        maxTokens: 100,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("re-throws provider AbortError", async () => {
+    setLLMProvider({
+      chat: async () => {
+        throw new DOMException("Aborted", "AbortError");
+      },
+    });
+
+    await expect(
+      runLLM({
+        turn: 1,
+        model: "deepseek-v4-flash",
+        system: "sys",
+        messages: [{ role: "user", content: "hi" }],
+        tools: [],
+        maxTokens: 100,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
 });

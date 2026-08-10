@@ -20,11 +20,17 @@ export function assistantMessageToContentBlocks(message: AssistantMessage): Cont
       blocks.push({ type: "text", text: block.text });
       continue;
     }
+    if (block.type === "thinking") {
+      blocks.push({ type: "thinking", thinking: block.text });
+      continue;
+    }
     blocks.push({
       type: "tool_use",
       id: block.toolCallId,
       name: block.toolName,
       input: block.args,
+      ...(block.argumentStatus !== undefined ? { argumentStatus: block.argumentStatus } : {}),
+      ...(block.rawArguments !== undefined ? { rawArguments: block.rawArguments } : {}),
     });
   }
   return blocks;
@@ -67,12 +73,18 @@ export function llmResponseToAssistantMessage(
       assistantContent.push({ type: "text", text: block.text });
       continue;
     }
+    if (block.type === "thinking") {
+      assistantContent.push({ type: "thinking", text: block.thinking });
+      continue;
+    }
     if (block.type === "tool_use") {
       assistantContent.push({
         type: "toolCall",
         toolCallId: block.id,
         toolName: block.name,
         args: block.input,
+        ...(block.argumentStatus !== undefined ? { argumentStatus: block.argumentStatus } : {}),
+        ...(block.rawArguments !== undefined ? { rawArguments: block.rawArguments } : {}),
       });
     }
   }

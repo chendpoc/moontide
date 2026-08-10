@@ -4,6 +4,8 @@ export type {
   AssistantContent,
   AssistantMessage,
   TextContent,
+  ThinkingContent,
+  ToolArgumentStatus,
   ToolCallContent,
   ToolResultMessage,
   UserMessage,

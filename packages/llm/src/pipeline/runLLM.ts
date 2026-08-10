@@ -6,6 +6,7 @@ import type { LLMRequest, LLMResponse } from "../protocol/types.js";
 import { getLLMProvider } from "../provider.js";
 import { resolveRoute } from "../routing/resolve.js";
 import type { LLMCallOutcome, LLMCallRecord } from "./types.js";
+import { isAbortError } from "./abort.js";
 
 export interface RunLLMInput extends LLMRequest {
   turn: number;
@@ -16,6 +17,9 @@ export interface RunLLMInput extends LLMRequest {
 
 export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
   const { turn, deepMode, signal, onLLMCall, ...request } = input;
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   const route = resolveRoute(request.model, { deepMode });
   const resolvedRequest: LLMRequest = {
     ...request,
@@ -29,6 +33,9 @@ export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
     const response = await getLLMProvider(route).chat(resolvedRequest, callOptions);
     outcome = { status: "succeeded", response };
   } catch (err) {
+    if (isAbortError(err) || signal?.aborted) {
+      throw err;
+    }
     outcome = toFailureOutcome(err);
   }
 

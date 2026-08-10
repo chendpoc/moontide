@@ -1,11 +1,12 @@
 import type { Message, ToolSchema } from "@moontide/llm/protocol";
 import type { StreamFn, StreamAssistantEvent } from "@moontide/agent-common";
-import { runLLM } from "@moontide/llm";
+import { runLLM, isAbortError } from "@moontide/llm";
 import { modelId } from "../../config.js";
 import { DEFAULT_MAX_TOKENS } from "@moontide/shared/constants/llm.js";
 import type { AgentRuntime } from "../runtime/index.js";
 import { isDeepModeEnabled } from "../deep-mode.js";
 import { llmResponseToAssistantMessage } from "./message-map.js";
+import { validateLlmStopReason } from "./stop-reason-policy.js";
 import type { ComposeState } from "./compose-state.js";
 
 export interface MoonTideStreamFnOptions {
@@ -33,16 +34,33 @@ export function createMoonTideStreamFn(options: MoonTideStreamFnOptions): Stream
       return;
     }
 
-    const response = await runLLM({
-      turn: composeState.turn,
-      deepMode: isDeepModeEnabled(),
-      onLLMCall: (record) => runtime.hooks.dispatch("llmCall", record),
-      model: modelId(),
-      maxTokens: DEFAULT_MAX_TOKENS,
-      messages: protocolMessages,
-      system: context.system ?? "",
-      tools: (context.tools ?? []) as ToolSchema[],
-    });
+    let response;
+    try {
+      response = await runLLM({
+        turn: composeState.turn,
+        deepMode: isDeepModeEnabled(),
+        onLLMCall: (record) => runtime.hooks.dispatch("llmCall", record),
+        model: modelId(),
+        maxTokens: DEFAULT_MAX_TOKENS,
+        messages: protocolMessages,
+        system: context.system ?? "",
+        tools: (context.tools ?? []) as ToolSchema[],
+        signal,
+      });
+    } catch (err) {
+      if (isAbortError(err) || signal?.aborted) {
+        yield { type: "aborted" };
+        return;
+      }
+      throw err;
+    }
+
+    const policy = validateLlmStopReason(response);
+    if (!policy.ok) {
+      yield { type: "error", errorMessage: policy.errorMessage };
+      return;
+    }
+
     const message = llmResponseToAssistantMessage(response.content);
     yield { type: "done", message };
   };

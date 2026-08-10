@@ -5,14 +5,23 @@ export interface TextContent {
   text: string;
 }
 
+export interface ThinkingContent {
+  type: "thinking";
+  text: string;
+}
+
+export type ToolArgumentStatus = "ok" | "malformed_tool_arguments";
+
 export interface ToolCallContent {
   type: "toolCall";
   toolCallId: string;
   toolName: string;
   args: Record<string, unknown>;
+  argumentStatus?: ToolArgumentStatus;
+  rawArguments?: string;
 }
 
-export type AssistantContent = TextContent | ToolCallContent;
+export type AssistantContent = TextContent | ThinkingContent | ToolCallContent;
 
 export interface UserMessage {
   role: "user";

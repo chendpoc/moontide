@@ -23,6 +23,20 @@ export async function executeToolCalls(
   const results: ToolResultMessage[] = [];
 
   for (const call of toolCalls) {
+    if (call.argumentStatus === "malformed_tool_arguments") {
+      const toolResult: ToolResultMessage = {
+        role: "toolResult",
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        content: "Error: malformed tool arguments",
+        isError: true,
+        timestamp: Date.now(),
+      };
+      appendToLog(eventBus, log, toolResult);
+      results.push(toolResult);
+      continue;
+    }
+
     const blocked = await config.beforeToolCall?.(
       {
         toolCallId: call.toolCallId,

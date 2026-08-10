@@ -1,4 +1,5 @@
 export { getLLMProvider, setLLMProvider, type LLMCallOptions, type LLMProvider } from "./provider.js";
+export { isAbortError } from "./pipeline/abort.js";
 export { runLLM, type RunLLMInput } from "./pipeline/runLLM.js";
 export type { LLMCallOutcome, LLMCallRecord } from "./pipeline/types.js";
 export { extractText } from "./normalize/extract-text.js";
