@@ -1,8 +1,9 @@
 import { configError } from "@moontide/shared/errors/factories.js";
 
-import { modelId, providerPresetId } from "../env-config.js";
+import { adapterFamilyOverride, modelId, providerPresetId } from "../env-config.js";
 import { lookupModelEntry } from "../models/registry.js";
-import { getProviderPreset, PROVIDER_PRESETS } from "../presets/presets.js";
+import type { ModelRoute } from "../models/registry-types.js";
+import { type AdapterFamily, getProviderPreset, PROVIDER_PRESETS } from "../presets/presets.js";
 import { resolveThinkingLevel } from "./thinking.js";
 import type { ResolvedRoute } from "./types.js";
 
@@ -45,6 +46,37 @@ function resolvePresetId(logicalModelId: string): string {
   throw configError("Set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in .env");
 }
 
+function _allowedAdapterFamilies(
+  presetAdapter: AdapterFamily,
+  modelRoute: ModelRoute | undefined,
+): AdapterFamily[] {
+  return modelRoute?.adapterFamilies ?? [presetAdapter];
+}
+
+function _resolveAdapterFamily(
+  presetAdapter: AdapterFamily,
+  modelRoute: ModelRoute | undefined,
+  options?: { jsonObject?: boolean; openAiChatBaseUrl?: string },
+): AdapterFamily {
+  if (options?.jsonObject && options.openAiChatBaseUrl) {
+    return "openai-chat-completions";
+  }
+
+  const allowed = _allowedAdapterFamilies(presetAdapter, modelRoute);
+  const explicit = adapterFamilyOverride();
+  if (explicit) {
+    if (!allowed.includes(explicit as AdapterFamily)) {
+      throw configError(
+        `Adapter family ${explicit} is not allowed for this model route (allowed: ${allowed.join(", ")})`,
+      );
+    }
+    return explicit as AdapterFamily;
+  }
+
+  // Phase 4 switches product default to route allowlist[0]; until then keep preset adapter.
+  return presetAdapter;
+}
+
 /** Resolve logical model + env keys to a provider route. */
 export function resolveRoute(
   logicalModelId = modelId(),
@@ -53,13 +85,13 @@ export function resolveRoute(
   const presetId = resolvePresetId(logicalModelId);
   const preset = PROVIDER_PRESETS[presetId]!;
   const entry = lookupModelEntry(logicalModelId);
-  const vendorModelId = entry?.routes[presetId]?.modelId ?? logicalModelId;
+  const modelRoute = entry?.routes[presetId];
+  const vendorModelId = modelRoute?.modelId ?? logicalModelId;
   const thinkingLevel = resolveThinkingLevel({ entry, deepMode: options?.deepMode });
-
-  let adapterFamily = preset.adapter;
-  if (options?.jsonObject && preset.openAiChatBaseUrl) {
-    adapterFamily = "openai-chat-completions";
-  }
+  const adapterFamily = _resolveAdapterFamily(preset.adapter, modelRoute, {
+    jsonObject: options?.jsonObject,
+    openAiChatBaseUrl: preset.openAiChatBaseUrl,
+  });
 
   return {
     logicalModelId,

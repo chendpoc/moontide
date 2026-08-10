@@ -2,9 +2,14 @@ import type { LLMRequest, LLMResponse } from "./protocol/types.js";
 import type { ResolvedRoute } from "./routing/types.js";
 import { adapterChat, adapterCountTokens } from "./adapters/index.js";
 
+/** Execution control for an LLM call (not model input). */
+export interface LLMCallOptions {
+  signal?: AbortSignal;
+}
+
 export interface LLMProvider {
-  chat(request: LLMRequest): Promise<LLMResponse>;
-  countTokens?(request: LLMRequest): Promise<number>;
+  chat(request: LLMRequest, options?: LLMCallOptions): Promise<LLMResponse>;
+  countTokens?(request: LLMRequest, options?: LLMCallOptions): Promise<number>;
 }
 
 let providerOverride: LLMProvider | undefined;
@@ -14,8 +19,8 @@ export function getLLMProvider(route: ResolvedRoute): LLMProvider {
     return providerOverride;
   }
   return {
-    chat: (request) => adapterChat(request, route),
-    countTokens: (request) => adapterCountTokens(request, route),
+    chat: (request, options) => adapterChat(request, route, options),
+    countTokens: (request, options) => adapterCountTokens(request, route, options),
   };
 }
 

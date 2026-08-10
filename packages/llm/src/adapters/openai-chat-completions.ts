@@ -1,6 +1,7 @@
 import { configError } from "@moontide/shared/errors/factories.js";
 
 import type { ContentBlock, LLMRequest, LLMResponse, Message } from "../protocol/types.js";
+import { mapOpenAiFinishReason } from "../normalize/finish-reason.js";
 import { getProviderPreset } from "../presets/presets.js";
 import type { ResolvedRoute } from "../routing/types.js";
 
@@ -88,7 +89,7 @@ export async function openAiChatCompletions(
   const text = choice?.message?.content ?? "";
   return {
     content: text.length > 0 ? [{ type: "text", text }] : [],
-    stopReason: choice?.finish_reason ?? "end_turn",
+    stopReason: mapOpenAiFinishReason(choice?.finish_reason),
     usage:
       parsed.usage?.prompt_tokens !== undefined
         ? {

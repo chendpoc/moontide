@@ -24,6 +24,11 @@ export function providerPresetId(): string | undefined {
   return raw || undefined;
 }
 
+export function adapterFamilyOverride(): string | undefined {
+  const raw = env(APP_ENV.ADAPTER_FAMILY)?.trim();
+  return raw || undefined;
+}
+
 export function contextLimitOverride(): number | undefined {
   const override = env(APP_ENV.CONTEXT_LIMIT);
   if (override) {

@@ -3,6 +3,7 @@ import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages/me
 import { configError } from "@moontide/shared/errors/factories.js";
 
 import type { ContentBlock, LLMRequest, LLMResponse } from "../protocol/types.js";
+import { mapAnthropicStopReason } from "../normalize/finish-reason.js";
 import { getProviderPreset } from "../presets/presets.js";
 import type { ResolvedRoute } from "../routing/types.js";
 
@@ -45,7 +46,7 @@ function toSdkTools(tools: LLMRequest["tools"]): Tool[] {
 function fromSdkResponse(message: Anthropic.Message): LLMResponse {
   return {
     content: message.content as ContentBlock[],
-    stopReason: message.stop_reason ?? "end_turn",
+    stopReason: mapAnthropicStopReason(message.stop_reason),
     usage: message.usage
       ? {
           inputTokens: message.usage.input_tokens,

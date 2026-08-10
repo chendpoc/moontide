@@ -1,7 +1,8 @@
-export { getLLMProvider, setLLMProvider, type LLMProvider } from "./provider.js";
+export { getLLMProvider, setLLMProvider, type LLMCallOptions, type LLMProvider } from "./provider.js";
 export { runLLM, type RunLLMInput } from "./pipeline/runLLM.js";
 export type { LLMCallOutcome, LLMCallRecord } from "./pipeline/types.js";
 export { extractText } from "./normalize/extract-text.js";
+export { mapAnthropicStopReason, mapOpenAiFinishReason } from "./normalize/finish-reason.js";
 export {
   explicitThinkingLevelFromEnv,
   isDeepThinkingBump,
@@ -23,5 +24,13 @@ export {
 export { resolveCompactionPolicy, resolveModelProfile } from "./models/resolve.js";
 export type { ModelProfile } from "./models/types.js";
 export type { ModelRegistryEntry, ModelRoute } from "./models/registry-types.js";
-export { getProviderPreset, PROVIDER_PRESETS, type ProviderPreset } from "./presets/presets.js";
+export { getProviderPreset, PROVIDER_PRESETS, type AdapterFamily, type ProviderPreset } from "./presets/presets.js";
+export {
+  findCapabilityDeclaration,
+  listAdapterCapabilityDeclarations,
+  lookupCapabilityStatus,
+  type AdapterCapabilityDeclaration,
+  type CapabilityLookup,
+  type CapabilityStatus,
+} from "./capabilities/index.js";
 export { resetAnthropicClients } from "./adapters/anthropic-messages.js";

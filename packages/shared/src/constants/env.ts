@@ -39,6 +39,8 @@ export const APP_ENV = {
   ENV: "ENV",
   /** Provider preset id: `deepseek` | `anthropic` (see llm/presets). */
   PROVIDER: "PROVIDER",
+  /** Adapter family override: openai-chat-completions | openai-responses (see llm/routing). */
+  ADAPTER_FAMILY: "ADAPTER_FAMILY",
   ALWAYS_ALLOW: "ALWAYS_ALLOW",
   SIDECAR_PLUGIN_ID: "SIDECAR_PLUGIN_ID",
 } as const;

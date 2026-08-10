@@ -1,6 +1,7 @@
 import { infraError } from "@moontide/shared/errors/factories.js";
 import { toFailureOutcome } from "@moontide/shared/errors/outcome.js";
 
+import type { LLMCallOptions } from "../provider.js";
 import type { LLMRequest, LLMResponse } from "../protocol/types.js";
 import { getLLMProvider } from "../provider.js";
 import { resolveRoute } from "../routing/resolve.js";
@@ -9,20 +10,23 @@ import type { LLMCallOutcome, LLMCallRecord } from "./types.js";
 export interface RunLLMInput extends LLMRequest {
   turn: number;
   deepMode?: boolean;
+  signal?: AbortSignal;
   onLLMCall?: (record: LLMCallRecord) => void | Promise<void>;
 }
 
 export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
-  const { turn, deepMode, onLLMCall, ...request } = input;
+  const { turn, deepMode, signal, onLLMCall, ...request } = input;
   const route = resolveRoute(request.model, { deepMode });
+  const resolvedRequest: LLMRequest = {
+    ...request,
+    model: route.vendorModelId,
+    thinkingLevel: route.thinkingLevel,
+  };
+  const callOptions: LLMCallOptions = { signal };
 
   let outcome: LLMCallOutcome;
   try {
-    const response = await getLLMProvider(route).chat({
-      ...request,
-      model: route.vendorModelId,
-      thinkingLevel: route.thinkingLevel,
-    });
+    const response = await getLLMProvider(route).chat(resolvedRequest, callOptions);
     outcome = { status: "succeeded", response };
   } catch (err) {
     outcome = toFailureOutcome(err);
@@ -30,7 +34,7 @@ export async function runLLM(input: RunLLMInput): Promise<LLMResponse> {
 
   const record: LLMCallRecord = {
     turn,
-    request,
+    request: resolvedRequest,
     outcome,
     routing: route,
   };

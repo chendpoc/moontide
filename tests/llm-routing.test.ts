@@ -62,12 +62,30 @@ describe("llm routing", () => {
     expect(judge.providerPresetId).toBe("deepseek");
   });
 
-  it("does not bump thinking when deep mode but registry model lacks thinking support", () => {
+  it("honors MOONTIDE_ADAPTER_FAMILY when allowed on model route", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("MOONTIDE_ADAPTER_FAMILY", "openai-responses");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-flash");
+
+    const route = resolveRoute("deepseek-v4-flash");
+    expect(route.adapterFamily).toBe("openai-responses");
+  });
+
+  it("rejects MOONTIDE_ADAPTER_FAMILY when not on model route allowlist", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("MOONTIDE_ADAPTER_FAMILY", "openai-responses");
+    vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
+
+    expect(() => resolveRoute("deepseek-v4-pro")).toThrow(/not allowed/);
+  });
+
+  it("bumps thinking to high in deep mode when model supports thinking", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
     vi.stubEnv("MODEL_ID", "deepseek-v4-pro");
 
     const normal = resolveRoute("deepseek-v4-pro");
     const deep = resolveRoute("deepseek-v4-pro", { deepMode: true });
-    expect(deep.thinkingLevel).toBe(normal.thinkingLevel);
+    expect(normal.thinkingLevel).toBe("medium");
+    expect(deep.thinkingLevel).toBe("high");
   });
 });

@@ -1,6 +1,9 @@
 import { DEEPSEEK_ANTHROPIC_BASE_URL, DEEPSEEK_OPENAI_BASE_URL, PROVIDER_ENV } from "@moontide/shared/constants/index.js";
 
-export type AdapterFamily = "anthropic-messages" | "openai-chat-completions";
+export type AdapterFamily =
+  | "anthropic-messages"
+  | "openai-chat-completions"
+  | "openai-responses";
 
 export interface ProviderPreset {
   id: string;
