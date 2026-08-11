@@ -1,6 +1,6 @@
 
 > MoonTide 如何把「选模型、接 API、发请求」从 agent loop 里拆出来。
-> LLM 一次 input 的三参数对表见 [`llm-input.md`](llm-input.md)；context 组装见 [`context-analysis.md`](../notes/context-analysis.md)。
+> LLM 一次 input 的三参数对表见 [`llm-input.md`](llm-input.md)；context 组装见 [`context-analysis.md`](../notes/context/context-analysis.md)。
 
 ---
 
@@ -27,7 +27,7 @@ Provider Preset（1） ──提供──▶ Model（N）
 |------|------|-------------|
 | **model 注册表** | Cloud logical model id → 各 Provider Preset 的 vendor model id、contextWindow | 本文 §9.3；实现 `llm/models/registry.ts` |
 | **Provider Preset 表** | 厂商 API 通道配置（baseUrl、adapter、apiKeyEnv） | 本文 §3；实现 `llm/presets/presets.ts` |
-| **本地 model catalog** | Edge 侧 MoonTide 签名 GGUF 条目（`moontide/router-v1` 等） | [`edge-local-models.md`](../notes/edge-local-models.md)；与 **model 注册表** 无关 |
+| **本地 model catalog** | Edge 侧 MoonTide 签名 GGUF 条目（`moontide/router-v1` 等） | [`edge-local-models.md`](../notes/llm/edge-local-models.md)；与 **model 注册表** 无关 |
 | **Tool Definitions** | 本轮 `LLMRequest.tools`（`ToolSchema[]`） | [`context-composer.md`](context-composer.md) §9.1；[`llm-input.md`](llm-input.md) |
 
 ---
@@ -89,15 +89,15 @@ OpenRouter 在 OpenRouter 命名空间下使用 model 字符串，例如 `anthro
 
 | Preset ID | 定位 | 协议族 | 配置 | 第一版 |
 |-----------|------|--------|------|--------|
-| `local-direct` | 本机 Rust `moontide-infer` sidecar；[本地 model catalog](../notes/edge-local-models.md) GGUF | IPC（UDS + NDJSON）→ 进程内 llama.cpp | `MOONTIDE_LOCAL_INFER=on` + 本地 catalog model id | 否（Phase P1+） |
+| `local-direct` | 本机 Rust `moontide-infer` sidecar；[本地 model catalog](../notes/llm/edge-local-models.md) GGUF | IPC（UDS + NDJSON）→ 进程内 llama.cpp | `MOONTIDE_LOCAL_INFER=on` + 本地 catalog model id | 否（Phase P1+） |
 
 **与 cloud preset 的区别：**
 
 - **不走 HTTP API** — loop 仍产出 MoonTide 协议 `LLMRequest`；`local-direct` adapter 经 UDS 发给 `moontide-infer`，返回 normalized `LLMResponse`。
-- **Model 来源** — 仅 [**MoonTide 本地 model catalog**](../notes/edge-local-models.md)（`moontide/router-v1` 等）；用户 **opt-in download**，不提供任意 URL import 或本地 train。
-- **Train** — **MoonTide Cloud / CI only**；详见 [`edge-local-models.md`](../notes/edge-local-models.md)。
+- **Model 来源** — 仅 [**MoonTide 本地 model catalog**](../notes/llm/edge-local-models.md)（`moontide/router-v1` 等）；用户 **opt-in download**，不提供任意 URL import 或本地 train。
+- **Train** — **MoonTide Cloud / CI only**；详见 [`edge-local-models.md`](../notes/llm/edge-local-models.md)。
 
-**与 Model Router 的关系：** Router 决定 **logical tier**（router / general / cloud）；`local-direct` 是 tier 0–2 的 **执行 preset**，与 `deepseek` 等 cloud preset 并列，经同一 `LLMProvider` 出口（[`runLLM.ts`](../../apps/moontide/src/agent/pipeline/runLLM.ts)）。
+**与 Model Router 的关系：** Router 决定 **logical tier**（router / general / cloud）；`local-direct` 是 tier 0–2 的 **执行 preset**，与 `deepseek` 等 cloud preset 并列，经同一 `LLMProvider` 出口（[`runLLM.ts`](../../packages/llm/src/pipeline/runLLM.ts)）。
 
 ---
 
@@ -330,7 +330,7 @@ export interface LLMProvider {
 export function getLLMProvider(route: ResolvedRoute): LLMProvider;
 ```
 
-[`runLLM`](../../apps/moontide/src/agent/pipeline/runLLM.ts) 目标形态：接受/返回 MoonTide `LLMRequest` / `LLMResponse`；loop 判断 `stopReason === "tool_use"`，不再依赖 SDK 字段名 `stop_reason`。
+[`runLLM`](../../packages/llm/src/pipeline/runLLM.ts) 目标形态：接受/返回 MoonTide `LLMRequest` / `LLMResponse`；loop 判断 `stopReason === "tool_use"`，不再依赖 SDK 字段名 `stop_reason`。
 
 ---
 
@@ -489,7 +489,7 @@ export interface RoutingDecision {
 **分期：**
 
 - **v1** — 规则 / 启发式（prompt 长度、文件引用、关键词、`/compact` 状态）
-- **v2** — 可选 **本地** model catalog router（`moontide/router-v1` via `local-direct`）或 cheap cloud routing call；详见 [`edge-local-models.md`](../notes/edge-local-models.md) Tier 0–1
+- **v2** — 可选 **本地** model catalog router（`moontide/router-v1` via `local-direct`）或 cheap cloud routing call；详见 [`edge-local-models.md`](../notes/llm/edge-local-models.md) Tier 0–1
 - **CLI** — `/model auto`、`/model status`、`/thinking high|low|off`
 
 **本地 tier 路由（与 v2 交叉，非阻塞 cloud-only v1）：**
@@ -597,7 +597,7 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 ## 13. 后续实现分期（代码指引）
 
 > **本节描述代码落地顺序，非当前文档交付范围。** 实现时按小 PR 推进，行为每阶段可验收。  
-> **Backlog（eval 计划外）：** [llm-provider-backlog.md](../notes/llm-provider-backlog.md) — Agent OpenAI Chat tool loop · tool_calls normalize · custom preset · Responses API。
+> **Backlog（eval 计划外）：** [llm-provider-backlog.md](../notes/llm/llm-provider-backlog.md) — Agent OpenAI Chat tool loop · tool_calls normalize · custom preset · Responses API。
 
 | 阶段 | 内容 | 验收 |
 |------|------|------|
@@ -630,12 +630,12 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 |------|------|
 | [`llm-input.md`](llm-input.md) | 一次 LLM 调用的 `system` / `tools` / `messages`；目标产出 `LLMRequest`；Provider 层负责 **谁执行** `chat()` |
 | [`context-composer.md`](context-composer.md) | Session Event Log、Context Composer、Compaction / Checkpoint；产出 `LLMRequest` |
-| [`context-analysis.md`](../notes/context-analysis.md) | 行业 SOTA；ModelProfile 与 Tool Definitions 进入 Composer |
+| [`context-analysis.md`](../notes/context/context-analysis.md) | 行业 SOTA；ModelProfile 与 Tool Definitions 进入 Composer |
 | [`vision.md`](../product/vision.md) | 产品名 MoonTide；run 观测需 provider + model 字段 |
 | [`agent-events.md`](agent-events.md) | `RoutingDecision` 写入 run event log |
-| [`edge-local-models.md`](../notes/edge-local-models.md) | 本地 model catalog pull、Cloud train only、`moontide-infer` sidecar |
-| [`runtime-multilang.md`](../notes/runtime-multilang.md) | Rust host 监管 infer sidecar 生命周期 |
-| [`kocoro-architecture.md`](../notes/kocoro-architecture.md) | bundle pull 与 sidecar 参考实现 |
+| [`edge-local-models.md`](../notes/llm/edge-local-models.md) | 本地 model catalog pull、Cloud train only、`moontide-infer` sidecar |
+| [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) | Rust host 监管 infer sidecar 生命周期 |
+| [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md) | bundle pull 与 sidecar 参考实现 |
 
 ---
 

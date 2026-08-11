@@ -1,7 +1,7 @@
 
 > **文档性质：** product（方向与发布策略，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名与保留产品名见 [`vision.md`](vision.md)  
-> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context-analysis.md)；Hook 工程落地见 [`agent-run-hooks.md`](../notes/agent-run-hooks.md) §11+；插件加载与 MCP 集成见 [`plugin-host.md`](../notes/plugin-host.md)
+> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context/context-analysis.md)；Hook 工程落地见 [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md) §11+；插件加载与 MCP 集成见 [`plugin-host.md`](../notes/runtime/plugin-host.md)
 
 ---
 
@@ -41,7 +41,7 @@
 | **用户-facing CLI 用 Rust 单 binary** | 冷启动、体积、分发简单；与 Codex 同属 native camp |
 | **不把 Node SEA / Bun `--compile` 作为主路径** | 产物仍含 V8/JS 运行时，与「无 embedded runtime」目标冲突 |
 | **TypeScript 仓库保留** | dev harness、conformance tests、Node sidecar 参考实现 |
-| **Slint UI 继续 Rust** | 与 [`runtime-multilang.md`](../notes/runtime-multilang.md) 中 Rust Host 一致 |
+| **Slint UI 继续 Rust** | 与 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) 中 Rust Host 一致 |
 
 ### 3.2 目标架构
 
@@ -79,7 +79,7 @@ flowchart TB
 
 ## 4. 三层扩展互操作
 
-兼容分层（P0/P1/P2）见 [`ecosystem-compat.md`](../notes/ecosystem-compat.md)。
+兼容分层（P0/P1/P2）见 [`ecosystem-compat.md`](../notes/runtime/ecosystem-compat.md)。
 
 | 层 | 机制 | 用户需 Node？ | 兼容承诺 |
 |----|------|---------------|----------|
@@ -104,7 +104,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | 冷启动 | REPL 提示 **&lt; 50ms** 量级 | 无 V8 初始化 |
 | 默认安装 | **零 Node** 可 ping + builtins + LLM | MCP stdio 需用户自备 Node 或改用 HTTP MCP |
 | Session compose | **增量读 log**，非全量 sync read | C1b 后 Rust/TS 均须满足 |
-| Sidecar | **可选**；未安装时 MVP 完整 | 见 [`runtime-multilang.md` §9](../notes/runtime-multilang.md) |
+| Sidecar | **可选**；未安装时 MVP 完整 | 见 [`runtime-multilang.md` §9](../notes/runtime/runtime-multilang.md) |
 | Desktop 主 Bundle | **≤ 20MB**（Slint + Rust Host，**不含 Node**） | Node runtime pack 按需下载 |
 
 当前实现仍为 **TypeScript + `node dist/main.js`**；上表为 **Rust release 验收门槛**。
@@ -158,7 +158,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 - **不承诺** OpenCode / Pi / VS Code 插件零改兼容
 - **不把** 任意 npm 包 `require` 进 Rust agent loop
 - **不用** Node SEA / Bun compile 作为用户-facing 主分发
-- **Go 不做主 CLI**（远期 worker / 调度见 [`kocoro-architecture.md`](../notes/kocoro-architecture.md)）
+- **Go 不做主 CLI**（远期 worker / 调度见 [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md)）
 - **不把** Desktop sidecar IPC 细节写进本文（见 runtime-multilang）
 
 ---
@@ -175,7 +175,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 
 **TS 仓库角色：** R0 之前与并行期 — 参考实现、测试金标准、sidecar 宿主；release 二进制以 Rust 为准。
 
-**Hook 内核：** 见 [`agent-run-hooks.md`](../notes/agent-run-hooks.md)（HookDispatcher + phase · sidecar-first）。
+**Hook 内核：** 见 [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md)（HookDispatcher + phase · sidecar-first）。
 
 ---
 
@@ -186,11 +186,11 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | [`vision.md`](vision.md) | 产品名、保留产品名 |
 | [`plan.md`](plan.md) | 当前优先级、JSONL 存储 |
 | [`context-composer.md`](../spec/context-composer.md) | Session 事实、Composer invariant |
-| [`context-analysis.md`](../notes/context-analysis.md) | 竞品 context 深度对比 |
-| [`runtime-multilang.md`](../notes/runtime-multilang.md) | Desktop IPC、20MB 分发、sidecar 监管 |
-| [`kocoro-architecture.md`](../notes/kocoro-architecture.md) | Go daemon / sidecar 参考 |
-| [`agent-run-hooks.md`](../notes/agent-run-hooks.md) | Hook 生命周期与 loop 工程落地 |
-| [`plugin-host.md`](../notes/plugin-host.md) | Plugin host、MCP attach、tool registry |
+| [`context-analysis.md`](../notes/context/context-analysis.md) | 竞品 context 深度对比 |
+| [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) | Desktop IPC、20MB 分发、sidecar 监管 |
+| [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md) | Go daemon / sidecar 参考 |
+| [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md) | Hook 生命周期与 loop 工程落地 |
+| [`plugin-host.md`](../notes/runtime/plugin-host.md) | Plugin host、MCP attach、tool registry |
 | [`agent-events.md`](../spec/agent-events.md) | Run 级观测 JSONL |
 
 ---

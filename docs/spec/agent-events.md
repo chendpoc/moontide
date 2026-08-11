@@ -30,7 +30,7 @@ segments are lossless archives; the desktop UI only tails the active JSONL.
 
 TypeScript source: [`packages/log/src/types.ts`](../../packages/log/src/types.ts).
 
-**Fan-out 入口：** [`@moontide/log` event-hub](../../packages/log/src/event-hub.ts)（`emit` · `subscribe`）+ [`apps/moontide/src/log/index.ts`](../../apps/moontide/src/log/index.ts)（装配 re-export）。Hook sidecar 与 **RunEvent derive** 经此写入 JSONL / stderr。
+**Fan-out 入口：** [`@moontide/log` event-hub](../../packages/log/src/event-hub.ts)（`emit` · `subscribe`）+ [`packages/agent-cli/src/log/index.ts`](../../packages/agent-cli/src/log/index.ts)（装配 re-export）。Hook sidecar 与 **RunEvent derive** 经此写入 JSONL / stderr。
 
 ## Core fields
 

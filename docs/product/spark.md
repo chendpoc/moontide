@@ -1,7 +1,7 @@
 
 > **文档性质：** product（方向与产品定义，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名登记见 [`vision.md`](vision.md)  
-> **关联：** [`platform-strategy.md`](platform-strategy.md) · [`edge-local-models.md`](../notes/edge-local-models.md) · [`context-composer.md`](../spec/context-composer.md)
+> **关联：** [`platform-strategy.md`](platform-strategy.md) · [`edge-local-models.md`](../notes/llm/edge-local-models.md) · [`context-composer.md`](../spec/context-composer.md)
 
 ---
 
@@ -116,7 +116,7 @@ flowchart LR
 
 **社会背景（产品叙事）：** 国内许多组织 **用人多于育人**；有成长意愿的人需 **自建进阶路径**。Spark 提供低门槛日常循环，MoonTide 提供突破瓶颈的 Agent 能力 — **补充自学，不宣称替代组织培训或专业资质**。
 
-详设 Local Fusion 与 catalog 见 [`edge-local-models.md`](../notes/edge-local-models.md)。
+详设 Local Fusion 与 catalog 见 [`edge-local-models.md`](../notes/llm/edge-local-models.md)。
 
 ---
 
@@ -229,7 +229,7 @@ flowchart LR
 |------|------|
 | [`vision.md`](vision.md) | Spark 保留名登记；MoonTide / Buoy 组件 |
 | [`platform-strategy.md`](platform-strategy.md) | 桌面 native、sidecar、不 embed Node |
-| [`edge-local-models.md`](../notes/edge-local-models.md) | L1 catalog、Local Fusion、Qwen3.5-0.8B |
+| [`edge-local-models.md`](../notes/llm/edge-local-models.md) | L1 catalog、Local Fusion、Qwen3.5-0.8B |
 | [`context-composer.md`](../spec/context-composer.md) | spark Item 与 Session 事实源 |
 | [`llm-provider.md`](../spec/llm-provider.md) | L2 DeepSeek API 适配 |
 | [`TODO.md`](../../TODO.md) | §2 Buoy · §15.3 Local Fusion |

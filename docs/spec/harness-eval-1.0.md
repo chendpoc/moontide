@@ -1,10 +1,10 @@
 # Harness Eval 1.1
 
 > **状态：** 1.1 · **实现：** [`packages/evals`](../../packages/evals/)  
-> **设计依据：** [`agent-eval-task-taxonomy.md`](../notes/agent-eval-task-taxonomy.md)  
-> **上游参考：** [`feature-ab-eval-guide.md`](../feature-ab-eval-guide.md)
+> **设计依据：** [`agent-eval-task-taxonomy.md`](../notes/evals/agent-eval-task-taxonomy.md)
+> **上游参考：** [`feature-ab-eval.md`](../guides/feature-ab-eval.md)
 
-> **后续方向：** 本文描述当前 task/outcome-first 1.1 实现。Workload taxonomy 与 Harness contract taxonomy 的拆分及 clean-break 迁移见 [`harness-eval-refactor-plan.md`](../notes/harness-eval-refactor-plan.md)；计划实现前，本文仍是现行 Spec。
+> **后续方向：** 本文描述当前 task/outcome-first 1.1 实现。Workload taxonomy 与 Harness contract taxonomy 的拆分及 clean-break 迁移见 [`harness-eval-refactor-plan.md`](../notes/evals/harness-eval-refactor-plan.md)；**L2 eval 改用 pinned agent artifact + headless 协议** 见 [`eval-release-artifact.md`](../notes/evals/eval-release-artifact.md)（R0 须与 refactor plan §4.4 对齐）；计划实现前，本文仍是现行 Spec。
 
 Feature-scoped A/B：真 LLM harness + **pairwise judge**（1–5，candidate 相对 baseline）。
 
