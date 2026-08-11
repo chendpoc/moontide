@@ -15,6 +15,7 @@
 | [`runtime/runtime-multilang.md`](runtime/runtime-multilang.md) | 多语言 Desktop Runtime、sidecar 与 IPC |
 | [`runtime/monorepo-packages.md`](runtime/monorepo-packages.md) | Monorepo 包、依赖图和开发启动 |
 | [`runtime/agent-harness-cli-split.md`](runtime/agent-harness-cli-split.md) | §18 主轨 + DR-A run-protocol + DR-B context?（TODO §18） |
+| [`runtime/schema-package-plan.md`](runtime/schema-package-plan.md) | `@moontide/schema` 候选方案 — **deferred / no-go**（§0 Revisit 条件）；import 以 [`type-imports.md`](../spec/type-imports.md) 为准 |
 | [`runtime/utils-infrastructure.md`](runtime/utils-infrastructure.md) | Utils、storage 和 Node/OS 原语分层 |
 | [`runtime/kocoro-architecture.md`](runtime/kocoro-architecture.md) | Kocoro/Shannon 参考架构分析 |
 | [`runtime/scratchpad.md`](runtime/scratchpad.md) | `scratch.eval` 低风险草稿执行候选 |

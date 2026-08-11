@@ -40,7 +40,12 @@
   - [x] **18.0** DR-A — `agent-common` → `@moontide/run-protocol` · **含 evals alias** · 同 PR 更新 AGENTS/Spec
   - [ ] **18.0b** DR-B（可选）— `packages/context` — 合并 session + context-composer
   - [x] **18.1** §18 主轨 — `packages/agent` · §4.1 pipeline 注入 · `@moontide/evals` 迁 import · exports/dist smoke
-  - [x] **18.2** `packages/agent-cli` — 终端 + `createCliEventPipeline` · 删 app code-repl copy · `git mv packages/agent-cli`
+  - [x] **18.2** `packages/agent-cli` — 终端 + `createCliEventOutputs` · 删 app code-repl copy · `git mv packages/agent-cli`
+
+  **Deferred（不纳入执行路径）：**
+
+  - **DR-B · `@moontide/context`** — 合并 session + composer；go/no-go 见 [`agent-harness-cli-split.md`](docs/notes/runtime/agent-harness-cli-split.md) §3.2
+  - **`@moontide/schema`** — canonical schema 迁包；**no-go** 见 [`schema-package-plan.md`](docs/notes/runtime/schema-package-plan.md) §0；契约 import 以 [`type-imports.md`](docs/spec/type-imports.md) 为准
 
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果
