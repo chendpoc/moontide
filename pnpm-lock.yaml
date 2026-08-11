@@ -36,38 +36,71 @@ importers:
         specifier: ^3.0.9
         version: 3.2.7(@types/node@22.20.1)(tsx@4.23.1)(yaml@2.9.0)
 
-  apps/moontide:
+  packages/agent:
     dependencies:
-      '@moontide/agent-common':
-        specifier: workspace:*
-        version: link:../../packages/agent-common
       '@moontide/agent-core':
         specifier: workspace:*
-        version: link:../../packages/agent-core
+        version: link:../agent-core
       '@moontide/context-composer':
         specifier: workspace:*
-        version: link:../../packages/context-composer
+        version: link:../context-composer
       '@moontide/llm':
         specifier: workspace:*
-        version: link:../../packages/llm
+        version: link:../llm
       '@moontide/log':
         specifier: workspace:*
-        version: link:../../packages/log
+        version: link:../log
       '@moontide/plugins-sdk':
         specifier: workspace:*
-        version: link:../../packages/plugins-sdk
+        version: link:../plugins-sdk
+      '@moontide/run-protocol':
+        specifier: workspace:*
+        version: link:../run-protocol
       '@moontide/session':
         specifier: workspace:*
-        version: link:../../packages/session
+        version: link:../session
       '@moontide/shared':
         specifier: workspace:*
-        version: link:../../packages/shared
+        version: link:../shared
       '@moontide/sidecar-host':
         specifier: workspace:*
-        version: link:../../packages/sidecar-host
+        version: link:../sidecar-host
       '@moontide/tools':
         specifier: workspace:*
-        version: link:../../packages/tools
+        version: link:../tools
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      smol-toml:
+        specifier: ^1.7.1
+        version: 1.7.1
+
+  packages/agent-cli:
+    dependencies:
+      '@moontide/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@moontide/context-composer':
+        specifier: workspace:*
+        version: link:../context-composer
+      '@moontide/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@moontide/log':
+        specifier: workspace:*
+        version: link:../log
+      '@moontide/run-protocol':
+        specifier: workspace:*
+        version: link:../run-protocol
+      '@moontide/session':
+        specifier: workspace:*
+        version: link:../session
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@moontide/tools':
+        specifier: workspace:*
+        version: link:../tools
       chalk:
         specifier: ^5.4.1
         version: 5.6.2
@@ -91,13 +124,11 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
-  packages/agent-common: {}
-
   packages/agent-core:
     dependencies:
-      '@moontide/agent-common':
+      '@moontide/run-protocol':
         specifier: workspace:*
-        version: link:../agent-common
+        version: link:../run-protocol
 
   packages/context-composer:
     dependencies:
@@ -113,9 +144,15 @@ importers:
 
   packages/evals:
     dependencies:
+      '@moontide/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@moontide/llm':
         specifier: workspace:*
         version: link:../llm
+      '@moontide/log':
+        specifier: workspace:*
+        version: link:../log
       '@moontide/session':
         specifier: workspace:*
         version: link:../session
@@ -144,9 +181,9 @@ importers:
 
   packages/log:
     dependencies:
-      '@moontide/agent-common':
+      '@moontide/run-protocol':
         specifier: workspace:*
-        version: link:../agent-common
+        version: link:../run-protocol
       '@moontide/shared':
         specifier: workspace:*
         version: link:../shared
@@ -159,6 +196,8 @@ importers:
       '@moontide/tools':
         specifier: workspace:*
         version: link:../tools
+
+  packages/run-protocol: {}
 
   packages/session:
     dependencies:

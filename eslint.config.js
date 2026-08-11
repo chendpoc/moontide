@@ -40,7 +40,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/moontide/src/**/*.ts"],
+    files: ["packages/agent-cli/src/**/*.ts", "packages/agent/src/**/*.ts"],
     rules: {
       "@typescript-eslint/naming-convention": [
         "error",
@@ -59,7 +59,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/moontide/src/**/*.ts", "tests/**/*.ts"],
+    files: ["packages/agent-cli/src/**/*.ts", "packages/agent/src/**/*.ts", "tests/**/*.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -71,8 +71,8 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/moontide/src/**/*.ts", "tests/**/*.ts"],
-    ignores: ["apps/moontide/src/log/**"],
+    files: ["packages/agent-cli/src/**/*.ts", "packages/agent/src/**/*.ts", "tests/**/*.ts"],
+    ignores: ["packages/agent-cli/src/log/**"],
     rules: {
       "no-restricted-imports": [
         "error",

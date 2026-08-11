@@ -8,9 +8,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm build:core && pnpm --filter moontide run build",
-    "start": "pnpm --filter moontide run start",
-    "dev": "pnpm --filter moontide run dev",
+    "build": "pnpm build:core",
+    "start": "pnpm --filter @moontide/agent-cli run start",
+    "dev": "pnpm --filter @moontide/agent-cli run dev",
     "ping": "tsx packages/llm/src/healthcheck/ping.ts",
     "test": "vitest run",
     "test:conformance": "vitest run tests/conformance",
@@ -20,7 +20,7 @@
     "eval:summarize": "tsx --tsconfig tsconfig.dev.json packages/evals/dev/summarize-run.ts",
     "eval:test": "vitest run --config packages/evals/vitest.config.ts tests",
     "eval:integration": "vitest run --config packages/evals/vitest.config.ts examples",
-    "typecheck": "pnpm typecheck:core && pnpm --filter moontide run typecheck",
+    "typecheck": "pnpm typecheck:core",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm eval:test",
     "eval:pr": "pnpm eval:test",
     "lint": "eslint .",

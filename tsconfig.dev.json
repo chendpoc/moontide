@@ -7,7 +7,10 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@moontide/agent-common": ["./packages/agent-common/src/index.ts"],
+      "@moontide/run-protocol": ["./packages/run-protocol/src/index.ts"],
+      "@moontide/agent": ["./packages/agent/src/index.ts"],
+      "@moontide/agent/testing": ["./packages/agent/src/testing/index.ts"],
+      "@moontide/agent/load-env": ["./packages/agent/src/app/load-env.ts"],
       "@moontide/agent-core": ["./packages/agent-core/src/index.ts"],
       "@moontide/shared": ["./packages/shared/src/index.ts"],
       "@moontide/shared/utils/*": ["./packages/shared/src/utils/*"],
@@ -30,8 +33,10 @@
       "@moontide/tools": ["./packages/tools/src/index.ts"],
       "@moontide/plugins-sdk": ["./packages/plugins-sdk/src/index.ts"],
       "@moontide/sidecar-host/ports": ["./packages/sidecar-host/src/ports/index.ts"],
-      "@moontide/sidecar-host": ["./packages/sidecar-host/src/index.ts"]
+      "@moontide/sidecar-host": ["./packages/sidecar-host/src/index.ts"],
+      "@moontide/agent-cli/bootstrap-env": ["./packages/agent-cli/src/bootstrap-env.ts"],
+      "@moontide/agent-cli/log/setup": ["./packages/agent-cli/src/log/setup.ts"]
     }
   },
-  "include": ["apps/moontide/src/**/*.ts", "packages/**/src/**/*.ts", "packages/evals/**/*.ts"]
+  "include": ["packages/agent-cli/src/**/*.ts", "packages/**/src/**/*.ts", "packages/evals/**/*.ts"]
 }

@@ -1,5 +1,5 @@
 {
-  "extends": "./apps/moontide/tsconfig.build.json",
+  "extends": "./packages/agent-cli/tsconfig.build.json",
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true
@@ -15,7 +15,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "apps/moontide/dist",
+    "packages/agent-cli/dist",
     "packages/tools/src/extensions/code-repl/templates/bodies"
   ]
 }

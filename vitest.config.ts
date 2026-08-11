@@ -12,8 +12,20 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@moontide/agent-common",
-        replacement: path.resolve(root, "packages/agent-common/src/index.ts"),
+        find: "@moontide/run-protocol",
+        replacement: path.resolve(root, "packages/run-protocol/src/index.ts"),
+      },
+      {
+        find: "@moontide/agent/testing",
+        replacement: path.resolve(root, "packages/agent/src/testing/index.ts"),
+      },
+      {
+        find: "@moontide/agent/load-env",
+        replacement: path.resolve(root, "packages/agent/src/app/load-env.ts"),
+      },
+      {
+        find: "@moontide/agent",
+        replacement: path.resolve(root, "packages/agent/src/index.ts"),
       },
       {
         find: "@moontide/agent-core",
@@ -94,6 +106,14 @@ export default defineConfig({
       {
         find: "@moontide/sidecar-host",
         replacement: path.resolve(root, "packages/sidecar-host/src/index.ts"),
+      },
+      {
+        find: "@moontide/agent-cli/bootstrap-env",
+        replacement: path.resolve(root, "packages/agent-cli/src/bootstrap-env.ts"),
+      },
+      {
+        find: "@moontide/agent-cli/log/setup",
+        replacement: path.resolve(root, "packages/agent-cli/src/log/setup.ts"),
       },
     ],
   },
