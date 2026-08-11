@@ -1,5 +1,9 @@
 /** Minimal LLM-facing message roles for agent-core transcript. */
 
+import type { ToolArgumentStatus } from "@moontide/shared/protocol/tool.js";
+
+export type { ToolArgumentStatus };
+
 export interface TextContent {
   type: "text";
   text: string;
@@ -9,8 +13,6 @@ export interface ThinkingContent {
   type: "thinking";
   text: string;
 }
-
-export type ToolArgumentStatus = "ok" | "malformed_tool_arguments";
 
 export interface ToolCallContent {
   type: "toolCall";

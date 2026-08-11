@@ -10,7 +10,12 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "composite": true
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@moontide/shared": ["../shared/dist/index.d.ts"],
+      "@moontide/shared/*": ["../shared/dist/*"]
+    }
   },
   "include": [
     "src/**/*.ts"

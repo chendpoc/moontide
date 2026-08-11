@@ -54,6 +54,18 @@
 
 完整列表见 [`src/protocol/index.ts`](src/protocol/index.ts)。
 
+## 类型 import
+
+| 场景 | 从哪 import |
+|------|-------------|
+| Run 栈（core / harness loop） | **本包** — `RunEvent`, `RunConfig`, `AgentMessage`, ports |
+| LLM wire / compose | `@moontide/llm/protocol` — `Message`, `LLMRequest` |
+| Session 持久化 | `@moontide/session` |
+| 跨层 tool 枚举 | `@moontide/shared/protocol/tool`（本包 re-export `ToolArgumentStatus`） |
+| env / 路径 / 工具链错误 | `@moontide/shared` |
+
+全表：[`docs/spec/type-imports.md`](../../docs/spec/type-imports.md)。
+
 ## 最小用法
 
 ```ts

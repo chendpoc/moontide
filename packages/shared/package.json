@@ -24,6 +24,10 @@
       "types": "./dist/storage/*.d.ts",
       "import": "./dist/storage/*"
     },
+    "./protocol/*": {
+      "types": "./dist/protocol/*.d.ts",
+      "import": "./dist/protocol/*"
+    },
     "./package.json": "./package.json"
   },
   "files": ["dist"],

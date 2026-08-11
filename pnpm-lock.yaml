@@ -197,7 +197,11 @@ importers:
         specifier: workspace:*
         version: link:../tools
 
-  packages/run-protocol: {}
+  packages/run-protocol:
+    dependencies:
+      '@moontide/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/session:
     dependencies:

@@ -1,5 +1,9 @@
 /** MoonTide LLM protocol types. See docs/spec/llm-provider.md §9.1. */
 
+import type { ToolArgumentStatus } from "@moontide/shared/protocol/tool.js";
+
+export type { ToolArgumentStatus };
+
 export type Role = "user" | "assistant";
 
 export type ThinkingLevel = "off" | "low" | "medium" | "high";
@@ -10,8 +14,6 @@ export type ToolChoice =
   | { mode: "auto" }
   | { mode: "required" }
   | { mode: "specified"; name: string };
-
-export type ToolArgumentStatus = "ok" | "malformed_tool_arguments";
 
 export type ContentBlock =
   | { type: "text"; text: string }

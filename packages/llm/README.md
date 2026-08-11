@@ -67,6 +67,18 @@
 
 完整列表见 [`src/index.ts`](src/index.ts)。
 
+## 类型 import
+
+| 场景 | 从哪 import |
+|------|-------------|
+| LLM request/response / tools | **本包** `@moontide/llm/protocol` |
+| Model profile / registry | `@moontide/llm/models` |
+| Run loop / transcript | `@moontide/run-protocol`（经 Harness 边界转换；compose 层不用） |
+| Session / compile | `@moontide/session`, `@moontide/context-composer` |
+| 跨层 tool 枚举 | 本包 re-export；唯一定义 `@moontide/shared/protocol/tool` |
+
+全表：[`docs/spec/type-imports.md`](../../docs/spec/type-imports.md)。
+
 ## 最小用法
 
 ### Mock Provider（单测 / L1 eval）

@@ -326,7 +326,7 @@ describe("architecture boundaries (structural invariants)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("failures.ts publishes errors via AgentEventPipeline", () => {
+  it("failures.ts publishes errors via AgentEventOutputs", () => {
     const source = readFileSync(repoPath("packages/agent/src/agent/run-observers/failures.ts"), "utf8");
     expect(source).toContain("publishAgentError");
     expect(source).not.toContain("errors/report");
@@ -433,6 +433,22 @@ describe("architecture boundaries (structural invariants)", () => {
   it("src/ does not export _-prefixed functions (module-internal convention)", () => {
     const exportPattern = /export\s+(async\s+)?function\s+_/;
     const offenders = scanTsFiles(repoPath("packages/agent-cli/src"), exportPattern);
+    expect(offenders).toEqual([]);
+  });
+
+  it("ToolArgumentStatus is defined only in @moontide/shared/protocol", () => {
+    const defPattern = /export\s+type\s+ToolArgumentStatus\s*=/;
+    const packageRoots = [
+      "packages/run-protocol/src",
+      "packages/llm/src",
+      "packages/agent-core/src",
+      "packages/agent/src",
+      "packages/session/src",
+      "packages/context-composer/src",
+      "packages/tools/src",
+      "packages/log/src",
+    ];
+    const offenders = packageRoots.flatMap((rel) => scanTsFiles(repoPath(rel), defPattern));
     expect(offenders).toEqual([]);
   });
 });
