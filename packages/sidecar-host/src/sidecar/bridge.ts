@@ -23,13 +23,13 @@ function registerInProcessPlugin(
   runtime: SidecarHostRuntimePort,
 ): () => void {
   const hookDisposers: Array<() => void> = [];
-  const hooks = runtime.sidecarHooks();
+  const observers = runtime.sidecarObservers();
 
   for (const [phase, handlers] of Object.entries(definition.hooks ?? {})) {
     for (const [name, entry] of Object.entries(handlers ?? {})) {
       const resolved = resolveSidecarHookEntry(entry);
       hookDisposers.push(
-        hooks.on(phase, hookHandlerName(pluginId, name), resolved.handler, {
+        observers.on(phase, hookHandlerName(pluginId, name), resolved.handler, {
           order: resolved.order,
           errorPolicy: resolved.errorPolicy,
         }),
@@ -92,10 +92,10 @@ export class SidecarBridge {
   }
 
   private registerRemote(hookSpecs: SidecarHookSpec[], toolSpecs: SidecarToolSpec[]): void {
-    const hooks = this.runtime.sidecarHooks();
+    const observers = this.runtime.sidecarObservers();
     for (const spec of hookSpecs) {
       this.hookDisposers.push(
-        hooks.on(
+        observers.on(
           spec.phase,
           hookHandlerName(this.pluginId, spec.name),
           async (ctx) => this.transport!.dispatchHook(spec.phase, spec.name, ctx),

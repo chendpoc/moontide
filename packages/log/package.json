@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@moontide/agent-common": "workspace:*",
+    "@moontide/run-protocol": "workspace:*",
     "@moontide/shared": "workspace:*"
   },
   "license": "MIT"

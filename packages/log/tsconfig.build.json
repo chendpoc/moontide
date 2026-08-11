@@ -13,7 +13,7 @@
     "composite": true,
     "baseUrl": ".",
     "paths": {
-      "@moontide/agent-common": ["../agent-common/dist/index.d.ts"],
+      "@moontide/run-protocol": ["../run-protocol/dist/index.d.ts"],
       "@moontide/shared": ["../shared/dist/index.d.ts"],
       "@moontide/shared/*": ["../shared/dist/*"]
     }

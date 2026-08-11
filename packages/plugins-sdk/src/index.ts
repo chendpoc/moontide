@@ -10,5 +10,5 @@ export type {
   SidecarPluginDefinition,
   SidecarToolDefinition,
 } from "./define.js";
-export type { SidecarHookPhase } from "./phases.js";
+export type { SidecarHookPhase, SidecarObserverPhase } from "./phases.js";
 export type { SidecarHookSpec, SidecarToolSpec } from "./types.js";

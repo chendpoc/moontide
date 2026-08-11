@@ -2,7 +2,7 @@ import type { Message, ToolSchema } from "@moontide/llm/protocol";
 import type { ModelProfile } from "@moontide/llm/models";
 import type { BudgetConfig } from "../ports/budget-config.js";
 
-/** Context Budget Tiers. See docs/notes/context-backlog.md §3. */
+/** Context Budget Tiers. See docs/notes/context/context-backlog.md §3. */
 
 export type BudgetTier = "pinned" | "dialogue" | "reference" | "reserved" | "flex";
 

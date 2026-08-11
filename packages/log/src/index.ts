@@ -29,4 +29,4 @@ export type {
 } from "./types.js";
 
 // Re-export RunEvent types for RunEvent → Agent Event bridge consumers (derive stays in app).
-export type { RunEvent } from "@moontide/agent-common";
+export type { RunEvent } from "@moontide/run-protocol";

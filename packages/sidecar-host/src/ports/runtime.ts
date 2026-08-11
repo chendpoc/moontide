@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "@moontide/tools";
 
-export interface SidecarHookRegistryPort {
+export interface SidecarObserverRegistryPort {
   on(
     phase: string,
     name: string,
@@ -9,9 +9,12 @@ export interface SidecarHookRegistryPort {
   ): () => void;
 }
 
-/** Harness port: hook registry + tool registry merge for sidecar attach. */
+/** Harness port: run observer registry + tool registry merge for sidecar attach. */
 export interface SidecarHostRuntimePort {
-  sidecarHooks(): SidecarHookRegistryPort;
+  sidecarObservers(): SidecarObserverRegistryPort;
   pluginToolName(pluginId: string, toolName: string): string;
   addPluginTools(tools: ToolDefinition[]): () => void;
 }
+
+/** @deprecated Use SidecarObserverRegistryPort */
+export type SidecarHookRegistryPort = SidecarObserverRegistryPort;

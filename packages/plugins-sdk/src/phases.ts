@@ -1,5 +1,5 @@
-/** Legacy hook phase names; sidecar extensions register against these until RunConfig migration (M7). */
-export type SidecarHookPhase =
+/** Sidecar run observer phase names (RunConfig decision + RunEvent observe bridge). */
+export type SidecarObserverPhase =
   | "sessionItem"
   | "composeComplete"
   | "runStart"
@@ -11,3 +11,6 @@ export type SidecarHookPhase =
   | "beforeToolUse"
   | "toolUse"
   | "llmCall";
+
+/** @deprecated Use SidecarObserverPhase */
+export type SidecarHookPhase = SidecarObserverPhase;

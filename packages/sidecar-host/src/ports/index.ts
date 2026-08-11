@@ -1,1 +1,1 @@
-export type { SidecarHookRegistryPort, SidecarHostRuntimePort } from "./runtime.js";
+export type { SidecarHookRegistryPort, SidecarHostRuntimePort, SidecarObserverRegistryPort } from "./runtime.js";
