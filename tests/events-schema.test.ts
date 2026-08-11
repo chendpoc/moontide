@@ -6,7 +6,7 @@ import {
   emit,
   getCollectedEvents,
   resetRun,
-} from "../apps/moontide/src/log/index.js";
+} from "../packages/agent-cli/src/log/index.js";
 import { newTimestampedId } from "@moontide/shared/utils/id.js";
 
 describe("AgentEvent schema", () => {

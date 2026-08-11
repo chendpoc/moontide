@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { contextLimit } from "../apps/moontide/src/config.js";
+import { contextLimit } from "../packages/agent/src/config.js";
 import { resolveModelProfile } from "@moontide/llm/models";
 
 describe("llm model registry", () => {

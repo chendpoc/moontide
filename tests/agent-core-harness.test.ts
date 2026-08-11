@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
-import { createDefaultLoopContext } from "../apps/moontide/src/agent/deps.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
+import { createDefaultLoopContext } from "../packages/agent/src/agent/deps.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { setLLMProvider } from "@moontide/llm";
 import { sessionLogPath } from "@moontide/session";
 import { parseItems, readLines } from "@moontide/session";

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getOutputs } from "../apps/moontide/src/log/index.js";
-import { refreshEventOutputs, resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { applyAgentEventPipeline, resetEventPlatform } from "@moontide/agent";
+import { getOutputs } from "@moontide/log";
+import { createCliEventPipeline } from "../packages/agent-cli/src/log/cli-event-pipeline.js";
 import { JsonlWriter } from "@moontide/log";
-import { StderrRenderer } from "../apps/moontide/src/log/outputs/stderr-renderer.js";
+import { StderrRenderer } from "../packages/agent-cli/src/log/outputs/stderr-renderer.js";
 
 describe("event output setup", () => {
   beforeEach(() => {
@@ -14,8 +15,8 @@ describe("event output setup", () => {
     resetEventPlatform();
   });
 
-  it("registers JsonlWriter and StderrRenderer", () => {
-    refreshEventOutputs();
+  it("registers JsonlWriter and StderrRenderer via createCliEventPipeline", () => {
+    applyAgentEventPipeline(createCliEventPipeline("/tmp/moontide-output-test"));
     const types = getOutputs().map((output) => output.constructor);
     expect(types).toEqual([JsonlWriter, StderrRenderer]);
   });

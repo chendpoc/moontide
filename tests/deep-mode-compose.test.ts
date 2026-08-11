@@ -4,16 +4,16 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { composeForSession } from "../apps/moontide/src/agent/compose-for-turn.js";
+import { composeForSession } from "../packages/agent/src/agent/compose-for-turn.js";
 import {
   applyDeepPromptGate,
   getActiveWorkMemId,
   resetDeepModeOnNewSession,
-} from "../apps/moontide/src/agent/deep-mode.js";
+} from "../packages/agent/src/agent/deep-mode.js";
 import { composeContext } from "@moontide/context-composer";
 import { defaultCompactionPolicy } from "@moontide/context-composer";
 import { resolveToolDefinitions } from "@moontide/context-composer";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { runWorkMem } from "@moontide/tools";
 import { readWorkMemEvents } from "@moontide/tools";
 import { Session } from "@moontide/session";

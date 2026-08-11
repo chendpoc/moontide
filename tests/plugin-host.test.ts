@@ -45,6 +45,6 @@ describe("sidecar plugin attach", () => {
     expect(runtime.plugins.listAttached()).toHaveLength(1);
     expect(runtime.tools.getTool("hello__echo")).toBeDefined();
 
-    await runtime.hooks.dispatch("runStart", { userPrompt: "plugin time" });
+    await runtime.observers.dispatch("runStart", { userPrompt: "plugin time" });
   });
 });

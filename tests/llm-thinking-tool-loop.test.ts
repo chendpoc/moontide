@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   assistantMessageToContentBlocks,
   llmResponseToAssistantMessage,
-} from "../apps/moontide/src/agent/harness/message-map.js";
+} from "../packages/agent/src/agent/harness/message-map.js";
 import { toOpenAiChatMessages } from "../packages/llm/src/normalize/to-openai-chat-messages.js";
 import { messagesFromContext, messagesFromItems } from "@moontide/session";
 import type { SessionItem } from "@moontide/session";

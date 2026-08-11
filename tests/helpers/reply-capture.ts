@@ -1,4 +1,4 @@
-import { setStderrWriterForTest } from "../../apps/moontide/src/terminal/write.js";
+import { setStderrWriterForTest } from "../../packages/agent-cli/src/terminal/write.js";
 
 export function replyLines(run: () => void): string[] {
   const lines: string[] = [];

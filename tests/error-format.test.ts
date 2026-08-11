@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ErrorCode } from "@moontide/shared/errors/codes.js";
-import { formatErrorTerminal, formatPluginErrorEvent } from "../apps/moontide/src/log/format/format-error.js";
+import { formatErrorTerminal, formatPluginErrorEvent } from "../packages/agent-cli/src/log/format/format-error.js";
 import { stripAnsi } from "@moontide/shared/utils/text.js";
 
 describe("formatErrorTerminal", () => {

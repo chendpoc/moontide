@@ -1,19 +1,19 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
 import {
   composeContext,
   defaultCompactionPolicy,
   resolveToolDefinitions,
 } from "@moontide/context-composer";
-import { composePortsFromConfig } from "../apps/moontide/src/agent/compose-options.js";
+import { composePortsFromConfig } from "../packages/agent/src/agent/compose-options.js";
 import {
   createStubArtifactStore,
   createStubCompactionStore,
   FileCheckpointStore,
 } from "@moontide/session";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { checkpointPath } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

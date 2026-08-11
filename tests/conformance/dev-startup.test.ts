@@ -13,14 +13,14 @@ import {
 import {
   findWorkspaceRoot,
   loadBootstrapEnv,
-} from "../../apps/moontide/src/bootstrap-env.js";
+} from "../../packages/agent-cli/src/bootstrap-env.js";
 import { repoPath } from "../helpers/source-scan.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "../helpers/tmp-workdir.js";
 
 const execFileAsync = promisify(execFile);
 const tsxBin = repoPath("node_modules/.bin/tsx");
 const tsconfigDev = "../../tsconfig.dev.json";
-const appCwd = repoPath("apps/moontide");
+const appCwd = repoPath("packages/agent-cli");
 
 async function runTsxFixture(
   scriptPath: string,
@@ -77,8 +77,8 @@ describe("dev startup (bootstrap env)", () => {
 
   it("findWorkspaceRoot stops at pnpm-workspace.yaml", () => {
     tmpRoot = createTmpWorkdir("moontide-bootstrap-");
-    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
-    const nested = path.join(tmpRoot, "apps", "moontide", "src");
+    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+    const nested = path.join(tmpRoot, "packages", "agent-cli", "src");
     mkdirSync(nested, { recursive: true });
 
     expect(findWorkspaceRoot(nested)).toBe(tmpRoot);
@@ -94,12 +94,12 @@ describe("dev startup (bootstrap env)", () => {
 
   it("loadBootstrapEnv reads workspace root .env and defaults MOONTIDE_WORKDIR", () => {
     tmpRoot = createTmpWorkdir("moontide-bootstrap-");
-    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
+    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
     writeFileSync(
       path.join(tmpRoot, ".env"),
       "MOONTIDE_DEV_BOOTSTRAP_PROBE=from-root\nDEEPSEEK_API_KEY=sk-root\n",
     );
-    const appRoot = path.join(tmpRoot, "apps", "moontide");
+    const appRoot = path.join(tmpRoot, "packages", "agent-cli");
     mkdirSync(appRoot, { recursive: true });
 
     saveEnv(["MOONTIDE_WORKDIR", "DEEPSEEK_API_KEY", "MOONTIDE_DEV_BOOTSTRAP_PROBE"]);
@@ -117,9 +117,9 @@ describe("dev startup (bootstrap env)", () => {
 
   it("app .env overrides workspace root .env", () => {
     tmpRoot = createTmpWorkdir("moontide-bootstrap-");
-    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
+    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
     writeFileSync(path.join(tmpRoot, ".env"), "DEEPSEEK_API_KEY=sk-root\n");
-    const appRoot = path.join(tmpRoot, "apps", "moontide");
+    const appRoot = path.join(tmpRoot, "packages", "agent-cli");
     mkdirSync(appRoot, { recursive: true });
     writeFileSync(path.join(appRoot, ".env"), "DEEPSEEK_API_KEY=sk-app\n");
 
@@ -134,8 +134,8 @@ describe("dev startup (bootstrap env)", () => {
 
   it("loads app .env when workspace root has no .env", () => {
     tmpRoot = createTmpWorkdir("moontide-bootstrap-");
-    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
-    const appRoot = path.join(tmpRoot, "apps", "moontide");
+    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+    const appRoot = path.join(tmpRoot, "packages", "agent-cli");
     mkdirSync(appRoot, { recursive: true });
     writeFileSync(path.join(appRoot, ".env"), "DEEPSEEK_API_KEY=sk-app-only\n");
 
@@ -150,8 +150,8 @@ describe("dev startup (bootstrap env)", () => {
 
   it("does not override MOONTIDE_WORKDIR when already set", () => {
     tmpRoot = createTmpWorkdir("moontide-bootstrap-");
-    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
-    const appRoot = path.join(tmpRoot, "apps", "moontide");
+    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+    const appRoot = path.join(tmpRoot, "packages", "agent-cli");
     mkdirSync(appRoot, { recursive: true });
     const preset = path.join(tmpRoot, "preset-workdir");
 
@@ -163,10 +163,10 @@ describe("dev startup (bootstrap env)", () => {
     expect(process.env.MOONTIDE_WORKDIR).toBe(preset);
   });
 
-  it("does not default MOONTIDE_WORKDIR when appRoot is not apps/moontide", () => {
+  it("does not default MOONTIDE_WORKDIR when appRoot is not packages/agent-cli", () => {
     tmpRoot = createTmpWorkdir("moontide-bootstrap-");
-    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
-    const appRoot = path.join(tmpRoot, "apps", "other");
+    writeFileSync(path.join(tmpRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+    const appRoot = path.join(tmpRoot, "packages", "other");
     mkdirSync(appRoot, { recursive: true });
 
     saveEnv(["MOONTIDE_WORKDIR"]);
@@ -215,12 +215,12 @@ describe("dev startup (runtime via tsx, not vitest aliases)", { timeout: 60_000 
   it("resolveRoute succeeds after loadBootstrapEnv with workspace .env", async () => {
     const routeRoot = createTmpWorkdir("moontide-resolve-route-");
     try {
-      writeFileSync(path.join(routeRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
+      writeFileSync(path.join(routeRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
       writeFileSync(
         path.join(routeRoot, ".env"),
         "DEEPSEEK_API_KEY=sk-from-env\nMODEL_ID=deepseek-v4-pro\n",
       );
-      mkdirSync(path.join(routeRoot, "apps", "moontide"), { recursive: true });
+      mkdirSync(path.join(routeRoot, "packages", "agent-cli"), { recursive: true });
 
       const stdout = await runTsxFixture(
         repoPath("tests/fixtures/dev-resolve-route.mts"),
@@ -236,8 +236,8 @@ describe("dev startup (runtime via tsx, not vitest aliases)", { timeout: 60_000 
   it("resolveRoute fails when bootstrap finds no API keys", async () => {
     const routeRoot = createTmpWorkdir("moontide-resolve-route-");
     try {
-      writeFileSync(path.join(routeRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
-      mkdirSync(path.join(routeRoot, "apps", "moontide"), { recursive: true });
+      writeFileSync(path.join(routeRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+      mkdirSync(path.join(routeRoot, "packages", "agent-cli"), { recursive: true });
 
       const stdout = await runTsxFixture(
         repoPath("tests/fixtures/dev-resolve-route.mts"),
@@ -295,7 +295,7 @@ describe("dev alias sync (tsconfig.dev.json vs vitest.config.ts)", () => {
 });
 
 describe("production start (compiled dist, not tsx dev paths)", { timeout: 30_000 }, () => {
-  const distBootstrap = repoPath("apps/moontide/dist/bootstrap.js");
+  const distBootstrap = repoPath("packages/agent-cli/dist/bootstrap.js");
 
   it.skipIf(!existsSync(distBootstrap))(
     "compiled bootstrap + tools + llm route via package exports",
@@ -303,8 +303,7 @@ describe("production start (compiled dist, not tsx dev paths)", { timeout: 30_00
       const script = `
         process.env.DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY ?? "sk-prod-smoke";
         await import("./dist/bootstrap.js");
-        const { setupToolsPorts } = await import("./dist/agent/tools-setup.js");
-        const { getAgentRuntime } = await import("./dist/agent/runtime/index.js");
+        const { setupToolsPorts, getAgentRuntime } = await import("@moontide/agent");
         const { resolveRoute } = await import("@moontide/llm");
         setupToolsPorts();
         const runtime = getAgentRuntime();
@@ -315,7 +314,7 @@ describe("production start (compiled dist, not tsx dev paths)", { timeout: 30_00
       `;
 
       const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", script], {
-        cwd: repoPath("apps/moontide"),
+        cwd: repoPath("packages/agent-cli"),
         env: {
           ...process.env,
           DEEPSEEK_API_KEY: "sk-prod-smoke",
@@ -328,9 +327,9 @@ describe("production start (compiled dist, not tsx dev paths)", { timeout: 30_00
     },
   );
 
-  it("requires apps/moontide/dist for production smoke (run pnpm build)", () => {
+  it("requires packages/agent-cli/dist for production smoke (run pnpm build)", () => {
     if (existsSync(distBootstrap)) {
-      expect(existsSync(repoPath("apps/moontide/dist/main.js"))).toBe(true);
+      expect(existsSync(repoPath("packages/agent-cli/dist/main.js"))).toBe(true);
       return;
     }
     expect(existsSync(distBootstrap)).toBe(true);
@@ -339,7 +338,7 @@ describe("production start (compiled dist, not tsx dev paths)", { timeout: 30_00
 
 describe("vitest setup (bootstrap side effect)", () => {
   it("tests/setup.ts loads bootstrap before app modules (getWorkdir is absolute)", async () => {
-    const { getWorkdir } = await import("../../apps/moontide/src/config.js");
+    const { getWorkdir } = await import("../../packages/agent/src/config.js");
     expect(path.isAbsolute(getWorkdir())).toBe(true);
   });
 });

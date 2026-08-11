@@ -10,7 +10,7 @@ if (!workspaceRoot) {
 const appRoot = path.join(workspaceRoot, "apps", "moontide");
 
 if (mode === "with-env") {
-  const { loadBootstrapEnv } = await import("../../apps/moontide/src/bootstrap-env.js");
+  const { loadBootstrapEnv } = await import("../../packages/agent-cli/src/bootstrap-env.js");
   loadBootstrapEnv(appRoot);
   const { resolveRoute } = await import("@moontide/llm");
   const route = resolveRoute();
@@ -18,7 +18,7 @@ if (mode === "with-env") {
 } else if (mode === "no-key") {
   delete process.env.DEEPSEEK_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
-  const { loadBootstrapEnv } = await import("../../apps/moontide/src/bootstrap-env.js");
+  const { loadBootstrapEnv } = await import("../../packages/agent-cli/src/bootstrap-env.js");
   loadBootstrapEnv(appRoot);
   const { resolveRoute } = await import("@moontide/llm");
   try {

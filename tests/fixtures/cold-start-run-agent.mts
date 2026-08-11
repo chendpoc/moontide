@@ -7,10 +7,11 @@ process.env.MOONTIDE_WORKDIR = workdir;
 process.env.DEEPSEEK_API_KEY = "sk-cold-start";
 process.env.MOONTIDE_ENV = "production";
 
-await import("../../apps/moontide/src/bootstrap.js");
+await import("../../packages/agent-cli/src/bootstrap.js");
 
 const { setLLMProvider } = await import("@moontide/llm");
-const { runAgent } = await import("../../apps/moontide/src/agent/loop.js");
+const { runAgent } = await import("../../packages/agent/src/agent/loop.js");
+const { createCliEventPipeline } = await import("../../packages/agent-cli/src/log/cli-event-pipeline.js");
 
 setLLMProvider({
   chat: async () => ({
@@ -21,5 +22,5 @@ setLLMProvider({
   countTokens: async () => 1,
 });
 
-const reply = await runAgent("hi");
+const reply = await runAgent("hi", createCliEventPipeline(workdir));
 console.log(reply === "cold-ok" ? "ok" : `bad:${reply}`);

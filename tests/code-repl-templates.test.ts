@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../apps/moontide/src/config.js";
-import { executeTool, getToolDefinitions } from "../apps/moontide/src/tools/index.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
+import { executeTool, getToolDefinitions } from "../packages/agent/src/tools/index.js";
 import { expandTemplate, listTemplateIds } from "@moontide/tools";
 import { joinPath } from "@moontide/shared/utils/path.js";
 import {

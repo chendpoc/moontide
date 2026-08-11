@@ -1,23 +1,23 @@
 import { describe, expect, it, afterEach } from "vitest";
 import type { Interface } from "node:readline/promises";
 
-import { handleReplCommand } from "../apps/moontide/src/cli/commands/repl.js";
-import { resetReplConversation } from "../apps/moontide/src/cli/commands/reset.js";
-import { getReplAgentSession, resetReplSession, startReplSession } from "../apps/moontide/src/cli/repl/session.js";
+import { handleReplCommand } from "../packages/agent-cli/src/cli/commands/repl.js";
+import { resetReplConversation } from "../packages/agent-cli/src/cli/commands/reset.js";
+import { getReplAgentSession, resetReplSession, startReplSession } from "../packages/agent-cli/src/cli/repl/session.js";
 import {
   isThinkingEnabled,
   resetObservabilityOverrides,
-} from "../apps/moontide/src/log/modes.js";
+} from "../packages/agent-cli/src/log/modes.js";
 import {
   isAlwaysAllowEnabled,
   resetAlwaysAllowOverride,
   setAlwaysAllowOverride,
-} from "../apps/moontide/src/tools/always-allow-mode.js";
+} from "../packages/agent/src/tools/always-allow-mode.js";
 import {
   getDebugLevel,
   resetDebugOverride,
   setDebugOverride,
-} from "../apps/moontide/src/context-inspect/debug-mode.js";
+} from "../packages/agent/src/context-inspect/debug-mode.js";
 
 const fakeRl = {} as Interface;
 
@@ -90,7 +90,7 @@ describe("repl commands", () => {
   });
 
   it("groups help output by category", async () => {
-    const { replCommandHelpSections } = await import("../apps/moontide/src/cli/commands/registry.js");
+    const { replCommandHelpSections } = await import("../packages/agent-cli/src/cli/commands/registry.js");
     const sections = replCommandHelpSections();
     expect(sections.map((section) => section.category)).toEqual([
       "General",

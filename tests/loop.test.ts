@@ -1,17 +1,18 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
-import { createDefaultLoopContext } from "../apps/moontide/src/agent/deps.js";
-import type { LoopContext } from "../apps/moontide/src/agent/deps.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
-import { setupAgentEventPipeline } from "../apps/moontide/src/app/bootstrap.js";
-import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
+import { createDefaultLoopContext } from "../packages/agent/src/agent/deps.js";
+import type { LoopContext } from "../packages/agent/src/agent/deps.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
+import { setupAgentEventPipeline } from "../packages/agent/src/app/bootstrap.js";
+import { createCliEventPipeline } from "../packages/agent-cli/src/log/cli-event-pipeline.js";
+import { resetEventPlatform } from "../packages/agent-cli/src/log/setup.js";
 import { setLLMProvider } from "@moontide/llm";
 import type { UserInteraction } from "@moontide/tools";
 import { sessionLogPath } from "@moontide/session";
 import { joinPath } from "@moontide/shared/utils/path.js";
-import { resetAlwaysAllowOverride } from "../apps/moontide/src/tools/always-allow-mode.js";
+import { resetAlwaysAllowOverride } from "../packages/agent/src/tools/always-allow-mode.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
@@ -45,7 +46,7 @@ beforeEach(() => {
   tmpDir = createTmpWorkdir("moontide-agent-run-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
-  setupAgentEventPipeline(testRuntime);
+  setupAgentEventPipeline(testRuntime, createCliEventPipeline(tmpDir), tmpDir);
   chatMock = vi.fn();
   setLLMProvider(mockLLMProvider(chatMock));
 });

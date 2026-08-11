@@ -6,22 +6,22 @@ import {
   resetObservabilityOverrides,
   setThinkingOverride,
   setVerboseOverride,
-} from "../apps/moontide/src/log/modes.js";
+} from "../packages/agent-cli/src/log/modes.js";
 import {
   composeTerminalBlock,
   formatTerminalEventBlock,
   resetTerminalRenderState,
   shouldPrintTerminalEvent,
-} from "../apps/moontide/src/log/format/terminal.js";
+} from "../packages/agent-cli/src/log/format/terminal.js";
 import { stripAnsi } from "@moontide/shared/utils/text.js";
-import { StderrRenderer } from "../apps/moontide/src/log/outputs/stderr-renderer.js";
-import { setStderrWriterForTest } from "../apps/moontide/src/terminal/write.js";
+import { StderrRenderer } from "../packages/agent-cli/src/log/outputs/stderr-renderer.js";
+import { setStderrWriterForTest } from "../packages/agent-cli/src/terminal/write.js";
 import type { AgentEvent } from "@moontide/log";
 import {
   resetContextLangOverride,
   setContextLangOverride,
-} from "../apps/moontide/src/i18n/context/index.js";
-import type { ContextReport } from "../apps/moontide/src/context-inspect/types.js";
+} from "../packages/agent-cli/src/i18n/context/index.js";
+import type { ContextReport } from "../packages/agent/src/context-inspect/types.js";
 
 const THINKING_KEY = "MOONTIDE_THINKING";
 const VERBOSE_KEY = "MOONTIDE_VERBOSE";

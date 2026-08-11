@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
-import { applyDeepPromptGate } from "../apps/moontide/src/agent/deep-mode.js";
-import { createDefaultLoopContext } from "../apps/moontide/src/agent/deps.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
-import { setupAgentEventPipeline } from "../apps/moontide/src/app/bootstrap.js";
-import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
+import { applyDeepPromptGate } from "../packages/agent/src/agent/deep-mode.js";
+import { createDefaultLoopContext } from "../packages/agent/src/agent/deps.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
+import { resetEventPlatform } from "../packages/agent-cli/src/log/setup.js";
 import { setLLMProvider } from "@moontide/llm";
 import type { UserInteraction } from "@moontide/tools";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
@@ -34,8 +33,7 @@ describe("AgentRun deep mode compose path", () => {
     vi.stubEnv("MOONTIDE_ENV", "production");
     workdir = createTmpWorkdir("moontide-agent-run-deep-");
     setWorkdir(workdir);
-    const runtime = installTestRuntime(workdir);
-    setupAgentEventPipeline(runtime);
+    installTestRuntime(workdir);
     chatMock = vi.fn();
     setLLMProvider(mockLLMProvider(chatMock));
   });

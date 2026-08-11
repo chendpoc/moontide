@@ -1,19 +1,19 @@
 import { describe, expect, it, afterEach } from "vitest";
 
-import { collectStatusSnapshot, setReplPhase } from "../apps/moontide/src/cli/statusline/collect.js";
+import { collectStatusSnapshot, setReplPhase } from "../packages/agent-cli/src/cli/statusline/collect.js";
 import {
   formatSegmentCatalog,
   formatStatusLine,
-} from "../apps/moontide/src/cli/statusline/format.js";
-import { formatCompactTokens, formatContextSegment } from "../apps/moontide/src/cli/statusline/format-tokens.js";
-import { formatActivityLine, resetActivityForTest, startActivityLine, stopActivityLine, advanceActivityFrameForTest } from "../apps/moontide/src/cli/statusline/activity.js";
-import { renderStatusSegments } from "../apps/moontide/src/cli/statusline/segments.js";
-import type { StatusSnapshot } from "../apps/moontide/src/cli/statusline/types.js";
-import { resetStatusLineRender, beginAgentActivity, endAgentActivity } from "../apps/moontide/src/cli/statusline/render.js";
-import { setVerboseOverride, resetObservabilityOverrides } from "../apps/moontide/src/log/modes.js";
-import { formatDeltaColored, formatDeltaPlain } from "../apps/moontide/src/log/format/format-delta.js";
-import { resetContextLangOverride } from "../apps/moontide/src/i18n/context/index.js";
-import { resetLocaleOverride, setLocaleOverride } from "../apps/moontide/src/i18n/locale.js";
+} from "../packages/agent-cli/src/cli/statusline/format.js";
+import { formatCompactTokens, formatContextSegment } from "../packages/agent-cli/src/cli/statusline/format-tokens.js";
+import { formatActivityLine, resetActivityForTest, startActivityLine, stopActivityLine, advanceActivityFrameForTest } from "../packages/agent-cli/src/cli/statusline/activity.js";
+import { renderStatusSegments } from "../packages/agent-cli/src/cli/statusline/segments.js";
+import type { StatusSnapshot } from "../packages/agent-cli/src/cli/statusline/types.js";
+import { resetStatusLineRender, beginAgentActivity, endAgentActivity } from "../packages/agent-cli/src/cli/statusline/render.js";
+import { setVerboseOverride, resetObservabilityOverrides } from "../packages/agent-cli/src/log/modes.js";
+import { formatDeltaColored, formatDeltaPlain } from "../packages/agent-cli/src/log/format/format-delta.js";
+import { resetContextLangOverride } from "../packages/agent-cli/src/i18n/context/index.js";
+import { resetLocaleOverride, setLocaleOverride } from "../packages/agent-cli/src/i18n/locale.js";
 import { stripAnsi } from "@moontide/shared/utils/text.js";
 
 function baseSnapshot(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
@@ -130,7 +130,7 @@ describe("statusline render", () => {
     }) as typeof process.stderr.write;
 
     try {
-      const { renderStatusLineAsync } = await import("../apps/moontide/src/cli/statusline/render.js");
+      const { renderStatusLineAsync } = await import("../packages/agent-cli/src/cli/statusline/render.js");
       await renderStatusLineAsync();
       await renderStatusLineAsync();
       expect(writes).toHaveLength(1);
@@ -155,7 +155,7 @@ describe("statusline render", () => {
     try {
       setReplPhase("running");
       startActivityLine();
-      const { renderStatusStackAsync } = await import("../apps/moontide/src/cli/statusline/render-stack.js");
+      const { renderStatusStackAsync } = await import("../packages/agent-cli/src/cli/statusline/render-stack.js");
       await renderStatusStackAsync();
       expect(writes).toHaveLength(2);
 
@@ -214,8 +214,8 @@ describe("statusline unpin", () => {
     Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
 
     try {
-      const { renderStatusStackAsync } = await import("../apps/moontide/src/cli/statusline/render-stack.js");
-      const { reply } = await import("../apps/moontide/src/cli/commands/io.js");
+      const { renderStatusStackAsync } = await import("../packages/agent-cli/src/cli/statusline/render-stack.js");
+      const { reply } = await import("../packages/agent-cli/src/cli/commands/io.js");
 
       await renderStatusStackAsync();
       expect(writes.length).toBeGreaterThan(0);

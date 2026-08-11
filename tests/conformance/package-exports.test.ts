@@ -102,6 +102,12 @@ describe("package exports (Node resolution conformance)", { timeout: 30_000 }, (
 describe("package exports (runtime via Node, not vitest aliases)", { timeout: 30_000 }, () => {
   const sharedDist = repoPath("packages/shared/dist/utils/text.js");
   const sessionDist = repoPath("packages/session/dist/block-registry.js");
+  const runStackDist = {
+    runProtocol: repoPath("packages/run-protocol/dist/index.js"),
+    agentCore: repoPath("packages/agent-core/dist/index.js"),
+    agent: repoPath("packages/agent/dist/index.js"),
+    agentCliBootstrapEnv: repoPath("packages/agent-cli/dist/bootstrap-env.js"),
+  };
 
   it("built dist is present for Node export runtime conformance", () => {
     expect(
@@ -109,6 +115,43 @@ describe("package exports (runtime via Node, not vitest aliases)", { timeout: 30
       "Run pnpm build:core before relying on Node export runtime tests",
     ).toBe(true);
     expect(existsSync(sessionDist)).toBe(true);
+  });
+
+  it("built dist is present for run stack package exports", () => {
+    const missing = Object.entries(runStackDist)
+      .filter(([, filePath]) => !existsSync(filePath))
+      .map(([name]) => name);
+    expect(
+      missing,
+      `Run pnpm build:core — missing dist: ${missing.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("Node can import run stack dist exports (run-protocol · agent-core · agent · agent-cli/bootstrap-env)", async () => {
+    const missing = Object.values(runStackDist).filter((filePath) => !existsSync(filePath));
+    if (missing.length > 0) {
+      return;
+    }
+
+    const script = `
+      import { PROTOCOL_VERSION } from "@moontide/run-protocol";
+      import { createRunEventBus } from "@moontide/agent-core";
+      import { createAgentRuntime, loadWorkspaceEnv } from "@moontide/agent";
+      import { loadBootstrapEnv } from "@moontide/agent-cli/bootstrap-env";
+      if (PROTOCOL_VERSION !== 2) process.exit(2);
+      if (typeof createRunEventBus !== "function") process.exit(3);
+      if (typeof createAgentRuntime !== "function") process.exit(4);
+      if (typeof loadWorkspaceEnv !== "function") process.exit(5);
+      if (typeof loadBootstrapEnv !== "function") process.exit(6);
+      console.log("ok");
+    `;
+
+    const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", script], {
+      cwd: repoPath("packages/agent-cli"),
+      env: process.env,
+    });
+
+    expect(stdout.trim()).toBe("ok");
   });
 
   it("Node can import shared subpath and session/block-registry (dev startup chain)", async () => {
@@ -124,7 +167,7 @@ describe("package exports (runtime via Node, not vitest aliases)", { timeout: 30
     `;
 
     const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", script], {
-      cwd: repoPath("apps/moontide"),
+      cwd: repoPath("packages/agent-cli"),
       env: process.env,
     });
 
@@ -137,7 +180,7 @@ describe("package exports (runtime via Node, not vitest aliases)", { timeout: 30
     const { stdout } = await execFileAsync(
       tsxBin,
       ["--tsconfig", "../../tsconfig.dev.json", scriptPath],
-      { cwd: repoPath("apps/moontide"), env: process.env, timeout: 15_000 },
+      { cwd: repoPath("packages/agent-cli"), env: process.env, timeout: 15_000 },
     );
     expect(stdout.trim()).toBe("ok");
   });
@@ -148,7 +191,7 @@ describe("package exports (runtime via Node, not vitest aliases)", { timeout: 30
     const { stdout } = await execFileAsync(
       tsxBin,
       ["--tsconfig", "../../tsconfig.dev.json", scriptPath],
-      { cwd: repoPath("apps/moontide"), env: process.env, timeout: 15_000 },
+      { cwd: repoPath("packages/agent-cli"), env: process.env, timeout: 15_000 },
     );
     expect(stdout.trim()).toBe("ok");
   });

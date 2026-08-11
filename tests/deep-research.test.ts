@@ -6,7 +6,7 @@ import {
   runDeepResearch,
   tavilySearch,
 } from "@moontide/tools";
-import { registerDefaultTools as registerHarnessTools } from "../apps/moontide/src/tools/register-defaults.js";
+import { registerDefaultTools as registerHarnessTools } from "../packages/agent/src/tools/register-defaults.js";
 
 const ENV_KEY = "MOONTIDE_DEEP_RESEARCH";
 const TAVILY_KEY = "MOONTIDE_TAVILY_API_KEY";

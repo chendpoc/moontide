@@ -7,8 +7,8 @@ import {
   pruneCompact,
   estimateDialogueCompactionTokens,
 } from "@moontide/context-composer";
-import { buildDefaultBasePrompt } from "../apps/moontide/src/agent/prompt.js";
-import { getToolDefinitions } from "../apps/moontide/src/tools/index.js";
+import { buildDefaultBasePrompt } from "../packages/agent/src/agent/prompt.js";
+import { getToolDefinitions } from "../packages/agent/src/tools/index.js";
 import { getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 const compactOptions = { keepTurns: 1, modelId: "claude-test" };

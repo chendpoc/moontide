@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createRunEventBus } from "@moontide/agent-core";
-import { createReplConversationStreamListener } from "../apps/moontide/src/log/repl-conversation-stream.js";
+import { createReplConversationStreamListener } from "../packages/agent-cli/src/log/repl-conversation-stream.js";
 
 describe("repl conversation stream", () => {
   it("flushes assistant text on message_end before tool execution continues", () => {

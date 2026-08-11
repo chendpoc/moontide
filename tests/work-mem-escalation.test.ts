@@ -8,8 +8,8 @@ import {
   applyDeepPromptGate,
   getActiveWorkMemId,
   resetDeepModeOnNewSession,
-} from "../apps/moontide/src/agent/deep-mode.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+} from "../packages/agent/src/agent/deep-mode.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import {
   estimatePackTokens,
   resolveWorkingSetSnapshot,

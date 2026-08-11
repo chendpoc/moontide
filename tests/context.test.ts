@@ -1,12 +1,12 @@
 import { describe, expect, it, afterEach } from "vitest";
 
-import { buildContextReport } from "../apps/moontide/src/context-inspect/analyze.js";
-import { formatContext, getSummary } from "../apps/moontide/src/context-inspect/format.js";
-import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../apps/moontide/src/context-inspect/metrics.js";
-import { buildSnapshot } from "../apps/moontide/src/context-inspect/snapshot.js";
-import { resetRuntimeStatus, publishContextReport } from "../apps/moontide/src/agent/context-status.js";
-import { resetContextLangOverride, setContextLangOverride } from "../apps/moontide/src/i18n/context/index.js";
-import type { ContextSnapshot } from "../apps/moontide/src/context-inspect/types.js";
+import { buildContextReport } from "../packages/agent/src/context-inspect/analyze.js";
+import { formatContext, getSummary } from "../packages/agent/src/context-inspect/format.js";
+import { estimateBreakdown, estimateTextTokens, buildMessageLines } from "../packages/agent/src/context-inspect/metrics.js";
+import { buildSnapshot } from "../packages/agent/src/context-inspect/snapshot.js";
+import { resetRuntimeStatus, publishContextReport } from "../packages/agent/src/agent/context-status.js";
+import { resetContextLangOverride, setContextLangOverride } from "../packages/agent-cli/src/i18n/context/index.js";
+import type { ContextSnapshot } from "../packages/agent/src/context-inspect/types.js";
 
 function makeSnapshot(overrides: Partial<ContextSnapshot> = {}): ContextSnapshot {
   return {
@@ -116,10 +116,11 @@ describe("context analyze/format", () => {
     expect(turn2.trend.deltaTokens).toBe(turn2.estimatedTokens - turn1.estimatedTokens);
   });
 
-  it("formats summary in Chinese when lang override is zh", () => {
+  it("harness format uses English copy regardless of CLI lang override", () => {
     setContextLangOverride("zh");
     const report = buildContextReport(makeSnapshot());
-    expect(getSummary(report)).toContain("第 1 轮");
+    expect(getSummary(report)).toContain("Turn 1");
+    expect(getSummary(report)).not.toContain("第 1 轮");
     resetContextLangOverride();
   });
 });

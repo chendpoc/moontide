@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ContentBlock } from "@moontide/llm/protocol";
 
-import { createSessionCommitPort } from "../apps/moontide/src/agent/session-commit-port.js";
-import { runToolUse } from "../apps/moontide/src/agent/pipeline/index.js";
-import { setWorkdir, artifactSpillThresholdBytes, toolPreviewChars, spillOptions } from "../apps/moontide/src/config.js";
+import { createSessionCommitPort } from "../packages/agent/src/agent/session-commit-port.js";
+import { runToolUse } from "../packages/agent/src/agent/pipeline/index.js";
+import { setWorkdir, artifactSpillThresholdBytes, toolPreviewChars, spillOptions } from "../packages/agent/src/config.js";
 import { FileArtifactStore, maybeSpillToolResult } from "@moontide/session";
 import { artifactMetaPath, artifactPath } from "@moontide/session";
 import { Session } from "@moontide/session";
@@ -95,7 +95,7 @@ describe("runToolUse artifact spill", () => {
     const stores = { artifacts: new FileArtifactStore(tmpDir) };
     const bigOutput = "y".repeat(500);
 
-    vi.spyOn(await import("../apps/moontide/src/tools/index.js"), "executeTool").mockResolvedValue(bigOutput);
+    vi.spyOn(await import("../packages/agent/src/tools/index.js"), "executeTool").mockResolvedValue(bigOutput);
 
     const block = {
       type: "tool_use" as const,

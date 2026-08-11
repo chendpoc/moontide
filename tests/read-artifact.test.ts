@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setWorkdir, spillOptions } from "../apps/moontide/src/config.js";
-import { executeTool } from "../apps/moontide/src/tools/index.js";
+import { setWorkdir, spillOptions } from "../packages/agent/src/config.js";
+import { executeTool } from "../packages/agent/src/tools/index.js";
 import { TOOL_NAMES } from "@moontide/tools";
 import { FileArtifactStore, maybeSpillToolResult } from "@moontide/session";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { runBash, runEdit, runListDir, runRead, runWrite, safePath } from "@moontide/tools";
 import { joinPath } from "@moontide/shared/utils/path.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

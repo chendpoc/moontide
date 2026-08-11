@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { applyDeepPromptGate, resetDeepModeOnNewSession } from "../apps/moontide/src/agent/deep-mode.js";
+import { applyDeepPromptGate, resetDeepModeOnNewSession } from "../packages/agent/src/agent/deep-mode.js";
 import { TOOL_NAMES } from "@moontide/tools";
 import { defineWorkMemTools } from "@moontide/tools";
 

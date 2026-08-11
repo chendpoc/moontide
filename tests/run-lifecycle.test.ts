@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
-import type { HookPhase } from "../apps/moontide/src/agent/hooks/phases.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
+import type { ObserverPhase } from "../packages/agent/src/agent/run-observers/phases.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { infraError } from "@moontide/shared/errors/factories.js";
 import { setLLMProvider } from "@moontide/llm";
-import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { resetEventPlatform } from "../packages/agent-cli/src/log/setup.js";
 import type { UserInteraction } from "@moontide/tools";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { mockLLMProvider, mockLLMResponse } from "./helpers/mock-llm.js";
@@ -19,12 +19,12 @@ const LIFECYCLE_PHASES = [
   "runEnd",
   "runFinalize",
   "runError",
-] as const satisfies readonly HookPhase[];
+] as const satisfies readonly ObserverPhase[];
 
 let tmpDir = "";
 let chatMock: ReturnType<typeof vi.fn>;
 let testRuntime: ReturnType<typeof installTestRuntime>;
-let phaseOrder: HookPhase[] = [];
+let phaseOrder: ObserverPhase[] = [];
 
 const denyAllInteraction: UserInteraction = {
   approveTool: async () => false,
@@ -35,7 +35,7 @@ const denyAllInteraction: UserInteraction = {
 
 function trackLifecyclePhases(): void {
   phaseOrder = [];
-  const sidecar = testRuntime.hookRegistry.sidecar();
+  const sidecar = testRuntime.observerRegistry.sidecar();
   for (const phase of LIFECYCLE_PHASES) {
     sidecar.on(phase, `lifecycle-probe-${phase}`, () => {
       phaseOrder.push(phase);
@@ -43,7 +43,7 @@ function trackLifecyclePhases(): void {
   }
 }
 
-function indicesOf(phase: HookPhase): number[] {
+function indicesOf(phase: ObserverPhase): number[] {
   return phaseOrder
     .map((entry, index) => (entry === phase ? index : -1))
     .filter((index) => index >= 0);
@@ -66,7 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("run lifecycle hooks", () => {
+describe("run lifecycle observers", () => {
   it("pairs runStart, turnStart/turnEnd, runEnd, and runFinalize on success", async () => {
     chatMock.mockResolvedValue(mockLLMResponse([{ type: "text", text: "ok" }]));
 

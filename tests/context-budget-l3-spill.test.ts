@@ -7,8 +7,8 @@ import {
   estimateReferenceTokens,
   resolveToolDefinitions,
 } from "@moontide/context-composer";
-import { composePortsFromConfig } from "../apps/moontide/src/agent/compose-options.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { composePortsFromConfig } from "../packages/agent/src/agent/compose-options.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { artifactPath } from "@moontide/session";
 import {
   createStubCheckpointStore,

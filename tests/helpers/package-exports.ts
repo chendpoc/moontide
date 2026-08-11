@@ -7,7 +7,7 @@ const MONOREPO_IMPORT = /from\s+["'](@moontide\/[^"']+)["']/g;
 
 const SCAN_ROOTS = [
   repoPath("packages"),
-  repoPath("apps/moontide/src"),
+  repoPath("packages/agent-cli/src"),
   repoPath("tests"),
 ];
 

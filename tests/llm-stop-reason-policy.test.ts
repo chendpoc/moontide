@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateLlmStopReason } from "../apps/moontide/src/agent/harness/stop-reason-policy.js";
+import { validateLlmStopReason } from "../packages/agent/src/agent/harness/stop-reason-policy.js";
 import type { LLMResponse } from "@moontide/llm/protocol";
 
 function response(over: Partial<LLMResponse>): LLMResponse {

@@ -2,11 +2,12 @@ import fs from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
-import { continueReplAgent } from "../apps/moontide/src/agent/loop.js";
-import { getWorkdir, setWorkdir } from "../apps/moontide/src/config.js";
-import { setupAgentEventPipeline } from "../apps/moontide/src/app/bootstrap.js";
-import { resetEventPlatform } from "../apps/moontide/src/log/setup.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
+import { continueReplAgent } from "../packages/agent/src/agent/loop.js";
+import { getWorkdir, setWorkdir } from "../packages/agent/src/config.js";
+import { setupAgentEventPipeline } from "../packages/agent/src/app/bootstrap.js";
+import { createCliEventPipeline } from "../packages/agent-cli/src/log/cli-event-pipeline.js";
+import { resetEventPlatform } from "../packages/agent-cli/src/log/setup.js";
 import { setLLMProvider } from "@moontide/llm";
 import type { UserInteraction } from "@moontide/tools";
 import { dataPath, joinPath } from "@moontide/shared/utils/path.js";
@@ -30,7 +31,7 @@ beforeEach(() => {
   tmpDir = createTmpWorkdir("moontide-run-storage-");
   setWorkdir(tmpDir);
   testRuntime = installTestRuntime(tmpDir);
-  setupAgentEventPipeline(testRuntime);
+  setupAgentEventPipeline(testRuntime, createCliEventPipeline(tmpDir), tmpDir);
   chatMock = vi.fn();
   setLLMProvider(mockLLMProvider(chatMock));
 });

@@ -1,16 +1,18 @@
 import {
   createAgentRuntime,
+  getWorkdir,
   setAgentRuntime,
+  setupAgentEventPipeline,
+  type AgentEventPipeline,
   type AgentRuntime,
-} from "../../apps/moontide/src/agent/runtime/index.js";
-import { getWorkdir } from "../../apps/moontide/src/config.js";
-import { registerBuiltinWorkMemPorts } from "../../apps/moontide/src/plugins/builtin/work-mem/register.js";
-import { resetAlwaysAllowOverride } from "../../apps/moontide/src/tools/always-allow-mode.js";
+} from "@moontide/agent";
+import { createTestEventPipeline } from "@moontide/agent/testing";
+import { registerBuiltinWorkMemPorts } from "../../packages/agent/src/plugins/builtin/work-mem/register.js";
+import { resetAlwaysAllowOverride } from "../../packages/agent/src/tools/always-allow-mode.js";
 
 let active: AgentRuntime | undefined;
 
 import type { UserInteraction, ToolContext } from "@moontide/tools";
-import { getWorkdir } from "../../apps/moontide/src/config.js";
 
 const denyAllInteraction: UserInteraction = {
   approveTool: async () => false,
@@ -19,12 +21,15 @@ const denyAllInteraction: UserInteraction = {
   },
 };
 
-/** Install an isolated AgentRuntime for tests (hooks + default tools). */
-export function installTestRuntime(workdir = getWorkdir()): AgentRuntime {
+/** Install an isolated AgentRuntime for tests (hooks + default tools + event pipeline). */
+export function installTestRuntime(
+  workdir = getWorkdir(),
+  pipeline: AgentEventPipeline = createTestEventPipeline(),
+): AgentRuntime {
   registerBuiltinWorkMemPorts();
   const runtime = createAgentRuntime();
   setAgentRuntime(runtime);
-  runtime.registerDefaultSidecarHooks(workdir);
+  setupAgentEventPipeline(runtime, pipeline, workdir);
   active = runtime;
   return runtime;
 }

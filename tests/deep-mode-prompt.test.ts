@@ -9,10 +9,10 @@ import {
   getActiveWorkMemId,
   isDeepModeEnabled,
   resetDeepModeOnNewSession,
-} from "../apps/moontide/src/agent/deep-mode.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+} from "../packages/agent/src/agent/deep-mode.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { defineWorkMemTools, readWorkMemEvents, ToolRegistry } from "@moontide/tools";
-import { registerDefaultTools } from "../apps/moontide/src/tools/register-defaults.js";
+import { registerDefaultTools } from "../packages/agent/src/tools/register-defaults.js";
 
 describe("Deep Task Mode prompt gate", () => {
   let workdir: string;

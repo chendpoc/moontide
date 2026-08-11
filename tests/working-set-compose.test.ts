@@ -4,11 +4,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { resolveWorkingSetForCompose } from "../apps/moontide/src/agent/working-set-compose.js";
-import { applyDeepPromptGate, getActiveWorkMemId, resetDeepModeOnNewSession } from "../apps/moontide/src/agent/deep-mode.js";
+import { resolveWorkingSetForCompose } from "../packages/agent/src/agent/working-set-compose.js";
+import { applyDeepPromptGate, getActiveWorkMemId, resetDeepModeOnNewSession } from "../packages/agent/src/agent/deep-mode.js";
 import { defaultCompactionPolicy } from "@moontide/context-composer";
 import { resolveToolDefinitions } from "@moontide/context-composer";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { runWorkMem } from "@moontide/tools";
 import type { SessionMessage } from "@moontide/session";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";

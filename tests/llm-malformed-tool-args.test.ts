@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AssistantMessage } from "@moontide/agent-common";
+import type { AssistantMessage } from "@moontide/run-protocol";
 import { createMessageLog } from "../packages/agent-core/src/message-log.js";
 import { createRunEventBus } from "../packages/agent-core/src/run-event-bus.js";
 import { executeToolCalls } from "../packages/agent-core/src/run-tools.js";

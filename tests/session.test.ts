@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSessionCommitPort } from "../apps/moontide/src/agent/session-commit-port.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { createSessionCommitPort } from "../packages/agent/src/agent/session-commit-port.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { Session } from "@moontide/session";
 import { sessionLogPath } from "@moontide/session";
 import type { SessionMessage } from "@moontide/session";

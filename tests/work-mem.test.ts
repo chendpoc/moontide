@@ -9,8 +9,8 @@ import {
   getActiveWorkMemId,
   isDeepModeEnabled,
   resetDeepModeOnNewSession,
-} from "../apps/moontide/src/agent/deep-mode.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+} from "../packages/agent/src/agent/deep-mode.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { runWorkMem } from "@moontide/tools";
 import { readWorkMemEvents } from "@moontide/tools";
 import { workMemPath } from "@moontide/session";

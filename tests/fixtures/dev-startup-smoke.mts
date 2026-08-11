@@ -3,11 +3,11 @@ import { fileURLToPath } from "node:url";
 
 import { resolveRoute } from "@moontide/llm";
 
-import { getAgentRuntime } from "../../apps/moontide/src/agent/runtime/index.js";
-import { setupToolsPorts } from "../../apps/moontide/src/agent/tools-setup.js";
-import { loadBootstrapEnv } from "../../apps/moontide/src/bootstrap-env.js";
+import { getAgentRuntime } from "../../packages/agent/src/agent/runtime/index.js";
+import { setupToolsPorts } from "../../packages/agent/src/agent/tools-setup.js";
+import { loadBootstrapEnv } from "../../packages/agent-cli/src/bootstrap-env.js";
 
-const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../apps/moontide");
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../packages/agent-cli");
 loadBootstrapEnv(appRoot);
 
 if (!process.env.DEEPSEEK_API_KEY?.trim() && !process.env.ANTHROPIC_API_KEY?.trim()) {

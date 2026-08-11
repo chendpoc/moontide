@@ -12,7 +12,7 @@ import {
   resolveBudgetPolicy,
 } from "@moontide/context-composer/budget";
 import { defaultBudgetConfig } from "@moontide/context-composer/ports";
-import { spillOptions } from "../apps/moontide/src/config.js";
+import { spillOptions } from "../packages/agent/src/config.js";
 import { createMemoryArtifactStore } from "@moontide/session";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { StreamAssistantEvent, StreamFn } from "@moontide/agent-common";
+import type { StreamAssistantEvent, StreamFn } from "@moontide/run-protocol";
 import { createMessageLog, createRunEventBus, runLoop } from "@moontide/agent-core";
 import { identityRunConfig, noopToolExecutor } from "../packages/agent-core/src/testing/index.js";
-import { createReplConversationStreamListener } from "../apps/moontide/src/log/repl-conversation-stream.js";
+import { createReplConversationStreamListener } from "../packages/agent-cli/src/log/repl-conversation-stream.js";
 
 /** Mirrors session 20260810-194303-6650a144 turn 24→25: table+work_mem then follow-up text. */
 describe("REPL stream + runLoop integration", () => {

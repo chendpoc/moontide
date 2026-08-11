@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { handleReplCommand } from "../apps/moontide/src/cli/commands/repl.js";
-import { getWorkdir, setWorkdir } from "../apps/moontide/src/config.js";
-import { loadUiLang } from "../apps/moontide/src/config/ui-settings.js";
-import { resolveContextLang, resetContextLangOverride } from "../apps/moontide/src/i18n/context/index.js";
-import { describeLocale, persistLocale, resetLocaleOverride } from "../apps/moontide/src/i18n/locale.js";
+import { handleReplCommand } from "../packages/agent-cli/src/cli/commands/repl.js";
+import { getWorkdir, setWorkdir } from "../packages/agent/src/config.js";
+import { loadUiLang } from "../packages/agent-cli/src/config/ui-settings.js";
+import { resolveContextLang, resetContextLangOverride } from "../packages/agent-cli/src/i18n/context/index.js";
+import { describeLocale, persistLocale, resetLocaleOverride } from "../packages/agent-cli/src/i18n/locale.js";
 import { DATA_DIR } from "@moontide/shared/constants/storage.js";
 import { APP_ENV, envVarName } from "@moontide/shared/constants/env.js";
 

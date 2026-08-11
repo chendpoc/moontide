@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LoopContext } from "../apps/moontide/src/agent/deps.js";
-import * as permission from "../apps/moontide/src/agent/pipeline/permission/index.js";
-import { resolveToolUseOutcome, runToolUse } from "../apps/moontide/src/agent/pipeline/runTool.js";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import type { LoopContext } from "../packages/agent/src/agent/deps.js";
+import * as permission from "../packages/agent/src/agent/pipeline/permission/index.js";
+import { resolveToolUseOutcome, runToolUse } from "../packages/agent/src/agent/pipeline/runTool.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { Session } from "@moontide/session";
-import { setAlwaysAllowOverride, resetAlwaysAllowOverride } from "../apps/moontide/src/tools/always-allow-mode.js";
+import { setAlwaysAllowOverride, resetAlwaysAllowOverride } from "../packages/agent/src/tools/always-allow-mode.js";
 import { joinPath } from "@moontide/shared/utils/path.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
@@ -196,64 +196,13 @@ describe("resolveToolUseOutcome", () => {
 });
 
 describe("runToolUse", () => {
-  it("blocks execution when beforeToolUse decides to block", async () => {
-    testRuntime.hookRegistry.sidecar().on("beforeToolUse", "guard", () => ({
-      block: true,
-      reason: "blocked by sidecar hook",
-    }));
-
-    fs.writeFileSync(joinPath(tmpDir, "secret.txt"), "secret");
-
-    const result = await runToolUse(
-      {
-        type: "tool_use",
-        id: "toolu_block",
-        name: "read_file",
-        input: { path: "secret.txt" },
-      },
-      1,
-      loopCtx(),
-    );
-
-    expect(result.content).toContain("blocked by sidecar hook");
-  });
-
-  it("passes a frozen hook record that handlers cannot mutate", async () => {
-    testRuntime.hookRegistry.sidecar().on("toolUse", "reader", (record) => {
-      expect(Object.isFrozen(record)).toBe(true);
-      expect(Object.isFrozen(record.outcome)).toBe(true);
-    });
-
-    fs.writeFileSync(joinPath(tmpDir, "snapshot.txt"), "original content");
-
-    const result = await runToolUse(
-      {
-        type: "tool_use",
-        id: "toolu_snapshot",
-        name: "read_file",
-        input: { path: "snapshot.txt" },
-      },
-      1,
-      loopCtx(),
-    );
-
-    expect(result.content).toBe("original content");
-  });
-
-  it("appends hook modelAppend after the core tool result", async () => {
-    testRuntime.hookRegistry.sidecar().on("toolUse", "observer", () => ({
-      modelAppend: "Note: truncated to 200 lines.",
-    }));
-    testRuntime.hookRegistry.sidecar().on("toolUse", "second", () => ({
-      modelAppend: "Audit: read allowed.",
-    }));
-
+  it("executes read_file and returns content without observer appends", async () => {
     fs.writeFileSync(joinPath(tmpDir, "note.txt"), "line one");
 
     const result = await runToolUse(
       {
         type: "tool_use",
-        id: "toolu_append",
+        id: "toolu_plain",
         name: "read_file",
         input: { path: "note.txt" },
       },
@@ -261,8 +210,24 @@ describe("runToolUse", () => {
       loopCtx(),
     );
 
-    expect(result.content).toBe(
-      "line one\n\nNote: truncated to 200 lines.\n\nAudit: read allowed.",
-    );
+    expect(result.content).toBe("line one");
+  });
+
+  it("passes a frozen observer record that handlers cannot mutate", async () => {
+    testRuntime.observerRegistry.sidecar().on("toolUse", "reader", (record) => {
+      expect(Object.isFrozen(record)).toBe(true);
+      expect(Object.isFrozen(record.outcome)).toBe(true);
+    });
+
+    fs.writeFileSync(joinPath(tmpDir, "snapshot.txt"), "original content");
+
+    const record = {
+      turn: 1,
+      toolName: "read_file",
+      toolInput: { path: "snapshot.txt" },
+      toolUseId: "toolu_snapshot",
+      outcome: { status: "succeeded" as const, output: "original content" },
+    };
+    await testRuntime.observers.dispatch("toolUse", record);
   });
 });

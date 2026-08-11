@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AgentSession } from "../../apps/moontide/src/agent/agent-session.js";
+import { AgentSession } from "../../packages/agent/src/agent/agent-session.js";
 import { sessionIndexPath, sessionLogPath } from "@moontide/session";
 import {
   autoSaveSession,
@@ -11,13 +11,12 @@ import {
   getLatestSessionEntry,
   listSessions,
   loadSessionIndex,
-  printQuitHint,
-  printStartupHint,
   upsertSessionEntry,
-} from "../../apps/moontide/src/plugins/builtin/session-persistence/index.js";
-import type { SessionPersistenceDeps } from "../../apps/moontide/src/plugins/builtin/session-persistence/index.js";
-import { setWorkdir } from "../../apps/moontide/src/config.js";
-import { setStderrWriterForTest } from "../../apps/moontide/src/terminal/write.js";
+} from "../../packages/agent/src/plugins/builtin/session-persistence/index.js";
+import type { SessionLifecycleAccess } from "../../packages/agent/src/plugins/builtin/session-persistence/index.js";
+import { printQuitHint, printStartupHint } from "../../packages/agent-cli/src/cli/session-hints.js";
+import { setWorkdir } from "../../packages/agent/src/config.js";
+import { setStderrWriterForTest } from "../../packages/agent-cli/src/terminal/write.js";
 import { clearTestRuntime, installTestRuntime } from "../helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "../helpers/tmp-workdir.js";
 
@@ -25,14 +24,11 @@ let tmpDir = "";
 let testRuntime: ReturnType<typeof installTestRuntime>;
 let stderr = "";
 
-function deps(getAgent: () => AgentSession | null): SessionPersistenceDeps {
+function access(getAgent: () => AgentSession | null): SessionLifecycleAccess {
   return {
     workdir: tmpDir,
     getAgentSession: getAgent,
     setAgentSession: () => {},
-    reply: (message) => {
-      stderr += `${message}\n`;
-    },
   };
 }
 
@@ -75,7 +71,7 @@ describe("session-persistence plugin", () => {
       "utf8",
     );
 
-    autoSaveSession(deps(() => agent));
+    autoSaveSession(access(() => agent));
 
     const index = loadSessionIndex(tmpDir);
     expect(index.entries[0]?.label).toBe("debug-mode");
@@ -170,7 +166,7 @@ describe("session-persistence plugin", () => {
     await agent.session.appendUser(1, "hello");
 
     stderr = "";
-    printQuitHint(deps(() => agent));
+    printQuitHint(access(() => agent));
     expect(stderr).toContain("Session saved:");
     expect(stderr).toContain(agent.session.sessionId);
     expect(stderr).toContain("Resume later:");
@@ -180,7 +176,7 @@ describe("session-persistence plugin", () => {
   it("printQuitHint is silent when session has no messages", () => {
     const agent = AgentSession.create(tmpDir, testRuntime);
     stderr = "";
-    printQuitHint(deps(() => agent));
+    printQuitHint(access(() => agent));
     expect(stderr).toBe("");
   });
 });

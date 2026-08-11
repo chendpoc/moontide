@@ -5,7 +5,7 @@ import {
   contextBudgetL3,
   contextBudgetL4,
   contextBudgetL5,
-} from "../../apps/moontide/src/config.js";
+} from "../../packages/agent/src/config.js";
 import type { BudgetConfig } from "@moontide/context-composer/ports";
 
 /** Read BudgetConfig from env (for tests that stub MOONTIDE_CONTEXT_BUDGET_*). */

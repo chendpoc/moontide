@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSession } from "../apps/moontide/src/agent/agent-session.js";
+import { AgentSession } from "../packages/agent/src/agent/agent-session.js";
 import {
   composeContext,
   coversItemIdsForKeepFrom,
@@ -9,12 +9,12 @@ import {
   defaultCompactionPolicy,
   resolveToolDefinitions,
 } from "@moontide/context-composer";
-import { createTextCompletionPort } from "../apps/moontide/src/agent/text-completion-port.js";
-import { composePortsFromConfig } from "../apps/moontide/src/agent/compose-options.js";
+import { createTextCompletionPort } from "../packages/agent/src/agent/text-completion-port.js";
+import { composePortsFromConfig } from "../packages/agent/src/agent/compose-options.js";
 import { compactionSavePath } from "@moontide/session";
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { setLLMProvider } from "@moontide/llm";
-import { buildDefaultBasePrompt } from "../apps/moontide/src/agent/prompt.js";
+import { buildDefaultBasePrompt } from "../packages/agent/src/agent/prompt.js";
 import type { SessionMessage } from "@moontide/session";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

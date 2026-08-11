@@ -39,7 +39,7 @@ describe("SessionTransform", () => {
   });
 
   it("fromSession reads in-memory context", async () => {
-    const { setWorkdir } = await import("../apps/moontide/src/config.js");
+    const { setWorkdir } = await import("../packages/agent/src/config.js");
     const { Session } = await import("@moontide/session");
     const { createTmpWorkdir, removeTmpWorkdir } = await import("./helpers/tmp-workdir.js");
 

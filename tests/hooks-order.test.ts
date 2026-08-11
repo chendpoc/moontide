@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { enableTestCollector, disableTestCollector, getCollectedEvents, resetRun } from "../apps/moontide/src/log/index.js";
-import type { LLMCallRecord, ToolUseRecord } from "../apps/moontide/src/agent/pipeline/types.js";
+import { enableTestCollector, disableTestCollector, getCollectedEvents, resetRun } from "../packages/agent-cli/src/log/index.js";
+import type { LLMCallRecord, ToolUseRecord } from "../packages/agent/src/agent/pipeline/types.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
-describe("hook handler order", () => {
+describe("run observer handler order", () => {
   beforeEach(() => {
     installTestRuntime();
   });
@@ -16,10 +16,10 @@ describe("hook handler order", () => {
   it("invokes llmCall handlers in registration order", async () => {
     const runtime = installTestRuntime();
     const order: string[] = [];
-    runtime.hookRegistry.sidecar().on("llmCall", "first", () => {
+    runtime.observerRegistry.sidecar().on("llmCall", "first", () => {
       order.push("first");
     });
-    runtime.hookRegistry.sidecar().on("llmCall", "second", () => {
+    runtime.observerRegistry.sidecar().on("llmCall", "second", () => {
       order.push("second");
     });
 
@@ -28,12 +28,12 @@ describe("hook handler order", () => {
       request: { messages: [], system: "", tools: [] },
       outcome: { status: "failed", error: "test" },
     };
-    await runtime.hooks.dispatch("llmCall", record);
+    await runtime.observers.dispatch("llmCall", record);
     expect(order).toEqual(["first", "second"]);
   });
 });
 
-describe("hook handler errors", () => {
+describe("run observer handler errors", () => {
   beforeEach(() => {
     installTestRuntime();
   });
@@ -47,10 +47,10 @@ describe("hook handler errors", () => {
     resetRun();
     enableTestCollector();
     const seen: string[] = [];
-    runtime.hookRegistry.sidecar().on("toolUse", "throws", () => {
+    runtime.observerRegistry.sidecar().on("toolUse", "throws", () => {
       throw new Error("trace blew up");
     });
-    runtime.hookRegistry.sidecar().on("toolUse", "after", () => {
+    runtime.observerRegistry.sidecar().on("toolUse", "after", () => {
       seen.push("after");
     });
 
@@ -61,7 +61,7 @@ describe("hook handler errors", () => {
       toolUseId: "tu_1",
       outcome: { status: "succeeded", output: "ok" },
     };
-    await runtime.hooks.dispatch("toolUse", record);
+    await runtime.observers.dispatch("toolUse", record);
 
     expect(seen).toEqual(["after"]);
     const errors = getCollectedEvents().filter((e) => e.kind === "plugin_error");

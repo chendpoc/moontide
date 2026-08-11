@@ -1,22 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ErrorCode } from "@moontide/shared/errors/codes.js";
-import { reportError } from "../apps/moontide/src/errors/report.js";
+import { reportError } from "../packages/agent-cli/src/errors/report.js";
 import {
   disableTestCollector,
   enableTestCollector,
   getCollectedEvents,
   resetRun,
-} from "../apps/moontide/src/log/index.js";
-import { setDebugOverride, resetDebugOverride } from "../apps/moontide/src/context-inspect/debug-mode.js";
-import { setStderrWriterForTest } from "../apps/moontide/src/terminal/write.js";
+} from "../packages/agent-cli/src/log/index.js";
+import { setDebugOverride, resetDebugOverride } from "../packages/agent/src/context-inspect/debug-mode.js";
+import { createTestEventPipeline } from "@moontide/agent/testing";
+import { setStderrWriterForTest } from "../packages/agent-cli/src/terminal/write.js";
 import { stripAnsi } from "@moontide/shared/utils/text.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 describe("reportError", () => {
   let stderr = "";
+  let debugTerminal: string[] = [];
 
   beforeEach(() => {
     stderr = "";
+    debugTerminal = [];
     resetRun("report-run");
     enableTestCollector();
     resetDebugOverride();
@@ -24,12 +28,14 @@ describe("reportError", () => {
       stderr += chunk;
       return true;
     });
+    installTestRuntime(undefined, createTestEventPipeline({ debugTerminal }));
   });
 
   afterEach(() => {
     disableTestCollector();
     resetDebugOverride();
     setStderrWriterForTest(null);
+    clearTestRuntime();
   });
 
   it("writes stderr and emits plugin_error when routed", () => {
@@ -69,7 +75,8 @@ describe("reportError", () => {
       { route: { channel: "trace", phase: "post_llm", turn: 3 }, stderr: false },
     );
 
-    expect(stripAnsi(stderr)).toContain('"kind": "error"');
-    expect(stripAnsi(stderr)).toContain("network down");
+    const debugText = debugTerminal.join("\n");
+    expect(debugText).toContain('"kind": "error"');
+    expect(debugText).toContain("network down");
   });
 });

@@ -2,8 +2,8 @@ import {
   createAgentRuntime,
   getAgentRuntime,
   setAgentRuntime,
-} from "../../apps/moontide/src/agent/runtime/index.js";
-import { setupToolsPorts } from "../../apps/moontide/src/agent/tools-setup.js";
+} from "../../packages/agent/src/agent/runtime/index.js";
+import { setupToolsPorts } from "../../packages/agent/src/agent/tools-setup.js";
 
 const mode = process.argv[2];
 

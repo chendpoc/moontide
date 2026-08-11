@@ -2,9 +2,9 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setWorkdir } from "../apps/moontide/src/config.js";
+import { setWorkdir } from "../packages/agent/src/config.js";
 import { executeTool, runGitDiff, runGitLog, runGitStatus, runGitSummaryLink } from "@moontide/tools";
-import { checkPermission } from "../apps/moontide/src/agent/pipeline/permission/index.js";
+import { checkPermission } from "../packages/agent/src/agent/pipeline/permission/index.js";
 import { joinPath } from "@moontide/shared/utils/path.js";
 import { clearTestRuntime, getTestRuntime, installTestRuntime, testToolContext } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";

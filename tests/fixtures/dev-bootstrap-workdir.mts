@@ -1,4 +1,4 @@
-await import("../../apps/moontide/src/bootstrap.js");
-const { getWorkdir } = await import("../../apps/moontide/src/config.js");
+await import("../../packages/agent-cli/src/bootstrap.js");
+const { getWorkdir } = await import("../../packages/agent/src/config.js");
 
 console.log(getWorkdir());

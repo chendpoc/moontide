@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getWorkdir, setWorkdir } from "../apps/moontide/src/config.js";
-import { emitDebugRecord } from "../apps/moontide/src/context-inspect/debug-emit.js";
-import { debugLogPath } from "../apps/moontide/src/context-inspect/debug-file.js";
+import { getWorkdir, setWorkdir } from "../packages/agent/src/config.js";
+import { emitDebugRecord } from "../packages/agent/src/context-inspect/debug-emit.js";
+import { debugLogPath } from "../packages/agent/src/context-inspect/debug-file.js";
 import {
   getDebugLevel,
   isDebugFileEnabled,
@@ -11,15 +11,16 @@ import {
   parseDebugLevelArg,
   resetDebugOverride,
   setDebugOverride,
-} from "../apps/moontide/src/context-inspect/debug-mode.js";
-import { formatDebugRecord } from "../apps/moontide/src/context-inspect/debug-format.js";
+} from "../packages/agent/src/context-inspect/debug-mode.js";
+import { formatDebugRecord } from "../packages/agent/src/context-inspect/debug-format.js";
 import {
   handleDebugCompose,
   handleDebugLlmCall,
   handleDebugToolUse,
-} from "../apps/moontide/src/plugins/builtin/context/debug-hook-module.js";
-import { resetRun } from "../apps/moontide/src/log/index.js";
-import { setStderrWriterForTest } from "../apps/moontide/src/terminal/write.js";
+} from "../packages/agent/src/plugins/builtin/context/debug-hook-module.js";
+import { createTestEventPipeline } from "@moontide/agent/testing";
+import { resetRun } from "../packages/agent-cli/src/log/index.js";
+import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 const DEBUG_ENV = "MOONTIDE_DEBUG";
@@ -66,28 +67,29 @@ describe("context-inspect debug mode", () => {
 
 describe("context-inspect debug hooks", () => {
   let tmpDir = "";
-  let stderr = "";
+  let debugTerminal: string[] = [];
   let originalWorkdir = "";
 
   beforeEach(() => {
     originalWorkdir = getWorkdir();
     tmpDir = createTmpWorkdir("moontide-debug-");
     setWorkdir(tmpDir);
-    stderr = "";
+    debugTerminal = [];
     resetDebugOverride();
     resetRun("debug-run-1");
-    setStderrWriterForTest((chunk) => {
-      stderr += chunk;
-      return true;
-    });
+    installTestRuntime(tmpDir, createTestEventPipeline({ debugTerminal }));
   });
 
   afterEach(() => {
-    setStderrWriterForTest(null);
+    clearTestRuntime();
     resetDebugOverride();
     setWorkdir(originalWorkdir);
     removeTmpWorkdir(tmpDir);
   });
+
+  function debugStderr(): string {
+    return debugTerminal.join("\n");
+  }
 
   it("writes full compose to stderr and debug jsonl in terminal tier", () => {
     setDebugOverride("terminal");
@@ -98,9 +100,9 @@ describe("context-inspect debug hooks", () => {
       },
     });
 
-    expect(stderr).toContain("DEBUG turn 01");
-    expect(stderr).toContain('"kind": "compose"');
-    expect(stderr).toContain('"system": "hello"');
+    expect(debugStderr()).toContain("DEBUG turn 01");
+    expect(debugStderr()).toContain('"kind": "compose"');
+    expect(debugStderr()).toContain('"system": "hello"');
     expect(fs.existsSync(debugLogPath(tmpDir))).toBe(true);
     const line = fs.readFileSync(debugLogPath(tmpDir), "utf8").trim();
     expect(JSON.parse(line).kind).toBe("compose");
@@ -136,14 +138,14 @@ describe("context-inspect debug hooks", () => {
     expect(tool.kind).toBe("tool_use");
     expect(tool.outcome.output).toBe("file body here");
 
-    expect(stderr).toContain("llm_call");
-    expect(stderr).toContain("tool_use");
+    expect(debugStderr()).toContain("llm_call");
+    expect(debugStderr()).toContain("tool_use");
   });
 
   it("emitDebugRecord is a no-op when debug is off", () => {
     setDebugOverride("off");
     emitDebugRecord({ kind: "compose", turn: 1, request: {} }, tmpDir);
-    expect(stderr).toBe("");
+    expect(debugStderr()).toBe("");
     expect(fs.existsSync(debugLogPath(tmpDir))).toBe(false);
   });
 

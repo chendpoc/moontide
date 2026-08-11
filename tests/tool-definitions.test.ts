@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { resolveToolDefinitions } from "@moontide/context-composer";
-import { getToolDefinitions, registerDefaultTools } from "../apps/moontide/src/tools/index.js";
+import { getToolDefinitions, registerDefaultTools } from "../packages/agent/src/tools/index.js";
 import { clearTestRuntime, getTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 
 const DEEP_RESEARCH_ENV = "MOONTIDE_DEEP_RESEARCH";
