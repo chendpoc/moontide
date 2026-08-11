@@ -83,6 +83,12 @@ Harness 向 core 注入 `StreamFn`、`ToolExecutor` 与已 resolve 的 `RunConfi
 | `identityRunConfig` | 最小 `RunConfig` |
 | `createRunEventBus` | 测试内 bus |
 
+## 类型 import
+
+本包**只**消费 `@moontide/run-protocol` 域类型（`RunConfig`, `RunEvent`, `AgentMessage`, ports）。不 import `@moontide/llm/protocol` 或 `@moontide/session`；LLM wire 与 Session 在 Harness 的 `convertToLlm` / commit port 边界转换。
+
+全表：[`docs/spec/type-imports.md`](../../docs/spec/type-imports.md)。
+
 ## 最小用法
 
 ```ts

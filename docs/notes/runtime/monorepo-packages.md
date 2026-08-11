@@ -113,6 +113,8 @@ Hook manifest **不再**注册 `sessionItem/agent-event-derive`（见 `tests/con
 - `@moontide/sidecar-host` · `@moontide/plugins-sdk`：零 `agent/`
 - 根目录无 `src/`（§17 门禁）
 
+**类型 import：** 各包从哪引 type、何时用 `@moontide/shared`，见 [`docs/spec/type-imports.md`](../../spec/type-imports.md)。
+
 ---
 
 ## 命令

@@ -10,5 +10,6 @@
 | [`llm-provider.md`](llm-provider.md) | Provider preset、路由、API 适配层与 `LLMRequest` |
 | [`llm-input.md`](llm-input.md) | 一次 LLM 请求的 system、tools、messages 对表 |
 | [`harness-eval-1.0.md`](harness-eval-1.0.md) | 当前 Harness Eval 1.1 的实现契约 |
+| [`type-imports.md`](type-imports.md) | 各包类型 import 决策与 shared 用法 |
 
 候选设计、迁移顺序和尚未实现的工作不得直接写成当前 Spec；先放入 [`../notes/`](../notes/)，达到验收条件后再提升。
