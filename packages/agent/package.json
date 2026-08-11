@@ -1,0 +1,41 @@
+{
+  "name": "@moontide/agent",
+  "version": "0.0.1",
+  "description": "MoonTide harness Preset assembly (AgentSession, hooks, compose wiring)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
+    "./load-env": {
+      "types": "./dist/app/load-env.d.ts",
+      "import": "./dist/app/load-env.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@moontide/agent-core": "workspace:*",
+    "@moontide/context-composer": "workspace:*",
+    "@moontide/llm": "workspace:*",
+    "@moontide/log": "workspace:*",
+    "@moontide/plugins-sdk": "workspace:*",
+    "@moontide/run-protocol": "workspace:*",
+    "@moontide/session": "workspace:*",
+    "@moontide/shared": "workspace:*",
+    "@moontide/sidecar-host": "workspace:*",
+    "@moontide/tools": "workspace:*",
+    "dotenv": "^16.4.7",
+    "smol-toml": "^1.7.1"
+  },
+  "license": "MIT"
+}

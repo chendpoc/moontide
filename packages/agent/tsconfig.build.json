@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@moontide/run-protocol": ["../run-protocol/dist/index.d.ts"],
+      "@moontide/agent-core": ["../agent-core/dist/index.d.ts"],
+      "@moontide/shared": ["../shared/dist/index.d.ts"],
+      "@moontide/llm": ["../llm/dist/index.d.ts"],
+      "@moontide/session": ["../session/dist/index.d.ts"],
+      "@moontide/session/stores": ["../session/dist/stores/index.d.ts"],
+      "@moontide/session/block-registry": ["../session/dist/block-registry.d.ts"],
+      "@moontide/context-composer": ["../context-composer/dist/index.d.ts"],
+      "@moontide/log": ["../log/dist/index.d.ts"],
+      "@moontide/tools": ["../tools/dist/index.d.ts"],
+      "@moontide/tools/ports": ["../tools/dist/ports/index.d.ts"],
+      "@moontide/sidecar-host": ["../sidecar-host/dist/index.d.ts"],
+      "@moontide/sidecar-host/ports": ["../sidecar-host/dist/ports/index.d.ts"],
+      "@moontide/plugins-sdk": ["../plugins-sdk/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
