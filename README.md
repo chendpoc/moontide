@@ -1,7 +1,7 @@
 
 **MoonTide** — 最小可用的 coding agent harness（**TypeScript**），由 **OceanSpark** 开发：loop 不变，工具 / 权限 / tool-use-log 外挂；每个 run 的 **AgentEvent** 写入分段 JSONL，供 REPL 与 desktop sidecar（`ui/`）消费。
 
-产品品牌是 **MoonTide**，公司是 **OceanSpark**。技术标识：工作区 `.moontide/`、`MOONTIDE_*` 环境变量、`moontide-*` Rust crates；npm 包名 `moontide`。
+产品品牌是 **MoonTide**，公司是 **OceanSpark**。技术标识：工作区 `.moontide/`、`MOONTIDE_*` 环境变量、`moontide-*` Rust crates；pnpm CLI 包名 `agent-cli`。
 
 当前开发优先级与非目标见 [`docs/product/plan.md`](docs/product/plan.md)。设计文档索引见 [`docs/README.md`](docs/README.md)（Doc Map）。
 
@@ -11,19 +11,18 @@
 
 ```
 moontide/                      # pnpm workspace 根（moontide-workspace）
-├── apps/moontide/             # CLI + harness 装配（npm 包名 moontide）
+├── packages/agent-cli/             # CLI（REPL、terminal、log 装配）
 │   └── src/
 │       ├── main.ts            # REPL 入口
-│       ├── agent/             # AgentRun、hooks、pipeline、harness
 │       ├── cli/               # REPL commands、statusline
-│       ├── log/               # 观测装配：modes、stderr renderer、run-event-derive
-│       ├── plugins/builtin/   # context、tool-use-log、session-persistence …
-│       ├── tools/             # register-defaults 薄包装 → @moontide/tools
-│       └── config.ts          # 产品配置（不进域包）
-├── packages/                  # @moontide/* 域包（见 docs/notes/monorepo-packages.md）
+│       ├── log/               # stderr renderer、setup、cli-event-pipeline
+│       ├── terminal/ · i18n/ · errors/
+│       └── config/            # UI 配置（status line、ui-settings）
+├── packages/
+│   ├── agent/                 # harness（AgentSession、hooks、compose）
 │   ├── shared/ · llm/ · session/ · context-composer/
 │   ├── log/ · tools/ · plugins-sdk/ · sidecar-host/
-│   └── agent-common/ · agent-core/
+│   └── run-protocol/ · agent-core/
 ├── crates/                    # Rust agent（moontide-cli、moontide-agent …）
 ├── docs/
 ├── tests/
@@ -39,11 +38,11 @@ pnpm install
 cp .env.example .env   # 仓库根目录；填入 DEEPSEEK_API_KEY
 
 pnpm run ping -- "say hello in one word"
-pnpm dev                 # REPL（cwd apps/moontide；自动加载根 .env，workdir 默认仓库根）
+pnpm dev                 # REPL（cwd packages/agent-cli；自动加载根 .env，workdir 默认仓库根）
 pnpm dev:ui              # Slint sidecar（另开终端，或 REPL 运行时启动）
 ```
 
-`pnpm dev` 从 `apps/moontide` 启动，`.env` 与 `MOONTIDE_WORKDIR` 约定见 [`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) §Dev 启动。规范单测：`pnpm run test:conformance`。
+`pnpm dev` 从 `packages/agent-cli` 启动，`.env` 与 `MOONTIDE_WORKDIR` 约定见 [`docs/notes/runtime/monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) §Dev 启动。规范单测：`pnpm run test:conformance`。
 
 Sidecar 详情见 [`ui/README.md`](ui/README.md)。
 
@@ -81,8 +80,9 @@ TypeScript CLI（`pnpm dev`）仍作参考实现与 conformance 对照；release
 |------|------|------|
 | 索引 | [`docs/README.md`](docs/README.md) | Doc Map、阅读路径 |
 | 方向 | [`docs/product/`](docs/product/) | [vision](docs/product/vision.md)、[plan](docs/product/plan.md) |
-| Spec | [`docs/spec/`](docs/spec/) | context-composer、llm-provider、llm-input、agent-events |
-| 参考 | [`docs/notes/`](docs/notes/) | 行业分析、演进 backlog、runtime 讨论 |
+| Spec | [`docs/spec/`](docs/spec/) | agent-core、context-composer、llm-provider、agent-events |
+| Guide | [`docs/guides/`](docs/guides/) | 可重复执行的开发与评测工作流 |
+| Notes | [`docs/notes/`](docs/notes/) | 按 runtime、context、session、evals、llm 分类的候选与计划 |
 
 Agent 协作与开发规则见 [`AGENTS.md`](AGENTS.md)。
 
@@ -90,7 +90,7 @@ Agent 协作与开发规则见 [`AGENTS.md`](AGENTS.md)。
 
 MoonTide 采用 **API 适配方案 A**（4 协议族 × 官方 SDK + 自管 normalize）：Harness（agent loop）全自建，adapter 层负责 preset 解析与 HTTP 发包。第一版 preset 覆盖 DeepSeek、Kimi、OpenAI、Anthropic、Gemini、OpenRouter 与用户自定义 OpenAI/Anthropic 形中转（`custom`）。
 
-设计详述见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)（API 适配层）与 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/notes/context-backlog.md`](docs/notes/context-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/spec/llm-input.md`](docs/spec/llm-input.md)。
+设计详述见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)（API 适配层）与 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)（Session Event Log、Context Composer）；演进特性 backlog 见 [`docs/notes/context/context-backlog.md`](docs/notes/context/context-backlog.md)；一次 LLM 调用的 `system` / `tools` / `messages` 对表见 [`docs/spec/llm-input.md`](docs/spec/llm-input.md)。
 
 **今天（实现）：** 产品默认 **DeepSeek** preset，agent 走 `openai-chat-completions`（fetch，零 vendor npm SDK）。配置 `DEEPSEEK_API_KEY` 与 `MODEL_ID` 即可。目标多 preset 配置面见 [`docs/spec/llm-provider.md`](docs/spec/llm-provider.md)。
 
@@ -125,7 +125,7 @@ Sidecar / desktop **tail 该 JSONL 文件**即可（与 Claude Code session 文�
 
 ### Session 持久化与恢复
 
-对话正文 **实时 append** 到 Session Item Log；**exit 不丢对话**。Index 书签便于跨重启发现 session（详见 [`docs/notes/session-persistence.md`](docs/notes/session-persistence.md)）。
+对话正文 **实时 append** 到 Session Item Log；**exit 不丢对话**。Index 书签便于跨重启发现 session（详见 [`docs/notes/session/session-persistence.md`](docs/notes/session/session-persistence.md)）。
 
 | 概念 | 说明 |
 |------|------|
@@ -150,7 +150,7 @@ Last session: 20260804-195300-a1b2c3d4 · resume with /resume session 20260804-1
 | **debug terminal** | 无截断全量 compose / llm_call / tool_use → stderr + `.moontide/debug/<runId>.jsonl` | `/debug on` 或 `MOONTIDE_DEBUG=1` |
 | **debug file** | 与 terminal 相同（保留别名） | `/debug file` 或 `MOONTIDE_DEBUG=file` |
 
-run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。Debug 与 verbose 差异见 [`docs/notes/context-inspect-debug.md`](docs/notes/context-inspect-debug.md)。
+run event log **始终写入**；thinking/verbose/debug 只控制 stderr（及 debug file 档）是否同步打印。Debug 与 verbose 差异见 [`docs/notes/context/context-inspect-debug.md`](docs/notes/context/context-inspect-debug.md)。
 
 ```sh
 /thinking on    # 看模型推理与 tool 调用链（chalk 步骤行）
@@ -217,9 +217,9 @@ MoonTide >>
 
 ### 新增 extension tool 模板（`deep_research`）
 
-1. 在 `apps/moontide/src/plugins/builtin/<name>/` 添加 `types.ts`、`handler.ts`、`index.ts`（`defineXTool()`）；core tool 实现放 `packages/tools/src/builtins/`
-2. 在 [`register-defaults.ts`](apps/moontide/src/tools/register-defaults.ts) 条件注册
-3. 在 [`permission/index.ts`](apps/moontide/src/agent/pipeline/permission/index.ts) 添加规则（网络类建议 `ask`）
+1. 在 `packages/agent/src/plugins/builtin/<name>/` 或 `packages/tools/src/builtins/` 添加实现；tool spec 遵循 §2.1
+2. 在 [`packages/agent/src/tools/register-defaults.ts`](packages/agent/src/tools/register-defaults.ts) 条件注册
+3. permission 随 `ToolSpec` 声明（[`permission-table.ts`](packages/tools/src/permission-table.ts)）
 
 ### code_repl templates（Tier 1）
 

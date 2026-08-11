@@ -4,10 +4,10 @@
 
 - [ ] **16. Agent-core 内核（2026-08 起 · 优先于 §15 部分轨）**
 
-  终局拆分 pnpm workspace：`@moontide/agent-common`（protocol）+ `@moontide/agent-core`（loop · RunEvent bus · resolveRunConfig · resolveTurnContext）。**clean break**，无 legacy derive / HookPhase 双轨。
+  终局拆分 pnpm workspace：`@moontide/run-protocol`（protocol）+ `@moontide/agent-core`（loop · RunEvent bus · resolveRunConfig · resolveTurnContext）。**clean break**，无 legacy derive / HookPhase 双轨。
 
-  - 详计划：[`docs/notes/agent-core-roadmap.md`](docs/notes/agent-core-roadmap.md)
-  - 设计 Spec：[`docs/agent-core-design.md`](docs/agent-core-design.md)
+  - 详计划：[`docs/notes/runtime/agent-core-roadmap.md`](docs/notes/runtime/agent-core-roadmap.md)
+  - 设计 Spec：[`docs/spec/agent-core.md`](docs/spec/agent-core.md)
   - 术语：[`AGENTS.md`](AGENTS.md) §7.2
 
   - [x] **16.1** pnpm workspace + `agent-common/protocol` 类型冻结
@@ -16,15 +16,31 @@
   - [x] **16.4** resolveRunConfig + Agent 类（abort / settlement）
   - [x] **16.5** harness 接入：RunCommitPort + composeContext
   - [ ] **16.6** RunEvent JSONL + Slint subscribe
-  - [ ] **16.7** plugin-host 窄 IPC；删 HookPhase / derive；`pnpm check`
+  - [x] **16.7** plugin-host 窄 IPC；删 HookPhase / derive；`pnpm check`
 
 - [x] **17. Monorepo 按域拆包 · 消除根 `src/`（§16 M7 后）**
 
-  **Modular monorepo / package by bounded context**：域包在 `packages/*`，CLI 与装配在 `apps/moontide`；**根无 `src/` monolith**。
+  **Modular monorepo / package by bounded context**：域包在 `packages/*`，CLI 与装配在 `packages/agent-cli`；**根无 `src/` monolith**。
 
-  - 详述：[`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) · [`docs/notes/agent-core-roadmap.md`](docs/notes/agent-core-roadmap.md) §12
-  - 包：`@moontide/shared` · `llm` · `session` · `context-composer` · `log` · `tools` · `plugins-sdk` · `sidecar-host` · `apps/moontide`
-  - 验收：architecture-boundaries package 级规则；根无 `src/`（`pnpm run check`）；dev 启动链见 [`docs/notes/monorepo-packages.md`](docs/notes/monorepo-packages.md) §Dev 启动
+  - 详述：[`docs/notes/runtime/monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) · [`docs/notes/runtime/agent-core-roadmap.md`](docs/notes/runtime/agent-core-roadmap.md) §12
+  - 包：`@moontide/shared` · `llm` · `session` · `context-composer` · `log` · `tools` · `plugins-sdk` · `sidecar-host` · `packages/agent-cli`
+  - 验收：architecture-boundaries package 级规则；根无 `src/`（`pnpm run check`）；dev 启动链见 [`docs/notes/runtime/monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) §Dev 启动
+
+- [ ] **18. Monorepo 终局拆包（run-protocol · context? · agent · agent-cli）**
+
+  三条轨道（详 [`agent-harness-cli-split.md`](docs/notes/runtime/agent-harness-cli-split.md) §1.1）：
+
+  1. **§18 主轨** — `agent-core` → `@moontide/agent` → `packages/agent-cli`（**不依赖** 18.0/18.0b 即可启动 18.1）
+  2. **DR-A · 18.0** — `@moontide/run-protocol` ← 重命名 `agent-common`（**非** `@moontide/types`）
+  3. **DR-B · 18.0b（可选）** — `@moontide/context` ← 合并 session + composer（须 §3.2 go/no-go）
+
+  - 包索引：[`monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) §18
+  - 与 §16：§16.5 为 harness **逻辑**接入 core；§18 主轨为 **物理拆包**
+
+  - [x] **18.0** DR-A — `agent-common` → `@moontide/run-protocol` · **含 evals alias** · 同 PR 更新 AGENTS/Spec
+  - [ ] **18.0b** DR-B（可选）— `packages/context` — 合并 session + context-composer
+  - [x] **18.1** §18 主轨 — `packages/agent` · §4.1 pipeline 注入 · `@moontide/evals` 迁 import · exports/dist smoke
+  - [x] **18.2** `packages/agent-cli` — 终端 + `createCliEventPipeline` · 删 app code-repl copy · `git mv packages/agent-cli`
 
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果
@@ -48,36 +64,36 @@
 
 - [ ] **6. Session — Context Window（C6+）**
   - C1–C6 **done**（TS harness）· **Context Budget Tiers done**
-  - 开发计划（六件事）：[`docs/notes/context-window-roadmap.md`](docs/notes/context-window-roadmap.md) — **#1–#6 + Budget Tiers 均 done**
-  - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/notes/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/notes/context-backlog.md)
+  - 开发计划（六件事）：[`docs/notes/context/context-window-roadmap.md`](docs/notes/context/context-window-roadmap.md) — **#1–#6 + Budget Tiers 均 done**
+  - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/notes/runtime/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/notes/context/context-backlog.md)
   - **下一阶段四条轨** → 见 **§15**
 
 - [ ] **15. 后续开发计划（2026-08 起）**
 
-  六件事与 Context Budget Tiers 完成后，按下列顺序推进（详表见 [`context-window-roadmap.md` §8](docs/notes/context-window-roadmap.md)）：
+  六件事与 Context Budget Tiers 完成后，按下列顺序推进（详表见 [`context-window-roadmap.md` §8](docs/notes/context/context-window-roadmap.md)）：
 
   - [ ] **15.1 Prompt Prefix Cache**
     - 稳定 system / instruction / tool-definitions prefix 复用，降低 latency 与 input cost
-    - 详设：[`context-backlog.md` §15](docs/notes/context-backlog.md) · [`context-normalization.md` §13](docs/notes/context-normalization.md)
+    - 详设：[`context-backlog.md` §15](docs/notes/context/context-backlog.md) · [`context-normalization.md` §13](docs/notes/context/context-normalization.md)
 
   - [ ] **15.2 需求讨论（Design / Requirements）**
     - 实现前对齐：Agent Activity Model（7a–7c）、Normalization 边界、Local Fusion 成本模型
-    - 讨论备忘：[`agent-activity-model-discussion.md`](docs/notes/agent-activity-model-discussion.md)
+    - 讨论备忘：[`agent-activity-model-discussion.md`](docs/notes/context/agent-activity-model-discussion.md)
     - 产出：各轨一页纸 spec / 验收标准，再开实现 PR
 
   - [ ] **15.3 Local 小模型 + 路由（Local Fusion）**
     - 本地微调/量化小模型处理低复杂度任务，降低 cloud API token 成本
     - **类比 OpenRouter Fusion，但是 edge local router** — 在设备侧做 tier 路由，非 provider upstream 竞价
     - `moontide/router-v1` catalog · Model Router · `moontide-infer` sidecar
-    - 详设：[`edge-local-models.md`](docs/notes/edge-local-models.md) · [`llm-provider.md`](docs/spec/llm-provider.md) §3.4 / §10
+    - 详设：[`edge-local-models.md`](docs/notes/llm/edge-local-models.md) · [`llm-provider.md`](docs/spec/llm-provider.md) §3.4 / §10
 
   - [ ] **15.4 Conversation Normalization（Preflight / Postflight）**
     - 每次 LLM request 前：统一 Context Projection + `ContextManifest`（预算、配对、provider 不变量）
     - 完整 Agent turn 后：usage / delta / 下一轮 preflight 状态
-    - 详设：[`context-normalization.md`](docs/notes/context-normalization.md)
+    - 详设：[`context-normalization.md`](docs/notes/context/context-normalization.md)
 
 - [ ] **7. Feature 基线性能测试套件**
-  - **详设：** [`docs/notes/agent-eval-roadmap.md`](docs/notes/agent-eval-roadmap.md) — Agent Feature 评测流水线（L0–L3 · 分桶 suite · grader · Impact Card）
+  - **详设：** [`docs/notes/evals/agent-eval-roadmap.md`](docs/notes/evals/agent-eval-roadmap.md) — Agent Feature 评测流水线（L0–L3 · 分桶 suite · grader · Impact Card）
   - **v0 → v3 分期：** PR 档 deterministic grader → nightly 真 LLM + baseline delta → SWE-bench 子集
   - [x] `@moontide/evals` v2 六类 58 case · subprocess agent worker · HTTP VCR（`external_research`）
   - [x] `baseline.json` · `--merge-gate` · `liftAlerts` / `byFeatureSurface` / efficiency 聚合
@@ -92,7 +108,7 @@
 
 - [ ] **8. Prompts 评分**
   - 并入 eval **rubric grader**（roadmap v2）· 主要服务 **general_knowledge（C 桶）** guard metrics
-  - 详设：[`docs/notes/agent-eval-roadmap.md`](docs/notes/agent-eval-roadmap.md) §5.2 · §4
+  - 详设：[`docs/notes/evals/agent-eval-roadmap.md`](docs/notes/evals/agent-eval-roadmap.md) §5.2 · §4
 
 - [ ] **9. 日常 Action 统计控件（Tide）**
   - 多 UI 组件之一：可视化「今天做了什么 / 最近做了什么」
@@ -106,7 +122,7 @@
   - 参考 Vibe Island 的布局与交互：浮动 panel、可 dock、可 pin、渐入渐出
   - 每个 panel 是独立控件（Tide、Fleet、Buoy 等）
   - 与 **1. Slint 桌面样式优化** 联动（透明虚化、动效、背景）
-  - 架构讨论见 [`docs/notes/runtime-multilang.md`](docs/notes/runtime-multilang.md)
+  - 架构讨论见 [`docs/notes/runtime/runtime-multilang.md`](docs/notes/runtime/runtime-multilang.md)
 
 - [x] **11. 产品命名 — 已定稿**
   - 见 [`docs/product/vision.md`](docs/product/vision.md)

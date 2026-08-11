@@ -15,7 +15,7 @@ macOS-first (folder picker via `rfd`, file watching via `notify`).
 | [`docs/README.md`](../docs/README.md) | Doc Map |
 | [`docs/spec/agent-events.md`](../docs/spec/agent-events.md) | Agent Event Log schema（UI 消费的 JSONL 字段） |
 | [`docs/product/plan.md`](../docs/product/plan.md) | 分段 JSONL 存储、retention 与非目标 |
-| [`docs/notes/runtime-multilang.md`](../docs/notes/runtime-multilang.md) | 多语言 Desktop Runtime 架构讨论 |
+| [`docs/notes/runtime/runtime-multilang.md`](../docs/notes/runtime/runtime-multilang.md) | 多语言 Desktop Runtime 架构讨论 |
 
 ## Prerequisites
 

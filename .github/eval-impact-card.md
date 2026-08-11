@@ -1,6 +1,6 @@
 # Feature Eval Impact Card
 
-复制到 feature PR 描述，或链到本文件。详设：[`docs/notes/agent-eval-roadmap.md`](../docs/notes/agent-eval-roadmap.md) §6。
+复制到 feature PR 描述，或链到本文件。详设：[`docs/notes/evals/agent-eval-roadmap.md`](../docs/notes/evals/agent-eval-roadmap.md) §6。
 
 ## Hypothesis
 
