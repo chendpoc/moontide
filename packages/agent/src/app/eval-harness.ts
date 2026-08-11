@@ -1,29 +1,29 @@
 import { JsonlWriter } from "@moontide/log";
 
-import type { AgentEventPipeline } from "../agent/event-pipeline.js";
+import type { AgentEventOutputs } from "../agent/event-outputs.js";
 import type { AgentRuntime } from "../agent/runtime/index.js";
 import { createAgentRuntime, setAgentRuntime } from "../agent/runtime/index.js";
 import { setupToolsPorts } from "../agent/tools-setup.js";
 import { publishHarnessAgentError } from "../log/publish-agent-error.js";
 import { registerBuiltinWorkMemPorts } from "../plugins/builtin/work-mem/register.js";
-import { setupAgentEventPipeline } from "./bootstrap.js";
+import { setupAgentEventOutputs } from "./bootstrap.js";
 
-/** Eval pipeline: JSONL outputs + structured errors; no terminal stderr. */
-export function createEvalEventPipeline(workdir: string): AgentEventPipeline {
+/** Eval event outputs: JSONL + structured errors; no terminal stderr. */
+export function createEvalEventOutputs(workdir: string): AgentEventOutputs {
   return {
     outputs: [new JsonlWriter({ workdir })],
     publishError: publishHarnessAgentError,
   };
 }
 
-/** Tools + work-mem ports + eval event pipeline (no sidecar attach). */
+/** Tools + work-mem ports + eval event outputs (no sidecar attach). */
 export function setupEvalHarness(runtime: AgentRuntime, workdir: string): void {
   setupToolsPorts();
   registerBuiltinWorkMemPorts();
-  setupAgentEventPipeline(runtime, createEvalEventPipeline(workdir), workdir);
+  setupAgentEventOutputs(runtime, createEvalEventOutputs(workdir), workdir);
 }
 
-/** Create runtime and wire eval harness pipeline. */
+/** Create runtime and wire eval harness event outputs. */
 export function installEvalHarness(workdir: string): AgentRuntime {
   const runtime = createAgentRuntime();
   setAgentRuntime(runtime);

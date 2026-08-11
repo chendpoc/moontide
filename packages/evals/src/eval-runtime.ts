@@ -13,7 +13,7 @@ import { evalHttpFetchExecutor } from "./http-fixtures.js";
 let active: AgentRuntime | undefined;
 let httpFixturesInstalled = false;
 
-/** Install an isolated AgentRuntime for eval runs (hooks + default tools + eval pipeline). */
+/** Install an isolated AgentRuntime for eval runs (hooks + default tools + eval event outputs). */
 export function installEvalRuntime(workdir = getWorkdir()): AgentRuntime {
   const runtime = createAgentRuntime();
   setAgentRuntime(runtime);

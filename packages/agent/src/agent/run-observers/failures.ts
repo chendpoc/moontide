@@ -1,5 +1,5 @@
 import { ErrorCode } from "@moontide/shared/errors/codes.js";
-import { publishAgentError } from "../event-pipeline.js";
+import { publishAgentError } from "../event-outputs.js";
 import { toErrorRecord } from "@moontide/shared/errors/record.js";
 import { toMessage, toStack } from "@moontide/shared/errors/normalize.js";
 import type { ObserverFailureRecord, ToolUseContext } from "./types.js";

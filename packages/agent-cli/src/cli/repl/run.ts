@@ -13,7 +13,7 @@ import {
   type AgentSession,
 } from "@moontide/agent";
 import { PRODUCT_NAME } from "@moontide/shared/constants/brand.js";
-import { createCliEventPipeline } from "../../log/cli-event-pipeline.js";
+import { createCliEventOutputs } from "../../log/cli-event-outputs.js";
 import { printQuitHint, printStartupHint } from "../session-hints.js";
 import { createReplConversationStreamListener } from "../../log/repl-conversation-stream.js";
 import type { UserInteraction } from "@moontide/tools";
@@ -76,7 +76,7 @@ export async function runRepl(): Promise<void> {
   await bootstrapAgentPlatform({
     workdir,
     runtime,
-    pipeline: createCliEventPipeline(workdir),
+    eventOutputs: createCliEventOutputs(workdir),
   });
 
   writeStderrLine(`${PRODUCT_NAME} — type /help for commands`);

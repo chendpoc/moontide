@@ -18,7 +18,7 @@ import {
   handleDebugLlmCall,
   handleDebugToolUse,
 } from "../packages/agent/src/plugins/builtin/context/debug-hook-module.js";
-import { createTestEventPipeline } from "@moontide/agent/testing";
+import { createTestEventOutputs } from "@moontide/agent/testing";
 import { resetRun } from "../packages/agent-cli/src/log/index.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
 import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
@@ -77,7 +77,7 @@ describe("context-inspect debug hooks", () => {
     debugTerminal = [];
     resetDebugOverride();
     resetRun("debug-run-1");
-    installTestRuntime(tmpDir, createTestEventPipeline({ debugTerminal }));
+    installTestRuntime(tmpDir, createTestEventOutputs({ debugTerminal }));
   });
 
   afterEach(() => {

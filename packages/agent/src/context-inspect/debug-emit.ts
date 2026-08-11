@@ -10,14 +10,14 @@ export interface DebugRecord {
   [key: string]: unknown;
 }
 
-/** Emit one full debug record to pipeline terminal slot and/or `.moontide/debug/` per active tier. */
+/** Emit one full debug record to event outputs terminal slot and/or `.moontide/debug/` per active tier. */
 export function emitDebugRecord(record: DebugRecord, workdir = getWorkdir()): void {
   if (!isDebugTerminalEnabled() && !isDebugFileEnabled()) {
     return;
   }
 
   if (isDebugTerminalEnabled()) {
-    getAgentRuntime().eventPipeline?.writeDebugTerminal?.(formatDebugRecord(record));
+    getAgentRuntime().eventOutputs?.writeDebugTerminal?.(formatDebugRecord(record));
   }
   if (isDebugFileEnabled()) {
     appendDebugRecord(record, workdir);

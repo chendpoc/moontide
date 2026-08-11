@@ -1,6 +1,6 @@
 # @moontide/agent-cli
 
-MoonTide **CLI 产品**：REPL、slash 命令、statusline、Agent Event 的 stderr/JSONL **终端渲染**，以及 `AgentEventPipeline` 接线。agent run **须** 经 `@moontide/agent`（**禁止** direct import `@moontide/agent-core`）。边界说明：[`agent-harness-cli-split.md`](../../docs/notes/runtime/agent-harness-cli-split.md) §4。
+MoonTide **CLI 产品**：REPL、slash 命令、statusline、Agent Event 的 stderr/JSONL **终端渲染**，以及 `AgentEventOutputs` 接线。agent run **须** 经 `@moontide/agent`（**禁止** direct import `@moontide/agent-core`）。边界说明：[`agent-harness-cli-split.md`](../../docs/notes/runtime/agent-harness-cli-split.md) §4。
 
 ## 四层包边界
 
@@ -20,7 +20,7 @@ MoonTide **CLI 产品**：REPL、slash 命令、statusline、Agent Event 的 std
 - **终端 IO**：`terminal/`、`i18n/`、statusline
 - **Agent Event 终端渲染**：`log/format/`、`StderrRenderer`、`log/modes.ts`
 - **错误终端输出**：`errors/report.ts`、`errors/cli.ts`（stderr 块 + debug emit）
-- **Pipeline 工厂**：`createCliEventPipeline` — JsonlWriter + StderrRenderer + `reportError` + `writeDebugTerminal`
+- **Event outputs 工厂**：`createCliEventOutputs` — JsonlWriter + StderrRenderer + `reportError` + `writeDebugTerminal`
 
 Harness 即 **`@moontide/agent`**（含 MoonTide Preset），不在本包。
 
@@ -37,7 +37,7 @@ Harness 即 **`@moontide/agent`**（含 MoonTide Preset），不在本包。
 | 角色 | 用法 |
 |------|------|
 | 终端用户 | `pnpm dev` / `pnpm start` |
-| 测试 / evals | subpath：`bootstrap-env`、`cli-event-pipeline` |
+| 测试 / evals | subpath：`bootstrap-env`、`cli-event-outputs` |
 | 库消费者 | 本包 **无根 export**；仅下列 subpath |
 
 ## 对外 API
@@ -50,14 +50,14 @@ Harness 即 **`@moontide/agent`**（含 MoonTide Preset），不在本包。
 |---------|------|
 | `@moontide/agent-cli/bootstrap` | 加载 env 后 re-export Harness bootstrap（若使用） |
 | `@moontide/agent-cli/bootstrap-env` | `loadBootstrapEnv`, `findWorkspaceRoot` |
-| `@moontide/agent-cli/cli-event-pipeline` | `createCliEventPipeline(workdir)` |
+| `@moontide/agent-cli/cli-event-outputs` | `createCliEventOutputs(workdir)` |
 | `@moontide/agent-cli/log/setup` | `resetEventPlatform` re-export |
 
 进程入口 **无** package export：`node dist/main.js` 或 `tsx src/main.ts`。
 
-### createCliEventPipeline
+### createCliEventOutputs
 
-构造 Harness 所需的 `AgentEventPipeline`：
+构造 Harness 所需的 `AgentEventOutputs`：
 
 - `outputs`: `JsonlWriter`（`.moontide/runs/`）+ `StderrRenderer`
 - `publishError`: 委托 `reportError`（stderr + debug + Agent Event）
@@ -83,17 +83,17 @@ pnpm --filter @moontide/agent-cli run build
 pnpm --filter @moontide/agent-cli run start
 ```
 
-### REPL 内 pipeline 注入（摘录）
+### REPL 内 event outputs 注入（摘录）
 
 ```ts
 import { bootstrapAgentPlatform, createAgentRuntime, getWorkdir } from "@moontide/agent";
-import { createCliEventPipeline } from "../log/cli-event-pipeline.js";
+import { createCliEventOutputs } from "../log/cli-event-outputs.js";
 
 const workdir = getWorkdir();
 await bootstrapAgentPlatform({
   runtime: createAgentRuntime(),
   workdir,
-  pipeline: createCliEventPipeline(workdir),
+  eventOutputs: createCliEventOutputs(workdir),
 });
 ```
 

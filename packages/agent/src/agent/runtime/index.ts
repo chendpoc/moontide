@@ -1,7 +1,7 @@
 import { PluginHost } from "@moontide/sidecar-host";
 import type { SidecarHostRuntimePort } from "@moontide/sidecar-host/ports";
 import { ToolRegistry } from "@moontide/tools";
-import type { AgentEventPipeline } from "../event-pipeline.js";
+import type { AgentEventOutputs } from "../event-outputs.js";
 import { getWorkdir } from "../../config.js";
 import { registerDefaultTools } from "../../tools/register-defaults.js";
 import { buildDefaultObserverManifest } from "../run-observers/manifest.js";
@@ -27,7 +27,7 @@ export class AgentRuntime {
   readonly observers: RunObserverDispatcher;
   readonly tools = new ToolRegistry(registerDefaultTools);
   readonly plugins: PluginHost;
-  eventPipeline: AgentEventPipeline | undefined;
+  eventOutputs: AgentEventOutputs | undefined;
   private defaultObserverDisposers: Array<() => void> = [];
 
   constructor() {
@@ -39,7 +39,7 @@ export class AgentRuntime {
     this.resetSidecarObservers();
     this.tools.reset();
     this.plugins.shutdown();
-    this.eventPipeline = undefined;
+    this.eventOutputs = undefined;
   }
 
   registerDefaultSidecarObservers(workdir = getWorkdir()): void {

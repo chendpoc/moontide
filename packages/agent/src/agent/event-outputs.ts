@@ -5,7 +5,7 @@ import { internalError } from "@moontide/shared/errors/factories.js";
 
 import type { AgentRuntime } from "./runtime/index.js";
 import { getAgentRuntime } from "./runtime/index.js";
-import { getActiveEventPipeline } from "../log/event-pipeline.js";
+import { getActiveEventOutputs } from "../log/event-outputs.js";
 
 export interface AgentErrorRoute {
   channel: AgentChannel;
@@ -23,8 +23,8 @@ export interface PublishAgentErrorOptions {
   route?: AgentErrorRoute;
 }
 
-/** Event outputs + structured error publication (stderr formatting supplied by CLI pipeline). */
-export interface AgentEventPipeline {
+/** Event outputs + structured error publication (stderr formatting supplied by CLI). */
+export interface AgentEventOutputs {
   outputs: EventOutput[];
   publishError(record: ErrorRecord, options?: PublishAgentErrorOptions): void;
   writeDebugTerminal?: (formatted: string) => void;
@@ -33,17 +33,17 @@ export interface AgentEventPipeline {
 export interface AgentPlatformOptions {
   workdir: string;
   runtime: AgentRuntime;
-  pipeline: AgentEventPipeline;
+  eventOutputs: AgentEventOutputs;
 }
 
 export function publishAgentError(
   record: ErrorRecord,
   options: PublishAgentErrorOptions = {},
 ): void {
-  const pipeline =
-    getActiveEventPipeline() ?? getAgentRuntime().eventPipeline;
-  if (!pipeline) {
-    throw internalError("AgentEventPipeline not configured; call bootstrapAgentPlatform first");
+  const eventOutputs =
+    getActiveEventOutputs() ?? getAgentRuntime().eventOutputs;
+  if (!eventOutputs) {
+    throw internalError("AgentEventOutputs not configured; call bootstrapAgentPlatform first");
   }
-  pipeline.publishError(record, options);
+  eventOutputs.publishError(record, options);
 }

@@ -1,7 +1,7 @@
-export type { AgentErrorRoute, AgentEventPipeline, AgentPlatformOptions, PublishAgentErrorOptions } from "./agent/event-pipeline.js";
+export type { AgentErrorRoute, AgentEventOutputs, AgentPlatformOptions, PublishAgentErrorOptions } from "./agent/event-outputs.js";
 export type { RunEventListener } from "@moontide/agent-core";
 export { extractTextReply } from "@moontide/agent-core";
-export { publishAgentError } from "./agent/event-pipeline.js";
+export { publishAgentError } from "./agent/event-outputs.js";
 
 export { runAgent, continueReplAgent } from "./agent/loop.js";
 export { AgentSession } from "./agent/agent-session.js";
@@ -23,13 +23,13 @@ export type { SidecarRunObserverRegistry } from "./agent/runtime/index.js";
 
 export {
   bootstrapAgentPlatform,
-  setupAgentEventPipeline,
+  setupAgentEventOutputs,
   setupAgentObservers,
   teardownAgentPlatform,
 } from "./app/bootstrap.js";
 export { findWorkspaceRoot, loadWorkspaceEnv } from "./app/load-env.js";
 export {
-  createEvalEventPipeline,
+  createEvalEventOutputs,
   installEvalHarness,
   setupEvalHarness,
 } from "./app/eval-harness.js";
@@ -61,7 +61,7 @@ export {
   resetDeepModeOnNewSession,
 } from "./agent/deep-mode.js";
 
-export { applyAgentEventPipeline } from "./log/event-pipeline.js";
+export { applyAgentEventOutputs } from "./log/event-outputs.js";
 export { createRunEventDeriveListener } from "./log/run-event-derive.js";
 export { resetEventPlatform } from "./log/index.js";
 

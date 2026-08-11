@@ -14,9 +14,9 @@
       "types": "./dist/bootstrap-env.d.ts",
       "import": "./dist/bootstrap-env.js"
     },
-    "./cli-event-pipeline": {
-      "types": "./dist/log/cli-event-pipeline.d.ts",
-      "import": "./dist/log/cli-event-pipeline.js"
+    "./cli-event-outputs": {
+      "types": "./dist/log/cli-event-outputs.d.ts",
+      "import": "./dist/log/cli-event-outputs.js"
     },
     "./log/setup": {
       "types": "./dist/log/setup.d.ts",

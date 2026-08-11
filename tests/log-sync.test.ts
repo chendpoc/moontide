@@ -7,8 +7,8 @@ import { createSessionCommitPort } from "../packages/agent/src/agent/session-com
 import { setWorkdir } from "../packages/agent/src/config.js";
 import { RUNS_DIR } from "@moontide/shared/constants/storage.js";
 import { setLLMProvider } from "@moontide/llm";
-import { setupAgentEventPipeline } from "../packages/agent/src/app/bootstrap.js";
-import { createCliEventPipeline } from "../packages/agent-cli/src/log/cli-event-pipeline.js";
+import { setupAgentEventOutputs } from "../packages/agent/src/app/bootstrap.js";
+import { createCliEventOutputs } from "../packages/agent-cli/src/log/cli-event-outputs.js";
 import { resetEventPlatform } from "../packages/agent-cli/src/log/setup.js";
 import { getRunId, resetRun } from "../packages/agent-cli/src/log/index.js";
 import { Session } from "@moontide/session";
@@ -57,7 +57,7 @@ beforeEach(() => {
   setWorkdir(tmpDir);
   resetRun("run-test");
   testRuntime = installTestRuntime(tmpDir);
-  setupAgentEventPipeline(testRuntime, createCliEventPipeline(tmpDir), tmpDir);
+  setupAgentEventOutputs(testRuntime, createCliEventOutputs(tmpDir), tmpDir);
   chatMock = vi.fn();
   setLLMProvider(mockLLMProvider(chatMock));
 });

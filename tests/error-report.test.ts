@@ -9,7 +9,7 @@ import {
   resetRun,
 } from "../packages/agent-cli/src/log/index.js";
 import { setDebugOverride, resetDebugOverride } from "../packages/agent/src/context-inspect/debug-mode.js";
-import { createTestEventPipeline } from "@moontide/agent/testing";
+import { createTestEventOutputs } from "@moontide/agent/testing";
 import { setStderrWriterForTest } from "../packages/agent-cli/src/terminal/write.js";
 import { stripAnsi } from "@moontide/shared/utils/text.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
@@ -28,7 +28,7 @@ describe("reportError", () => {
       stderr += chunk;
       return true;
     });
-    installTestRuntime(undefined, createTestEventPipeline({ debugTerminal }));
+    installTestRuntime(undefined, createTestEventOutputs({ debugTerminal }));
   });
 
   afterEach(() => {

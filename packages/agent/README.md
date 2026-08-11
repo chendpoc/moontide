@@ -29,11 +29,11 @@
 ## 职责
 
 - **Run 入口**：`runAgent`、`AgentSession`、`AgentRun` — REPL 与 eval 共用
-- **平台 bootstrap**：`bootstrapAgentPlatform`、`setupAgentEventPipeline`、`setupToolsPorts`
+- **平台 bootstrap**：`bootstrapAgentPlatform`、`setupAgentEventOutputs`、`setupToolsPorts`
 - **Runtime 注册表**：`AgentRuntime`、`RunObserverRegistry`、`ToolRegistry`、sidecar attach
 - **Context 接线**：`composeForSession` / working-set · instruction-state · `@moontide/context-composer`
 - **Session 桥接**：`SessionItemCommitPort`、session-persistence plugin
-- **观测**：`AgentEventPipeline` 注入；`createRunEventDeriveListener`（RunEvent → Agent Event）
+- **观测**：`AgentEventOutputs` 注入；`createRunEventDeriveListener`（RunEvent → Agent Event）
 - **产品能力**：deep-mode、debug/context-inspect、always-allow tools
 
 import 链：`@moontide/agent` → `@moontide/agent-core` → `@moontide/run-protocol`。
@@ -76,7 +76,7 @@ flowchart TB
 | `@moontide/agent-cli` | 生产终端入口（经本包 run） |
 | `@moontide/evals` | 无终端 Harness A/B |
 | 集成测试 | `installTestRuntime()` · [`tests/helpers/test-runtime.ts`](../../tests/helpers/test-runtime.ts) |
-| 第三方 embed（远期） | `bootstrapAgentPlatform` + 自建 pipeline |
+| 第三方 embed（远期） | `bootstrapAgentPlatform` + 自建 event outputs |
 
 ## 对外 API
 
@@ -92,17 +92,31 @@ flowchart TB
 | 分组 | 代表符号 |
 |------|----------|
 | Run 入口 | `runAgent`, `continueReplAgent`, `AgentSession`, `AgentRun`, `LoopContext`, `createDefaultLoopContext` |
-| Bootstrap | `bootstrapAgentPlatform`, `setupAgentEventPipeline`, `setupAgentObservers`, `teardownAgentPlatform`, `setupToolsPorts` |
+| Bootstrap | `bootstrapAgentPlatform`, `setupAgentEventOutputs`, `setupAgentObservers`, `teardownAgentPlatform`, `setupToolsPorts` |
 | Runtime | `createAgentRuntime`, `getAgentRuntime`, `setAgentRuntime`, `AgentRuntime`, `RunObserverRegistry`, `ToolRegistry` |
-| Pipeline | `AgentEventPipeline`, `publishAgentError`, `applyAgentEventPipeline`, `createRunEventDeriveListener` |
+| Event outputs | `AgentEventOutputs`, `publishAgentError`, `applyAgentEventOutputs`, `createRunEventDeriveListener` |
 | Config / workdir | `getWorkdir`, `setWorkdir`, `readWorkspaceConfig`, `modelId`, `compactThreshold`, … |
 | Instruction | `resolveInstructionState` |
 | Tools | `getToolDefinitions`, always-allow helpers, `register-defaults` 经 runtime |
 | Deep mode | `applyDeepPromptGate`, `isDeepModeEnabled`, `getActiveWorkMemId`, … |
 | Session persistence | `saveActiveSessionToIndex`, `openSessionFromIndex`, `listSessions`, `autoSaveSession`, formatters（无 slash / `reply`） |
-| Debug | `getDebugLevel`, `emitDebugRecord`（终端经 `AgentEventPipeline.writeDebugTerminal`）, `debugLogPath`, … |
+| Debug | `getDebugLevel`, `emitDebugRecord`（终端经 `AgentEventOutputs.writeDebugTerminal`）, `debugLogPath`, … |
 
 完整 export 见 [`src/index.ts`](src/index.ts)。
+
+## 类型 import
+
+Harness 装配多域类型；按场景选包，**不要**全从 run-protocol 引：
+
+| 场景 | 从哪 import |
+|------|-------------|
+| Run / loop / observer | `@moontide/run-protocol`, `@moontide/agent-core`（经本包 re-export 或 harness） |
+| LLM 调用与 wire | `@moontide/llm`, `@moontide/llm/protocol` |
+| Session / compile | `@moontide/session`, `@moontide/context-composer` |
+| 层间 message 转换 | 本包 `agent/harness/message-map.ts` |
+| env / workdir / 工具链错误 | `@moontide/shared` |
+
+全表：[`docs/spec/type-imports.md`](../../docs/spec/type-imports.md)。
 
 ## 最小用法
 
@@ -114,27 +128,27 @@ import {
   createAgentRuntime,
   getWorkdir,
 } from "@moontide/agent";
-import { createCliEventPipeline } from "@moontide/agent-cli/cli-event-pipeline";
+import { createCliEventOutputs } from "@moontide/agent-cli/cli-event-outputs";
 
 const workdir = getWorkdir();
 const runtime = createAgentRuntime();
 await bootstrapAgentPlatform({
   runtime,
   workdir,
-  pipeline: createCliEventPipeline(workdir),
+  eventOutputs: createCliEventOutputs(workdir),
 });
 // 之后 runAgent / REPL turn
 ```
 
-`setupAgentEventPipeline` 适用于轻量测试（无 sidecar attach）：hooks + pipeline，不调用 `bootstrapPlugins`。
+`setupAgentEventOutputs` 适用于轻量测试（无 sidecar attach）：hooks + event outputs，不调用 `bootstrapPlugins`。
 
 ### 测试
 
 ```ts
-import { createTestEventPipeline } from "@moontide/agent/testing";
+import { createTestEventOutputs } from "@moontide/agent/testing";
 import { installTestRuntime } from "../../tests/helpers/test-runtime.js";
 
-installTestRuntime(tmpWorkdir, createTestEventPipeline({ debugTerminal: [] }));
+installTestRuntime(tmpWorkdir, createTestEventOutputs({ debugTerminal: [] }));
 ```
 
 ## 相关文档与验收

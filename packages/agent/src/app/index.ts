@@ -1,8 +1,8 @@
 export {
   bootstrapAgentPlatform,
-  setupAgentEventPipeline,
+  setupAgentEventOutputs,
   setupAgentObservers,
   teardownAgentPlatform,
-  type AgentEventPipeline,
+  type AgentEventOutputs,
   type AgentPlatformOptions,
 } from "./bootstrap.js";

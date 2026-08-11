@@ -15,7 +15,7 @@ moontide/                      # pnpm workspace 根（moontide-workspace）
 │   └── src/
 │       ├── main.ts            # REPL 入口
 │       ├── cli/               # REPL commands、statusline
-│       ├── log/               # stderr renderer、setup、cli-event-pipeline
+│       ├── log/               # stderr renderer、setup、cli-event-outputs
 │       ├── terminal/ · i18n/ · errors/
 │       └── config/            # UI 配置（status line、ui-settings）
 ├── packages/

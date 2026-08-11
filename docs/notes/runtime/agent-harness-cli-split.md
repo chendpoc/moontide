@@ -202,7 +202,7 @@ runLoop（agent-core）
 
 ```typescript
 /** @moontide/agent — 平台 bootstrap 入参（示意） */
-export interface AgentEventPipeline {
+export interface AgentEventOutputs {
   /** 注册到 @moontide/log hub；含 JsonlWriter、StderrRenderer 等 */
   outputs: EventOutput[];
   /** 结构化错误：emit AgentEvent（plugin_error 等）；不 write stderr */
@@ -212,7 +212,7 @@ export interface AgentEventPipeline {
 export interface AgentPlatformOptions {
   workdir: string;
   runtime: AgentRuntime;
-  pipeline: AgentEventPipeline;
+  eventOutputs: AgentEventOutputs;
 }
 
 export async function bootstrapAgentPlatform(opts: AgentPlatformOptions): Promise<void>;
@@ -220,14 +220,14 @@ export async function bootstrapAgentPlatform(opts: AgentPlatformOptions): Promis
 
 | 层 | 职责 |
 |----|------|
-| **`@moontide/agent`** | `emitHookError` / `logHookFailure` → **`pipeline.publishError`**（或 run 级 deps，同源）；RunEvent derive + hub；**`AgentRun.execute` 只 publish RunEvent，不 mutate 全局 output 表** |
-| **`packages/agent-cli`** | 构造 `pipeline`：`outputs = [JsonlWriter, StderrRenderer, …]`；`publishError` 实现 = emit +（可选）CLI 侧 `ErrorPresentationOutput` 写 stderr；**整模块** [`report.ts`](../../../packages/agent-cli/src/errors/report.ts) 终端/format/debug 分支 |
+| **`@moontide/agent`** | `emitHookError` / `logHookFailure` → **`eventOutputs.publishError`**（或 run 级 deps，同源）；RunEvent derive + hub；**`AgentRun.execute` 只 publish RunEvent，不 mutate 全局 output 表** |
+| **`packages/agent-cli`** | 构造 `eventOutputs`：`outputs = [JsonlWriter, StderrRenderer, …]`；`publishError` 实现 = emit +（可选）CLI 侧 `ErrorPresentationOutput` 写 stderr；**整模块** [`report.ts`](../../../packages/agent-cli/src/errors/report.ts) 终端/format/debug 分支 |
 
 **迁移步骤（Phase 1 内，可先于迁包在 app 验证）：**
 
 1. 从 [`failures.ts`](../../../packages/agent/src/agent/hooks/failures.ts) 移除对 `reportError` 的 import；改为注入的 `publishAgentError`
-2. 从 [`agent-run.ts`](../../../packages/agent/src/agent/agent-run.ts) 移除 `configureOutputs()`；[`bootstrap.ts`](../../../packages/agent/src/app/bootstrap.ts) 的 `setupAgentEventPipeline` 改为接收 `pipeline.outputs`
-3. agent-cli 启动：`bootstrapAgentPlatform({ workdir, runtime, pipeline: createCliEventPipeline(workdir) })`
+2. 从 [`agent-run.ts`](../../../packages/agent/src/agent/agent-run.ts) 移除 `configureOutputs()`；[`bootstrap.ts`](../../../packages/agent/src/app/bootstrap.ts) 的 `setupAgentEventOutputs` 改为接收 `eventOutputs.outputs`
+3. agent-cli 启动：`bootstrapAgentPlatform({ workdir, runtime, eventOutputs: createCliEventOutputs(workdir) })`
 
 **Conformance：** `packages/agent/src` 不得 import `terminal/`、`log/format/`、`log/outputs/`、`errors/report.ts`；不得 `process.stderr.write`；session-persistence 不得 `reply`。
 
@@ -237,7 +237,7 @@ export async function bootstrapAgentPlatform(opts: AgentPlatformOptions): Promis
 |----|------|
 | Session persistence 去 REPL 形状 | **已落地** — Harness：`SessionLifecycleAccess`、`saveActiveSessionToIndex`、`openSessionFromIndex`；CLI：`session-save.ts`、`resume.ts` |
 | `printStartupHint` / `printQuitHint` | **已落地** — 仍在 agent-cli（[`session-hints.ts`](../../../packages/agent-cli/src/cli/session-hints.ts)）；plugin lifecycle 无 stderr |
-| Debug 终端经 pipeline | **已落地** — `AgentEventPipeline.writeDebugTerminal`；`emitDebugRecord` 无默认 stderr；`createTestEventPipeline` 在 `@moontide/agent/testing` |
+| Debug 终端经 event outputs | **已落地** — `AgentEventOutputs.writeDebugTerminal`；`emitDebugRecord` 无默认 stderr；`createTestEventOutputs` 在 `@moontide/agent/testing` |
 
 ---
 
@@ -294,7 +294,7 @@ export async function bootstrapAgentPlatform(opts: AgentPlatformOptions): Promis
 | `AgentSession` | [`agent/agent-session.ts`](../../../packages/agent/src/agent/agent-session.ts) | REPL · slash |
 | `LoopContext` · `createDefaultLoopContext` | [`agent/deps.ts`](../../../packages/agent/src/agent/deps.ts) | REPL · evals |
 | `getAgentRuntime` · `setAgentRuntime` · `AgentRuntime` | [`agent/runtime/index.ts`](../../../packages/agent/src/agent/runtime/index.ts) | REPL · evals |
-| `AgentEventPipeline` · `AgentPlatformOptions` · `bootstrapAgentPlatform` · **`teardownAgentPlatform`** | §4.1 + [`app/bootstrap.ts`](../../../packages/agent/src/app/bootstrap.ts) | REPL · evals · agent-cli |
+| `AgentEventOutputs` · `AgentPlatformOptions` · `bootstrapAgentPlatform` · **`teardownAgentPlatform`** | §4.1 + [`app/bootstrap.ts`](../../../packages/agent/src/app/bootstrap.ts) | REPL · evals · agent-cli |
 | `getWorkdir` · `setWorkdir` | [`config.ts`](../../../packages/agent-cli/src/config.ts) | CLI · evals |
 | `prepareRun` | [`agent/hooks/index.ts`](../../../packages/agent/src/agent/hooks/index.ts) | harness |
 | `setupToolsPorts` | [`agent/tools-setup.ts`](../../../packages/agent/src/agent/tools-setup.ts) | REPL · evals |
@@ -393,8 +393,8 @@ agent-cli  →  session/context-composer 或 context（slash；见 §5.4b）
 
 ### Phase 2 — §18 主轨：`packages/agent-cli`
 
-1. 新建 `packages/agent-cli/`；按 §5.2 迁移（含 §4 终端模块、`createCliEventPipeline`）
-2. CLI 启动：`bootstrapAgentPlatform({ workdir, runtime, pipeline: createCliEventPipeline(workdir) })`
+1. 新建 `packages/agent-cli/`；按 §5.2 迁移（含 §4 终端模块、`createCliEventOutputs`）
+2. CLI 启动：`bootstrapAgentPlatform({ workdir, runtime, eventOutputs: createCliEventOutputs(workdir) })`
 3. 根 scripts filter → `agent-cli`；更新 [`dev-startup.test.ts`](../../../tests/conformance/dev-startup.test.ts)
 4. 删除 [`packages/agent-cli`](../../../packages/agent-cli) 及 code-repl template 重复 copy
 5. **同 PR 更新：** [`monorepo-packages.md`](monorepo-packages.md) Dev 启动 · [`README.md`](../../../README.md) · [`TODO.md`](../../../TODO.md) §18 勾选
@@ -412,7 +412,7 @@ agent-cli  →  session/context-composer 或 context（slash；见 §5.4b）
 ### §18 主轨
 
 - [ ] 三层 run 栈：`agent-core` · `@moontide/agent` · `packages/agent-cli`
-- [ ] `@moontide/agent` 零 terminal / `log/format` / `errors/report` import；**`AgentEventPipeline` 经 bootstrap 注入**；`AgentRun` 不调用 `configureOutputs()`（M7 已完成 pipeline 注入）
+- [ ] `@moontide/agent` 零 terminal / `log/format` / `errors/report` import；**`AgentEventOutputs` 经 bootstrap 注入**；`AgentRun` 不调用 `configureOutputs()`（M7 已完成 pipeline 注入）
 - [x] `@moontide/evals` 零 `packages/agent-cli/src` import
 - [x] 新包 exports + **dist** import smoke（`package-exports.test.ts` run-stack 段）
 - [ ] `pnpm dev` REPL 行为与迁移前一致

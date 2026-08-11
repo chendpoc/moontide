@@ -11,7 +11,7 @@ await import("../../packages/agent-cli/src/bootstrap.js");
 
 const { setLLMProvider } = await import("@moontide/llm");
 const { runAgent } = await import("../../packages/agent/src/agent/loop.js");
-const { createCliEventPipeline } = await import("../../packages/agent-cli/src/log/cli-event-pipeline.js");
+const { createCliEventOutputs } = await import("../../packages/agent-cli/src/log/cli-event-outputs.js");
 
 setLLMProvider({
   chat: async () => ({
@@ -22,5 +22,5 @@ setLLMProvider({
   countTokens: async () => 1,
 });
 
-const reply = await runAgent("hi", createCliEventPipeline(workdir));
+const reply = await runAgent("hi", createCliEventOutputs(workdir));
 console.log(reply === "cold-ok" ? "ok" : `bad:${reply}`);

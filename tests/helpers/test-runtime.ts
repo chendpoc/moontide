@@ -2,11 +2,11 @@ import {
   createAgentRuntime,
   getWorkdir,
   setAgentRuntime,
-  setupAgentEventPipeline,
-  type AgentEventPipeline,
+  setupAgentEventOutputs,
+  type AgentEventOutputs,
   type AgentRuntime,
 } from "@moontide/agent";
-import { createTestEventPipeline } from "@moontide/agent/testing";
+import { createTestEventOutputs } from "@moontide/agent/testing";
 import { registerBuiltinWorkMemPorts } from "../../packages/agent/src/plugins/builtin/work-mem/register.js";
 import { resetAlwaysAllowOverride } from "../../packages/agent/src/tools/always-allow-mode.js";
 
@@ -21,15 +21,15 @@ const denyAllInteraction: UserInteraction = {
   },
 };
 
-/** Install an isolated AgentRuntime for tests (hooks + default tools + event pipeline). */
+/** Install an isolated AgentRuntime for tests (hooks + default tools + event outputs). */
 export function installTestRuntime(
   workdir = getWorkdir(),
-  pipeline: AgentEventPipeline = createTestEventPipeline(),
+  eventOutputs: AgentEventOutputs = createTestEventOutputs(),
 ): AgentRuntime {
   registerBuiltinWorkMemPorts();
   const runtime = createAgentRuntime();
   setAgentRuntime(runtime);
-  setupAgentEventPipeline(runtime, pipeline, workdir);
+  setupAgentEventOutputs(runtime, eventOutputs, workdir);
   active = runtime;
   return runtime;
 }

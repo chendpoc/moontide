@@ -1,4 +1,4 @@
-import type { AgentEventPipeline } from "./event-pipeline.js";
+import type { AgentEventOutputs } from "./event-outputs.js";
 import type { AgentRunExecuteOptions } from "./agent-run.js";
 import { getWorkdir } from "../config.js";
 import { resetRuntimeStatus } from "./context-status.js";
@@ -12,14 +12,14 @@ import { setupToolsPorts } from "./tools-setup.js";
 
 export async function runAgent(
   userPrompt: string,
-  pipeline: AgentEventPipeline,
+  eventOutputs: AgentEventOutputs,
 ): Promise<string> {
   setupToolsPorts();
   const runtime = getAgentRuntime();
   await bootstrapAgentPlatform({
     workdir: getWorkdir(),
     runtime,
-    pipeline,
+    eventOutputs,
   });
   resetRuntimeStatus();
   prepareRun();
