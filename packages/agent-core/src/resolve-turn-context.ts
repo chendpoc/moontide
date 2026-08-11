@@ -1,4 +1,4 @@
-import type { AgentMessage, RunConfig, TurnCompileResult } from "@moontide/agent-common";
+import type { AgentMessage, RunConfig, TurnCompileResult } from "@moontide/run-protocol";
 
 export async function resolveTurnContext(
   config: Readonly<RunConfig>,

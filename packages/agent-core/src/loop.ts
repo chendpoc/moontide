@@ -5,7 +5,7 @@ import type {
   ToolResultMessage,
   TurnCompileResult,
   UserMessage,
-} from "@moontide/agent-common";
+} from "@moontide/run-protocol";
 import type { RunEventBus } from "./run-event-bus.js";
 import type { MessageLog } from "./message-log.js";
 import { appendToLog, withRun, withTurn } from "./lifecycle.js";

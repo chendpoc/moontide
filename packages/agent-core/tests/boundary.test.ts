@@ -21,7 +21,12 @@ function _tsFiles(dir: string): string[] {
 
 describe("agent-core import boundary", () => {
   it("does not import moontide harness paths", () => {
-    const forbidden = ["apps/moontide/src/session/", "apps/moontide/src/context/", "apps/moontide/src/plugins/", "apps/moontide/src/agent/"];
+    const forbidden = [
+      "packages/agent-cli/src/session/",
+      "packages/agent-cli/src/context/",
+      "packages/agent/src/plugins/",
+      "packages/agent/src/agent/",
+    ];
     for (const file of _tsFiles(_coreSrc)) {
       const text = readFileSync(file, "utf8");
       for (const pattern of forbidden) {

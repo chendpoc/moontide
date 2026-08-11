@@ -4,7 +4,7 @@ import type {
   StreamAssistantEvent,
   StreamFn,
   LlmContext,
-} from "@moontide/agent-common";
+} from "@moontide/run-protocol";
 import type { RunEventBus } from "./run-event-bus.js";
 import { RunAbortError } from "./lifecycle.js";
 

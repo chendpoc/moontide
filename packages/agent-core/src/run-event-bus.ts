@@ -1,4 +1,4 @@
-import type { RunEvent } from "@moontide/agent-common";
+import type { RunEvent } from "@moontide/run-protocol";
 
 export type RunEventListener = (event: RunEvent) => void | Promise<void>;
 

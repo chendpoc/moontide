@@ -21,7 +21,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@moontide/agent-common": "workspace:*"
+    "@moontide/run-protocol": "workspace:*"
   },
   "license": "MIT"
 }

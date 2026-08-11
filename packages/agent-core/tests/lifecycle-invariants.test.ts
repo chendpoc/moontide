@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RunConfig } from "@moontide/agent-common";
+import type { RunConfig } from "@moontide/run-protocol";
 import { createMessageLog } from "../src/message-log.js";
 import { createRunEventBus } from "../src/run-event-bus.js";
 import { withRun } from "../src/lifecycle.js";

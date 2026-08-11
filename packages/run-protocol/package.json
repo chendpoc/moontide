@@ -1,7 +1,7 @@
 {
-  "name": "@moontide/agent-common",
+  "name": "@moontide/run-protocol",
   "version": "0.0.1",
-  "description": "Shared agent protocol types (RunEvent, RunConfig, Effect ports)",
+  "description": "Run stack protocol (RunEvent, RunConfig, Effect ports)",
   "type": "module",
   "exports": {
     ".": {

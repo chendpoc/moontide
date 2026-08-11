@@ -3,7 +3,7 @@ import type {
   StreamAssistantEvent,
   StreamFn,
   ToolExecutor,
-} from "@moontide/agent-common";
+} from "@moontide/run-protocol";
 
 export function mockTextStreamFn(text: string): StreamFn {
   return async function* (): AsyncIterable<StreamAssistantEvent> {

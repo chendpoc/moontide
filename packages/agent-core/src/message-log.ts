@@ -1,4 +1,4 @@
-import type { AgentMessage, RunEvent } from "@moontide/agent-common";
+import type { AgentMessage, RunEvent } from "@moontide/run-protocol";
 
 export interface MessageLog {
   readonly messages: readonly AgentMessage[];

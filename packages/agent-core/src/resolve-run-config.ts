@@ -1,4 +1,4 @@
-import type { RunConfig, RunConfigSource } from "@moontide/agent-common";
+import type { RunConfig, RunConfigSource } from "@moontide/run-protocol";
 
 
 

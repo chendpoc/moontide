@@ -27,6 +27,7 @@ export interface AfterToolCallResult {
   content?: string;
   isError?: boolean;
   details?: unknown;
+  modelAppends?: string[];
 }
 
 export interface ShouldStopAfterTurnParams {

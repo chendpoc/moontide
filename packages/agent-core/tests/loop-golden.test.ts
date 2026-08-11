@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { StreamAssistantEvent, StreamFn } from "@moontide/agent-common";
+import type { StreamAssistantEvent, StreamFn } from "@moontide/run-protocol";
 import { createMessageLog } from "../src/message-log.js";
 import { createRunEventBus } from "../src/run-event-bus.js";
 import { runLoop } from "../src/loop.js";

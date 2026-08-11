@@ -1,4 +1,4 @@
-import type { AgentMessage, Outcome, ToolResultMessage } from "@moontide/agent-common";
+import type { AgentMessage, Outcome, ToolResultMessage } from "@moontide/run-protocol";
 import type { RunEventBus } from "./run-event-bus.js";
 
 export interface WithRunOptions {

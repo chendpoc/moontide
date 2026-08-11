@@ -4,7 +4,7 @@ import type {
   ToolCallContent,
   ToolExecutor,
   ToolResultMessage,
-} from "@moontide/agent-common";
+} from "@moontide/run-protocol";
 import type { RunEventBus } from "./run-event-bus.js";
 import { appendToLog } from "./lifecycle.js";
 import type { MessageLog } from "./message-log.js";

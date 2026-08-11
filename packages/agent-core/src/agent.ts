@@ -5,7 +5,7 @@ import type {
   StreamFn,
   ToolExecutor,
   UserMessage,
-} from "@moontide/agent-common";
+} from "@moontide/run-protocol";
 import { createMessageLog } from "./message-log.js";
 import { runLoop, type RunLoopResult } from "./loop.js";
 import { resolveRunConfig } from "./resolve-run-config.js";
