@@ -1,15 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { resetEvalHarnessOverrides, setEvalProtocolRemindersEnabled } from "../../../apps/moontide/src/agent/harness/eval-overrides.js";
-import { AgentSession } from "../../../apps/moontide/src/agent/agent-session.js";
-import { setupAgentEventPipeline } from "../../../apps/moontide/src/app/bootstrap.js";
-import { applyDeepPromptGate, getActiveWorkMemId, resetDeepModeOnNewSession } from "../../../apps/moontide/src/agent/deep-mode.js";
-import { createDefaultLoopContext } from "../../../apps/moontide/src/agent/deps.js";
-import { setWorkdir } from "../../../apps/moontide/src/config.js";
-import { resetEventPlatform } from "../../../apps/moontide/src/log/setup.js";
-import { resetRuntimeStatus } from "../../../apps/moontide/src/agent/context-status.js";
-import { setDebugOverride, resetDebugOverride } from "../../../apps/moontide/src/context-inspect/debug-mode.js";
+import {
+  AgentSession,
+  applyDeepPromptGate,
+  createDefaultLoopContext,
+  getActiveWorkMemId,
+  resetDeepModeOnNewSession,
+  resetEventPlatform,
+  resetRuntimeStatus,
+  setDebugOverride,
+  resetDebugOverride,
+  setWorkdir,
+} from "@moontide/agent";
+import { resetEvalHarnessOverrides, setEvalProtocolRemindersEnabled } from "@moontide/agent/testing";
 import type { UserInteraction } from "@moontide/tools";
 import { joinPath } from "@moontide/shared/utils/path.js";
 import { createTmpDir, removeTmpDir } from "@moontide/shared/utils/tmp.js";
@@ -117,8 +121,7 @@ export async function runEvalCase(
   setDebugOverride("file");
   enableTestCollector();
 
-  const runtime = installEvalRuntime(workdir);
-  setupAgentEventPipeline(runtime);
+  installEvalRuntime(workdir);
 
   const started = Date.now();
   let reply = "";

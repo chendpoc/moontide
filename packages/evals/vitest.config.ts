@@ -19,8 +19,20 @@ export default defineConfig({
         replacement: path.join(evalRoot, "src/index.ts"),
       },
       {
-        find: "@moontide/agent-common",
-        replacement: path.join(repoRoot, "packages/agent-common/src/index.ts"),
+        find: "@moontide/run-protocol",
+        replacement: path.join(repoRoot, "packages/run-protocol/src/index.ts"),
+      },
+      {
+        find: "@moontide/agent/testing",
+        replacement: path.join(repoRoot, "packages/agent/src/testing/index.ts"),
+      },
+      {
+        find: "@moontide/agent/load-env",
+        replacement: path.join(repoRoot, "packages/agent/src/app/load-env.ts"),
+      },
+      {
+        find: "@moontide/agent",
+        replacement: path.join(repoRoot, "packages/agent/src/index.ts"),
       },
       {
         find: "@moontide/agent-core",

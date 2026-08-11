@@ -1,10 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import "../../../apps/moontide/src/bootstrap.js";
-import { setupToolsPorts } from "../../../apps/moontide/src/agent/tools-setup.js";
-import { registerBuiltinWorkMemPorts } from "../../../apps/moontide/src/plugins/builtin/work-mem/register.js";
-import "../../../apps/moontide/src/tools/register-defaults.js";
+import "../src/load-eval-env.js";
+import { registerBuiltinWorkMemPorts, setupToolsPorts } from "@moontide/agent";
 
 setupToolsPorts();
 registerBuiltinWorkMemPorts();

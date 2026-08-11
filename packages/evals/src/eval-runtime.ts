@@ -1,11 +1,11 @@
 import {
   createAgentRuntime,
   setAgentRuntime,
+  setupEvalHarness,
   type AgentRuntime,
-} from "../../../apps/moontide/src/agent/runtime/index.js";
-import { getWorkdir } from "../../../apps/moontide/src/config.js";
-import { registerBuiltinWorkMemPorts } from "../../../apps/moontide/src/plugins/builtin/work-mem/register.js";
-import { resetAlwaysAllowOverride } from "../../../apps/moontide/src/tools/always-allow-mode.js";
+} from "@moontide/agent";
+import { getWorkdir } from "@moontide/agent";
+import { resetAlwaysAllowOverride } from "@moontide/agent";
 import { setHttpFetchExecutor } from "@moontide/tools";
 
 import { evalHttpFetchExecutor } from "./http-fixtures.js";
@@ -13,12 +13,11 @@ import { evalHttpFetchExecutor } from "./http-fixtures.js";
 let active: AgentRuntime | undefined;
 let httpFixturesInstalled = false;
 
-/** Install an isolated AgentRuntime for eval runs (hooks + default tools). */
+/** Install an isolated AgentRuntime for eval runs (hooks + default tools + eval pipeline). */
 export function installEvalRuntime(workdir = getWorkdir()): AgentRuntime {
-  registerBuiltinWorkMemPorts();
   const runtime = createAgentRuntime();
   setAgentRuntime(runtime);
-  runtime.registerDefaultSidecarHooks(workdir);
+  setupEvalHarness(runtime, workdir);
   active = runtime;
   return runtime;
 }

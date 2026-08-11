@@ -5,7 +5,7 @@ import { RUNS_DIR } from "@moontide/shared/constants/storage.js";
 import { dataPath } from "@moontide/shared/utils/path.js";
 import { sessionLogPath } from "@moontide/session";
 
-import { debugLogPath } from "../../../apps/moontide/src/context-inspect/debug-file.js";
+import { debugLogPath } from "@moontide/agent";
 
 export interface PersistRunArtifactsOptions {
   workdir: string;

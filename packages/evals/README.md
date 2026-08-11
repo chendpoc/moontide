@@ -1,6 +1,6 @@
 # @moontide/evals
 
-MoonTide harness **feature A/B evaluation**（真 LLM + pairwise judge）。Spec: [`docs/spec/harness-eval-1.0.md`](../../docs/spec/harness-eval-1.0.md) · 分类设计: [`docs/notes/agent-eval-task-taxonomy.md`](../../docs/notes/agent-eval-task-taxonomy.md) · PR 模板: [`.github/eval-impact-card.md`](../../.github/eval-impact-card.md)。
+MoonTide harness **feature A/B evaluation**（真 LLM + pairwise judge）。Spec: [`docs/spec/harness-eval-1.0.md`](../../docs/spec/harness-eval-1.0.md) · 分类设计: [`docs/notes/evals/agent-eval-task-taxonomy.md`](../../docs/notes/evals/agent-eval-task-taxonomy.md) · **L2 agent artifact 计划:** [`docs/notes/evals/eval-release-artifact.md`](../../docs/notes/evals/eval-release-artifact.md) · PR 模板: [`.github/eval-impact-card.md`](../../.github/eval-impact-card.md)。
 
 ## 原则
 
@@ -9,6 +9,16 @@ MoonTide harness **feature A/B evaluation**（真 LLM + pairwise judge）。Spec
 - **`gradingMode`**：`objective`（expectedChecks）| `subjective`（LLM 对比 + rubricBullets）
 - 主指标：**meanScore**、**winRate**、**byCategory**、**byFeatureSurface**、**efficiency**
 - Agent job 在**子进程**中跑（每题 baseline+candidate 隔离）
+
+## 依赖
+
+| 包 | 用途 |
+|----|------|
+| `@moontide/agent` | Harness run（`AgentSession` · `setupEvalHarness` · `loadWorkspaceEnv`） |
+| `@moontide/agent/testing` | eval overrides · mock pipeline |
+| `@moontide/llm` · `@moontide/session` · `@moontide/tools` · `@moontide/log` · `@moontide/shared` | harness 链路透传 |
+
+**不依赖** `@moontide/agent-cli`（无 REPL / stderr 渲染）；workspace `.env` 经 `@moontide/agent/load-env` 的 `loadWorkspaceEnv` 加载（避免 bootstrap 时拉整包 `@moontide/agent` 主入口）。
 
 ## 命令
 
