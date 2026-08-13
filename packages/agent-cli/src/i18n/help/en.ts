@@ -33,9 +33,7 @@ export const helpEn: HelpStrings = {
     "/compact preview": "dry-run L2 token estimate",
     "/compact summary": "LLM summary compaction (extra API call)",
     "/compact auto on|off": "toggle L2-threshold auto-prune",
-    "/thinking on|off|status": "call-chain trace (thinking · tool · result)",
     "/statusline [set <ids>|reset|preview|status]": `configure status line segments (persisted to ${configPath})`,
-    "/verbose on|off|status": "context one-liner + event trace (truncated previews)",
-    "/debug on|terminal|file|off|status": "full compose / llm / tool dumps (stderr + debug jsonl)",
+    "/debug on|file|off|status": "append full compose / llm / tool records to debug jsonl (file only)",
   },
 };

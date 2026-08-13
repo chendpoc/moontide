@@ -33,9 +33,7 @@ export const helpZh: HelpStrings = {
     "/compact preview": "dry-run L2 token 估算",
     "/compact summary": "LLM 摘要压缩（额外 API 调用）",
     "/compact auto on|off": "切换 L2 超阈值自动 prune",
-    "/thinking on|off|status": "调用链 trace（thinking · tool · result）",
     "/statusline [set <ids>|reset|preview|status]": `配置 status line 字段（写入 ${configPath}）`,
-    "/verbose on|off|status": "context 单行 + 事件 trace（预览有截断）",
-    "/debug on|terminal|file|off|status": "全量 compose / llm / tool 输出（stderr + debug jsonl）",
+    "/debug on|file|off|status": "compose / llm / tool 全量写入 debug jsonl（仅落盘）",
   },
 };

@@ -4,7 +4,6 @@ import { handleCompactCommand } from "./compact.js";
 import { handleHelpCommand } from "./help.js";
 import { handleDebugCommand } from "./debug.js";
 import { handleExitCommand } from "./exit.js";
-import { handleThinkingCommand, handleVerboseCommand } from "./observability.js";
 import { handleResetCommand } from "./reset.js";
 import { handleResumeCommand } from "./resume.js";
 import { handleSettingsCommand } from "./settings.js";
@@ -139,17 +138,6 @@ export const REPL_COMMANDS: ReplCommandSpec[] = [
     handler: (parsed, ctx) => handleCompactCommand(parsed, ctx),
   },
   {
-    name: "/thinking",
-    helpCategory: "Observability",
-    helpEntries: [
-      {
-        syntax: "/thinking on|off|status",
-        summary: "call-chain trace (thinking · tool · result)",
-      },
-    ],
-    handler: (parsed) => handleThinkingCommand(parsed.arg),
-  },
-  {
     name: "/statusline",
     helpCategory: "Observability",
     helpEntries: [
@@ -161,26 +149,15 @@ export const REPL_COMMANDS: ReplCommandSpec[] = [
     handler: (parsed) => handleStatuslineCommand(parsed.parts.slice(1).join(" ") || undefined),
   },
   {
-    name: "/verbose",
-    helpCategory: "Observability",
-    helpEntries: [
-      {
-        syntax: "/verbose on|off|status",
-        summary: "context one-liner + event trace (truncated previews)",
-      },
-    ],
-    handler: (parsed) => handleVerboseCommand(parsed.arg),
-  },
-  {
     name: "/debug",
     helpCategory: "Observability",
     helpEntries: [
       {
-        syntax: "/debug on|terminal|file|off|status",
-        summary: "full compose / llm / tool dumps (no truncation)",
+        syntax: "/debug on|file|off|status",
+        summary: "append full compose / llm / tool records to debug jsonl (file only)",
       },
     ],
-    handler: (parsed) => handleDebugCommand(parsed.arg),
+    handler: (parsed, ctx) => handleDebugCommand(parsed, ctx),
   },
 ];
 

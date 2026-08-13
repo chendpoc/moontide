@@ -7,7 +7,6 @@ import { debugLogPath } from "../packages/agent/src/context-inspect/debug-file.j
 import {
   getDebugLevel,
   isDebugFileEnabled,
-  isDebugTerminalEnabled,
   parseDebugLevelArg,
   resetDebugOverride,
   setDebugOverride,
@@ -28,29 +27,26 @@ const DEBUG_ENV = "MOONTIDE_DEBUG";
 describe("context-inspect debug mode", () => {
   beforeEach(() => {
     delete process.env[DEBUG_ENV];
+    delete process.env.MOONTIDE_ENV;
     resetDebugOverride();
   });
 
   afterEach(() => {
     delete process.env[DEBUG_ENV];
+    delete process.env.MOONTIDE_ENV;
     resetDebugOverride();
   });
 
-  it("parseDebugLevelArg maps on to terminal", () => {
-    expect(parseDebugLevelArg("on")).toBe("terminal");
-    expect(parseDebugLevelArg("terminal")).toBe("terminal");
+  it("parseDebugLevelArg maps on and terminal to file", () => {
+    expect(parseDebugLevelArg("on")).toBe("file");
+    expect(parseDebugLevelArg("terminal")).toBe("file");
     expect(parseDebugLevelArg("file")).toBe("file");
     expect(parseDebugLevelArg("off")).toBe("off");
   });
 
-  it("tiers terminal and file correctly", () => {
-    setDebugOverride("terminal");
-    expect(getDebugLevel()).toBe("terminal");
-    expect(isDebugTerminalEnabled()).toBe(true);
-    expect(isDebugFileEnabled()).toBe(true);
-
+  it("file tier enables debug jsonl only", () => {
     setDebugOverride("file");
-    expect(isDebugTerminalEnabled()).toBe(true);
+    expect(getDebugLevel()).toBe("file");
     expect(isDebugFileEnabled()).toBe(true);
   });
 
@@ -87,12 +83,8 @@ describe("context-inspect debug hooks", () => {
     removeTmpWorkdir(tmpDir);
   });
 
-  function debugStderr(): string {
-    return debugTerminal.join("\n");
-  }
-
-  it("writes full compose to stderr and debug jsonl in terminal tier", () => {
-    setDebugOverride("terminal");
+  it("writes full compose to debug jsonl when file tier is on", () => {
+    setDebugOverride("file");
     handleDebugCompose({
       composed: {
         request: { system: "hello", messages: [{ role: "user", content: "hi" }], tools: [] },
@@ -100,9 +92,7 @@ describe("context-inspect debug hooks", () => {
       },
     });
 
-    expect(debugStderr()).toContain("DEBUG turn 01");
-    expect(debugStderr()).toContain('"kind": "compose"');
-    expect(debugStderr()).toContain('"system": "hello"');
+    expect(debugTerminal).toEqual([]);
     expect(fs.existsSync(debugLogPath(tmpDir))).toBe(true);
     const line = fs.readFileSync(debugLogPath(tmpDir), "utf8").trim();
     expect(JSON.parse(line).kind).toBe("compose");
@@ -138,14 +128,13 @@ describe("context-inspect debug hooks", () => {
     expect(tool.kind).toBe("tool_use");
     expect(tool.outcome.output).toBe("file body here");
 
-    expect(debugStderr()).toContain("llm_call");
-    expect(debugStderr()).toContain("tool_use");
+    expect(debugTerminal).toEqual([]);
   });
 
   it("emitDebugRecord is a no-op when debug is off", () => {
     setDebugOverride("off");
     emitDebugRecord({ kind: "compose", turn: 1, request: {} }, tmpDir);
-    expect(debugStderr()).toBe("");
+    expect(debugTerminal).toEqual([]);
     expect(fs.existsSync(debugLogPath(tmpDir))).toBe(false);
   });
 

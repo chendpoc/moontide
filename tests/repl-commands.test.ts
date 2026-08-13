@@ -5,10 +5,6 @@ import { handleReplCommand } from "../packages/agent-cli/src/cli/commands/repl.j
 import { resetReplConversation } from "../packages/agent-cli/src/cli/commands/reset.js";
 import { getReplAgentSession, resetReplSession, startReplSession } from "../packages/agent-cli/src/cli/repl/session.js";
 import {
-  isThinkingEnabled,
-  resetObservabilityOverrides,
-} from "../packages/agent-cli/src/log/modes.js";
-import {
   isAlwaysAllowEnabled,
   resetAlwaysAllowOverride,
   setAlwaysAllowOverride,
@@ -18,6 +14,9 @@ import {
   resetDebugOverride,
   setDebugOverride,
 } from "../packages/agent/src/context-inspect/debug-mode.js";
+import { setStderrWriterForTest } from "../packages/agent-cli/src/terminal/write.js";
+import { DEBUG_WATCH_JQ_FILE } from "../packages/agent-cli/src/cli/debug-watch.js";
+import { resetRun } from "../packages/agent-cli/src/log/index.js";
 
 const fakeRl = {} as Interface;
 
@@ -29,7 +28,6 @@ const emptyCtx = {
 
 describe("repl commands", () => {
   afterEach(() => {
-    resetObservabilityOverrides();
     resetDebugOverride();
     resetAlwaysAllowOverride();
     resetReplSession();
@@ -40,15 +38,9 @@ describe("repl commands", () => {
     expect(result).toBe("unknown");
   });
 
-  it("toggles thinking mode", async () => {
-    const result = await handleReplCommand("/thinking on", emptyCtx);
-    expect(result).toBe("handled");
-    expect(isThinkingEnabled()).toBe(true);
-  });
-
-  it("reports verbose status", async () => {
-    const result = await handleReplCommand("/verbose status", emptyCtx);
-    expect(result).toBe("handled");
+  it("returns unknown for removed /verbose and /thinking commands", async () => {
+    expect(await handleReplCommand("/verbose on", emptyCtx)).toBe("unknown");
+    expect(await handleReplCommand("/thinking on", emptyCtx)).toBe("unknown");
   });
 
   it("toggles debug mode", async () => {
@@ -57,7 +49,57 @@ describe("repl commands", () => {
     expect(getDebugLevel()).toBe("file");
   });
 
+  it("debug status prints multi-line tail hint when session exists", async () => {
+    setDebugOverride("file");
+    const lines: string[] = [];
+    setStderrWriterForTest((chunk) => {
+      lines.push(chunk);
+      return true;
+    });
+    const agentSession = startReplSession();
+    resetRun("debug-status-run");
+    try {
+      const result = await handleReplCommand("/debug status", {
+        rl: fakeRl,
+        getAgentSession: () => agentSession,
+        resetConversation: () => {},
+      });
+      expect(result).toBe("handled");
+      const out = lines.join("");
+      expect(out).toContain(`session ${agentSession.session.sessionId}`);
+      expect(out).toContain("run debug-status-run");
+      expect(out).toContain("watch (new terminal");
+      expect(out).toContain("tail -f '");
+      expect(out).toContain("jq -C -R -r -f");
+      expect(out).toContain(DEBUG_WATCH_JQ_FILE);
+      expect(out).not.toContain("fromjson?");
+      expect(out).toContain(`${agentSession.session.sessionId}.jsonl`);
+    } finally {
+      setStderrWriterForTest(null);
+    }
+  });
+
+  it("debug status prints placeholder tail command without session", async () => {
+    const lines: string[] = [];
+    setStderrWriterForTest((chunk) => {
+      lines.push(chunk);
+      return true;
+    });
+    try {
+      const result = await handleReplCommand("/debug status", emptyCtx);
+      expect(result).toBe("handled");
+      const out = lines.join("");
+      expect(out).toContain("tail -f '");
+      expect(out).toContain("<session-id>");
+      expect(out).not.toContain("pnpm dev");
+    } finally {
+      setStderrWriterForTest(null);
+    }
+  });
+
   it("resets debug override on /reset", async () => {
+    delete process.env.MOONTIDE_ENV;
+    delete process.env.MOONTIDE_DEBUG;
     setDebugOverride("file");
     const result = await handleReplCommand("/reset", emptyCtx);
     expect(result).toBe("handled");
@@ -101,7 +143,7 @@ describe("repl commands", () => {
     const syntaxes = sections.flatMap((section) => section.entries.map((entry) => entry.syntax));
     expect(syntaxes).toContain("/save");
     expect(syntaxes).toContain("/settings lang en|zh|status");
-    expect(syntaxes).toContain("/debug on|terminal|file|off|status");
+    expect(syntaxes).toContain("/debug on|file|off|status");
   });
 
   it("compact preview requires session", async () => {

@@ -1,6 +1,9 @@
+import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ErrorCode } from "@moontide/shared/errors/codes.js";
+import { getWorkdir, setWorkdir } from "../packages/agent/src/config.js";
+import { debugLogPath } from "../packages/agent/src/context-inspect/debug-file.js";
 import { reportError } from "../packages/agent-cli/src/errors/report.js";
 import {
   disableTestCollector,
@@ -13,14 +16,18 @@ import { createTestEventOutputs } from "@moontide/agent/testing";
 import { setStderrWriterForTest } from "../packages/agent-cli/src/terminal/write.js";
 import { stripAnsi } from "@moontide/shared/utils/text.js";
 import { clearTestRuntime, installTestRuntime } from "./helpers/test-runtime.js";
+import { createTmpWorkdir, removeTmpWorkdir } from "./helpers/tmp-workdir.js";
 
 describe("reportError", () => {
   let stderr = "";
-  let debugTerminal: string[] = [];
+  let tmpDir = "";
+  let originalWorkdir = "";
 
   beforeEach(() => {
     stderr = "";
-    debugTerminal = [];
+    originalWorkdir = getWorkdir();
+    tmpDir = createTmpWorkdir("moontide-error-report-");
+    setWorkdir(tmpDir);
     resetRun("report-run");
     enableTestCollector();
     resetDebugOverride();
@@ -28,7 +35,7 @@ describe("reportError", () => {
       stderr += chunk;
       return true;
     });
-    installTestRuntime(undefined, createTestEventOutputs({ debugTerminal }));
+    installTestRuntime(tmpDir, createTestEventOutputs());
   });
 
   afterEach(() => {
@@ -36,6 +43,8 @@ describe("reportError", () => {
     resetDebugOverride();
     setStderrWriterForTest(null);
     clearTestRuntime();
+    setWorkdir(originalWorkdir);
+    removeTmpWorkdir(tmpDir);
   });
 
   it("writes stderr and emits plugin_error when routed", () => {
@@ -63,7 +72,7 @@ describe("reportError", () => {
     expect(event.payload.message).toBe("hook failed");
   });
 
-  it("emits debug error record when debug file tier is on", () => {
+  it("writes debug error record to jsonl when debug file tier is on", () => {
     setDebugOverride("file");
     reportError(
       {
@@ -75,8 +84,11 @@ describe("reportError", () => {
       { route: { channel: "trace", phase: "post_llm", turn: 3 }, stderr: false },
     );
 
-    const debugText = debugTerminal.join("\n");
-    expect(debugText).toContain('"kind": "error"');
-    expect(debugText).toContain("network down");
+    const path = debugLogPath(tmpDir);
+    expect(fs.existsSync(path)).toBe(true);
+    const line = fs.readFileSync(path, "utf8").trim();
+    const record = JSON.parse(line) as { kind: string; message: string };
+    expect(record.kind).toBe("error");
+    expect(record.message).toBe("network down");
   });
 });

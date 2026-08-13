@@ -1,2 +1,2 @@
-/** Context inspect debug output tier. */
-export type DebugLevel = "off" | "terminal" | "file";
+/** Context inspect debug output tier (file-only; no terminal dump). */
+export type DebugLevel = "off" | "file";

@@ -1,7 +1,5 @@
 import { appendDebugRecord } from "./debug-file.js";
-import { formatDebugRecord } from "./debug-format.js";
-import { isDebugFileEnabled, isDebugTerminalEnabled } from "./debug-mode.js";
-import { getAgentRuntime } from "../agent/runtime/index.js";
+import { isDebugFileEnabled } from "./debug-mode.js";
 import { getWorkdir } from "../config.js";
 
 export interface DebugRecord {
@@ -10,16 +8,10 @@ export interface DebugRecord {
   [key: string]: unknown;
 }
 
-/** Emit one full debug record to event outputs terminal slot and/or `.moontide/debug/` per active tier. */
+/** Append one full debug record to `.moontide/debug/<sessionId>.jsonl` when debug file tier is on. */
 export function emitDebugRecord(record: DebugRecord, workdir = getWorkdir()): void {
-  if (!isDebugTerminalEnabled() && !isDebugFileEnabled()) {
+  if (!isDebugFileEnabled()) {
     return;
   }
-
-  if (isDebugTerminalEnabled()) {
-    getAgentRuntime().eventOutputs?.writeDebugTerminal?.(formatDebugRecord(record));
-  }
-  if (isDebugFileEnabled()) {
-    appendDebugRecord(record, workdir);
-  }
+  appendDebugRecord(record, workdir);
 }

@@ -228,16 +228,18 @@ export function localeDefault(): "en" | "zh" {
   return "en";
 }
 
-/** Default debug tier from DEBUG env: off | terminal (1/on) | file. */
+/** Default debug tier: off in production; file in dev unless DEBUG env overrides. */
 export function debugModeDefault(): DebugLevel {
   const raw = env(APP_ENV.DEBUG)?.toLowerCase();
-  if (!raw || raw === "0" || raw === "false" || raw === "off") {
-    return "off";
+  if (raw) {
+    if (raw === "0" || raw === "false" || raw === "off") {
+      return "off";
+    }
+    if (raw === "file" || raw === "1" || raw === "true" || raw === "on" || raw === "terminal") {
+      return "file";
+    }
   }
-  if (raw === "file") {
-    return "file";
-  }
-  return "terminal";
+  return isDevEnv() ? "file" : "off";
 }
 
 export function httpFetchEnabled(): boolean {

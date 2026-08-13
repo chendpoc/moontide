@@ -106,7 +106,13 @@ export {
   resetAlwaysAllowOverride,
   setAlwaysAllowOverride,
 } from "./tools/index.js";
-export { debugLogPath } from "./context-inspect/debug-file.js";
+export {
+  debugLogPath,
+  ensureDebugLogFile,
+  resetDebugLogKey,
+  setDebugLogKey,
+} from "./context-inspect/debug-file.js";
+export { formatDebugRecord } from "./context-inspect/debug-format.js";
 export {
   describeDebugMode,
   getDebugLevel,
@@ -116,7 +122,6 @@ export type { ContextAlert, ContextAlertCode, ContextReport, DetailLevel } from 
 export { emitDebugRecord } from "./context-inspect/debug-emit.js";
 export {
   isDebugFileEnabled,
-  isDebugTerminalEnabled,
   resetDebugOverride,
   setDebugOverride,
 } from "./context-inspect/debug-mode.js";

@@ -1,12 +1,16 @@
+/**
+ * @deprecated Use createReplRunEventProjection from cli/repl/run-event-projection.js
+ */
+import type { RunEventListener } from "@moontide/agent";
+import { extractTextReply } from "@moontide/agent";
 import type { RunEvent } from "@moontide/run-protocol";
-import { extractTextReply, type RunEventListener } from "@moontide/agent";
 
 export interface ReplConversationStreamListener {
   listener: RunEventListener;
   hadOutput: () => boolean;
 }
 
-/** Flush assistant visible text on each message_end (turn-level streaming for REPL stdout). */
+/** @deprecated Prefer createReplRunEventProjection + ReplTerminal */
 export function createReplConversationStreamListener(options: {
   onText: (text: string) => void;
 }): ReplConversationStreamListener {

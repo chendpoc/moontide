@@ -25,14 +25,20 @@ export {
   describeDebugMode,
   getDebugLevel,
   isDebugFileEnabled,
-  isDebugTerminalEnabled,
   parseDebugLevelArg,
   resetDebugOverride,
   setDebugOverride,
 } from "./debug-mode.js";
 export type { DebugLevel } from "@moontide/shared/constants/debug.js";
 export { emitDebugRecord, type DebugRecord } from "./debug-emit.js";
-export { debugLogPath } from "./debug-file.js";
+export {
+  debugLogPath,
+  ensureDebugLogFile,
+  resetDebugLogKey,
+  setDebugLogKey,
+} from "./debug-file.js";
+export { formatDebugRecord } from "./debug-format.js";
+export type { DebugRecordBase } from "./debug-format.js";
 export {
   getLatestReport,
   getLastComposedRequest,

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { alwaysAllowDefault, appEnv, isDevEnv } from "../packages/agent/src/config.js";
+import { alwaysAllowDefault, appEnv, debugModeDefault, isDevEnv } from "../packages/agent/src/config.js";
 
 beforeEach(() => {
   vi.stubEnv("MOONTIDE_ENV", "");
@@ -62,5 +62,40 @@ describe("alwaysAllowDefault", () => {
     vi.stubEnv("MOONTIDE_ENV", "dev");
     vi.stubEnv("MOONTIDE_ALWAYS_ALLOW", "0");
     expect(alwaysAllowDefault()).toBe(false);
+  });
+});
+
+describe("debugModeDefault", () => {
+  beforeEach(() => {
+    delete process.env.MOONTIDE_DEBUG;
+    delete process.env.MOONTIDE_ENV;
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    delete process.env.MOONTIDE_DEBUG;
+    delete process.env.MOONTIDE_ENV;
+  });
+
+  it("is off in production when unset", () => {
+    expect(debugModeDefault()).toBe("off");
+  });
+
+  it("is file in dev when unset", () => {
+    vi.stubEnv("MOONTIDE_ENV", "dev");
+    expect(debugModeDefault()).toBe("file");
+  });
+
+  it("honors explicit MOONTIDE_DEBUG=off in dev", () => {
+    vi.stubEnv("MOONTIDE_ENV", "dev");
+    vi.stubEnv("MOONTIDE_DEBUG", "off");
+    expect(debugModeDefault()).toBe("off");
+  });
+
+  it("maps legacy on/terminal env values to file", () => {
+    vi.stubEnv("MOONTIDE_DEBUG", "on");
+    expect(debugModeDefault()).toBe("file");
+    vi.stubEnv("MOONTIDE_DEBUG", "terminal");
+    expect(debugModeDefault()).toBe("file");
   });
 });
