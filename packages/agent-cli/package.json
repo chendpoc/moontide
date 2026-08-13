@@ -27,14 +27,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "dev": "tsx --tsconfig ../../tsconfig.dev.json src/main.ts",
+    "dev": "MOONTIDE_ENV=dev tsx --tsconfig ../../tsconfig.dev.json src/main.ts",
     "start": "node dist/main.js"
   },
   "dependencies": {
     "@moontide/agent": "workspace:*",
     "@moontide/context-composer": "workspace:*",
     "@moontide/llm": "workspace:*",
-    "@moontide/log": "workspace:*",
     "@moontide/run-protocol": "workspace:*",
     "@moontide/session": "workspace:*",
     "@moontide/shared": "workspace:*",

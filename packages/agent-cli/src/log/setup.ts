@@ -1,1 +1,1 @@
-export { resetEventPlatform } from "@moontide/log";
+export { resetEventPlatform } from "@moontide/agent/observability";

@@ -20,7 +20,6 @@
       "@moontide/session/stores": ["../session/dist/stores/index.d.ts"],
       "@moontide/session/block-registry": ["../session/dist/block-registry.d.ts"],
       "@moontide/context-composer": ["../context-composer/dist/index.d.ts"],
-      "@moontide/log": ["../log/dist/index.d.ts"],
       "@moontide/tools": ["../tools/dist/index.d.ts"],
       "@moontide/tools/ports": ["../tools/dist/ports/index.d.ts"],
       "@moontide/sidecar-host": ["../sidecar-host/dist/index.d.ts"],

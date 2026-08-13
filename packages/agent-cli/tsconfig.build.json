@@ -25,13 +25,13 @@
       "@moontide/context-composer/ports": ["../context-composer/dist/ports/index.d.ts"],
       "@moontide/context-composer/budget": ["../context-composer/dist/budget/index.d.ts"],
       "@moontide/context-composer/compaction": ["../context-composer/dist/compaction/operations.d.ts"],
-      "@moontide/log": ["../log/dist/index.d.ts"],
       "@moontide/tools": ["../tools/dist/index.d.ts"],
       "@moontide/tools/ports": ["../tools/dist/ports/index.d.ts"],
       "@moontide/tools/builtins/workspace/fs": ["../tools/dist/builtins/workspace/fs.d.ts"],
       "@moontide/run-protocol": ["../run-protocol/dist/index.d.ts"],
       "@moontide/agent": ["../agent/dist/index.d.ts"],
-      "@moontide/agent/testing": ["../agent/dist/testing/index.d.ts"]
+      "@moontide/agent/testing": ["../agent/dist/testing/index.d.ts"],
+      "@moontide/agent/observability": ["../agent/dist/observability.d.ts"]
     }
   },
   "include": ["src/**/*.ts"],

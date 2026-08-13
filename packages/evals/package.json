@@ -20,7 +20,6 @@
   "dependencies": {
     "@moontide/agent": "workspace:*",
     "@moontide/llm": "workspace:*",
-    "@moontide/log": "workspace:*",
     "@moontide/session": "workspace:*",
     "@moontide/shared": "workspace:*",
     "@moontide/tools": "workspace:*"

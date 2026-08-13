@@ -12,6 +12,10 @@
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
     },
+    "./observability": {
+      "types": "./dist/observability.d.ts",
+      "import": "./dist/observability.js"
+    },
     "./load-env": {
       "types": "./dist/app/load-env.d.ts",
       "import": "./dist/app/load-env.js"
@@ -27,7 +31,6 @@
     "@moontide/agent-core": "workspace:*",
     "@moontide/context-composer": "workspace:*",
     "@moontide/llm": "workspace:*",
-    "@moontide/log": "workspace:*",
     "@moontide/plugins-sdk": "workspace:*",
     "@moontide/run-protocol": "workspace:*",
     "@moontide/session": "workspace:*",
