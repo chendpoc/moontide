@@ -13,8 +13,6 @@ __pycache__/
 .moontide-audit.log
 .moontide/
 
-packages/evals/runs/
-
 news_items/
 
-ui/target/
+crates/moontide-ui/target/

@@ -9,7 +9,7 @@ members = [
     "crates/moontide-observability",
     "crates/moontide-agent",
     "crates/moontide-cli",
-    "ui",
+    "crates/moontide-ui",
 ]
 
 [workspace.package]
