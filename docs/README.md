@@ -10,12 +10,13 @@ docs/
 ├── product/               # 产品方向：为什么做、面向谁、产品边界
 ├── spec/                  # 当前设计契约：系统应当如何工作
 ├── guides/                # 操作指南：如何执行一种开发或评测工作流
+├── archive/               # TypeScript 时代的讨论与实现文档，仅供追溯
 └── notes/                 # 分析、候选、研究与开发计划，非当前契约
-    ├── runtime/           # Temporal Core、plugin、进程与工程架构
-    ├── context/           # Context Composer 演进、Deep Mode 与检索
-    ├── session/           # Session 事实、持久化、迁移与交接
-    ├── evals/             # Harness eval、taxonomy、artifact 与研究方向
-    ├── llm/               # Provider backlog、edge/local model
+    ├── runtime/           # 内核架构、多语言迁移与生态兼容
+    ├── context/           # Context 架构对比
+    ├── session/           # 跨 agent 会话与 artifact 交接
+    ├── evals/             # Task taxonomy 与 Model–Harness Fit 研究
+    ├── llm/               # Edge / local model 与路由候选
     └── tool-hints/        # 工具自动记录的人工审核候选；路径由代码使用
 ```
 
@@ -46,37 +47,33 @@ docs/
 
 [`product/vision.md`](product/vision.md) → [`product/plan.md`](product/plan.md) → [`spec/agent-core.md`](spec/agent-core.md) → [`spec/context-composer.md`](spec/context-composer.md) → [`spec/llm-provider.md`](spec/llm-provider.md)
 
+### 执行 TypeScript → Rust 迁移
+
+[`notes/runtime/migration-plan.md`](notes/runtime/migration-plan.md) → [`notes/runtime/agent-kernel-architecture.md`](notes/runtime/agent-kernel-architecture.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
+
 ### 修改 Agent Core / RunEvent
 
-[`spec/agent-core.md`](spec/agent-core.md) → [`notes/runtime/agent-core-roadmap.md`](notes/runtime/agent-core-roadmap.md) → [`spec/agent-events.md`](spec/agent-events.md) → [`TODO.md`](../TODO.md) §16
+[`spec/agent-core.md`](spec/agent-core.md) → [`notes/runtime/agent-kernel-architecture.md`](notes/runtime/agent-kernel-architecture.md) → [`spec/agent-events.md`](spec/agent-events.md)
 
 ### 设计 Agent Runtime 产品 API
 
-[`notes/runtime/agent-runtime-api.md`](notes/runtime/agent-runtime-api.md) → [`spec/agent-core.md`](spec/agent-core.md) → [`spec/context-composer.md`](spec/context-composer.md) → [`notes/session/session-domain-model.md`](notes/session/session-domain-model.md)
+[`notes/runtime/agent-kernel-architecture.md`](notes/runtime/agent-kernel-architecture.md) → [`notes/runtime/agent-runtime-product-direction.md`](notes/runtime/agent-runtime-product-direction.md) → [`spec/agent-core.md`](spec/agent-core.md)
 
 ### 修改 Context / Session
 
-[`spec/context-composer.md`](spec/context-composer.md) → [`notes/session/session-domain-model.md`](notes/session/session-domain-model.md) → [`notes/session/fact-log-projections.md`](notes/session/fact-log-projections.md) → [`notes/context/context-window-roadmap.md`](notes/context/context-window-roadmap.md)
+[`spec/context-composer.md`](spec/context-composer.md) → [`notes/context/context-analysis.md`](notes/context/context-analysis.md) → [`notes/session/session-handoff.md`](notes/session/session-handoff.md)
 
 ### 修改 LLM Provider / API 适配层
 
-[`spec/llm-provider.md`](spec/llm-provider.md) → [`spec/llm-input.md`](spec/llm-input.md) → [`notes/llm/llm-provider-backlog.md`](notes/llm/llm-provider-backlog.md)
+[`spec/llm-provider.md`](spec/llm-provider.md) → [`spec/llm-input.md`](spec/llm-input.md) → [`notes/llm/edge-local-models.md`](notes/llm/edge-local-models.md)
 
 ### 修改 Plugin / MCP / Sidecar
 
-[`product/platform-strategy.md`](product/platform-strategy.md) → [`notes/runtime/plugin-host.md`](notes/runtime/plugin-host.md) → [`notes/runtime/ecosystem-compat.md`](notes/runtime/ecosystem-compat.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
-
-### 做 Harness Feature Eval
-
-[`spec/harness-eval-1.0.md`](spec/harness-eval-1.0.md) → [`guides/feature-ab-eval.md`](guides/feature-ab-eval.md) → [`notes/evals/harness-eval-refactor-plan.md`](notes/evals/harness-eval-refactor-plan.md) → [`notes/evals/eval-release-artifact.md`](notes/evals/eval-release-artifact.md)
+[`product/platform-strategy.md`](product/platform-strategy.md) → [`notes/runtime/ecosystem-compat.md`](notes/runtime/ecosystem-compat.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
 
 ### 研究 Model–Harness Fit
 
-[`notes/evals/model-harness-fit.md`](notes/evals/model-harness-fit.md) → [`notes/evals/harness-eval-refactor-plan.md`](notes/evals/harness-eval-refactor-plan.md) → [`notes/runtime/agent-runtime-product-direction.md`](notes/runtime/agent-runtime-product-direction.md)
-
-### 修改 monorepo / Harness / CLI 结构
-
-[`monorepo-packages.md`](notes/runtime/monorepo-packages.md) §18 → [`agent-harness-cli-split.md`](notes/runtime/agent-harness-cli-split.md)（**run-protocol · context? · agent · agent-cli**）→ [`TODO.md`](../TODO.md) §18
+[`notes/evals/model-harness-fit.md`](notes/evals/model-harness-fit.md) → [`notes/evals/agent-eval-task-taxonomy.md`](notes/evals/agent-eval-task-taxonomy.md) → [`notes/runtime/agent-runtime-product-direction.md`](notes/runtime/agent-runtime-product-direction.md)
 
 ## 4. 文档归档规则
 
@@ -91,6 +88,8 @@ docs/
 | 模块局部约定 | 对应源码目录的 `README.md` | 集中复制到 `docs/` |
 
 命名统一使用小写 kebab-case。目录已经表达领域时，文件名不重复目录名。每份 note 必须在开头说明文档性质、状态、是否为实现承诺，并链接对应 Spec 或执行入口。
+
+TS 时代的文档见 [`archive/`](archive/)：仅供追溯，不参与当前契约，也不出现在各目录索引中；`archive/` 内部的交叉链接可能已失效。
 
 ## 5. 模块级文档
 
