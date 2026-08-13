@@ -1,5 +1,7 @@
 # MoonTide 工程手册
 
+> **状态：** 本文件仍是 TypeScript 时代版本 —— 分层、包边界、Conformance 范围与命令示例都指向已删除的 TS 实现，尚未按 Rust crate 边界重写。通用工程原则仍适用；具体路径与命令以 [`AGENTS.md`](../../AGENTS.md) 为准。
+>
 > **注入边界：** 仅根目录 [`AGENTS.md`](../../AGENTS.md) 摘要经 `instruction-state` 每 turn 进入 LLM `system`。本文件供 IDE Agent、code review 与深入维护使用，**默认不**自动注入 compose。
 
 原 AGENTS.md 完整正文归档于此（分层详表、Conformance、术语 §7、错误边界 §8 等）。摘要版规则以 `AGENTS.md` 为准；二者冲突时 **以 AGENTS.md 为 runtime 权威**。

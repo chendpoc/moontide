@@ -2,50 +2,32 @@
 
 > 产品方向：[`docs/product/vision.md`](docs/product/vision.md) · 当前计划：[`docs/product/plan.md`](docs/product/plan.md) · 设计索引：[`docs/README.md`](docs/README.md)
 
-- [ ] **16. Agent-core 内核（2026-08 起 · 优先于 §15 部分轨）**
+- [ ] **16. 内核 Rust 化（2026-08 起 · 当前主轨）**
 
-  终局拆分 pnpm workspace：`@moontide/run-protocol`（protocol）+ `@moontide/agent-core`（loop · RunEvent bus · resolveRunConfig · resolveTurnContext）。**clean break**，无 legacy derive / HookPhase 双轨。
+  TypeScript 初版已删除（快照在 `main` 分支），内核按 crate 边界在 Rust 重建。目标模块清单与 crate 判据见
+  [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md) §6–§7。
 
-  - 详计划：[`docs/notes/runtime/agent-core-roadmap.md`](docs/notes/runtime/agent-core-roadmap.md)
-  - 设计 Spec：[`docs/spec/agent-core.md`](docs/spec/agent-core.md)
-  - 术语：[`AGENTS.md`](AGENTS.md) §7.2
+  - 迁移执行 checklist：[`docs/notes/runtime/migration-plan.md`](docs/notes/runtime/migration-plan.md)
+  - 设计 Spec：[`docs/spec/agent-core.md`](docs/spec/agent-core.md) · [`docs/spec/agent-events.md`](docs/spec/agent-events.md)
 
-  - [x] **16.1** pnpm workspace + `agent-common/protocol` 类型冻结
-  - [x] **16.2** `agent-core`：RunEvent bus + lifecycle + golden tests
-  - [x] **16.3** runLoop + StreamFn + `message_update` 流式
-  - [x] **16.4** resolveRunConfig + Agent 类（abort / settlement）
-  - [x] **16.5** harness 接入：RunCommitPort + composeContext
-  - [ ] **16.6** RunEvent JSONL + Slint subscribe
-  - [x] **16.7** plugin-host 窄 IPC；删 HookPhase / derive；`pnpm check`
+  - [x] **16.1** R0 主循环：Session Log → Composer → LLM → builtin tools（`moontide-agent` · `moontide-cli`）
+  - [ ] **16.2** Agent Event JSONL + `status.json` 写入（`moontide-ui` 消费侧已就绪）
+  - [ ] **16.3** RunEvent bus 与 run 生命周期（abort / settlement）
+  - [ ] **16.4** `/status`、`/compact` 等 REPL 命令补齐
+  - [ ] **16.5** 权限与 approval 的 crate 边界收敛
 
-- [x] **17. Monorepo 按域拆包 · 消除根 `src/`（§16 M7 后）**
+- [ ] **17. 跨语言契约（`schema/`）**
 
-  **Modular monorepo / package by bounded context**：域包在 `packages/*`，CLI 与装配在 `packages/agent-cli`；**根无 `src/` monolith**。
+  只有被两种以上语言消费的契约才落 `schema/`（见 [`schema/README.md`](schema/README.md)）。
 
-  - 详述：[`docs/notes/runtime/monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) · [`docs/notes/runtime/agent-core-roadmap.md`](docs/notes/runtime/agent-core-roadmap.md) §12
-  - 包：`@moontide/shared` · `llm` · `session` · `context-composer` · `log` · `tools` · `plugins-sdk` · `sidecar-host` · `packages/agent-cli`
-  - 验收：architecture-boundaries package 级规则；根无 `src/`（`pnpm run check`）；dev 启动链见 [`docs/notes/runtime/monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) §Dev 启动
+  - [ ] **17.1** Agent Event / session item 的 JSON Schema 与版本化规则
+  - [ ] **17.2** Rust 侧类型与 schema 的一致性校验（生成或断言）
 
-- [ ] **18. Monorepo 终局拆包（run-protocol · context? · agent · agent-cli）**
+- [ ] **18. 多语言边界（后置到真实需求）**
 
-  三条轨道（详 [`agent-harness-cli-split.md`](docs/notes/runtime/agent-harness-cli-split.md) §1.1）：
-
-  1. **§18 主轨** — `agent-core` → `@moontide/agent` → `packages/agent-cli`（**不依赖** 18.0/18.0b 即可启动 18.1）
-  2. **DR-A · 18.0** — `@moontide/run-protocol` ← 重命名 `agent-common`（**非** `@moontide/types`）
-  3. **DR-B · 18.0b（可选）** — `@moontide/context` ← 合并 session + composer（须 §3.2 go/no-go）
-
-  - 包索引：[`monorepo-packages.md`](docs/notes/runtime/monorepo-packages.md) §18
-  - 与 §16：§16.5 为 harness **逻辑**接入 core；§18 主轨为 **物理拆包**
-
-  - [x] **18.0** DR-A — `agent-common` → `@moontide/run-protocol` · **含 evals alias** · 同 PR 更新 AGENTS/Spec
-  - [ ] **18.0b** DR-B（可选）— `packages/context` — 合并 session + context-composer
-  - [x] **18.1** §18 主轨 — `packages/agent` · §4.1 pipeline 注入 · `@moontide/evals` 迁 import · exports/dist smoke
-  - [x] **18.2** `packages/agent-cli` — 终端 + `createCliEventOutputs` · 删 app code-repl copy · `git mv packages/agent-cli`
-
-  **Deferred（不纳入执行路径）：**
-
-  - **DR-B · `@moontide/context`** — 合并 session + composer；go/no-go 见 [`agent-harness-cli-split.md`](docs/notes/runtime/agent-harness-cli-split.md) §3.2
-  - **`@moontide/schema`** — canonical schema 迁包；**no-go** 见 [`schema-package-plan.md`](docs/notes/runtime/schema-package-plan.md) §0；契约 import 以 [`type-imports.md`](docs/spec/type-imports.md) 为准
+  - [ ] **18.1** `services/`（Go）—— 常驻监控 / 代理进程；`go.mod` 等首个 service 需求出现再建
+  - [ ] **18.2** `node/`（Node）—— MCP server 与扩展包；pnpm workspace 同上后置
+  - [ ] **18.3** Rust benchmark 基线（loop / compose / tool pipeline）
 
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果
@@ -69,21 +51,21 @@
 
 - [ ] **6. Session — Context Window（C6+）**
   - C1–C6 **done**（TS harness）· **Context Budget Tiers done**
-  - 开发计划（六件事）：[`docs/notes/context/context-window-roadmap.md`](docs/notes/context/context-window-roadmap.md) — **#1–#6 + Budget Tiers 均 done**
-  - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/notes/runtime/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/notes/context/context-backlog.md)
+  - 开发计划（六件事）：[`context-window-roadmap.md`](docs/archive/notes/context/context-window-roadmap.md) — **#1–#6 + Budget Tiers 均 done（TS 实现）**
+  - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/archive/notes/runtime/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/archive/notes/context/context-backlog.md)
   - **下一阶段四条轨** → 见 **§15**
 
 - [ ] **15. 后续开发计划（2026-08 起）**
 
-  六件事与 Context Budget Tiers 完成后，按下列顺序推进（详表见 [`context-window-roadmap.md` §8](docs/notes/context/context-window-roadmap.md)）：
+  六件事与 Context Budget Tiers 完成后，按下列顺序推进（详表见 [`context-window-roadmap.md` §8](docs/archive/notes/context/context-window-roadmap.md)）：
 
   - [ ] **15.1 Prompt Prefix Cache**
     - 稳定 system / instruction / tool-definitions prefix 复用，降低 latency 与 input cost
-    - 详设：[`context-backlog.md` §15](docs/notes/context/context-backlog.md) · [`context-normalization.md` §13](docs/notes/context/context-normalization.md)
+    - 详设：[`context-backlog.md` §15](docs/archive/notes/context/context-backlog.md) · [`context-normalization.md` §13](docs/archive/notes/context/context-normalization.md)
 
   - [ ] **15.2 需求讨论（Design / Requirements）**
     - 实现前对齐：Agent Activity Model（7a–7c）、Normalization 边界、Local Fusion 成本模型
-    - 讨论备忘：[`agent-activity-model-discussion.md`](docs/notes/context/agent-activity-model-discussion.md)
+    - 讨论备忘：[`agent-activity-model-discussion.md`](docs/archive/notes/context/agent-activity-model-discussion.md)
     - 产出：各轨一页纸 spec / 验收标准，再开实现 PR
 
   - [ ] **15.3 Local 小模型 + 路由（Local Fusion）**
@@ -95,14 +77,13 @@
   - [ ] **15.4 Conversation Normalization（Preflight / Postflight）**
     - 每次 LLM request 前：统一 Context Projection + `ContextManifest`（预算、配对、provider 不变量）
     - 完整 Agent turn 后：usage / delta / 下一轮 preflight 状态
-    - 详设：[`context-normalization.md`](docs/notes/context/context-normalization.md)
+    - 详设：[`context-normalization.md`](docs/archive/notes/context/context-normalization.md)
 
 - [ ] **7. Feature 基线性能测试套件**
-  - **详设：** [`docs/notes/evals/agent-eval-roadmap.md`](docs/notes/evals/agent-eval-roadmap.md) — Agent Feature 评测流水线（L0–L3 · 分桶 suite · grader · Impact Card）
+  - **详设：** [`agent-eval-roadmap.md`](docs/archive/notes/evals/agent-eval-roadmap.md) — Agent Feature 评测流水线（L0–L3 · 分桶 suite · grader · Impact Card）
   - **v0 → v3 分期：** PR 档 deterministic grader → nightly 真 LLM + baseline delta → SWE-bench 子集
-  - [x] `@moontide/evals` v2 六类 58 case · subprocess agent worker · HTTP VCR（`external_research`）
-  - [x] `baseline.json` · `--merge-gate` · `liftAlerts` / `byFeatureSurface` / efficiency 聚合
-  - [x] `pnpm eval:test` 进 `pnpm check` · [Impact Card](.github/eval-impact-card.md)
+  - **TS 时代成果已随实现删除**（六类 58 case suite · subprocess worker · HTTP VCR · baseline / merge-gate / Impact Card）；Rust 侧需重建
+  - [ ] Rust eval harness：case 定义、grader 与 baseline delta
   - [ ] nightly 真 LLM 全量 + CI artifact
   - [ ] SWE-bench 等公开 agent/coding benchmark（**L3**，对齐 roadmap §8 v3）
   - **DeepSeek DSBench（后续讨论需纳入）**
@@ -113,7 +94,7 @@
 
 - [ ] **8. Prompts 评分**
   - 并入 eval **rubric grader**（roadmap v2）· 主要服务 **general_knowledge（C 桶）** guard metrics
-  - 详设：[`docs/notes/evals/agent-eval-roadmap.md`](docs/notes/evals/agent-eval-roadmap.md) §5.2 · §4
+  - 详设：[`agent-eval-roadmap.md`](docs/archive/notes/evals/agent-eval-roadmap.md) §5.2 · §4
 
 - [ ] **9. 日常 Action 统计控件（Tide）**
   - 多 UI 组件之一：可视化「今天做了什么 / 最近做了什么」

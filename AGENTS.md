@@ -1,6 +1,8 @@
 本文件是 MoonTide **Instruction State** 来源：经 `instruction-state` 每 turn 拼进 `LLMRequest.system`。
 
-**完整工程手册**（分层详表、Conformance 范围、术语全集、示例）见 [`docs/guides/engineering-handbook.md`](docs/guides/engineering-handbook.md)。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 handbook。
+**完整工程手册**（分层详表、Conformance 范围、术语全集、示例）见 [`docs/guides/engineering-handbook.md`](docs/guides/engineering-handbook.md) —— 该手册仍是 TypeScript 时代版本，Rust 分层与 Conformance 范围待重建；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 handbook。
+
+代码库是 Rust（Cargo workspace，`crates/`）。TypeScript 初版已删除，快照在 `main` 分支，文档在 [`docs/archive/`](docs/archive/)。
 
 ---
 
@@ -16,21 +18,20 @@
 ## 代码质量
 
 - 大范围改动或审计前先完整读文件，不靠搜索片段
-- 除非必要不用 `any`；单调用点单行 helper 内联
-- 查 node_modules 类型，不猜 API
-- **禁止内联导入**（`await import()`、`import("pkg").Type`）；只用顶层 import
-- **`src/` 只提交 `.ts`**；编译产物仅在 `dist/`（ESM 的 `.js` import 后缀除外）
-- **`_` 前缀 = 本文件私有**，不得 export
+- 错误用 `anyhow::Result` 传播；库代码不 `unwrap()` / `expect()`，不 panic
+- 查 crate 源码或 docs.rs，不猜 API
+- 模块内部项不加 `pub`；跨 crate 才 `pub`，crate 内共享用 `pub(crate)`
+- 编译产物只在 `target/`，不提交
 - 删有意功能前先问用户；除非用户要求，不做向后兼容
 
 ---
 
 ## 命令
 
-- 代码变更后（文档除外）：`pnpm run check`（完整输出），修完所有 lint/type/test 再提交
-- 未经用户要求：不跑 `pnpm run build`、不跑全量 `pnpm test`
-- 改测试文件后：`pnpm exec vitest run tests/<name>.test.ts` 直到通过
-- 规范单测：`pnpm run test:conformance`（pre-commit 已含）
+- 代码变更后（文档除外）：`just check`（= `cargo fmt --all --check` + `cargo clippy --workspace --all-targets` + `cargo test --workspace`），修完所有 fmt/clippy/test 再提交
+- 未经用户要求：不跑 release build（`cargo build --release`）
+- 只改单个 crate 时：`cargo test -p <crate>` 直到通过，再跑 workspace
+- 仓库当前不装 git hooks；检查靠手动跑与 CI
 - 临时脚本写 `/tmp` 等临时文件，不嵌多行 bash
 - 未经用户要求不提交
 
@@ -58,14 +59,14 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 工程原则（摘要）
 
-1. **分层** — `utils/` → `storage/` → 业务；业务不直接 `node:fs` / spawn。Session Item Log 为事实源，Agent Event 仅 derive。
-2. **高内聚低耦合** — `session/` 不 import `agent/`；permission 随 `ToolSpec` 注册。
-3. **Spec / Impl 分离** — `*tools.ts` 与 handler 分文件；impl 无 `ToolSpec`，spec 无 IO 副作用。
-4. **声明式注册表** — tool / hook / plugin manifest 用表驱动；新增 tool 改表不改长 switch。
-5. **Conformance 守门** — 注册表变更须过 `tests/conformance/`；不变量写 oracle / 结构单测，热路径不加 runtime assert。
+1. **分层** — `moontide-protocol`（类型）→ `session` / `composer` / `llm` / `tools` → `agent` → `cli`；依赖只能向下。Session Log 为事实源，Agent Event 仅 derive。
+2. **高内聚低耦合** — `moontide-session` 不依赖 `moontide-agent`；permission 随 tool 注册声明。
+3. **Spec / Impl 分离** — tool schema 与 handler 分开；handler 不定义 schema，schema 无 IO 副作用。
+4. **声明式注册表** — tool 注册用表驱动；新增 tool 改表不改长 match。
+5. **Conformance 守门** — 注册表与边界变更须有结构测试守门（Rust 侧待重建，TS 版见 archive）；不变量写测试，热路径不加 runtime assert。
 6. **简单冗余** — 不为省行数抽泛型；相似 store 可各写一份。
 
-详表与示例：handbook §1–§6。
+详表与示例：handbook §1–§6（TS 版，分层部分以上表为准）。
 
 ---
 
@@ -73,11 +74,11 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 | 过程 | 用词 |
 |------|------|
-| Item Log → messages | **materialize** |
-| Session → LLMRequest | **compile**（`composeContext`） |
-| RunEvent → Agent Event | **derive** |
+| Session Log → messages | **materialize** |
+| Session → LLM 请求 | **compose** |
+| RunEvent → Agent Event | **derive**（目标契约，尚未在 Rust 落地） |
 
-内核：**RunEvent bus**（不用 sink）、**resolveRunConfig** / **resolveTurnContext**（不用 fold 指 config）。插件不定义 RunEvent phase；sidecar 经 Harness observer 注册。
+内核：**RunEvent bus**（不用 sink）、**resolveRunConfig** / **resolveTurnContext**（不用 fold 指 config）。sidecar 只经文件消费，不走 IPC。
 
 完整术语表：[`docs/spec/context-composer.md`](docs/spec/context-composer.md) §1.4 · [`docs/spec/agent-core.md`](docs/spec/agent-core.md) · handbook §7。
 
@@ -85,12 +86,12 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 错误边界
 
-- Tool 预期失败：return `"Error: …"`，handler 不 throw
-- `runTool` / `runLLM`：唯一 catch → `toFailureOutcome`
-- REPL turn 失败：`reportError`，REPL 继续（config fatal 除外）
-- 排查：终端 ERROR 块 → `.moontide/runs/*.jsonl` → `/debug on`
+- Tool 预期失败：把错误文本作为 tool result 返回给模型，不 panic
+- tool / LLM 调用：错误经 `Result` 传到 run 边界统一处理，不在中途吞掉
+- REPL turn 失败：打印 ERROR 后 REPL 继续（配置类致命错误除外）
+- 排查：stderr ERROR → `/thinking on` → `.moontide/sessions/*.jsonl`
 
-详表：handbook §8。
+详表：handbook §8（TS 版）。
 
 ---
 

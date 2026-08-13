@@ -97,13 +97,11 @@ TS 时代的文档见 [`archive/`](archive/)：仅供追溯，不参与当前契
 
 | 路径 | 内容 |
 |------|------|
-| [`packages/run-protocol/README.md`](../packages/run-protocol/README.md) | RunEvent protocol（RunEvent · RunConfig · Effect port） |
-| [`packages/agent-core/README.md`](../packages/agent-core/README.md) | Temporal core（runLoop · RunEvent bus · resolveRunConfig） |
-| [`packages/llm/README.md`](../packages/llm/README.md) | LLM（Provider Preset · routing · runLLM） |
-| [`packages/agent/README.md`](../packages/agent/README.md) | MoonTide Harness 装配 |
-| [`packages/agent-cli/README.md`](../packages/agent-cli/README.md) | CLI 产品（REPL · pipeline · stderr 渲染） |
-| [`packages/tools/src/builtins/README.md`](../packages/tools/src/builtins/README.md) | Builtin tool 目录、spec/impl 结构和新增 checklist |
-| [`packages/agent/src/plugins/builtin/README.md`](../packages/agent/src/plugins/builtin/README.md) | Builtin plugin 结构和 tool 声明规则 |
-| [`packages/evals/README.md`](../packages/evals/README.md) | Eval package 当前命令与 artifact 说明 |
+| [`crates/moontide-ui/README.md`](../crates/moontide-ui/README.md) | Slint sidecar：tail 的文件、tab 与状态栏 |
+| [`schema/README.md`](../schema/README.md) | 跨语言契约的落点判据 |
+| [`services/README.md`](../services/README.md) | Go 后台服务边界（后置） |
+| [`node/README.md`](../node/README.md) | Node 扩展生态边界（后置） |
+
+其余 `crates/*` 的模块级 README 待补：新增时写在对应 crate 根，并登记到上表。
 
 目录调整采用 clean break，不保留旧路径的转发文件。仓库内链接必须随移动同步更新。
