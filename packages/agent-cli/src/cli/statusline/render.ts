@@ -1,10 +1,10 @@
 import { setReplPhase } from "./collect.js";
 import {
+  isActivityRepaintEnabled,
   setActivityTickHandler,
   startActivityLine,
   stopActivityLine,
 } from "./activity.js";
-import { isObservabilityEnabled } from "../../log/modes.js";
 import {
   invalidateStatusLineCommandCache,
   isStatusStackPinned,
@@ -14,7 +14,7 @@ import {
 } from "./render-stack.js";
 
 setActivityTickHandler(() => {
-  if (isStatusStackPinned()) {
+  if (isStatusStackPinned() && isActivityRepaintEnabled()) {
     renderStatusStack();
   }
 });
@@ -37,9 +37,7 @@ export async function renderStatusLineAsync(): Promise<void> {
 export function beginAgentActivity(): void {
   setReplPhase("running");
   invalidateStatusLineCommandCache();
-  if (!isObservabilityEnabled()) {
-    startActivityLine();
-  }
+  startActivityLine();
   renderStatusStack();
 }
 

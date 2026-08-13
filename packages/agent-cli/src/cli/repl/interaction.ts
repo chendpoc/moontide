@@ -1,5 +1,3 @@
-import type readline from "node:readline/promises";
-
 import type { UserInteraction } from "@moontide/tools";
 import {
   choicePrompt,
@@ -8,12 +6,13 @@ import {
 } from "../../terminal/theme.js";
 import { writeStderrLine } from "../../terminal/write.js";
 import { truncateOneLine } from "@moontide/shared/utils/text.js";
+import type { ReplTerminal } from "./terminal.js";
 
-export function createReplUserInteraction(rl: readline.Interface): UserInteraction {
+export function createReplUserInteraction(terminal: ReplTerminal): UserInteraction {
   return {
     async approveTool({ toolName, input }) {
       const preview = truncateOneLine(JSON.stringify(input), 80);
-      const answer = await rl.question(confirmToolPrompt(toolName, preview));
+      const answer = await terminal.question(confirmToolPrompt(toolName, preview));
       return ["y", "yes"].includes(answer.trim().toLowerCase());
     },
 
@@ -29,7 +28,7 @@ export function createReplUserInteraction(rl: readline.Interface): UserInteracti
           writeStderrLine(`  ${i + 1}. ${opt.label} (${opt.id})`);
         }
         const hint = question.allow_multiple ? "numbers comma-separated" : "number";
-        const raw = await rl.question(choicePrompt(hint));
+        const raw = await terminal.question(choicePrompt(hint));
         const indices = raw
           .split(/[,;\s]+/)
           .map((part) => Number(part.trim()) - 1)

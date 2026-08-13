@@ -15,39 +15,31 @@ import {
 import { PRODUCT_NAME } from "@moontide/shared/constants/brand.js";
 import { createCliEventOutputs } from "../../log/cli-event-outputs.js";
 import { printQuitHint, printStartupHint } from "../session-hints.js";
-import { createReplConversationStreamListener } from "../../log/repl-conversation-stream.js";
 import type { UserInteraction } from "@moontide/tools";
 import { reportError, toErrorRecord, toMessage } from "../../errors/index.js";
-import {
-  replPrompt,
-  turnSeparator,
-  writeStderrLine,
-  writeStdoutLine,
-} from "../../terminal/index.js";
+import { replPrompt, writeStderrLine } from "../../terminal/index.js";
 import {
   resetReplConversation,
   type ReplCommandContext,
 } from "../commands/repl.js";
 import { createReplSessionLifecycleAccess } from "../session-persistence-glue.js";
-import { beginAgentActivity, endAgentActivity, renderStatusLineAsync } from "../statusline/render.js";
+import { beginAgentActivity, endAgentActivity } from "../statusline/render.js";
 import { resolveReplLine } from "./dispatch.js";
 import { createReplUserInteraction } from "./interaction.js";
+import { createReplRunEventProjection } from "./run-event-projection.js";
 import { getOrStartReplSession, getReplAgentSession, resetReplSession } from "./session.js";
+import { ReplTerminal } from "./terminal.js";
 
 async function runAgentTurn(
   prompt: string,
   agentSession: AgentSession,
   userInteraction: UserInteraction,
-): Promise<{ reply: string; streamed: boolean }> {
+  terminal: ReplTerminal,
+): Promise<void> {
   beginAgentActivity();
+  const projection = createReplRunEventProjection(terminal);
 
   try {
-    const stream = createReplConversationStreamListener({
-      onText: (text) => {
-        writeStdoutLine(text);
-        writeStdoutLine("");
-      },
-    });
     const { reply } = await continueReplAgent(
       prompt,
       agentSession,
@@ -57,14 +49,23 @@ async function runAgentTurn(
         runtime: agentSession.runtime,
       },
       undefined,
-      { extraRunEventListeners: [stream.listener] },
+      { extraRunEventListeners: [projection.listener] },
     );
-    return { reply, streamed: stream.hadOutput() };
+    await terminal.flush();
+    if (!projection.hadOutput() && reply.length > 0) {
+      terminal.appendAssistantFallback(reply);
+    }
+    await terminal.flush();
   } catch (err) {
     reportError(toErrorRecord(err, "repl:runAgentTurn"));
-    return { reply: toMessage(err), streamed: false };
+    const message = toMessage(err);
+    if (message.length > 0) {
+      terminal.appendAssistantFallback(message);
+    }
+    await terminal.flush();
   } finally {
     endAgentActivity();
+    projection.resetHadOutput();
   }
 }
 
@@ -83,9 +84,11 @@ export async function runRepl(): Promise<void> {
   printStartupHint(workdir);
   writeStderrLine("");
 
-  // Prompt and statusline both use stderr so ANSI pin stays directly above `MoonTide >>`.
+  getOrStartReplSession();
+
   const rl = readline.createInterface({ input, output });
-  const userInteraction = createReplUserInteraction(rl);
+  const terminal = new ReplTerminal(rl);
+  const userInteraction = createReplUserInteraction(terminal);
   let turnCount = 0;
 
   const ctx: ReplCommandContext = {
@@ -93,14 +96,15 @@ export async function runRepl(): Promise<void> {
     getAgentSession: () => getReplAgentSession(),
     resetConversation: () => {
       resetReplConversation();
+      terminal.resetTranscriptState();
       turnCount = 0;
     },
   };
 
   try {
     while (true) {
-      await renderStatusLineAsync();
-      const trimmed = (await rl.question(replPrompt())).trim();
+      const line = await terminal.question(replPrompt());
+      const trimmed = line.trim();
       const action = await resolveReplLine(trimmed, ctx);
 
       if (action.kind === "exit") {
@@ -115,15 +119,14 @@ export async function runRepl(): Promise<void> {
       if (gate.deepActivated) {
         getAgentRuntime().tools.refresh();
       }
-      const { reply, streamed } = await runAgentTurn(gate.prompt, agentSession, userInteraction);
+
       if (turnCount > 0) {
-        writeStderrLine(turnSeparator());
+        terminal.appendTurnSeparator();
       }
       turnCount += 1;
-      if (!streamed && reply.length > 0) {
-        writeStdoutLine(reply);
-        writeStdoutLine("");
-      }
+      terminal.appendUser(action.prompt);
+
+      await runAgentTurn(gate.prompt, agentSession, userInteraction, terminal);
     }
   } finally {
     const lifecycleAccess = createReplSessionLifecycleAccess();

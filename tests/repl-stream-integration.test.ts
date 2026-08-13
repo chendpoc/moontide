@@ -2,7 +2,32 @@ import { describe, expect, it } from "vitest";
 import type { StreamAssistantEvent, StreamFn } from "@moontide/run-protocol";
 import { createMessageLog, createRunEventBus, runLoop } from "@moontide/agent-core";
 import { identityRunConfig, noopToolExecutor } from "../packages/agent-core/src/testing/index.js";
-import { createReplConversationStreamListener } from "../packages/agent-cli/src/log/repl-conversation-stream.js";
+import { createReplRunEventProjection } from "../packages/agent-cli/src/cli/repl/run-event-projection.js";
+import type { ReplTerminal } from "../packages/agent-cli/src/cli/repl/terminal.js";
+
+function createCollectingTerminal(): ReplTerminal & { combined: () => string } {
+  const chunks: string[] = [];
+  return {
+    prepareAssistantBlock: () => {},
+    onAssistantDelta: (text: string) => {
+      chunks.push(text);
+    },
+    onAssistantEnd: (text: string) => {
+      if (text.length > 0) {
+        chunks.push(text);
+      }
+      chunks.push("\n");
+    },
+    onAssistantMismatch: (text: string) => {
+      chunks.push("\n");
+      if (text.length > 0) {
+        chunks.push(text);
+      }
+      chunks.push("\n");
+    },
+    combined: () => chunks.join(""),
+  } as unknown as ReplTerminal & { combined: () => string };
+}
 
 /** Mirrors session 20260810-194303-6650a144 turn 24→25: table+work_mem then follow-up text. */
 describe("REPL stream + runLoop integration", () => {
@@ -42,12 +67,10 @@ describe("REPL stream + runLoop integration", () => {
       };
     };
 
-    const flushed: string[] = [];
-    const stream = createReplConversationStreamListener({
-      onText: (text) => flushed.push(text),
-    });
+    const terminal = createCollectingTerminal();
+    const projection = createReplRunEventProjection(terminal);
     const eventBus = createRunEventBus();
-    eventBus.subscribe(stream.listener);
+    eventBus.subscribe(projection.listener);
 
     const result = await runLoop({
       eventBus,
@@ -59,9 +82,9 @@ describe("REPL stream + runLoop integration", () => {
       prompts: [{ role: "user", content: "昨日 X 热点 Top 10", timestamp: 1 }],
     });
 
-    expect(flushed.some((t) => t.includes("Sophie"))).toBe(true);
+    expect(terminal.combined()).toContain("Sophie");
     expect(result.reply).toContain("Sophie");
     expect(result.reply).toContain("说明");
-    expect(stream.hadOutput()).toBe(true);
+    expect(projection.hadOutput()).toBe(true);
   });
 });

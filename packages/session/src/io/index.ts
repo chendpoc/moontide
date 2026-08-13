@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import {
   appendNdjsonLines,
   ensureDirForFile,
@@ -9,6 +11,16 @@ import { buildSessionItem } from "./build.js";
 import type { SessionItemReadOptions, SessionItemTailReader } from "./reader.js";
 import { parseItems, readLines } from "./build.js";
 import type { SessionItemWriter } from "./writer.js";
+
+/** Create empty session log when a session starts (before first item append). */
+export function ensureSessionLogFile(workdir: string, sessionId: string): string {
+  const path = sessionLogPath(workdir, sessionId);
+  ensureDirForFile(path);
+  if (!fs.existsSync(path)) {
+    fs.closeSync(fs.openSync(path, "a"));
+  }
+  return path;
+}
 
 export class FileSessionItemWriter implements SessionItemWriter {
   constructor(private readonly workdir: string) {}

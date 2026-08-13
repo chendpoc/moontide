@@ -9,9 +9,19 @@ let frameIndex = 0;
 let quote = "";
 let timer: ReturnType<typeof setInterval> | null = null;
 let onTick: (() => void) | null = null;
+let repaintEnabled = true;
 
 export function setActivityTickHandler(handler: (() => void) | null): void {
   onTick = handler;
+}
+
+/** When false, spinner ticks do not trigger StatusStack repaint (readline owns cursor). */
+export function setActivityRepaintEnabled(enabled: boolean): void {
+  repaintEnabled = enabled;
+}
+
+export function isActivityRepaintEnabled(): boolean {
+  return repaintEnabled;
 }
 
 export function formatActivityLine(): string | null {
@@ -28,7 +38,9 @@ export function startActivityLine(): void {
   frameIndex = 0;
   timer = setInterval(() => {
     frameIndex = (frameIndex + 1) % FRAMES.length;
-    onTick?.();
+    if (repaintEnabled) {
+      onTick?.();
+    }
   }, 80);
 }
 
@@ -44,6 +56,7 @@ export function resetActivityForTest(): void {
   quote = "";
   frameIndex = 0;
   onTick = null;
+  repaintEnabled = true;
 }
 
 export function advanceActivityFrameForTest(): void {

@@ -33,6 +33,7 @@ export type {
 export type { SessionItemWriter } from "./io/writer.js";
 export {
   buildSessionItem,
+  ensureSessionLogFile,
   FileSessionItemReader,
   FileSessionItemWriter,
   parseItems,

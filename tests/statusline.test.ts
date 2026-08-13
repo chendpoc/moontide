@@ -6,11 +6,10 @@ import {
   formatStatusLine,
 } from "../packages/agent-cli/src/cli/statusline/format.js";
 import { formatCompactTokens, formatContextSegment } from "../packages/agent-cli/src/cli/statusline/format-tokens.js";
-import { formatActivityLine, resetActivityForTest, startActivityLine, stopActivityLine, advanceActivityFrameForTest } from "../packages/agent-cli/src/cli/statusline/activity.js";
+import { formatActivityLine, resetActivityForTest, startActivityLine, stopActivityLine, advanceActivityFrameForTest, setActivityRepaintEnabled } from "../packages/agent-cli/src/cli/statusline/activity.js";
 import { renderStatusSegments } from "../packages/agent-cli/src/cli/statusline/segments.js";
 import type { StatusSnapshot } from "../packages/agent-cli/src/cli/statusline/types.js";
 import { resetStatusLineRender, beginAgentActivity, endAgentActivity } from "../packages/agent-cli/src/cli/statusline/render.js";
-import { setVerboseOverride, resetObservabilityOverrides } from "../packages/agent-cli/src/log/modes.js";
 import { formatDeltaColored, formatDeltaPlain } from "../packages/agent-cli/src/log/format/format-delta.js";
 import { resetContextLangOverride } from "../packages/agent-cli/src/i18n/context/index.js";
 import { resetLocaleOverride, setLocaleOverride } from "../packages/agent-cli/src/i18n/locale.js";
@@ -83,7 +82,6 @@ describe("statusline format", () => {
 
 describe("statusline activity", () => {
   afterEach(() => {
-    resetObservabilityOverrides();
     endAgentActivity();
     resetActivityForTest();
     setReplPhase("idle");
@@ -102,10 +100,21 @@ describe("statusline activity", () => {
     stopActivityLine();
   });
 
-  it("skips activity spinner when verbose is enabled", () => {
-    setVerboseOverride(true);
+  it("does not tick repaint while activity repaint is disabled", () => {
+    resetActivityForTest();
+    setReplPhase("running");
+    startActivityLine();
+    setActivityRepaintEnabled(false);
+    advanceActivityFrameForTest();
+    expect(formatActivityLine()).toMatch(/⠋|⠙|⠹/);
+    stopActivityLine();
+    setActivityRepaintEnabled(true);
+  });
+
+  it("shows spinner during beginAgentActivity", () => {
     beginAgentActivity();
-    expect(formatActivityLine()).toBeNull();
+    expect(stripAnsi(formatActivityLine() ?? "")).toMatch(/⠋|⠙|⠹/);
+    endAgentActivity();
   });
 });
 
@@ -200,6 +209,36 @@ describe("statusline segments", () => {
   });
 });
 
+describe("statusline suspend", () => {
+  it("erasePinnedStack clears pin state on TTY", async () => {
+    resetStatusLineRender();
+    const writes: string[] = [];
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    const originalIsTTY = process.stderr.isTTY;
+
+    process.stderr.write = ((chunk: string) => {
+      writes.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+
+    try {
+      const { renderStatusStackAsync, suspendStatusStack, isStatusStackPinned } = await import(
+        "../packages/agent-cli/src/cli/statusline/render-stack.js"
+      );
+      await renderStatusStackAsync();
+      expect(isStatusStackPinned()).toBe(true);
+      suspendStatusStack();
+      expect(isStatusStackPinned()).toBe(false);
+      expect(writes.join("")).toContain("\x1b[");
+    } finally {
+      process.stderr.write = originalWrite;
+      Object.defineProperty(process.stderr, "isTTY", { value: originalIsTTY, configurable: true });
+      resetStatusLineRender();
+    }
+  });
+});
+
 describe("statusline unpin", () => {
   it("re-renders after external stderr write unpins the stack", async () => {
     resetStatusLineRender();
@@ -223,6 +262,42 @@ describe("statusline unpin", () => {
       reply("language: zh");
       await renderStatusStackAsync();
       expect(writes.length).toBeGreaterThan(1);
+    } finally {
+      process.stderr.write = originalWrite;
+      Object.defineProperty(process.stderr, "isTTY", { value: originalIsTTY, configurable: true });
+      resetStatusLineRender();
+    }
+  });
+
+  it("does not re-render status line after idle stdout reply when snapshot unchanged", async () => {
+    resetStatusLineRender();
+    const writes: string[] = [];
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    const originalIsTTY = process.stderr.isTTY;
+
+    process.stderr.write = ((chunk: string) => {
+      writes.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+
+    try {
+      const { renderStatusStackAsync } = await import("../packages/agent-cli/src/cli/statusline/render-stack.js");
+      const { beginAgentActivity, endAgentActivity } = await import(
+        "../packages/agent-cli/src/cli/statusline/render.js"
+      );
+      const { writeStdoutLine } = await import("../packages/agent-cli/src/terminal/write.js");
+
+      await renderStatusStackAsync();
+      beginAgentActivity();
+      await renderStatusStackAsync();
+      endAgentActivity();
+      await renderStatusStackAsync();
+
+      const afterIdleRender = writes.length;
+      writeStdoutLine("2025.");
+      await renderStatusStackAsync();
+      expect(writes.length).toBe(afterIdleRender);
     } finally {
       process.stderr.write = originalWrite;
       Object.defineProperty(process.stderr, "isTTY", { value: originalIsTTY, configurable: true });

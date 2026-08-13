@@ -76,6 +76,32 @@ export function isStatusStackPinned(): boolean {
   return stackPinned;
 }
 
+/** Erase pinned rows on TTY and clear pin state (Transcript flush, before readline). */
+export function erasePinnedStack(): void {
+  if (!canPinStack() || !stackPinned || stackLineCount === 0) {
+    stackPinned = false;
+    stackLineCount = 0;
+    return;
+  }
+
+  writeStderr(`\x1b[${stackLineCount}A`);
+  for (let i = 0; i < stackLineCount; i += 1) {
+    writeStderr("\x1b[2K\r\n");
+  }
+  writeStderr(`\x1b[${stackLineCount}A`);
+  stackPinned = false;
+  stackLineCount = 0;
+  lastStackKey = "";
+}
+
+export function suspendStatusStack(): void {
+  erasePinnedStack();
+}
+
+export async function resumeStatusStack(): Promise<void> {
+  await renderStatusStackAsync();
+}
+
 /** Call before non-stack stderr output so cursor-up stays accurate. */
 export function unpinStatusStack(): void {
   stackPinned = false;
