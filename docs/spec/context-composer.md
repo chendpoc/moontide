@@ -232,7 +232,7 @@ export interface InstructionState {
 }
 ```
 
-- **来源：** 今日逻辑来自 [`src/agent/prompt.ts`](../../packages/agent/src/agent/prompt.ts)；远期 `AGENTS.md`、`.moontide/rules`。
+- **来源：** [`prompt.ts`](../../packages/agent/src/agent/prompt.ts) + [`AGENTS.md`](../../AGENTS.md) 摘要 + `.moontide/rules/*.md`；完整原则见 [`engineering-handbook.md`](../../docs/guides/engineering-handbook.md)（不注入）。
 - **Composer：** 每 turn 拼成 `LLMRequest.system`；**不参与** conversation summary。
 - **`epoch`：** 规则文件变更时递增，便于 cache 与调试。
 
