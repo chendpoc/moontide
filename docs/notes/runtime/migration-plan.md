@@ -1,7 +1,7 @@
 # MoonTide 迁移计划：TypeScript → Rust 多语言
 
 > **文档性质：** notes（迁移执行计划，checklist 化，可逐步执行与勾选）
-> **状态：** 进行中 —— 阶段 0 已完成，阶段 1–4 待执行
+> **状态：** 已完成 —— 阶段 0–4 全部执行完毕（见文末「执行记录」）
 > **关联：** [`agent-kernel-architecture.md`](agent-kernel-architecture.md)（目标架构决策）· [`runtime-multilang.md`](runtime-multilang.md)（多语言方向）
 
 ## 背景与目标
@@ -22,7 +22,7 @@
 
 ---
 
-## 阶段 1：更新文档索引（消除死链）
+## 阶段 1：更新文档索引（消除死链）（已完成）
 
 归档后，索引文件仍引用已移动文档，须清理。
 
@@ -68,7 +68,7 @@ grep -rn "agent-core-roadmap\|harness-eval-1.0\|context-window-roadmap\|feature-
 
 ---
 
-## 阶段 2：删除 TypeScript 代码与工具链
+## 阶段 2：删除 TypeScript 代码与工具链（已完成）
 
 > ⚠️ 删前确认 `main` 分支已保留完整 TS 快照（本地或已 push）。
 
@@ -102,7 +102,7 @@ find . -name "*.tsx" -not -path "./node_modules/*"                          # �
 
 ---
 
-## 阶段 3：目录重构为多语言
+## 阶段 3：目录重构为多语言（已完成）
 
 ### 3.1 移动与新建
 
@@ -139,7 +139,7 @@ check:
 
 ---
 
-## 阶段 4：更新 README / TODO / AGENTS
+## 阶段 4：更新 README / TODO / AGENTS（已完成）
 
 ### 4.1 `README.md`
 
@@ -186,6 +186,24 @@ grep -rn "pnpm\|@moontide/（TS 包）\|TypeScript harness\|typescript" README.m
 1. **阶段 2 是删有意功能**：`packages/` 28k 行 TS 是能跑的参考实现，删除后唯一找回途径是 `git show main:...`。删前确认 `main` 已 push 或本地保留。
 2. **交叉引用死链**：保留文档（如 `agent-kernel-architecture.md`）内部引用已归档文档，路径改为 `../archive/...` 才会恢复。可在阶段 4 一并修正，或接受「archive 文档手动查找」。
 3. **Go / Node 目录是预留空壳**：`services/`、`node/` 仅建 README，不做实际代码——符合「后置到真实需求」的架构决策（见 `agent-kernel-architecture.md` §12）。
+
+---
+
+## 执行记录
+
+| 阶段 | commit | 计划外的处置 |
+|---|---|---|
+| 1 | `docs(archive): update doc indexes after TS doc archival` | `notes/README.md` 增 `migration-plan.md` 条目；四个索引各补一句 archive 说明 |
+| 2 | `chore: remove TypeScript implementation and toolchain` | 另删 `.github/workflows/eval-optional.yml`（依赖 `pnpm eval:feature`）与 `.cursor/skills/moontide-feature-eval/`（TS eval skill）；`ci.yml` 去掉 `typescript` job，只留 `rust` |
+| 3 | `chore: restructure to multi-language layout` | `.gitignore` 的 `ui/target/` 改为 `crates/moontide-ui/target/`，并删已失效的 `packages/evals/runs/`；`justfile` 额外提供 `fmt` / `run` / `ui` 目标 |
+| 4 | `docs: rewrite README/TODO/AGENTS for Rust-first direction` | README 按代码实况写（Rust 无 `/debug`、无 `MOONTIDE_DEBUG`，Agent Event JSONL 与 `status.json` 尚未写入，已在文中标注）；TODO 其余小节指向归档文档的链接改为 `docs/archive/...`；`engineering-handbook.md` 顶部加「TS 时代版本」状态标注；`docs/README.md` §5 只列现存 README |
+
+### 遗留项
+
+- `docs/guides/engineering-handbook.md` 仍是 TS 时代内容（分层、Conformance 范围、命令示例），需按 crate 边界重写或归档。
+- `crates/moontide-ui/target/` 是移动前的独立构建产物（约 2 GB），workspace 统一输出到根 `target/`，可安全删除。
+- `just` 未在开发机安装，`just --list` 验收未执行（`cargo build --workspace` 与 `cargo test --workspace` 已通过）。
+- `main` 分支的 TS 快照尚未 push 到 `origin`，回退仅依赖本地仓库。
 
 ---
 
