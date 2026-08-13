@@ -7,7 +7,7 @@ use tempfile::tempdir;
 #[test]
 fn reads_ts_fixture_jsonl() {
     let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/session/ts-user-assistant.jsonl");
+        .join("tests/fixtures/ts-user-assistant.jsonl");
     let dir = tempdir().expect("tempdir");
     let dest = session_log_path(dir.path(), "sess-fixture");
     if let Some(parent) = dest.parent() {
