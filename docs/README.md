@@ -32,12 +32,11 @@ docs/
 发生冲突时，按以下顺序处理：
 
 1. [`AGENTS.md`](../AGENTS.md)：每 turn 注入 LLM 的 runtime 规则摘要；
-2. [`guides/engineering-handbook.md`](guides/engineering-handbook.md)：工程原则、术语与 Conformance 完整版（人类 / IDE 参考，默认不注入）；
-3. [`TODO.md`](../TODO.md)：当前执行优先级与完成状态；
-4. [`spec/`](spec/)：当前认可的设计契约；
-5. [`product/`](product/)：产品方向与范围；
-6. [`guides/`](guides/)：基于当前实现的操作流程；
-7. [`notes/`](notes/)：候选、讨论、研究和未来计划。
+2. [`TODO.md`](../TODO.md)：当前执行优先级与完成状态；
+3. [`spec/`](spec/)：当前认可的设计契约；
+4. [`product/`](product/)：产品方向与范围；
+5. [`guides/`](guides/)：基于当前实现的操作流程；
+6. [`notes/`](notes/)：候选、讨论、研究和未来计划。
 
 `notes` 中的“定稿”“开发计划”不自动覆盖 Spec，也不代表已经实现。实现完成后，应更新对应 Spec、Guide 和 TODO，而不是只修改 note。
 

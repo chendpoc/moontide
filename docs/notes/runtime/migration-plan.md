@@ -200,7 +200,8 @@ grep -rn "pnpm\|@moontide/（TS 包）\|TypeScript harness\|typescript" README.m
 
 ### 遗留项
 
-- `docs/guides/engineering-handbook.md` 仍是 TS 时代内容（分层、Conformance 范围、命令示例），需按 crate 边界重写或归档。
+- ~~`engineering-handbook.md` 需按 crate 边界重写或归档~~ → 已归档至 `docs/archive/guides/`；`docs/guides/` 当前无活跃 Guide，Rust 版工程手册待重建。
+- **活跃 spec 仍引用已删除的 TS 路径**（`docs/spec/` 下 4 份文档共约 40 处 `packages/…` 链接与 `*.ts` 落点）。需按 crate 实现逐份校订或标注为「TS 时代落点」，这是 spec 层的独立工作，不在本迁移计划范围内。
 - `crates/moontide-ui/target/` 是移动前的独立构建产物（约 2 GB），workspace 统一输出到根 `target/`，可安全删除。
 - `just` 未在开发机安装，`just --list` 验收未执行（`cargo build --workspace` 与 `cargo test --workspace` 已通过）。
 - `main` 分支的 TS 快照尚未 push 到 `origin`，回退仅依赖本地仓库。

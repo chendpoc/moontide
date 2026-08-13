@@ -1,6 +1,6 @@
 本文件是 MoonTide **Instruction State** 来源：经 `instruction-state` 每 turn 拼进 `LLMRequest.system`。
 
-**完整工程手册**（分层详表、Conformance 范围、术语全集、示例）见 [`docs/guides/engineering-handbook.md`](docs/guides/engineering-handbook.md) —— 该手册仍是 TypeScript 时代版本，Rust 分层与 Conformance 范围待重建；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 handbook。
+**完整工程手册**（分层详表、Conformance 范围、术语全集、示例）—— TypeScript 时代版本已归档至 [`docs/archive/guides/engineering-handbook.md`](docs/archive/guides/engineering-handbook.md)，Rust 分层与 Conformance 范围待重建；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 handbook（重建后）。
 
 代码库是 Rust（Cargo workspace，`crates/`）。TypeScript 初版已删除，快照在 `main` 分支，文档在 [`docs/archive/`](docs/archive/)。
 
