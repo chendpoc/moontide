@@ -8,7 +8,9 @@
 |------|------|
 | [`runtime/agent-core-roadmap.md`](runtime/agent-core-roadmap.md) | Agent Core 的迁移与实现顺序 |
 | [`runtime/agent-run-hooks.md`](runtime/agent-run-hooks.md) | Legacy hook 机制、迁移状态与工程落点 |
+| [`runtime/agent-runtime-api.md`](runtime/agent-runtime-api.md) | AgentRuntime / Agent / AgentSession / AgentRun 目标 API 与 capability 完成标准 |
 | [`runtime/agent-runtime-product-direction.md`](runtime/agent-runtime-product-direction.md) | 元 agent、共享 Runtime 与产品 Preset / Shell 边界 |
+| [`runtime/agent-kernel-architecture.md`](runtime/agent-kernel-architecture.md) | 内核架构收敛：Pi 教训、模型 daemon、验收网关、subagent、A2A、crate 判据、多语言 trade-off、event bus 与决策清单 |
 | [`runtime/architecture-remediation.md`](runtime/architecture-remediation.md) | TypeScript Harness 架构修复计划 |
 | [`runtime/ecosystem-compat.md`](runtime/ecosystem-compat.md) | Codex / Claude Code 配置与 MCP 兼容边界 |
 | [`runtime/plugin-host.md`](runtime/plugin-host.md) | Plugin host、MCP client 与 sidecar attach |
