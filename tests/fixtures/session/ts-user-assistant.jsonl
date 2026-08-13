@@ -1,2 +1,0 @@
-{"id":"e1","sessionId":"sess-fixture","turn":1,"at":"2026-07-31T08:00:00.000Z","kind":"user_message","text":"hi"}
-{"id":"e2","sessionId":"sess-fixture","turn":1,"at":"2026-07-31T08:00:01.000Z","kind":"assistant_message","blocks":[{"type":"text","text":"hello"}]}

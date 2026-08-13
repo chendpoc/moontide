@@ -1,2 +1,0 @@
-cache_hit_rate: 12%
-queue_depth: +400%

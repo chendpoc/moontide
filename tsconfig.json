@@ -1,9 +1,0 @@
-{
-  "extends": "./packages/agent-cli/tsconfig.build.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "rootDir": "."
-  },
-  "include": ["packages/agent-cli/src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "packages/agent-cli/dist"]
-}
