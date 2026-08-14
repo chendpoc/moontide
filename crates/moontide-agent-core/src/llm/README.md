@@ -1,7 +1,7 @@
 # llm
 
 > **职责：** 定义 MoonTide 模型调用契约（协议类型 + `LLMProvider` 端口），并通过 adapter / normalize 与厂商 wire 协议解耦。
-> **状态：** 设计已定；实现 / 测试待做。
+> **状态：** 设计已定；实现 / 测试完成（首版范围见 §14）。
 > **关联：** [`docs/spec/llm-provider.md`](../../../../docs/spec/llm-provider.md) · [`../../README.md`](../../README.md)
 
 ---

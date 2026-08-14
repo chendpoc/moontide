@@ -63,7 +63,7 @@ session.load()
 
 | # | 模块 | 依赖 | 设计文档 | 实现 | 测试 | 备注 |
 |---|---|---|---|---|---|---|
-| 1 | `llm` | 无 | ☑ | ◐ | ☐ | [`src/llm/README.md`](src/llm/README.md) |
+| 1 | `llm` | 无 | ☑ | ☑ | ☑ | [`src/llm/README.md`](src/llm/README.md) |
 | 2 | `session` | llm 类型 | ☐ | ☐ | ☐ | item log 唯一写者 |
 | 3 | `tools` | 无 | ☐ | ☐ | ☐ | ToolSpec + 验收网关 |
 | 4 | `permission` | 无 | ☐ | ☐ | ☐ | 授权策略 |
@@ -91,6 +91,6 @@ session.load()
 ## 6. 当前进度快照
 
 - 顶层设计：☑（本文）
-- 模块 1 `llm`：设计 ☑ · 实现 ◐ · 测试 ☐
+- 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑
 - 模块 2–9：☐ 未开始
-- 当前推进：**模块 1 `llm` 实现**（protocol → provider → openai_chat adapter/normalize）
+- 当前推进：**模块 2 `session`**（需先架构对齐）
