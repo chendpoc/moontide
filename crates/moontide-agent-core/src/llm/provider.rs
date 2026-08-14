@@ -4,7 +4,7 @@ use futures::Stream;
 use futures::StreamExt;
 
 use crate::llm::protocol::{
-    ContentBlock, LlmError, ModelRequest, ModelResponse, StopReason, StreamDelta,
+    ContentBlock, LlmError, ModelRequest, ModelResponse, StreamDelta,
 };
 
 /// Streaming LLM port. Implementations must emit exactly one [`StreamDelta::MessageEnd`] last on success.

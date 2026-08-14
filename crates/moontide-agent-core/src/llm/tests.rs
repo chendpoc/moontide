@@ -46,7 +46,7 @@ impl LLMProvider for MockProvider {
 #[cfg(test)]
 mod protocol_tests {
     use super::super::protocol::{
-        ContentBlock, Message, MessageContent, ModelRequest, Role, StopReason, StreamDelta, Usage,
+        ContentBlock, Message, MessageContent, ModelRequest, Role, StopReason, StreamDelta,
     };
     use serde_json::json;
 

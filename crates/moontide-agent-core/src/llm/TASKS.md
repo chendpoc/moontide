@@ -72,7 +72,7 @@
 - **范围：** `normalize/mod.rs`、`normalize/common.rs`
 - **预估 diff：** ~150
 - **完成标准：** validate / handoff 单测通过
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-05: normalize/openai_chat/tool
 
@@ -81,7 +81,7 @@
 - **范围：** `normalize/openai_chat/mod.rs`、`tool.rs`
 - **预估 diff：** ~300
 - **完成标准：** round-trip 单测通过
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-06: normalize/openai_chat/thinking
 
@@ -90,7 +90,7 @@
 - **范围：** `normalize/openai_chat/thinking.rs`
 - **预估 diff：** ~150
 - **完成标准：** thinking 映射单测通过
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-07: normalize/openai_chat/stream
 
@@ -99,7 +99,7 @@
 - **范围：** `normalize/openai_chat/stream.rs`
 - **预估 diff：** ~350
 - **完成标准：** fixture 单测通过
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-08: normalize/anthropic_messages
 

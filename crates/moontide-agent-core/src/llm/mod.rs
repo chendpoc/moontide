@@ -2,6 +2,8 @@
 
 pub mod protocol;
 
+pub(crate) mod normalize;
+
 mod provider;
 
 pub use protocol::*;
