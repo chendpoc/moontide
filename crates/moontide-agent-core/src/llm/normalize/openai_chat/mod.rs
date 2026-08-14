@@ -9,7 +9,7 @@ use tool::{
     OpenAiChatMessage, OpenAiChatRequestBody, OpenAiFunctionDefinition, OpenAiToolDefinition,
 };
 
-pub use stream::{decode_stream_chunk, ChatCompletionChunk};
+pub use stream::{decode_stream_chunk, ChatCompletionChunk, StreamDecoder};
 pub use tool::encode_messages;
 
 /// MoonTide request → OpenAI Chat Completions JSON body (no HTTP).

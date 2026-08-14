@@ -2,6 +2,7 @@
 
 pub mod protocol;
 
+pub(crate) mod adapter;
 pub(crate) mod normalize;
 
 mod provider;

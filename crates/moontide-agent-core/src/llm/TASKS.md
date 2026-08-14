@@ -108,7 +108,7 @@
 - **范围：** `normalize/anthropic_messages/mod.rs`
 - **预估 diff：** ~80
 - **完成标准：** 编译通过
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-09: adapter 工厂
 
@@ -117,7 +117,7 @@
 - **范围：** `adapter/mod.rs`
 - **预估 diff：** ~120
 - **完成标准：** 覆盖已声明 Family
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-10: adapter/openai_chat
 
@@ -126,7 +126,7 @@
 - **范围：** `adapter/openai_chat/mod.rs`
 - **预估 diff：** ~600
 - **完成标准：** mock HTTP；MessageEnd 收束
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-11: adapter/anthropic_messages stub
 
@@ -135,7 +135,7 @@
 - **范围：** `adapter/anthropic_messages/mod.rs`
 - **预估 diff：** ~80
 - **完成标准：** stub 可构造
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-llm-12: 不变量单测
 
