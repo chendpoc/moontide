@@ -1,0 +1,14 @@
+[package]
+name = "moontide-agent-core"
+description = "MoonTide agent kernel (v1 rebuild)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

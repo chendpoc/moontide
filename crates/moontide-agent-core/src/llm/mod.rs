@@ -1,0 +1,11 @@
+//! LLM protocol, provider port, and (later) adapter / normalize.
+
+pub mod protocol;
+
+mod provider;
+
+pub use protocol::*;
+pub use provider::{complete, LLMProvider};
+
+#[cfg(test)]
+mod tests;

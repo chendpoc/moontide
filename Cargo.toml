@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/moontide-agent-core",
     "crates/moontide-protocol",
     "crates/moontide-session",
     "crates/moontide-composer",
@@ -18,6 +19,7 @@ version = "0.1.0"
 authors = ["OceanSpark"]
 
 [workspace.dependencies]
+futures = "0.3"
 anyhow = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -34,6 +36,7 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 owo-colors = "4.3"
 
+moontide-agent-core = { path = "crates/moontide-agent-core" }
 moontide-protocol = { path = "crates/moontide-protocol" }
 moontide-session = { path = "crates/moontide-session" }
 moontide-composer = { path = "crates/moontide-composer" }
