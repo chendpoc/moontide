@@ -9,5 +9,6 @@ mod tests;
 
 pub use store::SessionStore;
 pub use types::{
-    SessionHeader, SessionItem, SessionItemBase, SessionItemDraft, SESSION_HEADER_VERSION,
+    CompactionKind, SessionHeader, SessionItem, SessionItemBase, SessionItemDraft,
+    SESSION_HEADER_VERSION,
 };

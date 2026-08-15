@@ -47,7 +47,12 @@ fn apply_event_to_trace(trace: &mut TraceContext, event: &RunEvent) {
         RunEvent::TurnStarted { turn } | RunEvent::TurnEnded { turn } => {
             trace.turn = *turn;
         }
-        RunEvent::UserPromptCommitted { turn, .. } | RunEvent::AssistantFinalized { turn, .. } => {
+        RunEvent::UserPromptCommitted { turn, .. }
+        | RunEvent::AssistantFinalized { turn, .. }
+        | RunEvent::CompactionApplied { turn, .. }
+        | RunEvent::CompactionRecommended { turn }
+        | RunEvent::ContextPreflightEnded { turn }
+        | RunEvent::ContextPostflightEnded { turn } => {
             trace.turn = *turn;
         }
         RunEvent::ToolInvocationRecorded {

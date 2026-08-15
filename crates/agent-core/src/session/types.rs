@@ -7,6 +7,14 @@ use crate::llm::protocol::{ContentBlock, ToolResultContent};
 
 pub const SESSION_HEADER_VERSION: u32 = 1;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CompactionKind {
+    Prune,
+    TailWindow,
+    Summary,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionItemBase {
     pub id: String,
@@ -42,6 +50,23 @@ pub enum SessionItem {
         tool_use_id: String,
         content: ToolResultContent,
     },
+    Compaction {
+        #[serde(flatten)]
+        base: SessionItemBase,
+        compaction_kind: CompactionKind,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        compaction_save_id: Option<String>,
+        excluded_item_ids: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        before_tokens: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        after_tokens: Option<u64>,
+    },
+    CheckpointCreated {
+        #[serde(flatten)]
+        base: SessionItemBase,
+        checkpoint_id: String,
+    },
 }
 
 impl SessionItem {
@@ -50,7 +75,9 @@ impl SessionItem {
             SessionItem::UserMessage { base, .. }
             | SessionItem::AssistantMessage { base, .. }
             | SessionItem::ToolInvocation { base, .. }
-            | SessionItem::ToolOutcome { base, .. } => base,
+            | SessionItem::ToolOutcome { base, .. }
+            | SessionItem::Compaction { base, .. }
+            | SessionItem::CheckpointCreated { base, .. } => base,
         }
     }
 
@@ -92,6 +119,18 @@ pub enum SessionItemDraft {
         tool_use_id: String,
         content: ToolResultContent,
     },
+    Compaction {
+        turn: u64,
+        compaction_kind: CompactionKind,
+        compaction_save_id: Option<String>,
+        excluded_item_ids: Vec<String>,
+        before_tokens: Option<u64>,
+        after_tokens: Option<u64>,
+    },
+    CheckpointCreated {
+        turn: u64,
+        checkpoint_id: String,
+    },
 }
 
 impl SessionItemDraft {
@@ -100,7 +139,9 @@ impl SessionItemDraft {
             SessionItemDraft::UserMessage { turn, .. }
             | SessionItemDraft::AssistantMessage { turn, .. }
             | SessionItemDraft::ToolInvocation { turn, .. }
-            | SessionItemDraft::ToolOutcome { turn, .. } => *turn,
+            | SessionItemDraft::ToolOutcome { turn, .. }
+            | SessionItemDraft::Compaction { turn, .. }
+            | SessionItemDraft::CheckpointCreated { turn, .. } => *turn,
         }
     }
 }
@@ -151,6 +192,12 @@ pub(crate) fn validate_draft(
                 anyhow::bail!("tool_use_id must not be empty");
             }
         }
+        SessionItemDraft::CheckpointCreated { checkpoint_id, .. } => {
+            if checkpoint_id.is_empty() {
+                anyhow::bail!("checkpoint_id must not be empty");
+            }
+        }
+        SessionItemDraft::Compaction { .. } => {}
     }
 
     Ok(())
@@ -181,6 +228,79 @@ pub(crate) fn freeze_item(draft: SessionItemDraft, base: SessionItemBase) -> Ses
             base,
             tool_use_id,
             content,
+        },
+        SessionItemDraft::Compaction {
+            compaction_kind,
+            compaction_save_id,
+            excluded_item_ids,
+            before_tokens,
+            after_tokens,
+            ..
+        } => SessionItem::Compaction {
+            base,
+            compaction_kind,
+            compaction_save_id,
+            excluded_item_ids,
+            before_tokens,
+            after_tokens,
+        },
+        SessionItemDraft::CheckpointCreated { checkpoint_id, .. } => {
+            SessionItem::CheckpointCreated {
+                base,
+                checkpoint_id,
+            }
+        }
+    }
+}
+
+pub(crate) fn rebase_item(item: &SessionItem, base: SessionItemBase) -> SessionItem {
+    match item {
+        SessionItem::UserMessage { text, .. } => SessionItem::UserMessage {
+            base,
+            text: text.clone(),
+        },
+        SessionItem::AssistantMessage { blocks, .. } => SessionItem::AssistantMessage {
+            base,
+            blocks: blocks.clone(),
+        },
+        SessionItem::ToolInvocation {
+            tool_use_id,
+            name,
+            input,
+            ..
+        } => SessionItem::ToolInvocation {
+            base,
+            tool_use_id: tool_use_id.clone(),
+            name: name.clone(),
+            input: input.clone(),
+        },
+        SessionItem::ToolOutcome {
+            tool_use_id,
+            content,
+            ..
+        } => SessionItem::ToolOutcome {
+            base,
+            tool_use_id: tool_use_id.clone(),
+            content: content.clone(),
+        },
+        SessionItem::Compaction {
+            compaction_kind,
+            compaction_save_id,
+            excluded_item_ids,
+            before_tokens,
+            after_tokens,
+            ..
+        } => SessionItem::Compaction {
+            base,
+            compaction_kind: *compaction_kind,
+            compaction_save_id: compaction_save_id.clone(),
+            excluded_item_ids: excluded_item_ids.clone(),
+            before_tokens: *before_tokens,
+            after_tokens: *after_tokens,
+        },
+        SessionItem::CheckpointCreated { checkpoint_id, .. } => SessionItem::CheckpointCreated {
+            base,
+            checkpoint_id: checkpoint_id.clone(),
         },
     }
 }

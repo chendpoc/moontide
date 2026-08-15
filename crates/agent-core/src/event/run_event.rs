@@ -5,6 +5,15 @@ use crate::llm::protocol::{
     ContentBlock, ModelResponseSnapshot, StopReason, ToolResultContent, Usage,
 };
 
+/// Compaction mode carried on `CompactionApplied` (maps to session `CompactionKind`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunCompactionKind {
+    Prune,
+    TailWindow,
+    Summary,
+}
+
 /// Run-level semantic event emitted by `loop`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RunEvent {
@@ -60,6 +69,25 @@ pub enum RunEvent {
         llm_call_id: String,
         snapshot: ModelResponseSnapshot,
     },
+
+    // R2+
+    CompactionApplied {
+        turn: u64,
+        compaction_kind: RunCompactionKind,
+        compaction_save_id: Option<String>,
+        excluded_item_ids: Vec<String>,
+        before_tokens: Option<u64>,
+        after_tokens: Option<u64>,
+    },
+    CompactionRecommended {
+        turn: u64,
+    },
+    ContextPreflightEnded {
+        turn: u64,
+    },
+    ContextPostflightEnded {
+        turn: u64,
+    },
 }
 
 impl RunEvent {
@@ -71,6 +99,7 @@ impl RunEvent {
                 | RunEvent::AssistantFinalized { .. }
                 | RunEvent::ToolInvocationRecorded { .. }
                 | RunEvent::ToolOutcomeRecorded { .. }
+                | RunEvent::CompactionApplied { .. }
         )
     }
 }

@@ -4,10 +4,11 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 
 use crate::event::{
-    CommitHandler, EventDispatcher, HookHandler, HookOutcome, ObserveHandler, PipelineRegistry,
-    RunEvent, TraceContext,
+    derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentPhase, CommitHandler,
+    EventDispatcher, HookHandler, HookOutcome, ObserveHandler, PipelineRegistry, RunEvent,
+    TraceContext, MAX_AGENT_EVENT_BYTES,
 };
-use crate::llm::protocol::ContentBlock;
+use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 
 struct MockCommitHandler {
     calls: Arc<AtomicUsize>,
@@ -180,4 +181,161 @@ fn committable_runs_observe_after_commit() {
     let events = observed.lock().expect("lock");
     assert_eq!(events.len(), 1);
     assert!(matches!(events[0], RunEvent::AssistantFinalized { .. }));
+}
+
+fn test_ctx() -> TraceContext {
+    TraceContext::new("run-derive", "session-derive")
+}
+
+#[test]
+fn derive_user_prompt_committed_maps_conversation() {
+    let ctx = test_ctx();
+    let record = derive_agent_event(
+        &ctx,
+        &RunEvent::UserPromptCommitted {
+            turn: 1,
+            text: "hello world".to_string(),
+        },
+    )
+    .expect("record");
+
+    assert_eq!(record.channel, AgentChannel::Conversation);
+    assert_eq!(record.kind, "user_prompt");
+    assert_eq!(record.phase, AgentPhase::PreLlm);
+    assert_eq!(record.turn, 1);
+    assert_eq!(record.run_id, "run-derive");
+    assert_eq!(record.payload["text"], "hello world");
+    assert_eq!(record.preview.as_deref(), Some("hello world"));
+}
+
+#[test]
+fn derive_turn_lifecycle_maps_trace() {
+    let ctx = test_ctx();
+
+    let started = derive_agent_event(&ctx, &RunEvent::TurnStarted { turn: 3 }).expect("started");
+    assert_eq!(started.channel, AgentChannel::Trace);
+    assert_eq!(started.kind, "turn_started");
+    assert_eq!(started.phase, AgentPhase::PreLlm);
+    assert_eq!(started.turn, 3);
+
+    let ended = derive_agent_event(&ctx, &RunEvent::TurnEnded { turn: 3 }).expect("ended");
+    assert_eq!(ended.channel, AgentChannel::Trace);
+    assert_eq!(ended.kind, "turn_ended");
+    assert_eq!(ended.phase, AgentPhase::Stop);
+}
+
+#[test]
+fn derive_llm_call_started_and_ended_maps_trace() {
+    let ctx = test_ctx();
+
+    let started = derive_agent_event(
+        &ctx,
+        &RunEvent::LlmCallStarted {
+            turn: 2,
+            step: 1,
+            llm_call_id: "call-1".to_string(),
+        },
+    )
+    .expect("started");
+    assert_eq!(started.channel, AgentChannel::Trace);
+    assert_eq!(started.kind, "llm_call");
+    assert_eq!(started.payload["status"], "started");
+    assert_eq!(started.payload["llmCallId"], "call-1");
+
+    let ended = derive_agent_event(
+        &ctx,
+        &RunEvent::LlmCallEnded {
+            turn: 2,
+            step: 1,
+            llm_call_id: "call-1".to_string(),
+            stop_reason: StopReason::EndTurn,
+            usage: Some(Usage {
+                input_tokens: 10,
+                output_tokens: 5,
+            }),
+        },
+    )
+    .expect("ended");
+    assert_eq!(ended.channel, AgentChannel::Trace);
+    assert_eq!(ended.kind, "llm_call");
+    assert_eq!(ended.payload["status"], "ended");
+    assert_eq!(ended.payload["usage"]["input_tokens"], 10);
+}
+
+#[test]
+fn derive_message_update_pending_text_maps_assistant_text() {
+    let ctx = test_ctx();
+    let record = derive_agent_event(
+        &ctx,
+        &RunEvent::MessageUpdate {
+            turn: 1,
+            step: 0,
+            llm_call_id: "call-2".to_string(),
+            snapshot: ModelResponseSnapshot {
+                content: vec![],
+                pending: Some(PendingBlock::Text {
+                    text: "partial".to_string(),
+                }),
+                stop_reason: None,
+                usage: None,
+                model: None,
+            },
+        },
+    )
+    .expect("record");
+
+    assert_eq!(record.channel, AgentChannel::Trace);
+    assert_eq!(record.kind, "assistant_text");
+    assert_eq!(record.payload["body"], "partial");
+    assert_eq!(record.payload["charCount"], 7);
+}
+
+#[test]
+fn derive_assistant_finalized_maps_conversation_final() {
+    let ctx = test_ctx();
+    let record = derive_agent_event(
+        &ctx,
+        &RunEvent::AssistantFinalized {
+            turn: 1,
+            blocks: vec![
+                ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                ContentBlock::Thinking {
+                    thinking: "hmm".to_string(),
+                },
+            ],
+        },
+    )
+    .expect("record");
+
+    assert_eq!(record.channel, AgentChannel::Conversation);
+    assert_eq!(record.kind, "final");
+    assert_eq!(record.payload["text"], "hello");
+}
+
+#[test]
+fn truncate_record_enforces_64kib_limit() {
+    let huge = "x".repeat(MAX_AGENT_EVENT_BYTES);
+    let record = AgentEventRecord {
+        id: "id-1".to_string(),
+        seq: None,
+        run_id: "run-1".to_string(),
+        turn: 1,
+        phase: AgentPhase::PreLlm,
+        channel: AgentChannel::Conversation,
+        kind: "user_prompt".to_string(),
+        ts: 1,
+        payload: serde_json::json!({ "text": huge }),
+        preview: Some("preview".to_string()),
+        truncated: None,
+        original_bytes: None,
+    };
+
+    let truncated = truncate_record(record);
+    assert_eq!(truncated.truncated, Some(true));
+    assert!(truncated.original_bytes.unwrap_or(0) > MAX_AGENT_EVENT_BYTES as u64);
+
+    let bytes = serde_json::to_vec(&truncated).expect("serialize");
+    assert!(bytes.len() <= MAX_AGENT_EVENT_BYTES);
 }
