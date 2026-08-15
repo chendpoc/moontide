@@ -1,11 +1,11 @@
 use crate::llm::normalize::openai_chat::{ChatCompletionChunk, StreamDecoder};
-use crate::llm::protocol::{LlmError, RequestFailureKind, StreamDelta};
+use crate::llm::protocol::{LlmError, ModelStreamEvent, RequestFailureKind};
 
 /// Incrementally feed one SSE `data:` payload (without the `data:` prefix).
 pub fn decode_sse_payload(
     decoder: &mut StreamDecoder,
     payload: &str,
-) -> Result<Vec<StreamDelta>, LlmError> {
+) -> Result<Vec<ModelStreamEvent>, LlmError> {
     if payload.trim() == "[DONE]" {
         return Ok(Vec::new());
     }
@@ -14,5 +14,5 @@ pub fn decode_sse_payload(
             kind: RequestFailureKind::Unrecoverable,
             message: format!("invalid SSE JSON: {e}"),
         })?;
-    Ok(decoder.decode_chunk(&chunk))
+    decoder.decode_chunk(&chunk)
 }

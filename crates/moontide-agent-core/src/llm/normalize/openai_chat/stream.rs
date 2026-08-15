@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use serde_json::Value;
 
-use crate::llm::protocol::{StopReason, StreamDelta, Usage};
+use crate::llm::protocol::{LlmError, ModelStreamEvent, RequestFailureKind, StopReason, Usage};
 
 use super::thinking::split_assistant_text;
 
@@ -56,7 +57,7 @@ struct ToolCallState {
     started: bool,
 }
 
-/// Stateful decoder: merges fragmented tool `arguments` before [`StreamDelta::ToolUseEnd`].
+/// Stateful decoder: merges fragmented tool `arguments` before [`ModelStreamEvent::ToolUseFinished`].
 #[derive(Debug, Default)]
 pub struct StreamDecoder {
     tool_calls: HashMap<u32, ToolCallState>,
@@ -68,25 +69,26 @@ impl StreamDecoder {
         Self::default()
     }
 
-    /// 是否已 emit 过 `MessageEnd`。唯一置位点是 `finish()`，而 `finish()` 就是 emit
-    /// `MessageEnd` 的地方，所以 `true` 等价于「MessageEnd 已发出、流已收束」。
     pub fn has_emitted_message_end(&self) -> bool {
         self.message_end_emitted
     }
 
-    pub fn decode_chunk(&mut self, chunk: &ChatCompletionChunk) -> Vec<StreamDelta> {
+    pub fn decode_chunk(
+        &mut self,
+        chunk: &ChatCompletionChunk,
+    ) -> Result<Vec<ModelStreamEvent>, LlmError> {
         if self.message_end_emitted {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
-        let mut deltas = Vec::new();
+        let mut events = Vec::new();
         for choice in &chunk.choices {
             if !choice.delta.tool_calls.is_empty() {
                 for tool_delta in &choice.delta.tool_calls {
-                    deltas.extend(self.apply_tool_delta(tool_delta));
+                    events.extend(self.apply_tool_delta(tool_delta)?);
                 }
             } else {
-                deltas.extend(split_assistant_text(
+                events.extend(split_assistant_text(
                     choice.delta.content.as_deref(),
                     choice.delta.reasoning_content.as_deref(),
                 ));
@@ -94,15 +96,18 @@ impl StreamDecoder {
 
             if let Some(reason) = choice.finish_reason.as_deref() {
                 let usage = chunk.usage.as_ref().map(chunk_usage_to_usage);
-                deltas.extend(self.finish(reason, usage));
+                events.extend(self.finish(reason, usage)?);
             }
         }
 
-        deltas
+        Ok(events)
     }
 
-    fn apply_tool_delta(&mut self, tool_delta: &ToolCallDelta) -> Vec<StreamDelta> {
-        let mut deltas = Vec::new();
+    fn apply_tool_delta(
+        &mut self,
+        tool_delta: &ToolCallDelta,
+    ) -> Result<Vec<ModelStreamEvent>, LlmError> {
+        let mut events = Vec::new();
         let entry = self
             .tool_calls
             .entry(tool_delta.index)
@@ -123,9 +128,9 @@ impl StreamDecoder {
             if !args.is_empty() {
                 entry.arguments.push_str(args);
                 if entry.started {
-                    deltas.push(StreamDelta::ToolUseDelta {
+                    events.push(ModelStreamEvent::ToolUsePart {
                         id: entry.id.clone(),
-                        input_json_delta: args.clone(),
+                        input_json: args.clone(),
                     });
                 }
             }
@@ -133,48 +138,65 @@ impl StreamDecoder {
 
         if !entry.started && !entry.id.is_empty() && !entry.name.is_empty() {
             entry.started = true;
-            deltas.push(StreamDelta::ToolUseStart {
+            events.push(ModelStreamEvent::ToolUseStarted {
                 id: entry.id.clone(),
                 name: entry.name.clone(),
             });
             if !entry.arguments.is_empty() {
-                deltas.push(StreamDelta::ToolUseDelta {
+                events.push(ModelStreamEvent::ToolUsePart {
                     id: entry.id.clone(),
-                    input_json_delta: entry.arguments.clone(),
+                    input_json: entry.arguments.clone(),
                 });
             }
         }
 
-        deltas
+        Ok(events)
     }
 
-    fn finish(&mut self, finish_reason: &str, usage: Option<Usage>) -> Vec<StreamDelta> {
-        let mut deltas = Vec::new();
+    fn finish(
+        &mut self,
+        finish_reason: &str,
+        usage: Option<Usage>,
+    ) -> Result<Vec<ModelStreamEvent>, LlmError> {
+        let mut events = Vec::new();
 
         if finish_reason == "tool_calls" || finish_reason == "stop" {
             for state in self.tool_calls.values() {
                 if state.started {
-                    deltas.push(StreamDelta::ToolUseEnd {
+                    let input = parse_tool_input(&state.arguments)?;
+                    events.push(ModelStreamEvent::ToolUseFinished {
                         id: state.id.clone(),
+                        name: state.name.clone(),
+                        input,
                     });
                 }
             }
             self.tool_calls.clear();
         }
 
-        deltas.push(StreamDelta::MessageEnd {
+        events.push(ModelStreamEvent::Finished {
             stop_reason: map_finish_reason(finish_reason),
             usage,
         });
         self.message_end_emitted = true;
-        deltas
+        Ok(events)
     }
 }
 
+fn parse_tool_input(arguments: &str) -> Result<Value, LlmError> {
+    if arguments.is_empty() {
+        return Ok(Value::Null);
+    }
+    serde_json::from_str(arguments).map_err(|e| LlmError::RequestFailed {
+        kind: RequestFailureKind::Unrecoverable,
+        message: format!("invalid tool arguments JSON: {e}"),
+    })
+}
+
 #[cfg(test)]
-fn decode_stream_chunk(chunk: &ChatCompletionChunk) -> Vec<StreamDelta> {
+fn decode_stream_chunk(chunk: &ChatCompletionChunk) -> Vec<ModelStreamEvent> {
     let mut decoder = StreamDecoder::new();
-    decoder.decode_chunk(chunk)
+    decoder.decode_chunk(chunk).expect("decode chunk")
 }
 
 pub fn map_finish_reason(finish_reason: &str) -> StopReason {
@@ -202,70 +224,86 @@ mod tests {
     }
 
     #[test]
-    fn text_delta_from_content() {
-        let deltas = decode_stream_chunk(&chunk(
+    fn text_part_from_content() {
+        let events = decode_stream_chunk(&chunk(
             r#"{"choices":[{"delta":{"content":"hello"},"finish_reason":null}]}"#,
         ));
         assert!(matches!(
-            deltas.first(),
-            Some(StreamDelta::TextDelta { .. })
+            events.first(),
+            Some(ModelStreamEvent::TextPart { block_index: 0, .. })
         ));
     }
 
     #[test]
-    fn reasoning_delta_from_reasoning_content() {
-        let deltas = decode_stream_chunk(&chunk(
+    fn thinking_part_from_reasoning_content() {
+        let events = decode_stream_chunk(&chunk(
             r#"{"choices":[{"delta":{"reasoning_content":"think"},"finish_reason":null}]}"#,
         ));
         assert!(matches!(
-            deltas.first(),
-            Some(StreamDelta::ThinkingDelta { .. })
+            events.first(),
+            Some(ModelStreamEvent::ThinkingPart { block_index: 0, .. })
         ));
     }
 
     #[test]
-    fn tool_call_arguments_merge_before_end() {
+    fn tool_call_arguments_merge_before_finished() {
         let mut decoder = StreamDecoder::new();
-        let d1 = decoder.decode_chunk(&chunk(
-            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"read","arguments":""}}]},"finish_reason":null}]}"#,
+        let d1 = decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"read","arguments":""}}]},"finish_reason":null}]}"#,
+            ))
+            .expect("d1");
+        assert!(matches!(
+            d1.first(),
+            Some(ModelStreamEvent::ToolUseStarted { .. })
         ));
-        assert!(matches!(d1.first(), Some(StreamDelta::ToolUseStart { .. })));
 
-        let d2 = decoder.decode_chunk(&chunk(
-            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"a\""}}]},"finish_reason":null}]}"#,
+        let d2 = decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"a\""}}]},"finish_reason":null}]}"#,
+            ))
+            .expect("d2");
+        assert!(matches!(
+            d2.first(),
+            Some(ModelStreamEvent::ToolUsePart { .. })
         ));
-        assert!(matches!(d2.first(), Some(StreamDelta::ToolUseDelta { .. })));
 
-        let d3 = decoder.decode_chunk(&chunk(
-            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":1}"}}]},"finish_reason":"tool_calls"}]}"#,
-        ));
+        let d3 = decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":1}"}}]},"finish_reason":"tool_calls"}]}"#,
+            ))
+            .expect("d3");
         assert!(d3
             .iter()
-            .any(|d| matches!(d, StreamDelta::ToolUseEnd { .. })));
-        assert!(matches!(d3.last(), Some(StreamDelta::MessageEnd { .. })));
+            .any(|e| matches!(e, ModelStreamEvent::ToolUseFinished { .. })));
+        assert!(matches!(d3.last(), Some(ModelStreamEvent::Finished { .. })));
     }
 
     #[test]
     fn finish_reason_marks_message_end_emitted() {
         let mut decoder = StreamDecoder::new();
-        decoder.decode_chunk(&chunk(
-            r#"{"choices":[{"delta":{"content":"hi"},"finish_reason":null}]}"#,
-        ));
+        decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{"content":"hi"},"finish_reason":null}]}"#,
+            ))
+            .expect("chunk");
         assert!(!decoder.has_emitted_message_end());
-        decoder.decode_chunk(&chunk(
-            r#"{"choices":[{"delta":{},"finish_reason":"stop"}]}"#,
-        ));
+        decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{},"finish_reason":"stop"}]}"#,
+            ))
+            .expect("finish");
         assert!(decoder.has_emitted_message_end());
     }
 
     #[test]
-    fn message_end_maps_stop_reason() {
-        let deltas = decode_stream_chunk(&chunk(
+    fn finished_maps_stop_reason() {
+        let events = decode_stream_chunk(&chunk(
             r#"{"choices":[{"delta":{},"finish_reason":"length"}]}"#,
         ));
         assert!(matches!(
-            deltas.last(),
-            Some(StreamDelta::MessageEnd {
+            events.last(),
+            Some(ModelStreamEvent::Finished {
                 stop_reason: StopReason::MaxTokens,
                 ..
             })
@@ -279,12 +317,12 @@ mod tests {
 
     #[test]
     fn usage_on_final_chunk() {
-        let deltas = decode_stream_chunk(&chunk(
+        let events = decode_stream_chunk(&chunk(
             r#"{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":5}}"#,
         ));
         assert!(matches!(
-            deltas.last(),
-            Some(StreamDelta::MessageEnd {
+            events.last(),
+            Some(ModelStreamEvent::Finished {
                 usage: Some(Usage {
                     input_tokens: 3,
                     output_tokens: 5,
