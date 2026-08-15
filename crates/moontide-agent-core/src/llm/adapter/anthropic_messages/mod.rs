@@ -3,7 +3,7 @@ use std::pin::Pin;
 use futures::Stream;
 
 use crate::llm::adapter::AdapterConfig;
-use crate::llm::protocol::{LlmError, ModelRequest, RequestFailureKind, StreamDelta};
+use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, RequestFailureKind};
 use crate::llm::LLMProvider;
 
 /// Stub adapter — constructible via [`super::super::build_provider`], not yet wired to HTTP.
@@ -21,7 +21,7 @@ impl LLMProvider for AnthropicMessagesAdapter {
     fn stream(
         &self,
         _request: ModelRequest,
-    ) -> Pin<Box<dyn Stream<Item = Result<StreamDelta, LlmError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>> {
         Box::pin(futures::stream::once(async {
             Err(LlmError::RequestFailed {
                 kind: RequestFailureKind::Unrecoverable,

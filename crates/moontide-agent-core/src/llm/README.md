@@ -1,7 +1,7 @@
 # llm
 
 > **职责：** 定义 MoonTide 模型调用契约（协议类型 + `LLMProvider` 端口），并通过 adapter / normalize 与厂商 wire 协议解耦。
-> **状态：** 设计已定；实现 / 测试完成（首版范围见 §14）。
+> **状态：** 流式消费修订已完成（R5–R6）；48 tests。
 > **关联：** [`docs/spec/llm-provider.md`](../../../../docs/spec/llm-provider.md) · [`../../README.md`](../../README.md)
 
 ---
@@ -22,9 +22,11 @@ llm/
     mod.rs
     message.rs              # Role, Message, ContentBlock, ToolSchema
     request.rs              # ModelRequest, ModelResponse, StopReason, Usage
-    delta.rs                # StreamDelta
+    stream_event.rs         # ModelStreamEvent（adapter 产出；loop 禁止直接 fold）
+    snapshot.rs             # ModelResponseSnapshot, PendingBlock
     error.rs                # LlmError, CancelReason, RequestFailureKind
-  provider.rs               # trait LLMProvider
+  response_builder.rs       # ModelResponseBuilder（delta → Snapshot / Response，唯一 fold）
+  provider.rs               # trait LLMProvider + run_model_call（loop 入口）
   normalize/                # 语义转换（纯函数，无 HTTP）
     mod.rs                  # 按 AdapterFamily 分发
     common.rs               # 跨族：validate、handoff 清洗
@@ -52,7 +54,8 @@ llm/
 
 ```text
 loop / context / session / prompt
-    └── llm::protocol + llm::LLMProvider
+    └── llm::protocol + llm::run_model_call[_with_updates]
+    └── （禁止）直接 match ModelStreamEvent / 自行 fold
 
 agent（组合根）
     └── llm::adapter::build_provider(family, config)
@@ -68,7 +71,9 @@ llm::normalize/{family}
 | 层 | 知道什么 | 禁止 |
 |----|----------|------|
 | `protocol` | MoonTide 类型 | HTTP、SDK、base_url、preset |
-| `LLMProvider` | `stream(ModelRequest)` | 路由、重试、session 写入 |
+| `LLMProvider` | `stream(ModelRequest)` → `ModelStreamEvent` | 路由、重试、session 写入 |
+| `run_model_call` | `ModelResponse` | 直接消费 `ModelStreamEvent` |
+| `ModelResponseBuilder` | `Snapshot` / `ModelResponse` | 第二套 fold 实现 |
 | `normalize` | 跨 wire 语义等价 | HTTP、具体 vendor 名 |
 | `adapter` | 一种 wire 协议的 serde + SSE | loop 逻辑、权限、tool 执行 |
 | `agent/preset` | preset × adapter_family × endpoint | 定义 MoonTide 协议类型 |
@@ -105,9 +110,10 @@ preset "openrouter" × OpenAiChatCompletions → https://openrouter.ai/api/v1
 入站:
   raw SSE event
     → adapter::{family}::parse_raw_event
-    → normalize::{family}::decode_delta         # wire → StreamDelta
-    → (可选) normalize::common::...
-    → loop 消费 StreamDelta
+    → normalize::{family}::StreamDecoder        # wire → ModelStreamEvent
+    → ModelResponseBuilder::apply               # 唯一 fold（llm crate 内）
+    → ModelResponseSnapshot（流式）/ ModelResponse（结束）
+    → loop 经 run_model_call*；RunEvent 转发 snapshot / response
 ```
 
 **分工：** adapter 不做 tool/thinking 语义互转；normalize 不发 HTTP。
@@ -193,23 +199,58 @@ struct ModelResponse {
 }
 ```
 
-### 6.3 流式增量
+### 6.3 流式事件（`ModelStreamEvent`）
+
+adapter / normalize 产出；**loop 禁止直接 fold**。与 `RunEvent` 区分：此为单次 LLM 调用内的流事件。
 
 ```rust
-enum StreamDelta {
-    TextDelta { text: String },
-    ThinkingDelta { thinking: String },
-    ToolUseStart { id: String, name: String },
-    ToolUseDelta { id: String, input_json_delta: String },
-    ToolUseEnd { id: String },
-    MessageEnd {
+enum ModelStreamEvent {
+    TextPart { block_index: u32, text: String },
+    ThinkingPart { block_index: u32, thinking: String },
+    ToolUseStarted { id: String, name: String },
+    ToolUsePart { id: String, input_json: String },   // 流式预览；累积在 normalize
+    ToolUseFinished { id: String, name: String, input: serde_json::Value },
+    Finished {
         stop_reason: StopReason,
         usage: Option<Usage>,
     },
 }
 ```
 
-### 6.4 错误（与取消正交）
+**`block_index`：** 同一 assistant 消息内 content 块序号；index 变化时 `ModelResponseBuilder` flush 上一块。OpenAI Chat 族首版可恒为 `0`；Anthropic 形 API 映射真实 index。
+
+**刻意不在此枚举：** `ResponseStarted`（归 loop / `RunEvent::message_start`）、全文 `ResponseCompleted`（归 `ModelResponseBuilder::finish()`）。
+
+### 6.4 快照与 fold（`snapshot.rs` + `response_builder.rs`）
+
+```rust
+enum PendingBlock {
+    Text { text: String },
+    Thinking { thinking: String },
+    ToolUse { id: String, name: String, input_json: String },
+}
+
+struct ModelResponseSnapshot {
+    content: Vec<ContentBlock>,       // 已 flush
+    pending: Option<PendingBlock>,    // 进行中（UI / message_update 用）
+    stop_reason: Option<StopReason>,
+    usage: Option<Usage>,
+    model: Option<String>,
+}
+
+struct ModelResponseBuilder { /* ... */ }
+
+impl ModelResponseBuilder {
+    fn new(model: impl Into<String>) -> Self;
+    fn apply(&mut self, event: ModelStreamEvent) -> Result<ModelResponseSnapshot, LlmError>;
+    fn snapshot(&self) -> ModelResponseSnapshot;
+    fn finish(self) -> Result<ModelResponse, LlmError>;
+}
+```
+
+**fold 规则：** `block_index` 或 part 类型（Text vs Thinking）变化 → flush；`ToolUseStarted` → flush 文本/思考；`ToolUseFinished` → push `ContentBlock::ToolUse`；`Finished` → flush + 记录元数据。
+
+### 6.5 错误（与取消正交）
 
 ```rust
 enum CancelReason {
@@ -234,21 +275,58 @@ enum LlmError {
 
 ## 7. 端口（`provider.rs`）
 
+### 7.1 `LLMProvider`（adapter 实现）
+
 ```rust
 trait LLMProvider: Send + Sync {
-    /// 流式调用。成功路径必须以恰好一个 `MessageEnd` 结束，且为最后一项。
+    /// 低层流。成功路径必须以恰好一个 `Finished` 结束，且为最后一项。
     fn stream(
         &self,
         request: ModelRequest,
-    ) -> Pin<Box<dyn Stream<Item = Result<StreamDelta, LlmError>> + Send + '_>>;
+    ) -> Pin<Box<dyn Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>>;
 }
+```
 
-/// 便利：将 stream 收成 `ModelResponse`（测试 / 非流式调用方）。
-async fn complete(
+### 7.2 loop 入口（**首选**；不直接消费 `ModelStreamEvent`）
+
+```rust
+/// 无流式 UI：await 即得完整 `ModelResponse`。
+async fn run_model_call(
     provider: &dyn LLMProvider,
     request: ModelRequest,
 ) -> Result<ModelResponse, LlmError>;
+
+/// 有流式 UI：内部 `ModelResponseBuilder` fold；每 apply 一次可选通知 `on_update(snapshot)`。
+/// loop 只传闭包刷新界面，不 match 事件、不拼 JSON。
+async fn run_model_call_with_updates<F>(
+    provider: &dyn LLMProvider,
+    request: ModelRequest,
+    on_update: F,
+) -> Result<ModelResponse, LlmError>
+where
+    F: FnMut(ModelResponseSnapshot);
+
+/// `complete` = `run_model_call` 别名（测试兼容）。
+async fn complete(...) -> Result<ModelResponse, LlmError>;
 ```
+
+**与 `RunEvent` 接缝（`event` mod，后置）：** loop 在 `run_model_call_with_updates` 闭包内 `publish(message_update { snapshot })`；结束后 `publish(message_end { response })`。`message_start` 在调 `run_model_call*` 之前由 loop 发。
+
+### 7.3 Snapshot 供给 vs 渲染决策
+
+| 半边 | 负责方 | 契约 |
+|------|--------|------|
+| **供给** | `llm`（`run_model_call_with_updates`） | 每次 `ModelResponseBuilder::apply` 后调用 `on_update(snapshot)`；`snapshot` 含 `content` + `pending`（`ContentBlock` 语义，非裸事件） |
+| **渲染** | REPL / `cli` | 是否重绘、节流、展示 tool 参数或仅 spinner，由 UI 自定；`llm` 不做帧率控制 |
+
+`run_model_call`（无回调）仍内部 fold，只交付最终 `ModelResponse`；有流式 UI 时必须走 `run_model_call_with_updates`（或后置 `Stream<Snapshot>`）。
+
+### 7.4 REPL 渲染契约
+
+- **只依赖** `ModelResponseSnapshot` / `ContentBlock`；**禁止** match `ModelStreamEvent`、拼 tool JSON。
+- Markdown / code：首版走 `ContentBlock::Text`，展示层解析；后置可加 `Code` / `Image` / `File` 变体，仍从 snapshot 取。
+- Tool 流式：`pending::ToolUse` 可供 UI 显示「调用中」；完成后 `content` 含已解析 `ToolUse { input: Value }`。
+- Session 落盘：仅 `finish()` 后的 `ModelResponse.content`，不写 `pending`。
 
 首版不在 trait 上暴露 `count_tokens`；需要时作为 `LLMProvider` 扩展方法或独立端口后置。
 
@@ -331,11 +409,13 @@ fn resolve_provider(preset_id: &str) -> Box<dyn LLMProvider>;
 
 ## 11. 不变量
 
-1. **`stream` 成功路径：** 增量任意顺序，但 **恰好一个** `MessageEnd`，且为最后一项。
-2. **Tool 流：** 每个 `id` 满足 `ToolUseStart` → 零或多 `ToolUseDelta` → `ToolUseEnd`；禁止无 Start 的 Delta/End。
-3. **`ModelRequest.messages`：** 不得为空；`system` 允许空串。
-4. **取消：** 走 `LlmError::Cancelled`；不通过成功 `MessageEnd` + `StopReason` 表达取消。
-5. **依赖：** `normalize` 不 import `adapter`；`protocol` 不 import 本 mod 其他子模块以外的 IO crate。
+1. **`stream` 成功路径：** **恰好一个** `Finished`，且为最后一项。
+2. **Tool 流：** 每个 `id` 满足 `ToolUseStarted` → 零或多 `ToolUsePart` → 恰好一个 `ToolUseFinished { input }`；`input` 为 normalize 解析后的 JSON。
+3. **`block_index`：** 同一 index 内 part 类型一致（Text 或 Thinking）；index 递增；tool 块不占 text/thinking index。
+4. **fold 唯一性：** `ModelResponseBuilder` 为 `ModelStreamEvent` → `ModelResponse` 的唯一实现；`loop` 禁止第二套 fold。
+5. **`ModelRequest.messages`：** 不得为空；`system` 允许空串。
+6. **取消：** 走 `LlmError::Cancelled`；不通过 `Finished` 表达取消。
+7. **依赖：** `normalize` 不 import `adapter`；`protocol` 不 import 本 mod 其他子模块以外的 IO crate。
 
 ---
 
@@ -344,11 +424,11 @@ fn resolve_provider(preset_id: &str) -> Box<dyn LLMProvider>;
 | 场景 | 处理层 | 策略 |
 |------|--------|------|
 | 换 preset / handoff 后 history 含目标族不支持的 block | `normalize::common` | 清洗或 strip，不 panic |
-| OpenAI 形 `tool_calls.arguments` 分片流 | `normalize/openai_chat/stream` | 合并后再 `ToolUseEnd` |
-| DeepSeek thinking → `reasoning_content` | `normalize/openai_chat/thinking` | 映射为 `ThinkingDelta` / block |
+| OpenAI 形 `tool_calls.arguments` 分片流 | `normalize/openai_chat/stream` | 合并后 `ToolUseFinished { input }` |
+| DeepSeek thinking → `reasoning_content` | `normalize/openai_chat/thinking` | 映射为 `ThinkingPart` / block |
 | Anthropic 形与 MoonTide 同构 | `normalize/anthropic_messages` | 多数 pass-through |
 | HTTP 4xx/5xx / 断流 | `adapter` | 映射为 `LlmError::RequestFailed` |
-| OpenAI 流是否结束 | `normalize/openai_chat/stream` | `finish_reason` → `MessageEnd`；`data: [DONE]` 仅跳过，不作收束依据 |
+| OpenAI 流是否结束 | `normalize/openai_chat/stream` | `finish_reason` → `Finished`；`data: [DONE]` 仅跳过，不作收束依据 |
 | 用户 abort in-flight | `loop` + provider | `LlmError::Cancelled { reason: User }` |
 
 ---
@@ -360,27 +440,29 @@ fn resolve_provider(preset_id: &str) -> Box<dyn LLMProvider>;
 3. **Normalize 混合结构：** family 一级目录（与 adapter 配对）+ 族内 tool/thinking/stream；跨族逻辑仅放 `common.rs`。
 4. **首版默认 wire：** DeepSeek preset 使用 `OpenAiChatCompletions`（`https://api.deepseek.com/chat/completions`）；`AnthropicMessages` enum 与 normalize 骨架同步预留。
 5. **trait 纪律：** 本 mod 对外 trait 仅 `LLMProvider`；normalize 用纯函数 + mod，不上 trait。
+6. **流式消费（2026-08-15）：** `ModelStreamEvent` + `block_index`；fold 只在 `ModelResponseBuilder`；loop 经 `run_model_call*`；不学 Pi 每条 `partial`；不在 adapter 枚举里放 `ResponseStarted` / 全文 `ResponseCompleted`。
+7. **命名：** `StreamDelta` / `MessageEnd` 等旧名废弃，统一 `ModelStreamEvent` / `Finished` / `*Part`。
 
 ---
 
-## 14. 首版实现范围
+## 14. 实现范围
 
-| 交付 | 首版 | 后置 |
-|------|------|------|
-| `protocol/` 全套类型 | ✓ | — |
-| `LLMProvider` + `complete()` | ✓ | — |
-| `normalize/common` + `openai_chat/{tool,thinking,stream}` | ✓ | — |
-| `normalize/anthropic_messages` | 骨架 / pass-through | 完整实现 |
-| `adapter/openai_chat`（DeepSeek） | ✓ | — |
-| `adapter/anthropic_messages` | stub | — |
-| `agent/preset` deepseek 默认 | 随 agent 模块 | llm 单测用 `MockProvider` |
-| Responses / Gemini 族 | — | 有需求再加 |
+| 交付 | R1（已完成） | R2（流式消费修订） |
+|------|-------------|-------------------|
+| `protocol/` 消息 + 请求类型 | ✓ | — |
+| `ModelStreamEvent` + `block_index` | ✓ | — |
+| `ModelResponseSnapshot` + `ModelResponseBuilder` | ✓ | — |
+| `run_model_call` / `run_model_call_with_updates` | ✓ | — |
+| `LLMProvider` + adapter / normalize | ✓ | — |
+| `agent/preset` deepseek 默认 | 随 agent 模块 | — |
+| Responses / Gemini 族 | — | 后置 |
 
 ---
 
-## 15. 单测方向（实现阶段）
+## 15. 单测方向
 
-- `MockProvider`：可控 `StreamDelta` 序列，验证 loop 侧消费契约。
-- `normalize/openai_chat/tool`：MoonTide blocks ↔ OpenAI messages round-trip。
-- `stream` 不变量：Tool 序列、`MessageEnd` 唯一性。
+- `ModelResponseBuilder`：`block_index` 交错、`ToolUseFinished`、与 `Finished` 收束。
+- `run_model_call_with_updates`：闭包收到单调增长的 `snapshot.pending` / `content`。
+- `normalize/openai_chat/stream`：`ToolUseFinished.input` 由分片正确合并。
+- `MockProvider`：可控 `ModelStreamEvent` 序列。
 - `build_provider`：注册表覆盖已声明的 `AdapterFamily`（stub 也算）。
