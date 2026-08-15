@@ -1,131 +1,153 @@
 # session
 
-> **职责：** Session Item Log 的 append-only 事实源与唯一写者：存 user / assistant / tool 数据事实，保证四不变量，提供 create / load(resume) / append / fork。
-> **状态：** **draft（待定稿）** —— 接口未定稿，§8 开放问题待架构师逐项确认后转定稿；定稿前不写实现。
-> **关联：** [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md) · [`../../README.md`](../../README.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
+> **对外使用说明** — 集成 `agent-core::session` 时读本文即可。
+> **实现细节** — [`DESIGN.md`](DESIGN.md)
+> **状态：** 设计已定稿；实现未开始。
+> **关联：** [`../event/README.md`](../event/README.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md)
 
 ---
 
-## 1. 职责一句话
+## 这是什么
 
-session 是 **Session Item Log 的唯一写者与事实源**：append-only 存 user / assistant / tool 事实，保证四不变量，提供 create / load(resume) / append / fork。**不做** materialize（归 context #7）、**不做** compile（归 prompt #6）——本模块只存事实，不编译。
-
----
-
-## 2. 关键类型
-
-```rust
-// 条目基底：seq = 位置（连续性校验），id = 身份（跨条目引用，fork 后仍稳定）
-pub struct SessionItemBase {
-    pub id: String,          // UUID，跨条目引用 + fork 边界
-    pub seq: u64,            // append 时分配，== 行号，断号即报错
-    pub session_id: String,  // UUID
-    pub turn: u64,
-    pub at: String,          // ISO 8601
-}
-
-pub enum SessionItem {
-    UserMessage      { base: SessionItemBase, text: String },
-    // blocks 仅允许 Text / Thinking 变体；ToolUse / ToolResult 独立成条目（防双写）
-    AssistantMessage { base: SessionItemBase, blocks: Vec<ContentBlock> },
-    ToolInvocation   { base: SessionItemBase, tool_use_id: String, name: String, input: Value },
-    ToolOutcome      { base: SessionItemBase, tool_use_id: String, content: ToolResultContent },
-}
-
-// header 外置，不进 log（元数据非可重放事件）
-pub struct SessionHeader {
-    pub version: u32,
-    pub session_id: String,
-    pub cwd: PathBuf,
-    pub parent_session: Option<String>,  // fork 来源
-    pub seed_len: u64,                   // fork 继承的日志行数
-}
-```
-
-> `ContentBlock` / `ToolResultContent` / `Value` 复用 `crate::llm::protocol`，不重定义。
-
----
-
-## 3. 公开方法
-
-```rust
-pub struct Session { /* header + 内存已加载 items */ }
-
-impl Session {
-    pub fn create(cwd: PathBuf) -> Result<Self>;           // 生成 header + 空 log
-    pub fn load(session_id: &str) -> Result<Self>;         // resume：读 header → 逐行重放 → 校验 seq
-    pub fn append(&mut self, item: SessionItem) -> Result<()>;  // 唯一写者：校验 → 冻结 → 落盘
-    pub fn fork(&self, boundary: &str /* ItemId */) -> Result<String /* 新 SessionId */>;
-    pub fn items(&self) -> impl Iterator<Item = &SessionItem>;   // 供 context.materialize 读
-    pub fn header(&self) -> &SessionHeader;
-}
-```
-
-错误用 `anyhow::Result`（存储 / 校验错误不需要 `LlmError` 那种 Recoverable / Unrecoverable 分类）。
-
-存储 layout（文件名**待定**，见 §8 G）：
+`session` 维护整场对话的 **Session Item Log**（append-only 事实源）：
 
 ```text
 .moontide/sessions/
-├── {session_id}.meta.json   # header
-└── {session_id}.log.jsonl    # NDJSON，每行一条 SessionItem
+├── {session_id}.meta.json      # 元数据（cwd、fork 关系）
+└── {session_id}.log.jsonl      # 每行一条 SessionItem
 ```
 
----
-
-## 4. 不变量
-
-1. **`seq == log.len()`**：append 时 seq 必须等于当前行数，断号 = 数据损坏 → `Err`。
-2. **先校验后冻结**：可无损序列化才入队，入队后不可变。
-3. **`AssistantMessage.blocks` 不得含 `ToolUse` / `ToolResult`**（否则与 ToolInvocation / ToolOutcome 双写）。
-4. **header 不进 log**（元数据非可重放事件）。
-5. **模型可见先落盘**：loop 侧契约，session 不强制（不依赖 loop）。
+**一句话：** 只负责「记什么」；不负责「发给模型什么」（`context`）或「运行 trace」（`event`）。
 
 ---
 
-## 5. import 边界
+## 设计原理（brief）
 
 ```text
-session
-    └── crate::llm::protocol   （ContentBlock / ToolResultContent）
-
-context (#7) → session.items()   （materialize 唯一出口）
-loop (#8)     → session.append() （唯一写者）
+  Session Item Log     ≠     Agent Event Log     ≠     LLMRequest
+  （事实 · 本模块）         （观测 · event）          （编译 · context）
+        │                         ▲
+        │    emit → commit 阶段    │
+        └─────────────────────────┘
+              loop 不直接写 session
 ```
 
-- session **不** import agent / loop / prompt / context / event（契约层，只被上层依赖）。
-- session 不依赖 `moontide-agent`（分层铁律）。
+- **唯一写盘：** `SessionStore::commit_item`（生产路径经 `event` commit 阶段调用）
+- **resume：** `load` → `items()` → `context::materialize`
+- **不进 log：** `TurnStart`、流式 delta、trace（归 Agent Event Log）
+- **tool：** `ToolInvocation` / `ToolOutcome` 分行存储；assistant 条目不嵌 tool 块
 
 ---
 
-## 6. 决策记录（draft）
+## 谁该用什么
 
-1. **SessionItem 细粒度**：tool 拆成独立 `ToolInvocation` / `ToolOutcome` 条目，materialize 时再合成。理由：`tool_use_id` 需要跨条目关联，且 `ToolOutcome` 可能是大 payload（未来 spill）。
-2. **`seq` + `id` 双字段**：seq 是位置（fork 后重编），id 是身份（fork 后引用不失效）。跨条目引用用 id。
-3. **materialize 归 context**：session 只给 `items()` 读取器，materialize 是 context #7 的「唯一出口」（`agent-core/README.md` §2 已定）。
+| 调用者 | 可用 | 禁止 |
+|--------|------|------|
+| **`agent`** | `create` / `load`、持有 `SessionStore`、注册 `commit_from_event` | — |
+| **`loop`** | — | **任何** session API |
+| **`context`** | `items()` 只读 | `commit_item` |
+| **`event`** commit handler | `commit_from_event` | 绕过 Pipeline 写盘 |
+| **`cli`** | `load` + `items()` | `commit_item` |
+| **测试** | 全 API | — |
 
 ---
 
-## 7. 边界情况
+## 公开 API
 
-| 场景 | 处理 |
+```rust
+impl SessionStore {
+    pub fn create(sessions_dir: impl AsRef<Path>, cwd: PathBuf) -> Result<Self>;
+    pub fn load(sessions_dir: impl AsRef<Path>, session_id: &str) -> Result<Self>;
+    pub fn commit_item(&mut self, draft: SessionItemDraft) -> Result<&SessionItem>;
+    pub fn fork(&self, sessions_dir: impl AsRef<Path>, boundary_item_id: &str) -> Result<Self>; // R2
+    pub fn items(&self) -> &[SessionItem];
+    pub fn header(&self) -> &SessionHeader;
+}
+
+pub fn commit_from_event(store: &mut SessionStore, event: &RunEvent) -> Result<&SessionItem>; // R3
+```
+
+**Draft 规则：** 只填 `turn` + 载荷；**不要**自填 `id` / `seq` / `at`。
+
+**条目类型（R1）：** `UserMessage` · `AssistantMessage` · `ToolInvocation` · `ToolOutcome`
+
+---
+
+## 典型用法
+
+### 生产路径（推荐）
+
+经 `event` 写入，保证 hook 与 observe 一致：
+
+```text
+agent 持有 SessionStore
+loop.emit(UserPromptCommitted { … })
+  → event commit 阶段 → commit_from_event → commit_item
+```
+
+详见 [`../event/README.md`](../event/README.md)。
+
+### 新建会话
+
+```rust
+let mut store = SessionStore::create(".moontide/sessions", cwd)?;
+```
+
+### Resume
+
+```rust
+let store = SessionStore::load(".moontide/sessions", &session_id)?;
+let items = store.items(); // → context::materialize
+```
+
+### 单测直接写盘
+
+```rust
+store.commit_item(SessionItemDraft::UserMessage {
+    turn: 0,
+    text: "hello".into(),
+})?;
+```
+
+仅测试 / R1 守门；**loop 与生产 agent 路径禁止**直接 `commit_item`。
+
+### Fork（R2）
+
+```rust
+let child = store.fork(".moontide/sessions", &boundary_item_id)?;
+```
+
+`boundary_item_id` 须为该 `turn` 的最后一条 item。
+
+---
+
+## 配置
+
+| 项 | 约定 |
+|----|------|
+| 目录 | `sessions_dir` 由 **agent/cli 注入**；默认 `.moontide/sessions` |
+| 环境变量 | 本模块 **不读取** |
+| `session_id` | UUID |
+
+---
+
+## 常见错误
+
+| 现象 | 原因 |
 |------|------|
-| seq 断号（数据损坏） | `Err`，不 panic |
-| 序列化失败 | `Err`（先校验后冻结） |
-| fork 半截 turn | `Err`（粗校验：boundary 非某 turn 最后一条） |
-| 空 session（无任何 item） | `load` 合法 |
-| session_id 路径逃逸 | create 时校验 UUID 格式 |
+| seq 断号 | log 损坏或并发写（禁止多写者） |
+| fork 失败 | boundary 不是 turn 末条 |
+| loop 里调 `commit_item` | 应 `emit` Committable `RunEvent` |
+| 流式中途写 assistant | 应等 `AssistantFinalized` |
 
 ---
 
-## 8. 开放问题（待定稿，逐项确认后转定稿）
+## 与相邻模块
 
-| # | 开放问题 | 草案倾向（**未定稿**） |
-|---|---|---|
-| A | 生命周期条目（SessionStart / TurnStart / TurnEnd）进不进 log | 不进，turn 已在 `base.turn`；生命周期归 Agent Event Log（event #5） |
-| B | `seq` + `id` 双字段 vs 只留一个 | 都要 |
-| C | materialize 归属 | context #7；session 只给 `items()` |
-| D | 首版 item 种类 | 只 4 类；Compaction（#7）、Checkpoint（resume 后置）、Routing（#9）后置 |
-| E | Artifact spill / ToolResultSummary | 后置；首版 ToolOutcome 完整存 `ToolResultContent` |
-| F | fork 边界校验 | 首版粗校验（boundary 是某 turn 最后一条）；tool 配对闭合后置 |
-| G | log 文件名 | `.log.jsonl`（与 `.meta.json` 成对）vs `<sessionId>.jsonl`；候选稿与 spec 不一致，待定 |
+| 模块 | 关系 |
+|------|------|
+| [`event`](../event/README.md) | Committable 事件 → `commit_from_event` |
+| `context` | 只读 `items()` → materialize |
+| `llm::protocol` | `ContentBlock` 等类型复用 |
+
+实现分期、类型字段、不变量全文见 [`DESIGN.md`](DESIGN.md)。

@@ -8,7 +8,7 @@
 
 1. **不依赖当前 `crates/` 的 draft 代码**（`moontide-agent`/`composer`/`llm`/`session`/`tools`/`observability`/`protocol` 等是初版草稿，只作设计参考，**不 import、不复用其实现**）。
 2. **按依赖顺序逐模块推进**：每个模块走「写设计文档 → 实现 → 单测通过 → 下一个」循环，不先写完 9 份再写代码。
-3. **文档放模块源码目录**：`crates/agent-core/src/{mod}/README.md`（设计 + 伪代码 + 决策记录）。
+3. **文档放模块源码目录**：`crates/agent-core/src/{mod}/README.md`（**对外使用说明**）+ `DESIGN.md`（**实现技术方案**）；可选 `TASKS.md`（分批实现）。
 4. **trait 只留给两个**：`LLMProvider`、`ToolExecutor`；其余模块用具体类型 + 策略模式，不上 trait（对齐 agent-kernel-architecture §6 纪律）。
 
 ## 1. 依赖图（推进顺序）
@@ -67,7 +67,7 @@ session.load()
 | 2 | `session` | llm 类型 | ☐ | ☐ | ☐ | item log 唯一写者 |
 | 3 | `tools` | 无 | ☐ | ☐ | ☐ | ToolSpec + 验收网关 |
 | 4 | `permission` | 无 | ☐ | ☐ | ☐ | 授权策略 |
-| 5 | `event` | 无 | ☐ | ☐ | ☐ | RunEvent + bus + bridge |
+| 5 | `event` | 无 | ☑ | ☐ | ☐ | [`src/event/README.md`](src/event/README.md) |
 | 6 | `prompt` | tools | ☐ | ☐ | ☐ | compile 唯一出口 |
 | 7 | `context` | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 8 | `loop` | 1–7 全部 | ☐ | ☐ | ☐ | turn 状态机 |
@@ -77,20 +77,27 @@ session.load()
 
 每推进一个模块，产出三样：
 
-1. `src/{mod}/README.md`——设计文档，含：
-   - 职责一句话
-   - 关键类型/接口（Rust 伪代码）
-   - 不变量（哪些状态非法）
-   - 决策记录（为什么这么设计，1–3 条）
-   - 边界情况
-2. `src/{mod}/` 实现——按文档写代码。
-3. `src/{mod}/tests.rs`（或 `tests/` 单测）——覆盖真实行为，不写 trivial assert。
+1. `src/{mod}/README.md` — **对外使用说明**（调用者矩阵、API 速查、brief 原理图）
+2. `src/{mod}/DESIGN.md` — **实现技术方案**（类型、算法、不变量、决策、单测方向）
+3. `src/{mod}/` 实现 — 按 DESIGN 写代码
+4. `src/{mod}/tests.rs` — 覆盖真实行为
 
-**粒度对齐复杂度**：permission / event 半页文档即可；loop / context / session 需状态机图 + 完整决策记录。
+**粒度：** permission / event 的 DESIGN 可较短；loop / context / session 需状态机图 + 完整决策记录。
 
 ## 6. 当前进度快照
 
 - 顶层设计：☑（本文）
 - 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑
-- 模块 2–9：☐ 未开始
-- 当前推进：**模块 2 `session`**（需先架构对齐）
+- 模块 2 `session`、5 `event`：设计 ☑ · 实现 ☐ · 测试 ☐
+- 模块 3–4、6–9：☐ 未开始
+- 当前推进：**session R1** + **event R1**（类型与 dispatch 契约）
+
+### 文档与集成入口
+
+| 模块 | 对外使用（README） | 实现方案（DESIGN） |
+|------|-------------------|-------------------|
+| `session` | [`src/session/README.md`](src/session/README.md) | [`src/session/DESIGN.md`](src/session/DESIGN.md) |
+| `event` | [`src/event/README.md`](src/event/README.md) | [`src/event/DESIGN.md`](src/event/DESIGN.md) |
+| `llm` | [`src/llm/README.md`](src/llm/README.md) | [`src/llm/DESIGN.md`](src/llm/DESIGN.md) |
+
+**原则：** `loop` 只 `emit`；`session` 只经 commit 阶段写盘；`agent` 装配 Registry；`cli` 只读观测。

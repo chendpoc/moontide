@@ -22,6 +22,81 @@ description: MoonTide 内核 Rust 化路线图与进度（9 模块依赖顺序�
 - **不 import、不复用** `crates/` 下旧 draft 代码（`moontide-agent` / `composer` / `llm` / `session` / `tools` / `observability` / `protocol` 等，只作设计参考）。
 - 每个模块走「架构对齐 → 落文档 → 实现 → 单测 → 更新 PROGRESS」循环，不先写完 9 份再写代码。
 
+## 模块文档机制（README + DESIGN）
+
+每个 `agent-core` 模块是对外提供能力的**内部产品**（消费者是 `loop` / `agent` / `cli`，不是终端用户）。双文档对应两轮评审：
+
+| 文档 | 类比 | 回答的问题 | 评审焦点 |
+|------|------|-----------|----------|
+| **`README.md`** | **产品需求 / 对外契约**（PRD 粒度） | 这个模块**承诺什么**、**谁怎么用**、**不能做什么** | 职责边界、公开 API、调用者矩阵、典型流程、与邻模块接缝 |
+| **`DESIGN.md`** | **技术方案 / 实现设计**（Tech Design 粒度） | **怎么兑现** README 里的承诺 | 目录结构、算法、不变量、错误策略、分期、单测 |
+
+```text
+README（产品面）          DESIGN（实现面）
+  承诺的能力        →        兑现该承诺的工程方案
+  对外 API          →        内部模块划分与算法
+  集成方心智        →        实现者 / reviewer 心智
+```
+
+**纪律：** 先对齐 README（产品评审通过），再写 DESIGN（技术评审）；实现阶段**不得静默偏离 README**；README 变更视为产品变更，须回到架构对齐。
+
+每个 `crates/agent-core/src/{mod}/` **必须**维护两份文档，职责分离：
+
+| 文件 | 读者 | 写什么 | 不写什么 |
+|------|------|--------|----------|
+| **`README.md`** | 集成方（`agent` / `loop` / `cli` / 测试作者） | 模块是什么、brief 原理 ASCII 图、**谁该用什么**、公开 API 速查、典型用法、常见错误 | 文件树细节、fold 算法、derive 映射表、单测清单 |
+| **`DESIGN.md`** | 实现者 / reviewer | 模块结构、类型**完整**签名、算法步骤、import 边界、不变量、边界情况、决策记录、实现分期、单测方向 | 冗长教程式「怎么用」（应链到 README） |
+
+可选第四份：**`TASKS.md`** — 实现阶段由 batch-implement 从 DESIGN 拆出，跟踪 Review 批与细 TASK。
+
+### 架构对齐 vs 落盘分工
+
+| 阶段 | 类比 | 对话 / 草稿 | 落盘 |
+|------|------|-------------|------|
+| §1 架构对齐 | **产品评审** | 职责、公开 API、调用边界、与上下游关系 | 暂不落盘，或只记 CONTEXT |
+| §2 设计文档 | **产品定稿 + 技术评审** | 用户确认 README 承诺后，补 DESIGN 兑现方案 | **同时**落 README + DESIGN |
+| §3 实现 | **按图施工** | 契约以 **README** 为准；细节以 **DESIGN** 为准 | 改公开 API → 回 §1 产品评审 |
+
+### README 推荐结构（对外）
+
+```text
+1. 这是什么（一句话 + 磁盘/职责）
+2. 设计原理（brief ASCII，一张图足够）
+3. 谁该用什么（调用者矩阵 + 禁止项）
+4. 公开 API 速查（签名表 / 代码块）
+5. 典型用法（按角色：loop / agent / cli）
+6. 与相邻模块接缝（链到邻模块 README）
+7. 常见错误
+8. 进一步阅读 → DESIGN.md
+```
+
+### DESIGN 推荐结构（实现）
+
+```text
+1. 职责与边界
+2. 模块结构（目录树）
+3. 类型与签名（完整）
+4. 核心算法 / 状态机 / 时序图
+5. import 边界
+6. 不变量
+7. 边界情况表
+8. 决策记录
+9. 实现分期（R1/R2…）
+10. 单测方向
+```
+
+### 讨论模块开发时的 Agent 纪律
+
+- **产品讨论**（能做什么、谁调用、顺序保证）：README 粒度；先过这关再谈实现。
+- **技术讨论**（文件放哪、fold 规则、derive 映射）：DESIGN 粒度；不反向改写 README 已承诺的对外行为。
+- **对用户讲解方案**：brief 原理图 + 调用者矩阵（产品面）；争议实现再开 DESIGN。
+- **用户说「可以落文档」**：README（产品）与 DESIGN（技术）**同批交付**。
+- **用户问「我怎么用」**：只答 README。
+- **用户问「怎么实现 / 审查」**：答 DESIGN；若发现 README 承诺不可实现，**停下改 README**，不是偷偷改代码。
+- **PROGRESS 设计列**：README ☑ 且 DESIGN ☑ 才算设计完成。
+
+参考实例：`llm/`、`session/`、`event/`（均已拆分）。
+
 ## 依赖图（推进顺序）
 
 ```
@@ -62,23 +137,20 @@ description: MoonTide 内核 Rust 化路线图与进度（9 模块依赖顺序�
 
 ### 2. 设计文档（确认后才写）
 
-用户确认接口后，写入 `crates/agent-core/src/{mod}/README.md`，含：
+用户确认接口后，写入 `crates/agent-core/src/{mod}/`（见上文 **模块文档机制**）：
 
-- 职责一句话
-- 关键类型 / 接口（与对齐稿一致的 Rust 伪代码签名）
-- 不变量
-- 决策记录（为什么这么设计，1–3 条）
-- 边界情况（仍停在接口层，不写实现步骤）
+- **`README.md`** — 对外使用说明：调用者矩阵、公开 API 速查、典型用法、brief 原理 ASCII 图
+- **`DESIGN.md`** — 实现技术方案：模块结构、类型签名、算法、不变量、决策记录、实现分期、单测方向
 
-**粒度对齐复杂度**：permission / event 半页即可；loop / context / session 需状态机图 + 完整决策记录。
+架构对齐对话中：**对外契约**写入 README 草案；**内部方案**写入 DESIGN 草案。用户可分两次确认，但落盘时两份齐全再标设计 ☑。
 
-`PROGRESS.md`：设计文档勾选完成。
+`PROGRESS.md`：设计文档勾选完成（README + DESIGN）。
 
 ### 3. 实现 + 单测（子 skill：分批 review · commit）
 
 设计文档 ☑ 后，**必须**走子 skill [batch-implement](batch-implement/SKILL.md)：
 
-1. 从 README 生成 `src/{mod}/TASKS.md`（可参考子 skill 内 `llm-TASKS.example.md`）
+1. 从 **DESIGN.md**（+ README 公开 API）生成 `src/{mod}/TASKS.md`（可参考子 skill 内 `llm-TASKS.example.md`）
 2. 与用户确认本批 TASK（默认 1 个/批）
 3. 实现 + `just check` → **停等用户 git diff review**
 4. 用户说 **commit** 后再提交；勾选 TASK → 下一批

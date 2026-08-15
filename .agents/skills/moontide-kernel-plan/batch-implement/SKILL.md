@@ -1,13 +1,13 @@
 ---
 name: batch-implement
-description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000 行）；可选 GitHub 模块分支 + 批 PR。Use when 模块 README 已确认、开始写代码或按 Review 批推进。
+description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000 行）；可选 GitHub 模块分支 + 批 PR。Use when 模块 README + DESIGN 已确认、开始写代码或按 Review 批推进。
 ---
 
 # 拆任务 · 实现 · Review · Commit
 
-父 skill：[moontide-kernel-plan](../SKILL.md)。**前置条件：** 对应模块 `src/{mod}/README.md` 已由用户确认落盘。
+父 skill：[moontide-kernel-plan](../SKILL.md)。**前置条件：** 对应模块 `README.md` + `DESIGN.md` 已由用户确认落盘。
 
-用户扮演 **架构师 + reviewer**；Agent 扮演 **implementer**。公开签名以 README 为准；若实现中必须改契约，**停批、回架构对齐**，禁止静默改 API。
+用户扮演 **架构师 + reviewer**；Agent 扮演 **implementer**。**公开 API 以 README 为准**；实现细节以 **DESIGN.md** 为准。若实现中必须改公开签名，**停批、回架构对齐**，禁止静默改 API。
 
 **两层粒度（不要混）：**
 
@@ -28,7 +28,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 
 ## 何时启用
 
-- 模块 README 已 ☑，进入「实现 + 单测」阶段
+- 模块 README + DESIGN 已 ☑，进入「实现 + 单测」阶段
 - 用户说：继续实现 / 按 TASKS 做 / 下一批 / review 过了 commit
 
 ## 何时停止本 skill、回到父 skill
@@ -41,7 +41,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 ## 流程总览
 
 ```text
-读 README + PROGRESS
+读 README（契约）+ DESIGN（实现范围）+ PROGRESS
   → 生成/更新 src/{mod}/TASKS.md（细 TASK + **Review 批** 合并表）
   → 向用户展示：TASK 列表 + **Review 批怎么合并**
   → 按 **Review 批** 实现（一批可含多个 TASK）
@@ -58,7 +58,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 
 路径：`crates/agent-core/src/{mod}/TASKS.md`
 
-从 README 拆成 **细 TASK**（实现步），再规划 **Review 批**（合并表）：
+从 **DESIGN.md** 拆成 **细 TASK**（实现步），公开 API 对照 **README.md**，再规划 **Review 批**（合并表）：
 
 **TASK：** 单一 concern、依赖清晰、预估 ≤800 行（便于合并）
 
@@ -195,8 +195,8 @@ git diff --stat
 git diff
 
 ### 建议关注
-- 公开 API 是否仍与 README 一致
-- 依赖方向是否违反 README §2
+- 公开 API 是否仍与 **README** 一致
+- 依赖方向是否违反 **DESIGN** import 边界
 - …
 
 请 review diff。通过则回复「commit」或「commit：{说明}」；要改请直接说。

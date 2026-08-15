@@ -1,6 +1,6 @@
 # llm 实现子任务
 
-> [`README.md`](README.md) · [`batch-implement`](../../../../.agents/skills/moontide-kernel-plan/batch-implement/SKILL.md)
+> [`README.md`](README.md) · [`DESIGN.md`](DESIGN.md) · [`batch-implement`](../../../../.agents/skills/moontide-kernel-plan/batch-implement/SKILL.md)
 
 **TASK** = 实现跟踪（细）。**Review 批** = 你 `git diff` 的单位（合并 TASK，目标 ~300–1500 行，上限 2000）。
 
@@ -17,7 +17,7 @@
 | **R5** | 13–17 | 流式消费修订：ModelStreamEvent + Builder + loop API | ☑ |
 | **R6** | 18 | 迁移 normalize/adapter/tests + `just check` | ☑ |
 
-R5–R6 = README §14 R2。建议 **R5 协议+builder+API**，**R6 全库迁移+测试**（两轮 review）。
+R5–R6 = DESIGN §14 R2。建议 **R5 协议+builder+API**，**R6 全库迁移+测试**（两轮 review）。
 
 ---
 
@@ -51,9 +51,9 @@ R5–R6 = README §14 R2。建议 **R5 协议+builder+API**，**R6 全库迁移+
 - **完成标准：** provider_tests 全绿。
 - **状态：** ☑
 
-### TASK-llm-17: README / CONTEXT 对齐
+### TASK-llm-17: README / DESIGN / CONTEXT 对齐
 
-- **做什么：** §9 checklist 旧名更新；`docs/spec/llm-provider.md` 交叉引用（可选一句）。
+- **做什么：** DESIGN checklist 旧名更新；README 拆分为对外用法；`docs/spec/llm-provider.md` 交叉引用（可选一句）。
 - **状态：** ☑
 
 ---
