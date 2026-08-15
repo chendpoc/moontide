@@ -73,15 +73,25 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 术语（摘要）
 
+**过程：**
+
 | 过程 | 用词 |
 |------|------|
-| Session Log → messages | **materialize** |
-| Session → LLM 请求 | **compose** |
+| Session Item Log → messages | **materialize**（不用 derive_messages / 投影 / 还原） |
+| Session → LLMRequest | **compile**（不用 compose） |
 | RunEvent → Agent Event | **derive**（目标契约，尚未在 Rust 落地） |
+
+**实体：**
+
+| 实体 | 用词 |
+|------|------|
+| 整场 session 的 append-only 事实源 | **Session Item Log**（不用 Session Event Log / SessionLog / Item Log） |
+| log 中的一条记录 | **SessionItem**（不用 SessionEvent / SessionLogEntry） |
+| 单次 run 的观测日志 | **Agent Event Log**（不用 RunEvent log / 观测流） |
 
 内核：**RunEvent bus**（不用 sink）、**resolveRunConfig** / **resolveTurnContext**（不用 fold 指 config）。sidecar 只经文件消费，不走 IPC。
 
-完整术语表：[`docs/spec/context-composer.md`](docs/spec/context-composer.md) §1.4 · [`docs/spec/agent-core.md`](docs/spec/agent-core.md) · handbook §7。
+完整术语表（canonical + 别名禁用 + 关系 + 冲突裁决）：[`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md)。
 
 ---
 

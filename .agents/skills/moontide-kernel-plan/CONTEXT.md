@@ -19,7 +19,6 @@
 | `docs/spec/agent-events.md` | Agent Event Log 的 schema 与持久化边界 |
 | `docs/spec/context-composer.md` | Session / Context Composer / Compaction / Context Manifest |
 | `docs/notes/runtime/agent-kernel-architecture.md` | 内核架构收敛：crate 判据、多语言 trade-off、event bus、决策清单 |
-| `docs/notes/runtime/migration-plan.md` | TypeScript → Rust 多语言迁移的分阶段 checklist |
 
 ## 关键设计决策速查
 
