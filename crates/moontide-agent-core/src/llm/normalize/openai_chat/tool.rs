@@ -70,7 +70,10 @@ fn encode_message(message: &Message, out: &mut Vec<OpenAiChatMessage>) -> Result
     }
 }
 
-fn encode_user_message(message: &Message, out: &mut Vec<OpenAiChatMessage>) -> Result<(), LlmError> {
+fn encode_user_message(
+    message: &Message,
+    out: &mut Vec<OpenAiChatMessage>,
+) -> Result<(), LlmError> {
     match &message.content {
         MessageContent::Text(text) => {
             out.push(OpenAiChatMessage {
@@ -154,11 +157,7 @@ fn encode_assistant_message(
             }
             out.push(OpenAiChatMessage {
                 role: "assistant".into(),
-                content: if text.is_empty() {
-                    None
-                } else {
-                    Some(text)
-                },
+                content: if text.is_empty() { None } else { Some(text) },
                 reasoning_content: if reasoning.is_empty() {
                     None
                 } else {
@@ -205,6 +204,8 @@ fn tool_result_to_string(content: &ToolResultContent) -> String {
 }
 
 /// OpenAI Chat messages → MoonTide conversation.
+/// 当前仅 round-trip 测试使用（验证 `encode_messages` 可逆）；生产接线时移除 `#[cfg(test)]`。
+#[cfg(test)]
 pub fn decode_messages(messages: &[OpenAiChatMessage]) -> Result<Vec<Message>, LlmError> {
     let mut out = Vec::new();
     for message in messages {
@@ -212,10 +213,14 @@ pub fn decode_messages(messages: &[OpenAiChatMessage]) -> Result<Vec<Message>, L
             continue;
         }
         if message.role == "tool" {
-            let tool_use_id = message.tool_call_id.clone().ok_or_else(|| LlmError::RequestFailed {
-                kind: RequestFailureKind::Unrecoverable,
-                message: "tool message missing tool_call_id".into(),
-            })?;
+            let tool_use_id =
+                message
+                    .tool_call_id
+                    .clone()
+                    .ok_or_else(|| LlmError::RequestFailed {
+                        kind: RequestFailureKind::Unrecoverable,
+                        message: "tool message missing tool_call_id".into(),
+                    })?;
             out.push(Message {
                 role: Role::User,
                 content: MessageContent::Blocks(vec![ContentBlock::ToolResult {
@@ -252,8 +257,7 @@ pub fn decode_messages(messages: &[OpenAiChatMessage]) -> Result<Vec<Message>, L
         }
         if let Some(tool_calls) = &message.tool_calls {
             for call in tool_calls {
-                let input = serde_json::from_str(&call.function.arguments)
-                    .unwrap_or(Value::Null);
+                let input = serde_json::from_str(&call.function.arguments).unwrap_or(Value::Null);
                 blocks.push(ContentBlock::ToolUse {
                     id: call.id.clone(),
                     name: call.function.name.clone(),

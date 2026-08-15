@@ -3,9 +3,7 @@ use std::pin::Pin;
 use futures::Stream;
 use futures::StreamExt;
 
-use crate::llm::protocol::{
-    ContentBlock, LlmError, ModelRequest, ModelResponse, StreamDelta,
-};
+use crate::llm::protocol::{ContentBlock, LlmError, ModelRequest, ModelResponse, StreamDelta};
 
 /// Streaming LLM port. Implementations must emit exactly one [`StreamDelta::MessageEnd`] last on success.
 pub trait LLMProvider: Send + Sync {
@@ -42,15 +40,21 @@ pub async fn complete(
                 id,
                 input_json_delta,
             } => {
-                if let Some(entry) = tool_inputs.iter_mut().find(|(tool_id, _, _)| tool_id == &id)
+                if let Some(entry) = tool_inputs
+                    .iter_mut()
+                    .find(|(tool_id, _, _)| tool_id == &id)
                 {
                     entry.2.push_str(&input_json_delta);
                 }
             }
             StreamDelta::ToolUseEnd { id } => {
-                if let Some(pos) = tool_inputs.iter().position(|(tool_id, _, _)| tool_id == &id) {
+                if let Some(pos) = tool_inputs
+                    .iter()
+                    .position(|(tool_id, _, _)| tool_id == &id)
+                {
                     let (tool_id, name, input_json) = tool_inputs.remove(pos);
-                    let input = serde_json::from_str(&input_json).unwrap_or(serde_json::Value::Null);
+                    let input =
+                        serde_json::from_str(&input_json).unwrap_or(serde_json::Value::Null);
                     content.push(ContentBlock::ToolUse {
                         id: tool_id,
                         name,

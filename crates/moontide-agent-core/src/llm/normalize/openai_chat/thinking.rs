@@ -1,12 +1,4 @@
-use crate::llm::protocol::{StreamDelta, ThinkingLevel};
-
-/// Map MoonTide thinking level to DeepSeek/OpenAI-compatible request flag.
-pub fn encode_thinking_level(level: ThinkingLevel) -> Option<bool> {
-    match level {
-        ThinkingLevel::Off => None,
-        ThinkingLevel::Low | ThinkingLevel::Medium | ThinkingLevel::High => Some(true),
-    }
-}
+use crate::llm::protocol::StreamDelta;
 
 /// Streaming: wire `reasoning_content` fragment → [`StreamDelta::ThinkingDelta`].
 pub fn decode_reasoning_delta(reasoning: &str) -> Option<StreamDelta> {
@@ -40,16 +32,6 @@ pub fn split_assistant_text(content: Option<&str>, reasoning: Option<&str>) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn thinking_level_off_is_none() {
-        assert_eq!(encode_thinking_level(ThinkingLevel::Off), None);
-    }
-
-    #[test]
-    fn thinking_level_on_for_non_off() {
-        assert_eq!(encode_thinking_level(ThinkingLevel::Medium), Some(true));
-    }
 
     #[test]
     fn decode_reasoning_delta_skips_empty() {

@@ -1,4 +1,4 @@
-use crate::llm::protocol::{LlmError, Message, ModelRequest, StreamDelta};
+use crate::llm::protocol::{LlmError, Message, ModelRequest};
 
 use super::common::validate_request;
 
@@ -11,12 +11,6 @@ pub struct AnthropicMessagesBody {
     pub max_tokens: u32,
 }
 
-/// Raw SSE event before JSON parse (adapter layer parses bytes).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RawSseEvent {
-    pub data: String,
-}
-
 /// Identity encode for pass-through v1.
 pub fn encode_request(request: &ModelRequest) -> Result<AnthropicMessagesBody, LlmError> {
     validate_request(request)?;
@@ -26,11 +20,6 @@ pub fn encode_request(request: &ModelRequest) -> Result<AnthropicMessagesBody, L
         messages: request.messages.clone(),
         max_tokens: request.max_tokens,
     })
-}
-
-/// Pass-through decode stub — full SSE mapping deferred to adapter + normalize expansion.
-pub fn decode_stream_event(_raw: &RawSseEvent) -> Option<StreamDelta> {
-    None
 }
 
 #[cfg(test)]

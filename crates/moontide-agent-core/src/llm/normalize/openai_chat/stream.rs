@@ -60,7 +60,7 @@ struct ToolCallState {
 #[derive(Debug, Default)]
 pub struct StreamDecoder {
     tool_calls: HashMap<u32, ToolCallState>,
-    finished: bool,
+    message_end_emitted: bool,
 }
 
 impl StreamDecoder {
@@ -68,8 +68,14 @@ impl StreamDecoder {
         Self::default()
     }
 
+    /// 是否已 emit 过 `MessageEnd`。唯一置位点是 `finish()`，而 `finish()` 就是 emit
+    /// `MessageEnd` 的地方，所以 `true` 等价于「MessageEnd 已发出、流已收束」。
+    pub fn has_emitted_message_end(&self) -> bool {
+        self.message_end_emitted
+    }
+
     pub fn decode_chunk(&mut self, chunk: &ChatCompletionChunk) -> Vec<StreamDelta> {
-        if self.finished {
+        if self.message_end_emitted {
             return Vec::new();
         }
 
@@ -160,12 +166,13 @@ impl StreamDecoder {
             stop_reason: map_finish_reason(finish_reason),
             usage,
         });
-        self.finished = true;
+        self.message_end_emitted = true;
         deltas
     }
 }
 
-pub fn decode_stream_chunk(chunk: &ChatCompletionChunk) -> Vec<StreamDelta> {
+#[cfg(test)]
+fn decode_stream_chunk(chunk: &ChatCompletionChunk) -> Vec<StreamDelta> {
     let mut decoder = StreamDecoder::new();
     decoder.decode_chunk(chunk)
 }
@@ -199,7 +206,10 @@ mod tests {
         let deltas = decode_stream_chunk(&chunk(
             r#"{"choices":[{"delta":{"content":"hello"},"finish_reason":null}]}"#,
         ));
-        assert!(matches!(deltas.first(), Some(StreamDelta::TextDelta { .. })));
+        assert!(matches!(
+            deltas.first(),
+            Some(StreamDelta::TextDelta { .. })
+        ));
     }
 
     #[test]
@@ -207,7 +217,10 @@ mod tests {
         let deltas = decode_stream_chunk(&chunk(
             r#"{"choices":[{"delta":{"reasoning_content":"think"},"finish_reason":null}]}"#,
         ));
-        assert!(matches!(deltas.first(), Some(StreamDelta::ThinkingDelta { .. })));
+        assert!(matches!(
+            deltas.first(),
+            Some(StreamDelta::ThinkingDelta { .. })
+        ));
     }
 
     #[test]
@@ -226,8 +239,23 @@ mod tests {
         let d3 = decoder.decode_chunk(&chunk(
             r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":1}"}}]},"finish_reason":"tool_calls"}]}"#,
         ));
-        assert!(d3.iter().any(|d| matches!(d, StreamDelta::ToolUseEnd { .. })));
+        assert!(d3
+            .iter()
+            .any(|d| matches!(d, StreamDelta::ToolUseEnd { .. })));
         assert!(matches!(d3.last(), Some(StreamDelta::MessageEnd { .. })));
+    }
+
+    #[test]
+    fn finish_reason_marks_message_end_emitted() {
+        let mut decoder = StreamDecoder::new();
+        decoder.decode_chunk(&chunk(
+            r#"{"choices":[{"delta":{"content":"hi"},"finish_reason":null}]}"#,
+        ));
+        assert!(!decoder.has_emitted_message_end());
+        decoder.decode_chunk(&chunk(
+            r#"{"choices":[{"delta":{},"finish_reason":"stop"}]}"#,
+        ));
+        assert!(decoder.has_emitted_message_end());
     }
 
     #[test]

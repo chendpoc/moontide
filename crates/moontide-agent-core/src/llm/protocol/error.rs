@@ -16,7 +16,9 @@ pub enum RequestFailureKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LlmError {
-    Cancelled { reason: CancelReason },
+    Cancelled {
+        reason: CancelReason,
+    },
     RequestFailed {
         kind: RequestFailureKind,
         message: String,

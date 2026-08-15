@@ -299,13 +299,15 @@ fn build_provider(
 ### 9.3 族内入口（示意）
 
 ```rust
+// 出站：normalize 族入口仅 encode。入站解码由 adapter 持有有状态
+// `StreamDecoder` + `decode_sse_payload` 完成，不走 normalize 无状态入口——
+// 无状态单 chunk 解码无法合并跨 chunk 的 `tool_calls` 分片。
+
 // normalize/openai_chat/mod.rs
 fn encode_request(request: &ModelRequest) -> OpenAiChatRequestBody;
-fn decode_stream_event(raw: &RawSseEvent) -> Option<StreamDelta>;
 
-// normalize/anthropic_messages/mod.rs — 首版多数 identity / 薄封装
+// normalize/anthropic_messages/mod.rs — 首版 identity / 薄封装
 fn encode_request(request: &ModelRequest) -> AnthropicMessagesBody;
-fn decode_stream_event(raw: &RawSseEvent) -> Option<StreamDelta>;
 ```
 
 ---
@@ -346,6 +348,7 @@ fn resolve_provider(preset_id: &str) -> Box<dyn LLMProvider>;
 | DeepSeek thinking → `reasoning_content` | `normalize/openai_chat/thinking` | 映射为 `ThinkingDelta` / block |
 | Anthropic 形与 MoonTide 同构 | `normalize/anthropic_messages` | 多数 pass-through |
 | HTTP 4xx/5xx / 断流 | `adapter` | 映射为 `LlmError::RequestFailed` |
+| OpenAI 流是否结束 | `normalize/openai_chat/stream` | `finish_reason` → `MessageEnd`；`data: [DONE]` 仅跳过，不作收束依据 |
 | 用户 abort in-flight | `loop` + provider | `LlmError::Cancelled { reason: User }` |
 
 ---

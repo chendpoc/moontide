@@ -1,9 +1,0 @@
-[package]
-name = "moontide-observability"
-description = "MoonTide REPL observability modes and stderr trace"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-
-[dependencies]
-owo-colors = { workspace = true }

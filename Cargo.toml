@@ -2,15 +2,6 @@
 resolver = "2"
 members = [
     "crates/moontide-agent-core",
-    "crates/moontide-protocol",
-    "crates/moontide-session",
-    "crates/moontide-composer",
-    "crates/moontide-llm",
-    "crates/moontide-tools",
-    "crates/moontide-observability",
-    "crates/moontide-agent",
-    "crates/moontide-cli",
-    "crates/moontide-ui",
 ]
 
 [workspace.package]
@@ -37,10 +28,3 @@ uuid = { version = "1", features = ["v4"] }
 owo-colors = "4.3"
 
 moontide-agent-core = { path = "crates/moontide-agent-core" }
-moontide-protocol = { path = "crates/moontide-protocol" }
-moontide-session = { path = "crates/moontide-session" }
-moontide-composer = { path = "crates/moontide-composer" }
-moontide-llm = { path = "crates/moontide-llm" }
-moontide-tools = { path = "crates/moontide-tools" }
-moontide-observability = { path = "crates/moontide-observability" }
-moontide-agent = { path = "crates/moontide-agent" }

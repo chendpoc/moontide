@@ -107,26 +107,10 @@ fn sanitize_block(block: ContentBlock, policy: HandoffPolicy) -> Option<ContentB
     }
 }
 
-/// Extract visible assistant/user text for logging or handoff summaries.
-pub fn extract_text(content: &MessageContent) -> String {
-    match content {
-        MessageContent::Text(text) => text.clone(),
-        MessageContent::Blocks(blocks) => blocks
-            .iter()
-            .filter_map(|block| match block {
-                ContentBlock::Text { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join(""),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::llm::protocol::Role;
-    use serde_json::json;
 
     fn sample_request(messages: Vec<Message>) -> ModelRequest {
         ModelRequest {
@@ -197,23 +181,5 @@ mod tests {
         }];
         let sanitized = sanitize_messages_for_handoff(messages, HandoffPolicy::ANTHROPIC_MESSAGES);
         assert_eq!(sanitized.len(), 1);
-    }
-
-    #[test]
-    fn extract_text_from_blocks() {
-        let content = MessageContent::Blocks(vec![
-            ContentBlock::Text {
-                text: "a".into(),
-            },
-            ContentBlock::ToolUse {
-                id: "t".into(),
-                name: "n".into(),
-                input: json!({}),
-            },
-            ContentBlock::Text {
-                text: "b".into(),
-            },
-        ]);
-        assert_eq!(extract_text(&content), "ab");
     }
 }

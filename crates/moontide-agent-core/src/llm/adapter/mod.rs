@@ -3,7 +3,7 @@
 pub mod anthropic_messages;
 pub mod openai_chat;
 
-use crate::llm::protocol::{LlmError, RequestFailureKind};
+use crate::llm::protocol::LlmError;
 use crate::llm::LLMProvider;
 
 /// Wire protocol family (paired 1:1 with `normalize/{family}/`).
@@ -26,9 +26,9 @@ pub fn build_provider(
     config: AdapterConfig,
 ) -> Result<Box<dyn LLMProvider>, LlmError> {
     match family {
-        AdapterFamily::OpenAiChatCompletions => Ok(Box::new(
-            openai_chat::OpenAiChatAdapter::new(config)?,
-        )),
+        AdapterFamily::OpenAiChatCompletions => {
+            Ok(Box::new(openai_chat::OpenAiChatAdapter::new(config)?))
+        }
         AdapterFamily::AnthropicMessages => Ok(Box::new(
             anthropic_messages::AnthropicMessagesAdapter::new(config),
         )),
@@ -38,6 +38,7 @@ pub fn build_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::protocol::RequestFailureKind;
 
     #[test]
     fn build_provider_covers_declared_families() {

@@ -2,14 +2,14 @@ pub mod stream;
 pub mod thinking;
 pub mod tool;
 
-use crate::llm::protocol::{LlmError, ModelRequest, StreamDelta, ToolSchema};
+use crate::llm::protocol::{LlmError, ModelRequest, ToolSchema};
 
 use super::common::validate_request;
 use tool::{
     OpenAiChatMessage, OpenAiChatRequestBody, OpenAiFunctionDefinition, OpenAiToolDefinition,
 };
 
-pub use stream::{decode_stream_chunk, ChatCompletionChunk, StreamDecoder};
+pub use stream::{ChatCompletionChunk, StreamDecoder};
 pub use tool::encode_messages;
 
 /// MoonTide request → OpenAI Chat Completions JSON body (no HTTP).
@@ -55,11 +55,6 @@ fn encode_tools(tools: &[ToolSchema]) -> Vec<OpenAiToolDefinition> {
             },
         })
         .collect()
-}
-
-/// One parsed SSE JSON object → zero or more [`StreamDelta`] (stateless single chunk).
-pub fn decode_stream_event(chunk: &ChatCompletionChunk) -> Vec<StreamDelta> {
-    decode_stream_chunk(chunk)
 }
 
 #[cfg(test)]

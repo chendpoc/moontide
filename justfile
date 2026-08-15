@@ -14,8 +14,11 @@ check:
     cargo clippy --workspace --all-targets
     cargo test --workspace
 
-run *ARGS:
-    cargo run -p moontide-cli -- {{ARGS}}
+# pre-commit hook: fast gate on commit (fmt + clippy)
+pre-commit:
+    cargo fmt --all --check
+    cargo clippy --workspace --all-targets -- -D warnings
 
-ui:
-    cargo run -p moontide-ui -- --workdir .
+# pre-push hook: full test suite before push
+pre-push:
+    cargo test --workspace

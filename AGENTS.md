@@ -29,9 +29,10 @@
 ## 命令
 
 - 代码变更后（文档除外）：`just check`（= `cargo fmt --all --check` + `cargo clippy --workspace --all-targets` + `cargo test --workspace`），修完所有 fmt/clippy/test 再提交
+- **Git hooks（可选）：** `pre-commit install` + `pre-commit install --hook-type pre-push`（见根目录 `.pre-commit-config.yaml`）— commit 跑 `just pre-commit`（fmt + clippy），push 跑 `just pre-push`（workspace test）；需 `rustup component add rustfmt clippy`
 - 未经用户要求：不跑 release build（`cargo build --release`）
 - 只改单个 crate 时：`cargo test -p <crate>` 直到通过，再跑 workspace
-- 仓库当前不装 git hooks；检查靠手动跑与 CI
+- CI 与未装 hook 时：检查靠手动 `just check`
 - 临时脚本写 `/tmp` 等临时文件，不嵌多行 bash
 - 未经用户要求不提交
 
@@ -59,8 +60,8 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 工程原则（摘要）
 
-1. **分层** — `moontide-protocol`（类型）→ `session` / `composer` / `llm` / `tools` → `agent` → `cli`；依赖只能向下。Session Log 为事实源，Agent Event 仅 derive。
-2. **高内聚低耦合** — `moontide-session` 不依赖 `moontide-agent`；permission 随 tool 注册声明。
+1. **分层** — MVP：`cli`（纯壳）→ `agent-core`（引擎）→ `agent`（组合根）。`agent-core` 不依赖 `cli` / `agent`。内核 9 个内部 mod（`llm` / `session` / `tools` / `permission` / `event` / `prompt` / `context` / `loop` / `scheduler`），不拆 crate。Session Log 为事实源，Agent Event 仅 derive。架构见 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md)。
+2. **高内聚低耦合** — `session` 不依赖 `loop` / `agent`；permission 随 tool 注册声明。
 3. **Spec / Impl 分离** — tool schema 与 handler 分开；handler 不定义 schema，schema 无 IO 副作用。
 4. **声明式注册表** — tool 注册用表驱动；新增 tool 改表不改长 match。
 5. **Conformance 守门** — 注册表与边界变更须有结构测试守门（Rust 侧待重建，TS 版见 archive）；不变量写测试，热路径不加 runtime assert。
