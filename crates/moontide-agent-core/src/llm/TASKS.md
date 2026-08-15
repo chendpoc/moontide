@@ -6,142 +6,71 @@
 
 ---
 
-## Review 批（你要 review 的单位）
+## Review 批
 
-| 批 | TASK | 主题 | 预估 |
+| 批 | TASK | 主题 | 状态 |
 |----|------|------|------|
-| **R1** | 01–03 | 契约层：crate + protocol + provider | ~630 |
-| **R2** | 04–08 | normalize 层（common + openai_chat + anthropic 占位） | ~1030 |
-| **R3** | 09–11 | adapter 层（工厂 + openai 实现 + anthropic stub） | ~800 |
-| **R4** | 12 | 不变量单测 + workspace check | ~250 |
+| **R1** | 01–03 | 契约层：crate + protocol + provider | ☑ |
+| **R2** | 04–08 | normalize 层 | ☑ |
+| **R3** | 09–11 | adapter 层 | ☑ |
+| **R4** | 12 | 不变量单测（旧 StreamDelta） | ☑ |
+| **R5** | 13–17 | 流式消费修订：ModelStreamEvent + Builder + loop API | ☑ |
+| **R6** | 18 | 迁移 normalize/adapter/tests + `just check` | ☑ |
 
-整模块 **4 轮 review**（非 12 轮）。R4 可并入 R3（合计 ~1050）若你希望更少停次。
-
----
-
-## TASK 明细（实现跟踪）
-
-| TASK | 做什么 | 预估 | Review 批 |
-|------|--------|------|-----------|
-| 01 | 建 crate + llm 空 mod | ~80 | R1 |
-| 02 | MoonTide 协议类型 | ~350 | R1 |
-| 03 | LLMProvider + Mock | ~200 | R1 |
-| 04 | normalize/common | ~150 | R2 |
-| 05 | openai_chat/tool | ~300 | R2 |
-| 06 | openai_chat/thinking | ~150 | R2 |
-| 07 | openai_chat/stream | ~350 | R2 |
-| 08 | anthropic normalize 占位 | ~80 | R2 |
-| 09 | adapter 工厂 | ~120 | R3 |
-| 10 | openai_chat adapter | ~600 | R3 |
-| 11 | anthropic stub | ~80 | R3 |
-| 12 | 不变量单测 | ~250 | R4 |
+R5–R6 = README §14 R2。建议 **R5 协议+builder+API**，**R6 全库迁移+测试**（两轮 review）。
 
 ---
 
-### TASK-llm-01: crate scaffold
+## R5：协议 + Builder + loop API
 
-- **做什么：** 新建 agent-core 工程骨架，把 llm 模块挂进 workspace。
-- **依赖：** 无
-- **范围：** `Cargo.toml`、`src/lib.rs`、`src/llm/mod.rs`、根 workspace
-- **预估 diff：** ~80
-- **完成标准：** `cargo check -p moontide-agent-core`
+### TASK-llm-13: ModelStreamEvent
+
+- **做什么：** `delta.rs` → `stream_event.rs`；`ModelStreamEvent` + `block_index`；`Finished` / `*Part` / `ToolUseFinished { input }`。
+- **范围：** `protocol/stream_event.rs`、`protocol/mod.rs`；删 `delta.rs`。
+- **完成标准：** serde round-trip；旧名无引用。
 - **状态：** ☑
 
-### TASK-llm-02: protocol
+### TASK-llm-14: Snapshot + ResponseBuilder
 
-- **做什么：** 内核 LLM 词汇表（Message、ModelRequest、StreamDelta…），无 HTTP。
-- **依赖：** 01
-- **范围：** `src/llm/protocol/*.rs`
-- **预估 diff：** ~350
-- **完成标准：** 对齐 README §6；protocol 测试通过
+- **做什么：** `snapshot.rs`、`response_builder.rs`；唯一 fold；`block_index` 交错单测。
+- **范围：** `protocol/snapshot.rs`、`response_builder.rs`、`mod.rs` re-export。
+- **完成标准：** Text/Thinking 交错顺序正确；`ToolUseFinished` → `ContentBlock::ToolUse`；无 `Finished` → `finish()` 报错。
 - **状态：** ☑
 
-### TASK-llm-03: provider
+### TASK-llm-15: run_model_call*
 
-- **做什么：** `LLMProvider` trait、`complete()`、MockProvider。
-- **依赖：** 02
-- **范围：** `provider.rs`、`tests.rs`（Mock 骨架）
-- **预估 diff：** ~200
-- **完成标准：** README §7；Mock 能吐 StreamDelta 序列
+- **做什么：** `run_model_call`、`run_model_call_with_updates`；`complete` = 别名；删 `provider.rs` 内联 fold。
+- **范围：** `provider.rs`。
+- **完成标准：** 每 `apply` 调用 `on_update`；`run_model_call` 与 `finish()` 结果一致。
 - **状态：** ☑
 
-### TASK-llm-04: normalize/common
+### TASK-llm-16: MockProvider 迁移
 
-- **做什么：** request 校验、handoff 清洗。
-- **依赖：** 02
-- **范围：** `normalize/mod.rs`、`normalize/common.rs`
-- **预估 diff：** ~150
-- **完成标准：** validate / handoff 单测通过
+- **做什么：** `tests.rs` Mock 吐 `ModelStreamEvent`；builder / run_model_call 单测。
+- **范围：** `tests.rs`。
+- **完成标准：** provider_tests 全绿。
 - **状态：** ☑
 
-### TASK-llm-05: normalize/openai_chat/tool
+### TASK-llm-17: README / CONTEXT 对齐
 
-- **做什么：** block 模型 ↔ OpenAI tool_calls 互转。
-- **依赖：** 04
-- **范围：** `normalize/openai_chat/mod.rs`、`tool.rs`
-- **预估 diff：** ~300
-- **完成标准：** round-trip 单测通过
+- **做什么：** §9 checklist 旧名更新；`docs/spec/llm-provider.md` 交叉引用（可选一句）。
 - **状态：** ☑
 
-### TASK-llm-06: normalize/openai_chat/thinking
+---
 
-- **做什么：** reasoning ↔ thinking。
-- **依赖：** 05
-- **范围：** `normalize/openai_chat/thinking.rs`
-- **预估 diff：** ~150
-- **完成标准：** thinking 映射单测通过
+## R6：normalize / adapter 迁移
+
+### TASK-llm-18: 全库 StreamDelta → ModelStreamEvent
+
+- **做什么：** `normalize/openai_chat/{stream,thinking,tool}`：`ToolUseFinished.input`；`block_index: 0`（OpenAI 族）；adapter + wiremock 测试更新。
+- **范围：** `normalize/**`、`adapter/**`、`tests.rs` invariant tests。
+- **完成标准：** `just check`；不变量 §11 全满足。
 - **状态：** ☑
 
-### TASK-llm-07: normalize/openai_chat/stream
+---
 
-- **做什么：** SSE chunk → StreamDelta。
-- **依赖：** 05
-- **范围：** `normalize/openai_chat/stream.rs`
-- **预估 diff：** ~350
-- **完成标准：** fixture 单测通过
-- **状态：** ☑
+## R1–R4（已完成，旧 StreamDelta）
 
-### TASK-llm-08: normalize/anthropic_messages
-
-- **做什么：** Anthropic normalize 占位（pass-through）。
-- **依赖：** 04
-- **范围：** `normalize/anthropic_messages/mod.rs`
-- **预估 diff：** ~80
-- **完成标准：** 编译通过
-- **状态：** ☑
-
-### TASK-llm-09: adapter 工厂
-
-- **做什么：** `AdapterFamily` + `build_provider`。
-- **依赖：** 03, 08
-- **范围：** `adapter/mod.rs`
-- **预估 diff：** ~120
-- **完成标准：** 覆盖已声明 Family
-- **状态：** ☑
-
-### TASK-llm-10: adapter/openai_chat
-
-- **做什么：** DeepSeek Chat Completions 真实现。
-- **依赖：** 07, 09
-- **范围：** `adapter/openai_chat/mod.rs`
-- **预估 diff：** ~600
-- **完成标准：** mock HTTP；MessageEnd 收束
-- **状态：** ☑
-
-### TASK-llm-11: adapter/anthropic_messages stub
-
-- **做什么：** Anthropic adapter 占位。
-- **依赖：** 09
-- **范围：** `adapter/anthropic_messages/mod.rs`
-- **预估 diff：** ~80
-- **完成标准：** stub 可构造
-- **状态：** ☑
-
-### TASK-llm-12: 不变量单测
-
-- **做什么：** README 不变量守门。
-- **依赖：** 03, 10
-- **范围：** `tests.rs`
-- **预估 diff：** ~250
-- **完成标准：** `just check`
-- **状态：** ☑
+| TASK | 状态 |
+|------|------|
+| 01–12 | ☑ |
