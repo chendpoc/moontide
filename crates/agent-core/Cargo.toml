@@ -1,6 +1,6 @@
 [package]
-name = "moontide-agent-core"
-description = "MoonTide agent kernel (v1 rebuild)"
+name = "agent-core"
+description = "MoonTide agent kernel (OceanSpark)"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

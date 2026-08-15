@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/moontide-agent-core",
+    "crates/agent-core",
 ]
 
 [workspace.package]
@@ -27,4 +27,4 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 owo-colors = "4.3"
 
-moontide-agent-core = { path = "crates/moontide-agent-core" }
+agent-core = { path = "crates/agent-core" }

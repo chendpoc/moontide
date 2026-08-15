@@ -1,6 +1,6 @@
 ---
 name: moontide-kernel-plan
-description: MoonTide 内核 Rust 化路线图与进度（9 模块依赖顺序、设计文档索引、架构对齐门禁）。Use when 推进 moontide-agent-core 内核开发、确认模块进度或设计决策。
+description: MoonTide 内核 Rust 化路线图与进度（9 模块依赖顺序、设计文档索引、架构对齐门禁）。Use when 推进 agent-core 内核开发、确认模块进度或设计决策。
 ---
 
 # MoonTide v1 开发路线图
@@ -31,7 +31,7 @@ description: MoonTide 内核 Rust 化路线图与进度（9 模块依赖顺序�
 后置    9. scheduler
 ```
 
-完整 checklist 与接口边界见 [`crates/moontide-agent-core/README.md`](../../../crates/moontide-agent-core/README.md)。
+完整 checklist 与接口边界见 [`crates/agent-core/README.md`](../../../crates/agent-core/README.md)。
 
 ## 推进模板（硬门禁：先架构对齐）
 
@@ -62,7 +62,7 @@ description: MoonTide 内核 Rust 化路线图与进度（9 模块依赖顺序�
 
 ### 2. 设计文档（确认后才写）
 
-用户确认接口后，写入 `crates/moontide-agent-core/src/{mod}/README.md`，含：
+用户确认接口后，写入 `crates/agent-core/src/{mod}/README.md`，含：
 
 - 职责一句话
 - 关键类型 / 接口（与对齐稿一致的 Rust 伪代码签名）

@@ -29,7 +29,8 @@
 4. **runtime 成本**：共享 runtime 默认（O(版本数)），embedded（打包单文件）例外（O(N) 重复）。
 5. **双写原则**：生命周期事实双写——session log 记「发生了什么」，logger 记「怎么发生」。
 6. **错误建模**：取消原因（user/parent/hook/disposed）与请求失败（可恢复/不可恢复）是两个正交枚举；steer 是独立通道。
-7. **llm 分层（2026-08-14）**：`llm/protocol/` = MoonTide 协议（block 模型）；`LLMProvider` = 唯一 trait；`AdapterFamily` = wire 协议族（与 preset 解耦）；每个 family 必须配对 `adapter/{family}/` + `normalize/{family}/`（族内 tool/thinking/stream）；跨族逻辑仅 `normalize/common.rs`；preset/路由在 `agent/`，不在 llm；首版 DeepSeek 默认 `OpenAiChatCompletions`。详 [`crates/moontide-agent-core/src/llm/README.md`](../../../crates/moontide-agent-core/src/llm/README.md)。
+7. **llm 分层（2026-08-14）**：`llm/protocol/` = MoonTide 协议（block 模型）；`LLMProvider` = 唯一 trait；`AdapterFamily` = wire 协议族（与 preset 解耦）；每个 family 必须配对 `adapter/{family}/` + `normalize/{family}/`（族内 tool/thinking/stream）；跨族逻辑仅 `normalize/common.rs`；preset/路由在 `agent/`，不在 llm；首版 DeepSeek 默认 `OpenAiChatCompletions`。详 [`crates/agent-core/src/llm/README.md`](../../../crates/agent-core/src/llm/README.md)。
+8. **llm 流式消费（2026-08-15）**：`ModelStreamEvent`（含 `block_index`）由 adapter 产出；`ModelResponseBuilder` 唯一 fold → `ModelResponseSnapshot`（含 `pending`）/ `ModelResponse`；loop 经 `run_model_call*`（禁止直接 match 事件）；`Finished` 非全文 Completed；lifecycle 归 `RunEvent`。
 8. **实现子流程**：README ☑ → [`batch-implement`](batch-implement/SKILL.md)——Review 批合并交付；GitHub stacked PR：`r1→base`，`r{n≥2}→r{n−1}`，R{n−1} merge 后 rebase 改 base；模块完成 `base→main`。
 
 ## TODO 关联条目

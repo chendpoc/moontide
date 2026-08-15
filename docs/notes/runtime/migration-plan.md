@@ -213,7 +213,7 @@ grep -rn "pnpm\|@moontide/（TS 包）\|TypeScript harness\|typescript" README.m
 ```text
 moontide/
 ├── crates/                  # Rust（Cargo workspace）—— 内核 + 推理 + CLI + UI
-│   ├── moontide-agent-core/ # 未来：loop/context/prompt/session/permission/tools/scheduler/event/llm
+│   ├── agent-core/ # 未来：loop/context/prompt/session/permission/tools/scheduler/event/llm
 │   ├── moontide-cli/
 │   ├── moontide-ui/         # 原 ui/
 │   └── ...

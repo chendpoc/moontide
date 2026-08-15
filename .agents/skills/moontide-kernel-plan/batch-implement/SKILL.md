@@ -56,7 +56,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 
 ## Step 1：拆任务（TASKS.md）
 
-路径：`crates/moontide-agent-core/src/{mod}/TASKS.md`
+路径：`crates/agent-core/src/{mod}/TASKS.md`
 
 从 README 拆成 **细 TASK**（实现步），再规划 **Review 批**（合并表）：
 
@@ -169,7 +169,7 @@ git diff --shortstat
 - **契约：** 不增删改 README 中的 `pub` 类型 / trait 方法，除非用户在本批前已改 README
 - **旧 draft：** 不 import `crates/moontide-*` 旧实现（父 skill 铁律）
 - **检查：** 代码变更后跑 `just check`；仅文档批可跳过
-- **crate：** 若 `moontide-agent-core` 尚未入 workspace，本模块第一批 TASK 含 scaffold（Cargo.toml + workspace member）
+- **crate：** 若 `agent-core` 尚未入 workspace，本模块第一批 TASK 含 scaffold（Cargo.toml + workspace member）
 
 ---
 
@@ -294,7 +294,7 @@ gh pr create --base feat/agent-core-llm/base --title "feat(agent-core/llm): R1 c
 契约层：crate + protocol + provider（TASK 01–03）
 
 ## Test plan
-- [ ] cargo test -p moontide-agent-core
+- [ ] cargo test -p agent-core
 
 EOF
 )"
@@ -317,7 +317,7 @@ gh pr create --base feat/agent-core-llm/r1 --title "feat(agent-core/llm): R2 nor
 normalize 层（TASK 04–08）
 
 ## Test plan
-- [ ] cargo test -p moontide-agent-core
+- [ ] cargo test -p agent-core
 
 EOF
 )"
@@ -354,7 +354,7 @@ gh pr create --base main --head feat/agent-core-llm/base --title "feat(agent-cor
 全部 TASK ☑ 且 `just check` 全绿：
 
 1. PROGRESS.md：该模块 **实现 ☑ · 测试 ☑**
-2. `moontide-agent-core/README.md` checklist 同步
+2. `agent-core/README.md` checklist 同步
 3. 告知用户：本模块完成，下一模块需先 **架构对齐**（父 skill §1）
 
 ---

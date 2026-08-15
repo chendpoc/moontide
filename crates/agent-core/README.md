@@ -1,4 +1,4 @@
-# moontide-agent-core 顶层设计与开发 checklist
+# agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
 > **状态：** 顶层设计已定；9 个模块全部未开始（设计文档 / 实现 / 测试均待做）
@@ -8,7 +8,7 @@
 
 1. **不依赖当前 `crates/` 的 draft 代码**（`moontide-agent`/`composer`/`llm`/`session`/`tools`/`observability`/`protocol` 等是初版草稿，只作设计参考，**不 import、不复用其实现**）。
 2. **按依赖顺序逐模块推进**：每个模块走「写设计文档 → 实现 → 单测通过 → 下一个」循环，不先写完 9 份再写代码。
-3. **文档放模块源码目录**：`crates/moontide-agent-core/src/{mod}/README.md`（设计 + 伪代码 + 决策记录）。
+3. **文档放模块源码目录**：`crates/agent-core/src/{mod}/README.md`（设计 + 伪代码 + 决策记录）。
 4. **trait 只留给两个**：`LLMProvider`、`ToolExecutor`；其余模块用具体类型 + 策略模式，不上 trait（对齐 agent-kernel-architecture §6 纪律）。
 
 ## 1. 依赖图（推进顺序）
