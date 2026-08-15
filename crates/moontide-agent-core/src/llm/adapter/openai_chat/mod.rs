@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 
 use crate::llm::adapter::AdapterConfig;
 use crate::llm::normalize::openai_chat::{encode_request, StreamDecoder};
-use crate::llm::protocol::{LlmError, ModelRequest, RequestFailureKind, StreamDelta};
+use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, RequestFailureKind};
 use crate::llm::LLMProvider;
 
 use sse::decode_sse_payload;
@@ -44,12 +44,12 @@ impl LLMProvider for OpenAiChatAdapter {
     fn stream(
         &self,
         request: ModelRequest,
-    ) -> Pin<Box<dyn Stream<Item = Result<StreamDelta, LlmError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>> {
         let url = self.chat_completions_url();
         let client = self.client.clone();
         let api_key = self.api_key.clone();
 
-        let (tx, rx) = mpsc::channel::<Result<StreamDelta, LlmError>>(64);
+        let (tx, rx) = mpsc::channel::<Result<ModelStreamEvent, LlmError>>(64);
 
         tokio::spawn(async move {
             if let Err(err) = run_stream(client, url, api_key, request, tx.clone()).await {
@@ -62,8 +62,8 @@ impl LLMProvider for OpenAiChatAdapter {
 }
 
 fn async_stream_from_receiver(
-    rx: mpsc::Receiver<Result<StreamDelta, LlmError>>,
-) -> impl Stream<Item = Result<StreamDelta, LlmError>> {
+    rx: mpsc::Receiver<Result<ModelStreamEvent, LlmError>>,
+) -> impl Stream<Item = Result<ModelStreamEvent, LlmError>> {
     futures::stream::unfold(rx, |mut rx| async {
         rx.recv().await.map(|item| (item, rx))
     })
@@ -74,7 +74,7 @@ async fn run_stream(
     url: String,
     api_key: String,
     request: ModelRequest,
-    tx: mpsc::Sender<Result<StreamDelta, LlmError>>,
+    tx: mpsc::Sender<Result<ModelStreamEvent, LlmError>>,
 ) -> Result<(), LlmError> {
     let body = encode_request(&request)?;
 
@@ -123,13 +123,12 @@ async fn run_stream(
             let payload = line.strip_prefix("data:").map(str::trim).unwrap_or(&line);
             if payload == "[DONE]" {
                 // `[DONE]` 是 OpenAI 族的礼节帧，不是 MoonTide 协议信号，直接忽略。
-                // 收束的唯一依据是 `MessageEnd`（由 `finish_reason` 触发）；若到 EOF 仍未触发，
-                // 由下方统一判为 Recoverable——不信任 [DONE]，也不信任 finish_reason 一定来。
+                // 收束的唯一依据是 `Finished`（由 `finish_reason` 触发）
                 continue;
             }
-            let deltas = decode_sse_payload(&mut decoder, payload)?;
-            for delta in deltas {
-                if tx.send(Ok(delta)).await.is_err() {
+            let events = decode_sse_payload(&mut decoder, payload)?;
+            for event in events {
+                if tx.send(Ok(event)).await.is_err() {
                     // Consumer dropped the stream (cancel / abort), not a request failure.
                     return Ok(());
                 }
@@ -143,7 +142,7 @@ async fn run_stream(
     } else {
         Err(LlmError::RequestFailed {
             kind: RequestFailureKind::Recoverable,
-            message: "SSE stream ended without MessageEnd".into(),
+            message: "SSE stream ended without Finished".into(),
         })
     }
 }
@@ -192,7 +191,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use super::*;
-    use crate::llm::protocol::{Message, MessageContent, Role, StopReason, StreamDelta};
+    use crate::llm::protocol::{Message, MessageContent, ModelStreamEvent, Role, StopReason};
 
     fn sample_request() -> ModelRequest {
         ModelRequest {
@@ -218,7 +217,7 @@ data: [DONE]
 ";
 
     #[tokio::test]
-    async fn mock_http_stream_ends_with_message_end() {
+    async fn mock_http_stream_ends_with_finished() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/chat/completions"))
@@ -239,13 +238,13 @@ data: [DONE]
         let mut stream = adapter.stream(sample_request());
         let mut last = None;
         while let Some(item) = stream.next().await {
-            last = Some(item.expect("delta"));
+            last = Some(item.expect("event"));
         }
         match last {
-            Some(StreamDelta::MessageEnd { stop_reason, .. }) => {
+            Some(ModelStreamEvent::Finished { stop_reason, .. }) => {
                 assert_eq!(stop_reason, StopReason::EndTurn);
             }
-            other => panic!("expected MessageEnd, got {other:?}"),
+            other => panic!("expected Finished, got {other:?}"),
         }
     }
 

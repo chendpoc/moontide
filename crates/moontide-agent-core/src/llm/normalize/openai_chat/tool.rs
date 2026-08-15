@@ -67,6 +67,10 @@ fn encode_message(message: &Message, out: &mut Vec<OpenAiChatMessage>) -> Result
     match message.role {
         Role::User => encode_user_message(message, out),
         Role::Assistant => encode_assistant_message(message, out),
+        Role::System => Err(LlmError::RequestFailed {
+            kind: RequestFailureKind::Unrecoverable,
+            message: "system messages belong in ModelRequest.system, not messages[]".into(),
+        }),
     }
 }
 

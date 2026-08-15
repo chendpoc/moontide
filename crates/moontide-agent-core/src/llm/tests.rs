@@ -2,25 +2,26 @@ use std::pin::Pin;
 
 use futures::Stream;
 
-use crate::llm::protocol::{LlmError, ModelRequest, StopReason, StreamDelta, Usage};
+use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, StopReason, Usage};
 use crate::llm::LLMProvider;
 
-/// Test double: returns a fixed delta sequence.
+/// Test double: returns a fixed event sequence.
 pub struct MockProvider {
-    deltas: Vec<Result<StreamDelta, LlmError>>,
+    events: Vec<Result<ModelStreamEvent, LlmError>>,
 }
 
 impl MockProvider {
-    pub fn new(deltas: Vec<Result<StreamDelta, LlmError>>) -> Self {
-        Self { deltas }
+    pub fn new(events: Vec<Result<ModelStreamEvent, LlmError>>) -> Self {
+        Self { events }
     }
 
     pub fn text_then_end(text: &str) -> Self {
         Self::new(vec![
-            Ok(StreamDelta::TextDelta {
+            Ok(ModelStreamEvent::TextPart {
+                block_index: 0,
                 text: text.to_string(),
             }),
-            Ok(StreamDelta::MessageEnd {
+            Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: Some(Usage {
                     input_tokens: 1,
@@ -35,22 +36,20 @@ impl LLMProvider for MockProvider {
     fn stream(
         &self,
         _request: ModelRequest,
-    ) -> Pin<Box<dyn Stream<Item = Result<StreamDelta, LlmError>> + Send + '_>> {
-        let deltas = self.deltas.clone();
-        Box::pin(futures::stream::iter(deltas))
+    ) -> Pin<Box<dyn Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>> {
+        let events = self.events.clone();
+        Box::pin(futures::stream::iter(events))
     }
 }
 
-/// Serde round-trips for protocol types (`ContentBlock`, `ModelRequest`, `StreamDelta`).
-/// Guards tagged-enum JSON (`type` + snake_case) so adapters can persist / replay events.
+/// Serde round-trips for protocol types.
 #[cfg(test)]
 mod protocol_tests {
     use super::super::protocol::{
-        ContentBlock, Message, MessageContent, ModelRequest, Role, StopReason, StreamDelta,
+        ContentBlock, Message, MessageContent, ModelRequest, ModelStreamEvent, Role, StopReason,
     };
     use serde_json::json;
 
-    /// `ContentBlock::ToolUse` (tag + nested JSON `input`) survives serialize → deserialize.
     #[test]
     fn content_block_round_trip() {
         let block = ContentBlock::ToolUse {
@@ -63,7 +62,6 @@ mod protocol_tests {
         assert_eq!(block, back);
     }
 
-    /// `ModelRequest` including `Message { Role::User, MessageContent::Text }` round-trips.
     #[test]
     fn model_request_round_trip() {
         let request = ModelRequest {
@@ -84,29 +82,29 @@ mod protocol_tests {
         assert_eq!(request.messages.len(), 1);
     }
 
-    /// `StreamDelta::MessageEnd` with `StopReason::ToolUse` and `usage: None` round-trips.
     #[test]
-    fn stream_delta_message_end_round_trip() {
-        let delta = StreamDelta::MessageEnd {
+    fn model_stream_event_finished_round_trip() {
+        let event = ModelStreamEvent::Finished {
             stop_reason: StopReason::ToolUse,
             usage: None,
         };
-        let json = serde_json::to_string(&delta).expect("serialize");
-        let back: StreamDelta = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(delta, back);
+        let json = serde_json::to_string(&event).expect("serialize");
+        let back: ModelStreamEvent = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(event, back);
     }
 }
 
-/// `LLMProvider` port and `complete()` helper against `MockProvider`.
+/// `LLMProvider` port and `run_model_call` / `complete` against `MockProvider`.
 #[cfg(test)]
 mod provider_tests {
     use futures::StreamExt;
 
     use super::{MockProvider, *};
     use crate::llm::protocol::{
-        ContentBlock, Message, MessageContent, ModelRequest, RequestFailureKind, Role, StopReason,
+        ContentBlock, Message, MessageContent, ModelRequest, ModelStreamEvent, RequestFailureKind,
+        Role, StopReason,
     };
-    use crate::llm::{complete, StreamDelta};
+    use crate::llm::{complete, run_model_call_with_updates, ModelResponseSnapshot};
 
     fn sample_request() -> ModelRequest {
         ModelRequest {
@@ -123,26 +121,24 @@ mod provider_tests {
         }
     }
 
-    /// `text_then_end` stream's last item is `MessageEnd { stop_reason: EndTurn }`.
     #[tokio::test]
-    async fn mock_provider_stream_ends_with_message_end() {
+    async fn mock_provider_stream_ends_with_finished() {
         let provider = MockProvider::text_then_end("hello");
         let mut stream = provider.stream(sample_request());
         let mut last = None;
         while let Some(item) = stream.next().await {
-            last = Some(item.expect("delta"));
+            last = Some(item.expect("event"));
         }
         match last {
-            Some(StreamDelta::MessageEnd { stop_reason, .. }) => {
+            Some(ModelStreamEvent::Finished { stop_reason, .. }) => {
                 assert_eq!(stop_reason, StopReason::EndTurn);
             }
-            other => panic!("expected MessageEnd last, got {other:?}"),
+            other => panic!("expected Finished last, got {other:?}"),
         }
     }
 
-    /// `complete()` folds `TextDelta`s into `ContentBlock::Text` and copies model / stop_reason.
     #[tokio::test]
-    async fn complete_collects_text_delta() {
+    async fn complete_collects_text_part() {
         let provider = MockProvider::text_then_end("hello");
         let response = complete(&provider, sample_request())
             .await
@@ -157,15 +153,15 @@ mod provider_tests {
         assert_eq!(response.model.as_deref(), Some("mock"));
     }
 
-    /// Clean stream end without `MessageEnd` → `RequestFailed` Unrecoverable (protocol, not transport).
     #[tokio::test]
-    async fn complete_errors_when_stream_omits_message_end() {
-        let provider = MockProvider::new(vec![Ok(StreamDelta::TextDelta {
+    async fn complete_errors_when_stream_omits_finished() {
+        let provider = MockProvider::new(vec![Ok(ModelStreamEvent::TextPart {
+            block_index: 0,
             text: "hello".into(),
         })]);
         let err = complete(&provider, sample_request())
             .await
-            .expect_err("missing MessageEnd");
+            .expect_err("missing Finished");
         assert!(matches!(
             err,
             LlmError::RequestFailed {
@@ -174,45 +170,57 @@ mod provider_tests {
             }
         ));
     }
+
+    #[tokio::test]
+    async fn run_model_call_with_updates_invokes_callback_per_event() {
+        let provider = MockProvider::text_then_end("hi");
+        let mut updates = Vec::<ModelResponseSnapshot>::new();
+        run_model_call_with_updates(&provider, sample_request(), |snap| updates.push(snap))
+            .await
+            .expect("run");
+        assert_eq!(updates.len(), 2);
+        assert!(updates[0].pending.is_some());
+        assert_eq!(updates[1].stop_reason, Some(StopReason::EndTurn));
+    }
 }
 
-/// README §11 stream invariants — shared by invariant tests and future conformance gate.
+/// README §11 stream invariants.
 #[cfg(test)]
-pub(crate) fn assert_stream_invariants(deltas: &[StreamDelta]) {
+pub(crate) fn assert_stream_invariants(events: &[ModelStreamEvent]) {
     use std::collections::HashSet;
 
-    let message_ends: usize = deltas
+    let finished_count = events
         .iter()
-        .filter(|d| matches!(d, StreamDelta::MessageEnd { .. }))
+        .filter(|e| matches!(e, ModelStreamEvent::Finished { .. }))
         .count();
     assert_eq!(
-        message_ends, 1,
-        "success stream must contain exactly one MessageEnd"
+        finished_count, 1,
+        "success stream must contain exactly one Finished"
     );
     assert!(
-        matches!(deltas.last(), Some(StreamDelta::MessageEnd { .. })),
-        "MessageEnd must be the final delta"
+        matches!(events.last(), Some(ModelStreamEvent::Finished { .. })),
+        "Finished must be the final event"
     );
 
     let mut open_tools = HashSet::new();
-    for delta in deltas {
-        match delta {
-            StreamDelta::ToolUseStart { id, .. } => {
+    for event in events {
+        match event {
+            ModelStreamEvent::ToolUseStarted { id, .. } => {
                 assert!(
                     open_tools.insert(id.clone()),
-                    "duplicate ToolUseStart for {id}"
+                    "duplicate ToolUseStarted for {id}"
                 );
             }
-            StreamDelta::ToolUseDelta { id, .. } => {
+            ModelStreamEvent::ToolUsePart { id, .. } => {
                 assert!(
                     open_tools.contains(id),
-                    "ToolUseDelta without ToolUseStart for {id}"
+                    "ToolUsePart without ToolUseStarted for {id}"
                 );
             }
-            StreamDelta::ToolUseEnd { id } => {
+            ModelStreamEvent::ToolUseFinished { id, .. } => {
                 assert!(
                     open_tools.remove(id),
-                    "ToolUseEnd without ToolUseStart for {id}"
+                    "ToolUseFinished without ToolUseStarted for {id}"
                 );
             }
             _ => {}
@@ -228,6 +236,7 @@ pub(crate) fn assert_stream_invariants(deltas: &[StreamDelta]) {
 #[cfg(test)]
 mod invariant_tests {
     use futures::StreamExt;
+    use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -236,7 +245,7 @@ mod invariant_tests {
     use crate::llm::adapter::{build_provider, AdapterConfig, AdapterFamily};
     use crate::llm::normalize::common::validate_request;
     use crate::llm::protocol::{
-        Message, MessageContent, ModelRequest, Role, StopReason, StreamDelta,
+        Message, MessageContent, ModelRequest, ModelStreamEvent, Role, StopReason,
     };
 
     fn sample_request() -> ModelRequest {
@@ -254,7 +263,10 @@ mod invariant_tests {
         }
     }
 
-    async fn collect_deltas(provider: &dyn LLMProvider, request: ModelRequest) -> Vec<StreamDelta> {
+    async fn collect_events(
+        provider: &dyn LLMProvider,
+        request: ModelRequest,
+    ) -> Vec<ModelStreamEvent> {
         let mut stream = provider.stream(request);
         let mut out = Vec::new();
         while let Some(item) = stream.next().await {
@@ -263,7 +275,6 @@ mod invariant_tests {
         out
     }
 
-    /// §11.3: `validate_request` rejects empty `messages` (`system` may be empty).
     #[test]
     fn model_request_messages_must_not_be_empty() {
         let request = ModelRequest {
@@ -278,7 +289,6 @@ mod invariant_tests {
         assert!(validate_request(&request).is_err());
     }
 
-    /// §15: `build_provider` constructs every `AdapterFamily` variant (stub counts).
     #[test]
     fn build_provider_covers_every_adapter_family_variant() {
         let config = AdapterConfig {
@@ -297,58 +307,58 @@ mod invariant_tests {
         }
     }
 
-    /// Text-only success path: exactly one `MessageEnd`, and it is last.
     #[tokio::test]
     async fn mock_text_stream_invariants() {
         let provider = MockProvider::text_then_end("hello");
-        let deltas = collect_deltas(&provider, sample_request()).await;
-        assert_stream_invariants(&deltas);
+        let events = collect_events(&provider, sample_request()).await;
+        assert_stream_invariants(&events);
     }
 
-    /// Tool pairing: `Start` → `Delta` → `End` for the same `id`, then `MessageEnd { ToolUse }`.
     #[tokio::test]
     async fn mock_tool_sequence_invariants() {
         let provider = MockProvider::new(vec![
-            Ok(StreamDelta::ToolUseStart {
+            Ok(ModelStreamEvent::ToolUseStarted {
                 id: "call_1".into(),
                 name: "grep".into(),
             }),
-            Ok(StreamDelta::ToolUseDelta {
+            Ok(ModelStreamEvent::ToolUsePart {
                 id: "call_1".into(),
-                input_json_delta: "{\"pattern\":\"x\"}".into(),
+                input_json: "{\"pattern\":\"x\"}".into(),
             }),
-            Ok(StreamDelta::ToolUseEnd {
+            Ok(ModelStreamEvent::ToolUseFinished {
                 id: "call_1".into(),
+                name: "grep".into(),
+                input: json!({"pattern": "x"}),
             }),
-            Ok(StreamDelta::MessageEnd {
+            Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::ToolUse,
                 usage: None,
             }),
         ]);
-        let deltas = collect_deltas(&provider, sample_request()).await;
-        assert_stream_invariants(&deltas);
+        let events = collect_events(&provider, sample_request()).await;
+        assert_stream_invariants(&events);
     }
 
-    /// `ThinkingDelta` + `TextDelta` before a single terminal `MessageEnd`.
     #[tokio::test]
     async fn mock_thinking_and_text_invariants() {
         let provider = MockProvider::new(vec![
-            Ok(StreamDelta::ThinkingDelta {
+            Ok(ModelStreamEvent::ThinkingPart {
+                block_index: 0,
                 thinking: "plan".into(),
             }),
-            Ok(StreamDelta::TextDelta {
+            Ok(ModelStreamEvent::TextPart {
+                block_index: 1,
                 text: "done".into(),
             }),
-            Ok(StreamDelta::MessageEnd {
+            Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
             }),
         ]);
-        let deltas = collect_deltas(&provider, sample_request()).await;
-        assert_stream_invariants(&deltas);
+        let events = collect_events(&provider, sample_request()).await;
+        assert_stream_invariants(&events);
     }
 
-    /// OpenAI Chat adapter: mock SSE (`content` + `finish_reason: stop`) decodes to a valid stream.
     #[tokio::test]
     async fn openai_adapter_mock_http_invariants() {
         const SSE: &str = "\
@@ -389,42 +399,43 @@ data: [DONE]
             session_id: None,
         };
 
-        let deltas = collect_deltas(&adapter, request).await;
-        assert_stream_invariants(&deltas);
+        let events = collect_events(&adapter, request).await;
+        assert_stream_invariants(&events);
     }
 
-    /// Helper negative: two `MessageEnd`s must panic (exactly-one rule).
     #[test]
-    fn assert_stream_invariants_catches_duplicate_message_end() {
-        let deltas = vec![
-            StreamDelta::TextDelta { text: "a".into() },
-            StreamDelta::MessageEnd {
+    fn assert_stream_invariants_catches_duplicate_finished() {
+        let events = vec![
+            ModelStreamEvent::TextPart {
+                block_index: 0,
+                text: "a".into(),
+            },
+            ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
             },
-            StreamDelta::MessageEnd {
+            ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
             },
         ];
-        let result = std::panic::catch_unwind(|| assert_stream_invariants(&deltas));
+        let result = std::panic::catch_unwind(|| assert_stream_invariants(&events));
         assert!(result.is_err());
     }
 
-    /// Helper negative: `ToolUseDelta` without a prior `ToolUseStart` must panic.
     #[test]
-    fn assert_stream_invariants_catches_tool_delta_without_start() {
-        let deltas = vec![
-            StreamDelta::ToolUseDelta {
+    fn assert_stream_invariants_catches_tool_part_without_start() {
+        let events = vec![
+            ModelStreamEvent::ToolUsePart {
                 id: "x".into(),
-                input_json_delta: "{}".into(),
+                input_json: "{}".into(),
             },
-            StreamDelta::MessageEnd {
+            ModelStreamEvent::Finished {
                 stop_reason: StopReason::ToolUse,
                 usage: None,
             },
         ];
-        let result = std::panic::catch_unwind(|| assert_stream_invariants(&deltas));
+        let result = std::panic::catch_unwind(|| assert_stream_invariants(&events));
         assert!(result.is_err());
     }
 }
@@ -491,41 +502,32 @@ mod error_tests {
         panic!("expected LlmError on stream, stream ended successfully");
     }
 
-    /// HTTP 4xx → `RequestFailed` Unrecoverable (client error, do not retry as-is).
     #[tokio::test]
     async fn openai_adapter_http_4xx_is_unrecoverable() {
         let (_server, adapter) = adapter_against(400, "bad request", "text/plain").await;
         let err = first_stream_error(&adapter).await;
-        assert!(
-            matches!(
-                err,
-                LlmError::RequestFailed {
-                    kind: RequestFailureKind::Unrecoverable,
-                    ..
-                }
-            ),
-            "got {err:?}"
-        );
+        assert!(matches!(
+            err,
+            LlmError::RequestFailed {
+                kind: RequestFailureKind::Unrecoverable,
+                ..
+            }
+        ));
     }
 
-    /// HTTP 5xx → `RequestFailed` Recoverable (server / transient).
     #[tokio::test]
     async fn openai_adapter_http_5xx_is_recoverable() {
         let (_server, adapter) = adapter_against(503, "unavailable", "text/plain").await;
         let err = first_stream_error(&adapter).await;
-        assert!(
-            matches!(
-                err,
-                LlmError::RequestFailed {
-                    kind: RequestFailureKind::Recoverable,
-                    ..
-                }
-            ),
-            "got {err:?}"
-        );
+        assert!(matches!(
+            err,
+            LlmError::RequestFailed {
+                kind: RequestFailureKind::Recoverable,
+                ..
+            }
+        ));
     }
 
-    /// `[DONE]` is ignored; without `finish_reason` the stream is incomplete → Recoverable.
     #[tokio::test]
     async fn openai_adapter_done_without_finish_is_recoverable() {
         const DONE_ONLY: &str = "\
@@ -535,19 +537,15 @@ data: [DONE]
 ";
         let (_server, adapter) = adapter_against(200, DONE_ONLY, "text/event-stream").await;
         let err = first_stream_error(&adapter).await;
-        assert!(
-            matches!(
-                err,
-                LlmError::RequestFailed {
-                    kind: RequestFailureKind::Recoverable,
-                    ..
-                }
-            ),
-            "got {err:?}"
-        );
+        assert!(matches!(
+            err,
+            LlmError::RequestFailed {
+                kind: RequestFailureKind::Recoverable,
+                ..
+            }
+        ));
     }
 
-    /// HTTP 200 SSE cut off after a text delta (no `finish_reason`, no `[DONE]`) → Recoverable.
     #[tokio::test]
     async fn openai_adapter_truncated_sse_is_recoverable() {
         const TRUNCATED: &str = "\
@@ -555,19 +553,15 @@ data: {\"choices\":[{\"delta\":{\"content\":\"pong\"},\"finish_reason\":null}]}
 ";
         let (_server, adapter) = adapter_against(200, TRUNCATED, "text/event-stream").await;
         let err = first_stream_error(&adapter).await;
-        assert!(
-            matches!(
-                err,
-                LlmError::RequestFailed {
-                    kind: RequestFailureKind::Recoverable,
-                    ..
-                }
-            ),
-            "got {err:?}"
-        );
+        assert!(matches!(
+            err,
+            LlmError::RequestFailed {
+                kind: RequestFailureKind::Recoverable,
+                ..
+            }
+        ));
     }
 
-    /// HTTP 200 SSE with a non-JSON `data:` payload → Unrecoverable.
     #[tokio::test]
     async fn openai_adapter_invalid_sse_json_is_unrecoverable() {
         const INVALID: &str = "\
@@ -577,15 +571,12 @@ data: [DONE]
 ";
         let (_server, adapter) = adapter_against(200, INVALID, "text/event-stream").await;
         let err = first_stream_error(&adapter).await;
-        assert!(
-            matches!(
-                err,
-                LlmError::RequestFailed {
-                    kind: RequestFailureKind::Unrecoverable,
-                    ..
-                }
-            ),
-            "got {err:?}"
-        );
+        assert!(matches!(
+            err,
+            LlmError::RequestFailed {
+                kind: RequestFailureKind::Unrecoverable,
+                ..
+            }
+        ));
     }
 }
