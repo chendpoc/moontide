@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::session` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** 设计已定稿；实现未开始。
+> **状态：** R1–R3 已实现（store · fork/compaction · `commit_from_event` / `SessionCommitHandler`）。
 > **关联：** [`../event/README.md`](../event/README.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md)
 
 ---
@@ -65,6 +65,10 @@ impl SessionStore {
 }
 
 pub fn commit_from_event(store: &mut SessionStore, event: &RunEvent) -> Result<&SessionItem>; // R3
+
+impl SessionCommitHandler {
+    pub fn new(store: SessionStore) -> Self; // R3：实现 event::CommitHandler
+}
 ```
 
 **Draft 规则：** 只填 `turn` + 载荷；**不要**自填 `id` / `seq` / `at`。

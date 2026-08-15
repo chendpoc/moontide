@@ -1,14 +1,17 @@
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
+use tempfile::TempDir;
 
 use crate::event::{
     derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentPhase, CommitHandler,
-    EventDispatcher, HookHandler, HookOutcome, ObserveHandler, PipelineRegistry, RunEvent,
-    TraceContext, MAX_AGENT_EVENT_BYTES,
+    DeriveObserveHandler, EventDispatcher, FileAgentEventWriter, HookHandler, HookOutcome,
+    ObserveHandler, PipelineRegistry, RunEvent, TraceContext, MAX_AGENT_EVENT_BYTES,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
+use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
 
 struct MockCommitHandler {
     calls: Arc<AtomicUsize>,
@@ -338,4 +341,140 @@ fn truncate_record_enforces_64kib_limit() {
 
     let bytes = serde_json::to_vec(&truncated).expect("serialize");
     assert!(bytes.len() <= MAX_AGENT_EVENT_BYTES);
+}
+
+fn integration_dirs(root: &TempDir) -> (PathBuf, PathBuf) {
+    let sessions = root.path().join("sessions");
+    let runs = root.path().join("runs");
+    (sessions, runs)
+}
+
+fn integration_dispatcher(
+    runs_dir: &PathBuf,
+    run_id: &str,
+    session_id: &str,
+    store: SessionStore,
+    extra_hooks: Vec<Arc<dyn HookHandler>>,
+) -> EventDispatcher {
+    let writer = FileAgentEventWriter::new(runs_dir, run_id).expect("writer");
+    let mut builder = PipelineRegistry::builder()
+        .commit(Arc::new(SessionCommitHandler::new(store)))
+        .observe(Arc::new(DeriveObserveHandler::new(writer)));
+    for hook in extra_hooks {
+        builder = builder.hook(hook);
+    }
+    let registry = builder.build_frozen().expect("registry");
+    EventDispatcher::new(registry, TraceContext::new(run_id, session_id))
+}
+
+fn read_agent_event_lines(path: &PathBuf) -> Vec<serde_json::Value> {
+    let raw = std::fs::read_to_string(path).expect("read agent events");
+    raw.lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_str(line).expect("parse agent event line"))
+        .collect()
+}
+
+#[test]
+fn integration_user_prompt_commits_session_and_writes_agent_event() {
+    let root = TempDir::new().expect("tempdir");
+    let (sessions_dir, runs_dir) = integration_dirs(&root);
+    let run_id = "run-user-prompt";
+    let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+
+    let mut dispatcher = integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
+
+    dispatcher
+        .emit(RunEvent::UserPromptCommitted {
+            turn: 0,
+            text: "hello integration".into(),
+        })
+        .expect("emit");
+
+    let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
+    assert_eq!(loaded.items().len(), 1);
+    match &loaded.items()[0] {
+        SessionItem::UserMessage { text, .. } => assert_eq!(text, "hello integration"),
+        other => panic!("expected user message, got {other:?}"),
+    }
+
+    let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
+    let lines = read_agent_event_lines(&event_path);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0]["channel"], "conversation");
+    assert_eq!(lines[0]["kind"], "user_prompt");
+    assert_eq!(lines[0]["seq"], 0);
+    assert_eq!(lines[0]["runId"], run_id);
+    assert_eq!(lines[0]["payload"]["text"], "hello integration");
+}
+
+#[test]
+fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
+    let root = TempDir::new().expect("tempdir");
+    let (sessions_dir, runs_dir) = integration_dirs(&root);
+    let run_id = "run-assistant";
+    let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+
+    let mut dispatcher = integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
+
+    dispatcher
+        .emit(RunEvent::AssistantFinalized {
+            turn: 1,
+            blocks: vec![ContentBlock::Text {
+                text: "final answer".into(),
+            }],
+        })
+        .expect("emit");
+
+    let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
+    assert_eq!(loaded.items().len(), 1);
+    match &loaded.items()[0] {
+        SessionItem::AssistantMessage { blocks, .. } => {
+            assert_eq!(blocks.len(), 1);
+        }
+        other => panic!("expected assistant message, got {other:?}"),
+    }
+
+    let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
+    let lines = read_agent_event_lines(&event_path);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0]["channel"], "conversation");
+    assert_eq!(lines[0]["kind"], "final");
+    assert_eq!(lines[0]["seq"], 0);
+    assert_eq!(lines[0]["payload"]["text"], "final answer");
+}
+
+#[test]
+fn integration_hook_block_skips_commit_and_agent_event_write() {
+    let root = TempDir::new().expect("tempdir");
+    let (sessions_dir, runs_dir) = integration_dirs(&root);
+    let run_id = "run-blocked";
+    let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+
+    let mut dispatcher = integration_dispatcher(
+        &runs_dir,
+        run_id,
+        &session_id,
+        store,
+        vec![Arc::new(BlockingHook)],
+    );
+
+    dispatcher
+        .emit(RunEvent::UserPromptCommitted {
+            turn: 0,
+            text: "blocked".into(),
+        })
+        .expect("emit");
+
+    let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
+    assert!(loaded.items().is_empty());
+
+    let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
+    assert!(
+        !event_path.exists(),
+        "agent event log should not be created when hook blocks"
+    );
 }

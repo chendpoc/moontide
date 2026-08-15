@@ -400,3 +400,135 @@ fn compaction_and_checkpoint_commit_load() {
         other => panic!("expected checkpoint item, got {other:?}"),
     }
 }
+
+#[test]
+fn commit_from_event_maps_committable_run_events() {
+    use crate::event::{RunCompactionKind, RunEvent};
+    use crate::session::{commit_from_event, SessionItem};
+
+    let root = TempDir::new().expect("tempdir");
+    let mut store =
+        SessionStore::create(sessions_dir(&root), PathBuf::from("/tmp")).expect("create");
+
+    let user = commit_from_event(
+        &mut store,
+        &RunEvent::UserPromptCommitted {
+            turn: 0,
+            text: "hello".into(),
+        },
+    )
+    .expect("user prompt");
+    match user {
+        SessionItem::UserMessage { text, .. } => assert_eq!(text, "hello"),
+        other => panic!("expected user message, got {other:?}"),
+    }
+
+    let assistant = commit_from_event(
+        &mut store,
+        &RunEvent::AssistantFinalized {
+            turn: 0,
+            blocks: vec![ContentBlock::Text {
+                text: "reply".into(),
+            }],
+        },
+    )
+    .expect("assistant");
+    match assistant {
+        SessionItem::AssistantMessage { blocks, .. } => {
+            assert_eq!(blocks.len(), 1);
+        }
+        other => panic!("expected assistant message, got {other:?}"),
+    }
+
+    let invocation = commit_from_event(
+        &mut store,
+        &RunEvent::ToolInvocationRecorded {
+            turn: 1,
+            tool_use_id: "tool-1".into(),
+            name: "read_file".into(),
+            input: json!({"path": "a.rs"}),
+        },
+    )
+    .expect("invocation");
+    match invocation {
+        SessionItem::ToolInvocation {
+            tool_use_id,
+            name,
+            input,
+            ..
+        } => {
+            assert_eq!(tool_use_id, "tool-1");
+            assert_eq!(name, "read_file");
+            assert_eq!(input, &json!({"path": "a.rs"}));
+        }
+        other => panic!("expected tool invocation, got {other:?}"),
+    }
+
+    let outcome = commit_from_event(
+        &mut store,
+        &RunEvent::ToolOutcomeRecorded {
+            turn: 1,
+            tool_use_id: "tool-1".into(),
+            content: ToolResultContent::Text("ok".into()),
+        },
+    )
+    .expect("outcome");
+    match outcome {
+        SessionItem::ToolOutcome {
+            tool_use_id,
+            content,
+            ..
+        } => {
+            assert_eq!(tool_use_id, "tool-1");
+            assert_eq!(content, &ToolResultContent::Text("ok".into()));
+        }
+        other => panic!("expected tool outcome, got {other:?}"),
+    }
+
+    let compaction = commit_from_event(
+        &mut store,
+        &RunEvent::CompactionApplied {
+            turn: 2,
+            compaction_kind: RunCompactionKind::Summary,
+            compaction_save_id: Some("save-1".into()),
+            excluded_item_ids: vec!["item-0".into()],
+            before_tokens: Some(9_000),
+            after_tokens: Some(1_500),
+        },
+    )
+    .expect("compaction");
+    match compaction {
+        SessionItem::Compaction {
+            compaction_kind,
+            compaction_save_id,
+            excluded_item_ids,
+            before_tokens,
+            after_tokens,
+            ..
+        } => {
+            assert_eq!(*compaction_kind, CompactionKind::Summary);
+            assert_eq!(compaction_save_id.as_deref(), Some("save-1"));
+            assert_eq!(excluded_item_ids, &["item-0"]);
+            assert_eq!(*before_tokens, Some(9_000));
+            assert_eq!(*after_tokens, Some(1_500));
+        }
+        other => panic!("expected compaction, got {other:?}"),
+    }
+
+    assert_eq!(store.items().len(), 5);
+}
+
+#[test]
+fn commit_from_event_rejects_non_committable() {
+    use crate::event::RunEvent;
+    use crate::session::commit_from_event;
+
+    let root = TempDir::new().expect("tempdir");
+    let mut store =
+        SessionStore::create(sessions_dir(&root), PathBuf::from("/tmp")).expect("create");
+
+    let err = commit_from_event(&mut store, &RunEvent::TurnStarted { turn: 0 })
+        .expect_err("non-committable");
+    assert!(err.to_string().contains("not committable"));
+    assert!(err.to_string().contains("TurnStarted"));
+}

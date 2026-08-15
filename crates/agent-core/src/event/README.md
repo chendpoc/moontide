@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** 设计已定稿；实现未开始。
+> **状态：** R1–R3 已实现（dispatch · derive · `FileAgentEventWriter`）；R4（async bus）未开始。
 > **关联：** [`../session/README.md`](../session/README.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md)
 
 ---
@@ -75,6 +75,8 @@ EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 
 类型：`RunEvent`、`TraceContext`、`HookHandler`、`CommitHandler`、`ObserveHandler` — 见 [`DESIGN.md`](DESIGN.md) §7。
 
+R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventWriter`、`FileAgentEventWriter`（`{runs_dir}/{run_id}.active.jsonl`，单调 `seq`）。
+
 ---
 
 ## 典型用法
@@ -105,11 +107,20 @@ fn run_turn(dispatcher: &mut EventDispatcher, turn: u64, text: &str) -> Result<(
 ### `agent` 组合根
 
 ```rust
+use agent_core::event::{
+    DeriveObserveHandler, EventDispatcher, FileAgentEventWriter, PipelineRegistry, TraceContext,
+};
+use agent_core::session::{SessionCommitHandler, SessionStore};
+
+let store = SessionStore::create(&sessions_dir, cwd)?;
+let session_id = store.header().session_id.clone();
+let writer = FileAgentEventWriter::new(&runs_dir, &run_id)?;
+
 let registry = PipelineRegistry::builder()
     .commit(Arc::new(SessionCommitHandler::new(store)))
-    .hook(Arc::new(PermissionHook::new(policy)))
-    .observe(Arc::new(DeriveObserveHandler::new(runs_dir)))
-    .build_frozen();
+    // .hook(Arc::new(permission_hook)) // 可选
+    .observe(Arc::new(DeriveObserveHandler::new(writer)))
+    .build_frozen()?;
 
 let mut dispatcher = EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 loop::run(&mut dispatcher, …)?;
