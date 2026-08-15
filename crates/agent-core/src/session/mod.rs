@@ -1,0 +1,13 @@
+//! Session Item Log — append-only fact source for a conversation.
+
+mod file_store;
+mod store;
+mod types;
+
+#[cfg(test)]
+mod tests;
+
+pub use store::SessionStore;
+pub use types::{
+    SessionHeader, SessionItem, SessionItemBase, SessionItemDraft, SESSION_HEADER_VERSION,
+};
