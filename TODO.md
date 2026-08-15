@@ -29,6 +29,38 @@
   - [ ] **18.2** `node/`（Node）—— MCP server 与扩展包；pnpm workspace 同上后置
   - [ ] **18.3** Rust benchmark 基线（loop / compose / tool pipeline）
 
+- [ ] **19. 插件设计 Agent（用户扩展需求处理链路）**
+
+  候选设计：[`crates/docs/extension-request-pipeline.md`](crates/docs/extension-request-pipeline.md)。
+
+  - 流程：需求 → 意图澄清（grill-me 式）→ 结构化 brief → 判断（决策树）→ draft → review → judge 门禁 → 产物
+  - 前置依赖：extension 契约（MCP 协议 + sidecar hook schema，见 17 / 18）先定稿；brief JSON schema 先定义
+  - 执行选型后置：本地小模型（LoRA）为未来优化，先用 prompting + JSON schema + few-shot 验证链路
+
+- [ ] **20. 分层 Context 与长期记忆（L0/L1/L2 + session→memory 蒸馏）**
+
+  候选设计：[`crates/docs/tiered-context-memory.md`](crates/docs/tiered-context-memory.md)。
+
+  - 借鉴 OpenViking 设计思想（非代码 / 服务）：L0/L1/L2 分层懒加载、确定性 URI + 检索轨迹、session→memory 蒸馏
+  - 自研 Rust 精简版，不 embed（AGPLv3 + Python server）；复用服务仅走 MCP
+  - 边界：短期 session（确定性可重放）与长期记忆（概率性辅助）分离
+
+- [ ] **21. 扩展边界与 Sidecar Runtime**
+
+  候选设计：[`crates/docs/extension-sidecar-runtime.md`](crates/docs/extension-sidecar-runtime.md)。
+
+  - 扩展边界 = sidecar（进程间）+ MCP（JSON-RPC over stdio）；隔离靠 OS 进程边界强制，非约定
+  - runtime 成本分配：共享 runtime 默认（O(版本数)）+ embedded 例外（O(N) 重复）；TS 扩展繁多，不默认打包单文件
+  - 落地：manifest 声明 `runtime: shared | embedded` + 版本；产品维护共享缓存 `~/.moontide/runtime/{runtime}/{version}/`
+
+- [ ] **22. 日志与 Session 设计**
+
+  候选设计：[`crates/docs/logging-and-session-design.md`](crates/docs/logging-and-session-design.md)。
+
+  - 三流物理分离：session log（可重放事实）· logger（可丢弃诊断，stderr）· stdout（外部消费数据）
+  - session log 四不变量：`seq == log.len()`、先校验后冻结、模型可见先入 log、header 外置
+  - 双写原则：生命周期事实双写，session log 记「发生了什么」，logger 记「怎么发生」
+
 - [ ] **1. Slint 桌面样式优化**
   - 透明虚化效果
   - 动效
