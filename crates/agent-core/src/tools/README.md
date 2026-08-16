@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::tools` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** 架构已确认；实现尚未开始。
+> **状态：** 设计与 R4 接缝已确认；RB1 已实现，待 Review。
 > **关联：** [`../llm/README.md`](../llm/README.md) · [`../session/README.md`](../session/README.md) · [`../event/README.md`](../event/README.md)
 
 ---
@@ -30,15 +30,9 @@ LLM response
     │  normalize
     ▼
 ToolCall
-    │  registry.resolve + input validation
-    ▼
-Validated call
-    │  permission.check
-    ▼
-Authorized call
-    │  scheduler.admit
-    ▼
-Execution plan
+    │  registry.resolve
+    │  validate_input
+    │  loop 查 ToolPermissionMap
     │  ToolExecutor.execute
     ▼
 ToolOutput → ToolResult
@@ -53,7 +47,8 @@ ToolOutput → ToolResult
 ```text
 AssistantFinalized
   → ToolInvocationRecorded       # 执行副作用前记录模型请求
-  → permission / scheduler
+  → input validation
+  → loop permission-map check
   → ToolExecutor
   → ToolOutcomeRecorded
 ```
@@ -67,64 +62,181 @@ Session Item Log 是恢复事实源；RunEvent 是由运行过程 derive 的观�
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
 | **`prompt`** | 读取冻结的 `ToolRegistry`，把 `ToolSpec` 转成 `llm::protocol::ToolSchema` | 调 executor、执行 IO |
-| **`permission`** | 读取 `ToolSpec.approval` 与 `ToolCall`，返回授权决策 | 直接执行工具 |
-| **`scheduler`** | 读取执行策略，决定排队、串并行、取消、offload、重试 | 修改工具 schema、绕过 registry |
-| **`loop`** | 解析模型 `ToolUse`，调用 tools 的单次调用入口，emit RunEvent | 直接调用 executor、直接写 session |
-| **`agent`** | 创建注册表、注入内置/sidecar executor，在 step 前冻结 snapshot | 在 loop 内临时修改注册表 |
+| **`scheduler`** | 读取调用与结果契约；未来结合已确认的资源声明决定排队、串并行、取消、offload、重试 | 修改工具 schema、绕过 registry |
+| **`loop`** | 解析模型 `ToolUse`，依次完成 tools 校验、查询 `ToolPermissionMap`、tools 执行，emit RunEvent | 绕过输入校验或 permission map、直接写 session |
+| **`agent`** | 按 preset 从 `agent-tools` catalog 选择并构造 `Tool`，创建 registry 和独立 permission map | 在 loop 内临时修改注册表 |
 | **`session`** | 通过 `RunEvent` commit `ToolInvocation` / `ToolOutcome` | 反向依赖 executor |
 | **测试** | 构造具体 `ToolExecutor`、验证 registry 与规范化结果 | 依赖真实 shell / 网络才能验证纯契约 |
 
-`ToolExecutor` 是 `agent-core` 内唯一的工具 trait。`ToolSpec`、`ToolRegistry`、权限和调度策略使用具体类型，不为未来可能的扩展提前增加 trait。
+`ToolExecutor` 是 `agent-core` 内唯一的工具 trait。`ToolSpec`、`ToolRegistry` 和 permission map 使用具体类型，不为未来可能的扩展提前增加 trait。
+
+`agent-core::tools` 是运行时契约，不是 builtins 目录。第一方 `bash`、`grep`、`web_fetch` 等实现在独立 `agent-tools` crate 中声明；该 crate 单向依赖 `agent-core`，内核不反向依赖具体工具库。其最小公开目录接口为：
+
+```rust
+pub struct ToolDefinition { /* private: name + build function */ }
+impl ToolDefinition {
+    pub fn name(&self) -> &'static str;
+    pub fn build(&self) -> anyhow::Result<agent_core::tools::Tool>;
+}
+pub fn builtin_tool_definitions() -> &'static [ToolDefinition];
+```
 
 ---
 
-## 公开契约（R1 草案）
+## 公开契约（修订版）
 
-字段名是设计契约，最终 Rust 可见性以实现为准：
+以下签名是实现契约，不在实现阶段静默增加或修改。结构体字段默认私有，通过构造器创建、通过只读访问器消费。
+
+`Tool` 是一个完整的运行时工具，内部绑定一个 `ToolSpec` 与一个 `ToolExecutor`；它不是新的 trait，也不负责权限或调度。
 
 ```rust
 pub struct ToolSpec {
-    pub name: String,
-    pub description: String,
-    pub input_schema: serde_json::Value,
-    pub output_schema: Option<serde_json::Value>, // host 校验；不一定发给模型
-    pub approval: ToolApprovalFloor,
-    pub execution: ToolExecutionPolicy,
+    // private fields
 }
 
-pub enum ToolApprovalFloor {
-    AutoAllowed,
-    AlwaysAsk,
+impl ToolSpec {
+    pub fn new(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        input_schema: serde_json::Value,
+    ) -> anyhow::Result<Self>;
+    pub fn name(&self) -> &str;
+    pub fn description(&self) -> &str;
+    pub fn input_schema(&self) -> &serde_json::Value;
 }
 
-pub enum ToolExecutionPolicy {
-    Exclusive,
-    ParallelSafe,
+pub struct Tool {
+    // private fields
 }
 
-pub struct ToolRegistration {
-    pub spec: ToolSpec,
-    pub executor: std::sync::Arc<dyn ToolExecutor>,
+impl Tool {
+    pub fn new(spec: ToolSpec, executor: std::sync::Arc<dyn ToolExecutor>) -> Self;
+    pub fn spec(&self) -> &ToolSpec;
+
+    pub(crate) async fn execute(
+        &self,
+        call: &ToolCall,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<ToolResult>;
+}
+
+pub struct ToolRegistry {
+    // private, already-sorted immutable tools + cached input validators
+}
+
+impl ToolRegistry {
+    pub fn new(tools: Vec<Tool>) -> anyhow::Result<Self>;
+    pub fn resolve(&self, name: &str) -> Option<&Tool>;
+    pub fn iter(&self) -> std::slice::Iter<'_, Tool>;
+
+    pub(crate) fn validate_input(
+        &self,
+        tool: &Tool,
+        call: &ToolCall,
+    ) -> Result<(), String>;
 }
 
 pub struct ToolCall {
-    pub tool_use_id: String,
-    pub name: String,
-    pub input: serde_json::Value,
+    // private fields
+}
+
+impl ToolCall {
+    pub fn new(
+        tool_use_id: impl Into<String>,
+        name: impl Into<String>,
+        input: serde_json::Value,
+    ) -> anyhow::Result<Self>;
+    pub fn tool_use_id(&self) -> &str;
+    pub fn name(&self) -> &str;
+    pub fn input(&self) -> &serde_json::Value;
+}
+
+pub enum ToolContent {
+    Text(String),
+    Json(serde_json::Value),
+}
+
+pub enum ToolOutput {
+    Succeeded(ToolContent),
+    Failed {
+        content: ToolContent,
+        retryable: bool,
+    },
+    OutcomeUnknown(ToolContent),
+}
+
+pub enum ToolCancellationReason {
+    User,
+    Parent,
+    Hook,
+    Disposed,
+}
+
+pub enum ToolResultStatus {
+    Succeeded,
+    Failed { retryable: bool },
+    InvalidArguments,
+    UnknownTool,
+    Denied,
+    Cancelled { reason: ToolCancellationReason },
+    OutcomeUnknown,
+}
+
+pub struct ToolResult {
+    // private fields
+}
+
+impl ToolResult {
+    pub fn tool_use_id(&self) -> &str;
+    pub fn name(&self) -> &str;
+    pub fn status(&self) -> &ToolResultStatus;
+    pub fn content(&self) -> &ToolContent;
+
+    pub(crate) fn new(
+        call: &ToolCall,
+        status: ToolResultStatus,
+        content: ToolContent,
+    ) -> Self;
+
+    pub(crate) fn from_output(
+        call: &ToolCall,
+        output: ToolOutput,
+    ) -> Self;
 }
 
 pub trait ToolExecutor: Send + Sync {
     fn execute<'a>(
         &'a self,
-        call: ToolCall,
-        context: &'a ToolExecutionContext,
+        call: &'a ToolCall,
+        working_dir: &'a std::path::Path,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = anyhow::Result<ToolOutput>> + Send + 'a>,
     >;
 }
 ```
 
-`ToolExecutor` 只返回不带模型调用身份的 `ToolOutput`。`tool_use_id`、最终状态和模型可见包装由 tools 的单次调用入口统一生成，避免 handler 伪造调用配对或权限状态。
+`ToolExecutor` 只返回不带模型调用身份的 `ToolOutput`。调用管线把 `tool_use_id`、管线状态和模型可见内容规范化成只读 `ToolResult`，避免 handler 伪造调用配对或权限状态。`new` 供 loop 组装执行前拒绝/取消结果，`from_output` 只负责 executor 输出规范化；二者均为 `pub(crate)`，跨 crate 调用者只能读取。
+
+permission 不属于模型能力声明，因此不放进 `ToolSpec`，也不设独立模块。组合根按 preset 从 `agent-tools` catalog 构造选中的 `Tool` 时，同步提供声明式映射并注入 `loop`：
+
+```text
+ToolPermissionMap = {
+  "read_file":  Allow,
+  "apply_patch": Ask,
+}
+```
+
+registry 中每个工具必须恰好有一项 permission，map 不能包含未知工具；组合根构造时校验 key 集完全一致。`loop` 只做按 name 查表和 `Ask` 交互；运行时若仍缺失配置，安全返回 `Denied`，不能默认允许。map 值只需要 `Allow | Ask`：禁用工具应从 registry 移除。
+
+输入校验与执行是 `agent-core` 内部能力，不额外暴露 `ValidatedToolCall`、`AuthorizedCall` 或 `ToolAdmission` 等阶段对象。`loop` 按固定顺序调用：先 `registry.resolve` 与输入校验，再查 permission map，允许后才进入 tools 的执行与结果规范化。该顺序由 loop 行为测试守门，而不是用 typestate 扩大公开 API。
+
+`ToolCall::new` 拒绝空的 `tool_use_id` 或工具名；这类输入没有稳定配对身份，不进入调用管线。具有合法身份但名称不存在的调用，返回可配对的 `UnknownTool` 结果。
+
+R1 不定义通用 execution context。executor 唯一需要的宿主执行环境是调用时工作目录，因此显式接收 `working_dir`；它用于解析相对路径和设置子进程工作目录，不能通过修改进程全局 cwd 表达。tools 不负责验证目录存在性或改写路径。`run_id`、`session_id`、`turn` 等运行身份仍由 loop/session/event 持有，不下沉给每个 executor。
+
+executor 只借用 `ToolCall`：调用事实和配对身份始终由 tools 持有，执行完成后可直接交给 `ToolResult::from_output`，不需要 clone，也不能由 executor 取得所有权或修改。
+
+`ToolRegistry::validate_input` 返回的 `String` 是预期的模型参数错误说明，由 loop 转成 `InvalidArguments`；它不是基础设施错误。`Tool::execute` 隐藏具体 executor，并在内部完成 `ToolOutput → ToolResult`，loop 不接触 executor 或输出规范化细节。
 
 ---
 
@@ -134,26 +246,36 @@ pub trait ToolExecutor: Send + Sync {
 
 ```text
 ToolOutput
-  ├─ outcome: Succeeded | Failed | OutcomeUnknown
-  ├─ content: Text | Json
-  └─ structured: Option<Json>
+  ├─ Succeeded(Text | Json)
+  ├─ Failed { content: Text | Json, retryable }
+  └─ OutcomeUnknown(Text | Json)
 
 ToolResultStatus
   ├─ Succeeded
-  ├─ Failed
+  ├─ Failed { retryable: bool }
   ├─ InvalidArguments
   ├─ UnknownTool
-  ├─ Unavailable
   ├─ Denied
-  ├─ Cancelled
-  ├─ TimedOut
-  ├─ OutcomeUnknown
-  └─ InternalError
+  ├─ Cancelled { reason }
+  └─ OutcomeUnknown
 ```
 
 状态不能从 `content` 文本推断：`"permission denied"`、`"process cancelled"` 和 `"file not found"` 不是同一种失败。
 
-预期的工具失败作为模型可见的 tool result 返回；工具/LLM 基础设施错误通过 `anyhow::Result` 传到 run 边界，不能在中途吞掉。`InternalError` 只在运行边界需要保持调用配对时生成，不是 handler 自行伪造的普通业务结果。
+预期的工具失败作为模型可见的 tool result 返回；工具/LLM 基础设施错误通过 `anyhow::Result` 传到 run 边界，不能在中途吞掉。R1 不把基础设施错误复制成 `ToolResultStatus`，也不为尚无 producer 的 timeout 预留状态。
+
+`ToolOutput` 直接用 enum 绑定 outcome 与 content，不再维护可产生无效组合的独立 `ToolOutputOutcome`。`retryable` 必须从 `ToolOutput` 保留到 `ToolResult`，供 scheduler 做重试判断。`content` 是模型可见的载荷；需要模型看到结构化 JSON 时，使用 `ToolContent::Json`，由 loop 映射为稳定文本。R1 不额外维护一份没有消费者的 host-only 结构化载荷。
+
+`ToolResultStatus` 是跨 session/event 接缝的持久化类型，采用稳定的 serde snake_case 表示；`ToolResult` 本身是运行时包装，不直接写成 Session JSONL。
+
+### Schema 与校验语义
+
+- R1 只定义 `input_schema`，使用 JSON Schema Draft 2020-12；`ToolRegistry::new` 冻结注册表时校验并编译 schema，禁止网络或外部 `$ref`，编译结果随 registry 缓存。
+- 非法 schema 是工具注册错误：`ToolRegistry::new` 返回带工具名上下文的 `anyhow::Error`，该 registry 不会暴露给模型。
+- `ToolCall` 身份校验在构造时完成；调用时复用 registry 中的 validator 校验 input。失败返回 `InvalidArguments`，permission 与 executor 都不被调用。
+- R1 不定义或校验 `output_schema`。executor 输出契约由 Rust 类型与测试守门；出现明确的结构化消费者后再评审 output schema。
+- validator 的具体 crate 是实现细节，但必须固定支持的 dialect，并用结构测试守门。
+- tools 保留并校验 canonical schema，不承担 provider 兼容转换。LLM adapter 默认透传；只有当前 provider 已确认不兼容的关键词，才在 adapter 编码处增加小型、显式且有测试的转换。R1 不建设通用 schema 编译器、capability 矩阵或转换 profile。
 
 ---
 
@@ -164,16 +286,24 @@ ToolResultStatus
 2. loop 构造 ToolCall
 3. loop emit ToolInvocationRecorded
 4. tools.resolve(name)
-5. tools.validate_input(spec, input)
-6. permission.check(spec, call)
-7. scheduler.admit(call, spec.execution)
-8. tools.execute_one(call, context)
-9. tools.normalize_output(call, output)
-10. loop emit ToolOutcomeRecorded
-11. loop 将 ToolResult 转成下一条 llm ToolResult block
+5. registry.validate_input(tool, call)
+6. loop 按 tool name 查询 ToolPermissionMap；缺失 → Denied
+7. Allow，或 Ask 经用户确认后，tool.execute(&call, working_dir)
+8. Tool 内部执行 executor 并规范化 ToolOutput
+   └─ executor Err → loop 先组装 OutcomeUnknown 并 emit，再向 run 边界返回原错误
+9. loop emit ToolOutcomeRecorded
+10. loop 将 ToolResult 转成下一条 llm ToolResult block
 ```
 
-`tools.execute_one` 只处理一次调用；多调用的 fan-out、资源冲突、完成顺序和 offload 验收属于 `scheduler`。
+tools 只处理一次调用。当前 MVP 的执行前门禁只有输入校验与 permission check；`scheduler` 不是第三道门禁。未来的 fan-out、资源冲突、完成顺序、取消和 offload 验收由 scheduler 在调用管线外层编排。
+
+### 与 Session / Event / LLM 的状态映射
+
+`ToolResultStatus` 是 host 侧单次调用的规范状态。R4 集成必须让 `RunEvent::ToolOutcomeRecorded` 与 `SessionItem::ToolOutcome` 携带同一 status；否则恢复时会丢失 `Denied`、`Cancelled` 和 `OutcomeUnknown`。这会使 session/event 对 `tools` 的**契约类型**产生单向依赖，但 tools 不依赖它们的实现。
+
+如果 executor 返回基础设施 `Err`，`Tool::execute` 原样向上传播；loop 在返回 run 边界前，必须使用同一 `ToolCall` 组装 `OutcomeUnknown` 并 emit `ToolOutcomeRecorded`。这样错误没有被吞掉，Session Item Log 也不会留下无 outcome 的 invocation。已知、可描述的工具失败应由 executor 返回 `Ok(ToolOutput::Failed { ... })`，不能滥用 `Err`。
+
+LLM 的 `ContentBlock::ToolResult` 继续承载模型可见 content，不强行暴露 host status。loop 在映射前依据 typed status 做控制流，并把 status 的说明编码到 content；不得从 content 反推 status。
 
 ---
 
@@ -182,20 +312,18 @@ ToolResultStatus
 ### `read_file`
 
 ```text
-approval  = AutoAllowed（仍受 permission 全局规则约束）
-execution = ParallelSafe
+ToolPermissionMap["read_file"] = Allow
 ```
 
-它可以和其他只读调用并行。文件不存在属于 `Failed`，而不是运行时基础设施错误。
+文件不存在属于 `Failed`，而不是运行时基础设施错误。它是否能与其他调用并行，要等 scheduler 根据真实资源声明判断，R1 的 ToolSpec 不提前给出二元结论。
 
 ### `apply_patch`
 
 ```text
-approval  = AlwaysAsk
-execution = Exclusive
+ToolPermissionMap["apply_patch"] = Ask
 ```
 
-它需要 permission 决策，并由 scheduler 排他执行。进程被中断且无法确认文件是否已写入时，结果必须是 `OutcomeUnknown`，不能直接报告成功或失败。
+它需要 permission 决策。scheduler 将来根据实际资源冲突决定是否排他执行；permission 级别不能替代调度声明。进程被中断且无法确认文件是否已写入时，结果必须是 `OutcomeUnknown`，不能直接报告成功或失败。
 
 ---
 
@@ -215,11 +343,11 @@ execution = Exclusive
 
 ## 当前阶段
 
-本模块当前完成的是架构设计，不包含实现。下一阶段按以下顺序推进：
+本模块当前完成的是设计修订，不包含实现。下一阶段按以下顺序推进：
 
 1. 实现纯类型、registry 和单次调用规范化；
-2. 为未知工具、重复注册、输入/输出 schema、结果状态建立结构测试；
-3. 与 `llm`、`session`、`event` 对齐 ToolResult 状态和序列化；
+2. 为未知工具、重复注册、input schema、结果状态建立结构测试；
+3. 先完成 session/event 的 status 接缝设计与序列化契约，再实现 tools；
 4. 最后由 `scheduler` 接管多调用调度、取消和模型 offload 验收。
 
 实现前不得把 `verify/failover` 重新塞回 tools。

@@ -40,7 +40,7 @@ loop.emit(RunEvent)
 | **Committable** | 是（commit 阶段） | `UserPromptCommitted`、`AssistantFinalized` |
 | **Observational** | 否 | `TurnStarted`、`MessageUpdate` |
 
-扩展（permission、trace、sidecar）挂在 **Pipeline 注册表**，不改 `loop` 源码。
+扩展（run guard、trace、sidecar observer）挂在 **Pipeline 注册表**，不改 `loop` 源码。Tool permission 仍由 `loop` 查询组合根注入的 map，不借 event hook 隐式授权。
 
 ---
 
@@ -124,7 +124,7 @@ let recorder = FileAgentEventRecorder::new(&runs_dir, &run_id)?;
 
 let registry = PipelineRegistry::builder()
     .commit(Arc::new(SessionCommitHandler::new(store)))
-    // .hook(Arc::new(permission_hook)) // 可选
+    // .hook(Arc::new(run_guard)) // 可选
     .observe(Arc::new(DeriveObserveHandler::new(recorder)))
     .build_frozen()?;
 
@@ -153,6 +153,8 @@ tail workdir/.moontide/runs/<runId>.active.jsonl
 | 单次 LLM 往返 | `LlmCallStarted` / `LlmCallEnded` |
 
 **不要**在 loop 里 `session.commit_item` — 由 commit handler 在 `dispatch` 内完成。
+
+**tools R4 接缝（待实现）：** `ToolOutcomeRecorded` 将携带 `tools::ToolResultStatus` typed 字段；event 只广播/提交该契约值，不解释 permission 或 scheduler 策略。executor 返回基础设施错误时，loop 必须先 emit status 为 `OutcomeUnknown` 的 outcome 并等待 commit，再向 run 边界传播原始错误；event 不自行补写或推断。当前 R1–R3 实现尚未接入该字段。
 
 ---
 

@@ -82,6 +82,8 @@ pub enum SessionItem {
 - `ContentBlock` / `ToolResultContent` / `Value` ← `crate::llm::protocol`
 - **AssistantMessage.blocks** 仅 `Text` / `Thinking`；tool 独立条目
 
+tools R4 接缝：`ToolOutcome` 将增加 `crate::tools::ToolResultStatus` typed 字段。该字段由 loop 从 `ToolResult` 映射，Session 只负责校验、排序和持久化；executor 基础设施错误同样由 loop 先提交 `OutcomeUnknown` outcome，再传播原始错误，Session 不自行推断或补写。当前 R1–R3 代码仍使用无 status 的旧形状，接缝实现单独成批。该变更把 Session header 从 v1 升为 v2；读取 v1 时缺失 status 的旧条目映射为 `OutcomeUnknown`，不得默认成功。
+
 ### 4.3 `SessionHeader`
 
 ```rust

@@ -75,6 +75,8 @@ impl SessionCommitHandler {
 
 **条目类型（R1）：** `UserMessage` · `AssistantMessage` · `ToolInvocation` · `ToolOutcome`
 
+**tools R4 接缝（待实现）：** `ToolOutcome` 将增加 `tools::ToolResultStatus` typed 字段，用于恢复 `Denied`、`Cancelled`、`OutcomeUnknown` 等结果；Session 只持久化该契约值，不决定状态。executor 基础设施错误也必须由 loop 先提交一个 `OutcomeUnknown` outcome，再向 run 边界传播，禁止留下无 outcome 的 invocation。该变更把 Session header 从 v1 升为 v2；读取 v1 时缺失 status 的旧条目映射为 `OutcomeUnknown`，不得默认成功。当前 R1–R3 实现尚未接入该字段。
+
 ---
 
 ## 典型用法

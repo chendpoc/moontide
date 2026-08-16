@@ -14,7 +14,7 @@
 | `EventDispatcher::emit`（hook → commit → observe） | `prompt::compile` / `context::materialize` |
 | `derive` → `AgentEventRecord`，经 recorder port 输出 | loop 时序编排（loop mod） |
 | `PipelineRegistry` 类型 | sidecar IPC（agent / 后置） |
-| 可选 `EventBus` broadcast | permission 策略本身（permission mod） |
+| 可选 `EventBus` broadcast | ToolPermissionMap 声明与查表（agent / loop） |
 
 **核心：** `loop` 只 `emit`；事实落盘在 commit 阶段委托 `session`；观测在 observe 阶段 `derive`。
 
@@ -215,6 +215,8 @@ pub trait AgentEventRecorder: Send + Sync {
     fn append(&self, record: AgentEventRecord) -> anyhow::Result<()>;
 }
 ```
+
+tools R4 接缝：`ToolOutcomeRecorded` 将增加 `crate::tools::ToolResultStatus` typed 字段；event 只负责传递和分派，不根据 content 文本推断状态。executor 返回基础设施错误时，loop 先 dispatch `OutcomeUnknown` outcome 并等待 commit 成功，再向 run 边界传播原始错误；event 不自行合成 outcome。当前 R1–R3 代码仍使用无 status 的旧形状，接缝实现单独成批。
 
 文件创建、原始行读取和追加写入属于 `FileWriter`；记录解析、恢复、序号分配和 JSONL 编码属于 `FileAgentEventRecorder`。两者都不属于 `RunEvent` 语义派生。当前实现仍与 `agent-core` 同 crate，待组合根建立后迁移具体文件适配器。
 
