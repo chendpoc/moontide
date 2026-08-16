@@ -61,8 +61,8 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 工程原则（摘要）
 
-1. **分层** — MVP：`cli`（纯壳）→ `agent-core`（引擎）→ `agent`（组合根）。`agent-core` 不依赖 `cli` / `agent`。内核 9 个内部 mod（`llm` / `session` / `tools` / `permission` / `event` / `prompt` / `context` / `loop` / `scheduler`），不拆 crate。Session Log 为事实源，Agent Event 仅 derive。架构见 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md)。
-2. **高内聚低耦合** — `session` 不依赖 `loop` / `agent`；permission 随 tool 注册声明。
+1. **分层** — MVP 四 crate：`agent-core`（引擎）、`agent-tools`（第一方 catalog/builtins）、`agent`（组合根）、`cli`（纯壳）。`agent-tools → agent-core`，`agent` 依赖二者，`agent-core` 不反向依赖任何上层 crate。内核 8 个内部 mod（`llm` / `session` / `tools` / `event` / `prompt` / `context` / `loop` / `scheduler`），不拆 crate。Session Log 为事实源，Agent Event 仅 derive。架构见 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md)。
+2. **高内聚低耦合** — `session` 不依赖 `loop` / `agent`；permission 是组合根随 tool 注册声明的 `tool_name → Allow | Ask` map，由 `loop` 查表，缺失项安全拒绝；当前不设独立 permission mod。
 3. **Spec / Impl 分离** — tool schema 与 handler 分开；handler 不定义 schema，schema 无 IO 副作用。
 4. **声明式注册表** — tool 注册用表驱动；新增 tool 改表不改长 match。
 5. **Conformance 守门** — 注册表与边界变更须有结构测试守门（Rust 侧待重建，TS 版见 archive）；不变量写测试，热路径不加 runtime assert。
@@ -100,6 +100,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 - Tool 预期失败：把错误文本作为 tool result 返回给模型，不 panic
 - tool / LLM 调用：错误经 `Result` 传到 run 边界统一处理，不在中途吞掉
+- executor 基础设施错误：`loop` 先 emit `OutcomeUnknown` 的 `ToolOutcomeRecorded`，再把原始 `Result::Err` 传到 run 边界，禁止留下已记录但无结果的 tool invocation
 - REPL turn 失败：打印 ERROR 后 REPL 继续（配置类致命错误除外）
 - 排查：stderr ERROR → `/thinking on` → `.moontide/sessions/*.jsonl`
 
