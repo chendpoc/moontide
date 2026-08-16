@@ -19,6 +19,13 @@ impl ToolSpec {
         if name.trim().is_empty() {
             bail!("tool name must not be empty");
         }
+        if name.len() > 64
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            bail!("tool name must match ^[A-Za-z0-9_-]{{1,64}}$");
+        }
 
         Ok(Self {
             name,

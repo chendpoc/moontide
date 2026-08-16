@@ -79,16 +79,21 @@ fn returning_tool(name: &str, output: ToolOutput, call_count: Arc<AtomicUsize>) 
     ))
 }
 
-// 场景：构造正常工具声明和仅含空白的工具名；预期：正常字段原样可读、空白名被拒绝；不变量/副作用：声明构造不执行任何 IO。
+// 场景：构造正常、边界长度及 provider 不可移植的工具名；预期：合法字段原样可读，空白、非法字符和超过 64 字节的名称被拒绝；不变量/副作用：名称契约在注册和网络请求前确定，声明构造不执行任何 IO。
 #[test]
-fn tool_spec_keeps_model_visible_fields_and_rejects_blank_name() -> Result<()> {
+fn tool_spec_keeps_model_visible_fields_and_enforces_portable_name() -> Result<()> {
     let schema = object_schema();
     let spec = ToolSpec::new("read_file", "read a UTF-8 file", schema.clone())?;
+    let longest_name = "a".repeat(64);
 
     assert_eq!(spec.name(), "read_file");
     assert_eq!(spec.description(), "read a UTF-8 file");
     assert_eq!(spec.input_schema(), &schema);
+    assert!(ToolSpec::new(longest_name, "valid boundary", json!({})).is_ok());
     assert!(ToolSpec::new("  ", "invalid", json!({})).is_err());
+    assert!(ToolSpec::new("bad name", "invalid", json!({})).is_err());
+    assert!(ToolSpec::new("工具", "invalid", json!({})).is_err());
+    assert!(ToolSpec::new("a".repeat(65), "invalid", json!({})).is_err());
     Ok(())
 }
 
@@ -180,6 +185,24 @@ fn registry_rejects_invalid_schema_during_construction() -> Result<()> {
     assert!(error
         .to_string()
         .contains("invalid input schema for tool broken_tool"));
+    Ok(())
+}
+
+// 场景：合法 Draft 2020-12 boolean schema 被用作工具输入声明；预期：注册表拒绝 true/false 两种非 object wire 形状并携带工具名；不变量/副作用：provider 不兼容配置在任何模型 HTTP 请求前失败，且不放宽本地 validator dialect。
+#[test]
+fn registry_rejects_non_object_schema_documents() -> Result<()> {
+    for (name, schema) in [("true_schema", json!(true)), ("false_schema", json!(false))] {
+        let spec = ToolSpec::new(name, "must be an object schema", schema)?;
+        let result = ToolRegistry::new(vec![Tool::new(spec, Arc::new(ContextEchoExecutor))]);
+
+        let error = match result {
+            Ok(_) => bail!("non-object schema registry unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        let message = format!("{error:#}");
+        assert!(message.contains(&format!("invalid input schema for tool {name}")));
+        assert!(message.contains("input schema must be a JSON object"));
+    }
     Ok(())
 }
 

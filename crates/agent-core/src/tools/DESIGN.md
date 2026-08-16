@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。
 > **对外集成：** [`README.md`](README.md)。
-> **状态：** RB1 已实现并通过 workspace 检查，待 Review；公开 API、结果状态和 R4 接缝已冻结为本文契约。
+> **状态：** RB1 已实现并通过 workspace 检查；公开 API、结果状态和 R4 接缝已冻结为本文契约。
 > **关联：** [`../llm/DESIGN.md`](../llm/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../../../../docs/notes/runtime/agent-kernel-architecture.md`](../../../../docs/notes/runtime/agent-kernel-architecture.md)
 
 ---
@@ -93,13 +93,13 @@ impl ToolSpec {
 
 约束：
 
-- `name` 非空且在 registry 内唯一；
+- `name` 匹配 `^[A-Za-z0-9_-]{1,64}$` 且在 registry 内唯一；
 - `description` 是模型可见说明，不承载运行时状态；
 - `input_schema` 是纯 JSON Schema 数据，不执行 IO。
 
-R1 只保留 `input_schema`。schema 文档使用 JSON Schema Draft 2020-12；`ToolSpec` 只保存原始声明，不保存编译器或 validator。`ToolRegistry::new` 冻结注册表时校验并编译 schema，禁止网络或外部 `$ref`，编译结果随 frozen registry 缓存并供后续调用复用。非法 schema 使整个 registry 构造失败，不允许先暴露给模型再延迟报错。R1 使用 `jsonschema` 0.49，关闭 default features 以禁用 HTTP/file resolver；先按 Draft 2020-12 meta-schema 校验文档，再构建可复用 validator。该依赖仍是内部实现细节，支持的 dialect 与无外部解析约束由结构测试守门。`output_schema` 后置到出现明确结构化消费者时再评审，避免在副作用已经发生后新增无法回滚的运行时失败。
+R1 只保留 `input_schema`。schema 文档的顶层 JSON 值必须是 object，object 内使用 JSON Schema Draft 2020-12；Draft 合法但当前 provider wire 无法表达的 boolean schema 在注册时拒绝。`ToolSpec` 只保存原始声明，不保存编译器或 validator。`ToolRegistry::new` 冻结注册表时校验并编译 schema，禁止网络或外部 `$ref`，编译结果随 frozen registry 缓存并供后续调用复用。非法 schema 使整个 registry 构造失败，不允许先暴露给模型再延迟报错。R1 使用 `jsonschema` 0.49，关闭 default features 以禁用 HTTP/file resolver；先按 Draft 2020-12 meta-schema 校验文档，再构建可复用 validator。该依赖仍是内部实现细节，支持的 dialect 与无外部解析约束由结构测试守门。`output_schema` 后置到出现明确结构化消费者时再评审，避免在副作用已经发生后新增无法回滚的运行时失败。
 
-tools 中的 schema 是 canonical contract。provider 兼容属于 LLM wire 编码：adapter 默认原样传递 schema，仅在官方行为或真实失败已证明某个关键词不兼容时，增加局部、显式、带测试的转换。即使转换有损，本地仍使用 canonical schema 校验模型返回的 input，并在 permission/executor 前拒绝不匹配值。R1 不抽象通用 schema compiler、provider capability matrix、转换 profile 或报告类型。
+tools 中的 name 与 schema 是 canonical、跨当前 provider 可移植的 contract。名称和 schema 顶层 JSON 形状不做 provider 重命名或包装；关键词兼容属于 LLM wire 编码，adapter 默认原样传递 schema，仅在官方行为或真实失败已证明某个关键词不兼容时，增加局部、显式、带测试的转换。即使转换有损，本地仍使用 canonical schema 校验模型返回的 input，并在 permission/executor 前拒绝不匹配值。R1 不抽象通用 schema compiler、provider capability matrix、转换 profile 或报告类型。
 
 R1 不定义 `ToolExecutionPolicy`。`Exclusive` / `ParallelSafe` 无法表达调用参数决定的路径冲突，也没有当前消费者；等 scheduler 的资源模型确认后，再决定静态声明、逐调用 claim 与全局锁分别属于哪个边界。
 
@@ -424,7 +424,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 
 ### Call
 
-9. `tool_use_id`、`name` 非空；
+9. `tool_use_id` 非空；注册的 `name` 匹配 `^[A-Za-z0-9_-]{1,64}$`；
 10. 未知工具和非法输入不 panic；
 11. input 不匹配 schema 时 permission 与 executor 均不调用；
 12. 每个已记录的 tool invocation 都必须生成且只生成一个可配对的 `ToolResult`；executor 基础设施错误先记录 `OutcomeUnknown`，再传播原始错误；
@@ -463,7 +463,8 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 
 ## 9. 单测方向
 
-- 空名称、重复名称、非法 schema 被拒绝；非法 schema 错误包含工具名且不产生部分 registry；
+- 空名称、非法字符、超过 64 字节的名称、重复名称被拒绝；
+- 非 object 或非法 Draft 2020-12 schema 被拒绝；错误包含工具名且不产生部分 registry；
 - registry 冻结后不能改变，顺序稳定；
 - registry 构造后调用复用已编译 validator，不做 lazy schema 初始化；
 - registry 不暴露可变 `Tool`；
@@ -504,3 +505,4 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 19. registry 以 crate 内部 `validate_input(tool, call)` 暴露缓存校验；`Tool::execute` 隐藏 executor 并完成输出规范化，不增加执行 service 或阶段 wrapper。
 20. executor `Err` 不转成新的基础设施状态；loop 先记录 `OutcomeUnknown` 配对结果，再传播原始错误。
 21. `agent-core::tools` 保留运行时契约；第一方实现归 `agent-tools`，其 `ToolDefinition` 表达 name + build 配方；依赖只能是 `agent-tools → agent-core`，`Tool` 仍是唯一进入 runtime registry 的绑定。
+22. canonical 工具名采用当前 provider 共同支持的 `^[A-Za-z0-9_-]{1,64}$`；`input_schema` 顶层必须是 JSON object，避免注册成功后在首次 provider 请求才失败。

@@ -238,7 +238,7 @@ cli（纯壳，只消费 AgentEvent）
                           （后置）protocol 独立 crate（跨进程契约）
 ```
 
-依赖铁律三条：
+依赖铁律四条：
 
 1. **agent-core 不依赖 cli / agent / runtime**——它们依赖 agent-core，永不反向。
 2. **agent-tools 单向依赖 agent-core**——只提供第一方 `ToolDefinition` catalog 与具体 executor；agent-core 不反向依赖 builtins。
@@ -494,7 +494,6 @@ impl SidecarHook {
 | schema auto-gen 工具（schemars/ts-rs/prost） | 跨语言契约真实出现 |
 | 本地 7B daemon + router | 内核架构被 MVP 验证后 |
 | sidecar 语言（TS/Go/Rust） | 深 hook 生态真要设计时 |
-| agent 装配层拆独立 crate | desktop（slint）落地时 |
 | Go 后台服务引入 | 后台服务复杂到 tokio 真痛 |
 
 ---

@@ -45,17 +45,9 @@ crates/docs/engineering-handbook.md
 当前目标结构是：
 
 ```text
-cli（纯壳）
-  └── agent-core（引擎）
-        ├── llm
-        ├── session
-        ├── tools
-        ├── event
-        ├── prompt
-        ├── context
-        ├── loop
-        └── scheduler
-  └── agent（组合根，后续）
+cli（纯壳）→ agent（组合根）
+               ├──► agent-core（引擎：llm / session / tools / event / prompt / context / loop / scheduler）
+               └──► agent-tools（第一方 catalog / builtins）──► agent-core
 ```
 
 ### 2.1 分层职责
@@ -64,6 +56,7 @@ cli（纯壳）
 |----|------|--------|
 | `cli` | 参数、REPL、渲染、退出码 | Agent 内核逻辑、provider 组装 |
 | `agent-core` | 生命周期、协议、状态、工具和调度内核 | CLI 细节、厂商 preset、sidecar 进程管理 |
+| `agent-tools` | 第一方 `ToolDefinition` catalog、spec 与 executor 实现 | runtime registry、permission、loop 编排 |
 | `agent` | 组合根、preset、provider、runtime 注入 | 在 loop 内硬编码 endpoint 或工具表 |
 | `sidecar` / runtime | 进程外扩展和隔离 | 直接绕过内核 permission |
 
@@ -168,7 +161,7 @@ prompt 中暴露的 ToolSpec
 
 `ToolResultStatus` 是单次调用的 host 侧规范状态；`Failed { retryable }` 不得在规范化时丢失。R4 集成时，session/event 可依赖 tools 的稳定结果契约来持久化 typed status，但 LLM `ToolResult` 仍只承载模型可见 content，控制流不得从 content 反推 status。结构化结果统一使用 `ToolContent::Json`，不重复维护 host-only 载荷。
 
-工具 schema 使用固定的 JSON Schema Draft 2020-12；R1 只保留 `input_schema`，schema 文档在注册时校验，调用 input 在执行前校验。`output_schema` 等出现明确结构化消费者后再设计。
+canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定的 JSON Schema Draft 2020-12；R1 只保留 `input_schema`，其顶层 JSON 值必须是 object，object 内的 schema 文档在注册时校验，调用 input 在执行前校验。`output_schema` 等出现明确结构化消费者后再设计。
 
 详见 [`agent-core/src/tools/README.md`](../agent-core/src/tools/README.md) 与 [`agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。
 
@@ -354,7 +347,7 @@ just check
 | 变更 | 必须更新 |
 |------|----------|
 | 新增每 turn 必须遵守的硬规则 | `AGENTS.md` + 本手册对应章节 |
-| 改九模块职责或 import 边界 | 本手册 + `docs/spec/agent-core.md` + 受影响模块 DESIGN |
+| 改八模块职责或 import 边界 | 本手册 + `docs/spec/agent-core.md` + 受影响模块 DESIGN |
 | 改单个模块 API / 不变量 | 模块 `README.md` / `DESIGN.md` |
 | 改候选方案 | 候选文档，并注明未实现 |
 | 完成一个模块实现 | 模块文档 + `PROGRESS.md` + 测试证据 |

@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::tools` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** 设计与 R4 接缝已确认；RB1 已实现，待 Review。
+> **状态：** 设计与 R4 接缝已确认；RB1 已实现并通过 workspace 检查，R4 待后续集成。
 > **关联：** [`../llm/README.md`](../llm/README.md) · [`../session/README.md`](../session/README.md) · [`../event/README.md`](../event/README.md)
 
 ---
@@ -232,6 +232,8 @@ registry 中每个工具必须恰好有一项 permission，map 不能包含未�
 
 `ToolCall::new` 拒绝空的 `tool_use_id` 或工具名；这类输入没有稳定配对身份，不进入调用管线。具有合法身份但名称不存在的调用，返回可配对的 `UnknownTool` 结果。
 
+`ToolSpec::new` 还要求名称匹配 `^[A-Za-z0-9_-]{1,64}$`。这是 OpenAI / Anthropic 等当前 provider 共同可表达的可移植身份契约，必须在 registry 和首次模型请求前失败；provider adapter 不负责重命名工具。
+
 R1 不定义通用 execution context。executor 唯一需要的宿主执行环境是调用时工作目录，因此显式接收 `working_dir`；它用于解析相对路径和设置子进程工作目录，不能通过修改进程全局 cwd 表达。tools 不负责验证目录存在性或改写路径。`run_id`、`session_id`、`turn` 等运行身份仍由 loop/session/event 持有，不下沉给每个 executor。
 
 executor 只借用 `ToolCall`：调用事实和配对身份始终由 tools 持有，执行完成后可直接交给 `ToolResult::from_output`，不需要 clone，也不能由 executor 取得所有权或修改。
@@ -271,6 +273,7 @@ ToolResultStatus
 ### Schema 与校验语义
 
 - R1 只定义 `input_schema`，使用 JSON Schema Draft 2020-12；`ToolRegistry::new` 冻结注册表时校验并编译 schema，禁止网络或外部 `$ref`，编译结果随 registry 缓存。
+- canonical `input_schema` 的顶层 JSON 值必须是 object；object 内仍按 Draft 2020-12 校验。Draft 合法但 provider wire 无法表达的 boolean schema 在注册时拒绝，不延迟到 HTTP 请求。
 - 非法 schema 是工具注册错误：`ToolRegistry::new` 返回带工具名上下文的 `anyhow::Error`，该 registry 不会暴露给模型。
 - `ToolCall` 身份校验在构造时完成；调用时复用 registry 中的 validator 校验 input。失败返回 `InvalidArguments`，permission 与 executor 都不被调用。
 - R1 不定义或校验 `output_schema`。executor 输出契约由 Rust 类型与测试守门；出现明确的结构化消费者后再评审 output schema。
@@ -343,11 +346,10 @@ ToolPermissionMap["apply_patch"] = Ask
 
 ## 当前阶段
 
-本模块当前完成的是设计修订，不包含实现。下一阶段按以下顺序推进：
+本模块已完成 RB1 的 runtime contract：纯类型、frozen registry、input validator 缓存、单次执行规范化及结构测试。后续按以下顺序推进：
 
-1. 实现纯类型、registry 和单次调用规范化；
-2. 为未知工具、重复注册、input schema、结果状态建立结构测试；
-3. 先完成 session/event 的 status 接缝设计与序列化契约，再实现 tools；
-4. 最后由 `scheduler` 接管多调用调度、取消和模型 offload 验收。
+1. 在独立 `agent-tools` crate 落 catalog 与首个 builtin；
+2. 在 prompt / loop / session / event 就绪后完成 R4 typed status 接缝和端到端拒绝顺序；
+3. 最后由 `scheduler` 接管多调用调度、取消和模型 offload 验收。
 
-实现前不得把 `verify/failover` 重新塞回 tools。
+后续集成不得把 `verify/failover` 重新塞回 tools。

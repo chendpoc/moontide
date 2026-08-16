@@ -1,7 +1,7 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；`llm` R1–R6 完成，`session` / `event` R1–R3 完成，`tools` 设计修订完成；其余模块按 `PROGRESS.md` 推进
+> **状态：** 顶层设计已定；`llm` R1–R6 完成，`session` / `event` R1–R3 完成，`tools` RB1 完成；其余模块按 `PROGRESS.md` 推进
 > **关联：** [`docs/notes/runtime/agent-kernel-architecture.md`](../../docs/notes/runtime/agent-kernel-architecture.md)（§7 模块清单，本文是其落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
@@ -67,7 +67,7 @@ session.load()
 |---|---|---|---|---|---|---|
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
 | 2 | `session` | llm 类型；R4 接入 tools status | ☑ | ☑ | ☑ | R1–R3；item log 唯一写者 |
-| 3 | `tools` | 无 | ☑ | ☐ | ☐ | 设计修订完成；ToolSpec + 单次执行边界；验收 / offload 归 scheduler |
+| 3 | `tools` | 无 | ☑ | ◐ | ◐ | RB1 完成；R4 typed status 与 loop 接缝待后续；验收 / offload 归 scheduler |
 | 4 | `event` | 无；R4 接入 tools status | ☑ | ☑ | ☑ | R1–R3；[`src/event/README.md`](src/event/README.md) |
 | 5 | `prompt` | tools | ☐ | ☐ | ☐ | compile 唯一出口 |
 | 6 | `context` | session | ☐ | ☐ | ☐ | materialize + compaction |
@@ -90,9 +90,9 @@ session.load()
 - 顶层设计：☑（本文）
 - 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R6）
 - 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3）
-- 模块 3 `tools`：设计修订 ☑ · 实现 ☐ · 测试 ☐
+- 模块 3 `tools`：设计 ☑ · 实现 ◐ · 测试 ◐（RB1 完成，R4 集成待后续）
 - 模块 5–8：☐ 未开始
-- 当前推进：**tools 设计修订后的 RB1**（纯类型、冻结 registry、单次调用规范化；R4 status 接缝另批）
+- 当前推进：独立 `agent-tools` catalog 与首个 builtin；`agent-core::tools` R4 status 接缝另批
 
 ### 文档与集成入口
 

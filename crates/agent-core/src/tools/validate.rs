@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use jsonschema::{Retrieve, Uri, Validator};
 use serde_json::Value;
 
@@ -16,6 +16,10 @@ impl Retrieve for RejectExternalRetriever {
 }
 
 pub(super) fn compile_input_validator(spec: &ToolSpec) -> Result<Validator> {
+    if !spec.input_schema().is_object() {
+        bail!("input schema must be a JSON object");
+    }
+
     jsonschema::draft202012::meta::validate(spec.input_schema()).map_err(|error| {
         anyhow::anyhow!(
             "schema does not conform to JSON Schema Draft 2020-12: {}",
