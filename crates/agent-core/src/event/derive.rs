@@ -8,9 +8,6 @@ use crate::llm::protocol::{ContentBlock, PendingBlock, ToolResultContent};
 use super::run_event::RunEvent;
 use super::trace_context::TraceContext;
 
-/// Maximum serialized size of a persisted Agent Event JSONL line.
-pub const MAX_AGENT_EVENT_BYTES: usize = 64 * 1024;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentPhase {
@@ -30,7 +27,7 @@ pub enum AgentChannel {
     ToolUseLog,
 }
 
-/// Agent Event Log row (pre-persist); `seq` is assigned by the writer.
+/// Agent Event Log row (pre-persist); `seq` is assigned by the recorder.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AgentEventRecord {
     pub id: String,
@@ -369,103 +366,4 @@ fn truncate_preview(text: &str, max_chars: usize) -> String {
     }
     let truncated: String = text.chars().take(max_chars).collect();
     format!("{truncated}…")
-}
-
-/// Applies the 64 KiB persistence limit, truncating payload and preview fields when needed.
-///
-/// The writer appends one newline byte, so this function keeps the serialized
-/// record plus that byte within the limit for records whose identity fields
-/// follow the bounded ID generation contract. Identity fields are never changed;
-/// the writer returns an error if an invalid record still exceeds the limit.
-pub fn truncate_record(mut record: AgentEventRecord) -> AgentEventRecord {
-    let Ok(mut bytes) = serde_json::to_vec(&record) else {
-        return record;
-    };
-    if fits_persisted_line(bytes.len()) {
-        return record;
-    }
-
-    let original_bytes = bytes.len() as u64;
-    record.truncated = Some(true);
-    record.original_bytes = Some(original_bytes);
-    truncate_value_strings(&mut record.payload, MAX_AGENT_EVENT_BYTES / 4);
-
-    if let Ok(reencoded) = serde_json::to_vec(&record) {
-        bytes = reencoded;
-    }
-    if !fits_persisted_line(bytes.len()) {
-        record.payload = json!({ "truncated": true });
-        if let Ok(replaced) = serde_json::to_vec(&record) {
-            bytes = replaced;
-        }
-    }
-
-    if !fits_persisted_line(bytes.len()) {
-        record.preview = None;
-    }
-
-    record
-}
-
-fn fits_persisted_line(serialized_bytes: usize) -> bool {
-    serialized_bytes.saturating_add(1) <= MAX_AGENT_EVENT_BYTES
-}
-
-fn truncate_value_strings(value: &mut Value, max_string_bytes: usize) {
-    match value {
-        Value::String(s) => {
-            if s.len() > max_string_bytes {
-                let mut end = max_string_bytes.min(s.len());
-                while end > 0 && !s.is_char_boundary(end) {
-                    end -= 1;
-                }
-                *s = format!("{}…", &s[..end]);
-            }
-        }
-        Value::Array(items) => {
-            for item in items {
-                truncate_value_strings(item, max_string_bytes);
-            }
-        }
-        Value::Object(map) => {
-            for v in map.values_mut() {
-                truncate_value_strings(v, max_string_bytes);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Built-in observe handler that derives and truncates Agent Event records.
-///
-/// The writer receives records ready for JSONL append (`seq` still unset).
-pub struct DeriveObserveHandler<W> {
-    writer: W,
-}
-
-impl<W> DeriveObserveHandler<W>
-where
-    W: AgentEventWriter,
-{
-    pub fn new(writer: W) -> Self {
-        Self { writer }
-    }
-}
-
-impl<W> super::registry::ObserveHandler for DeriveObserveHandler<W>
-where
-    W: AgentEventWriter,
-{
-    fn observe(&self, ctx: &TraceContext, event: &RunEvent) -> anyhow::Result<()> {
-        if let Some(record) = derive_agent_event(ctx, event) {
-            let record = truncate_record(record);
-            self.writer.write(record)?;
-        }
-        Ok(())
-    }
-}
-
-/// Persists or forwards derived Agent Event records (wired by `agent` in R3).
-pub trait AgentEventWriter: Send + Sync {
-    fn write(&self, record: AgentEventRecord) -> anyhow::Result<()>;
 }

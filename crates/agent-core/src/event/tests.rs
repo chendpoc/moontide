@@ -5,11 +5,12 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use tempfile::TempDir;
 
+use super::agent_recorder::{truncate_record, FileAgentEventRecorder, MAX_AGENT_EVENT_BYTES};
+use super::file_writer::FileWriter;
 use crate::event::{
-    derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentEventWriter,
-    AgentPhase, CommitHandler, DeriveObserveHandler, EventDispatcher, FileAgentEventWriter,
-    HookHandler, HookOutcome, ObserveHandler, PipelineRegistry, RunEvent, TraceContext,
-    MAX_AGENT_EVENT_BYTES,
+    derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
+    CommitHandler, DeriveObserveHandler, EventDispatcher, HookHandler, HookOutcome, ObserveHandler,
+    PipelineRegistry, RunEvent, TraceContext,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
@@ -56,6 +57,20 @@ struct RecordingObserveHandler {
 impl RecordingObserveHandler {
     fn new(events: Arc<Mutex<Vec<RunEvent>>>) -> Self {
         Self { events }
+    }
+}
+
+struct RecordingAgentEventRecorder {
+    records: Arc<Mutex<Vec<AgentEventRecord>>>,
+}
+
+impl AgentEventRecorder for RecordingAgentEventRecorder {
+    fn append(&self, record: AgentEventRecord) -> Result<()> {
+        self.records
+            .lock()
+            .map_err(|_| anyhow!("append lock poisoned"))?
+            .push(record);
+        Ok(())
     }
 }
 
@@ -360,6 +375,32 @@ fn derive_tool_outcome_includes_tool_name() {
     assert_eq!(record.payload["body"], "ok");
 }
 
+// 场景：observe handler 将一个大 payload 的语义事件交给 recorder。
+// 预期：handler 原样转交 derive 结果，不提前执行文件 JSONL 截断；文件策略只由文件 recorder 负责。
+#[test]
+fn derive_observe_handler_forwards_record_without_file_truncation() {
+    let records = Arc::new(Mutex::new(Vec::new()));
+    let handler = DeriveObserveHandler::new(RecordingAgentEventRecorder {
+        records: Arc::clone(&records),
+    });
+    let text = "x".repeat(70_000);
+
+    handler
+        .observe(
+            &test_ctx(),
+            &RunEvent::UserPromptCommitted {
+                turn: 1,
+                text: text.clone(),
+            },
+        )
+        .expect("forward record");
+
+    let records = records.lock().expect("read recorded events");
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].truncated, None);
+    assert_eq!(records[0].payload["text"].as_str(), Some(text.as_str()));
+}
+
 // 场景：Agent Event payload 达到 64 KiB 边界。
 // 预期：记录被截断且序列化后不超过上限；不变量：保留 original_bytes。
 #[test]
@@ -388,15 +429,34 @@ fn truncate_record_enforces_64kib_limit() {
     assert!(bytes.len() <= MAX_AGENT_EVENT_BYTES);
 }
 
-// 场景：事件的 payload 和 preview 异常膨胀，但 identity 字段遵循上游生成契约。
-// 预期：writer 写出的最终 JSONL 行（含换行）不超过 64 KiB；不变量：identity 字段不被持久化层改写。
+// 场景：底层 file writer 直接读取已有 JSONL 行并追加一行文本。
+// 预期：它只维护文件 I/O，不解析 AgentEventRecord；换行由 file writer 统一补齐。
 #[test]
-fn file_writer_enforces_final_line_limit() {
+fn file_writer_owns_only_jsonl_line_io() {
+    let root = TempDir::new().expect("tempdir");
+    let file_writer =
+        FileWriter::open(root.path().join("runs/run-io.active.jsonl")).expect("file writer");
+
+    assert!(file_writer.read_lines().expect("read empty log").is_empty());
+    file_writer
+        .append_line(r#"{"kind":"test"}"#)
+        .expect("append JSONL line");
+    assert_eq!(
+        file_writer.read_lines().expect("read appended log"),
+        vec![r#"{"kind":"test"}"#.to_string()]
+    );
+    assert!(file_writer.append_line("not\njsonl").is_err());
+}
+
+// 场景：事件的 payload 和 preview 异常膨胀，但 identity 字段遵循上游生成契约。
+// 预期：recorder 写出的最终 JSONL 行（含换行）不超过 64 KiB；不变量：identity 字段不被持久化层改写。
+#[test]
+fn agent_recorder_enforces_final_line_limit() {
     let root = TempDir::new().expect("tempdir");
     let runs_dir = root.path().join("runs");
-    let writer = FileAgentEventWriter::new(&runs_dir, "run-limit").expect("writer");
-    writer
-        .write(AgentEventRecord {
+    let recorder = FileAgentEventRecorder::new(&runs_dir, "run-limit").expect("recorder");
+    recorder
+        .append(AgentEventRecord {
             id: "event-limit".into(),
             seq: None,
             run_id: "run-limit".into(),
@@ -410,17 +470,44 @@ fn file_writer_enforces_final_line_limit() {
             truncated: None,
             original_bytes: None,
         })
-        .expect("write bounded event");
+        .expect("append bounded event");
 
-    let raw = std::fs::read_to_string(writer.path()).expect("read event log");
+    let raw = std::fs::read_to_string(recorder.path()).expect("read event log");
     let line = raw.lines().next().expect("event line");
     assert!(line.len() < MAX_AGENT_EVENT_BYTES);
 }
 
-// 场景：writer 在同一 active JSONL 文件被关闭后重新打开并继续写入。
-// 预期：新 writer 从已有最大 seq 和最后 turn 恢复后继续；不变量：同一 run 的 seq 单调不重复。
+// 场景：调用方把属于另一个 run 的记录交给当前文件 recorder。
+// 预期：append 立即失败且不创建 JSONL 行；不变量：Agent Event recorder 不能混写不同 run 的 identity。
 #[test]
-fn file_writer_resumes_sequence_from_existing_file() {
+fn agent_recorder_rejects_mismatched_run_id_without_writing() {
+    let root = TempDir::new().expect("tempdir");
+    let runs_dir = root.path().join("runs");
+    let recorder = FileAgentEventRecorder::new(&runs_dir, "run-expected").expect("recorder");
+
+    let result = recorder.append(AgentEventRecord {
+        id: "event-mismatch".into(),
+        seq: None,
+        run_id: "run-other".into(),
+        turn: 0,
+        phase: AgentPhase::PreLlm,
+        channel: AgentChannel::Trace,
+        kind: "turn_started".into(),
+        ts: 1,
+        payload: serde_json::json!({"turn": 0}),
+        preview: None,
+        truncated: None,
+        original_bytes: None,
+    });
+
+    assert!(result.is_err());
+    assert!(!recorder.path().exists());
+}
+
+// 场景：recorder 在同一 active JSONL 文件被关闭后重新打开并继续写入。
+// 预期：新 recorder 从已有最大 seq 和最后 turn 恢复后继续；不变量：同一 run 的 seq 单调不重复。
+#[test]
+fn agent_recorder_resumes_sequence_from_existing_file() {
     let root = TempDir::new().expect("tempdir");
     let runs_dir = root.path().join("runs");
     let record = |turn| AgentEventRecord {
@@ -438,13 +525,13 @@ fn file_writer_resumes_sequence_from_existing_file() {
         original_bytes: None,
     };
 
-    let first = FileAgentEventWriter::new(&runs_dir, "run-seq").expect("first writer");
-    first.write(record(3)).expect("first write");
+    let first = FileAgentEventRecorder::new(&runs_dir, "run-seq").expect("first recorder");
+    first.append(record(3)).expect("first append");
     drop(first);
 
-    let second = FileAgentEventWriter::new(&runs_dir, "run-seq").expect("second writer");
+    let second = FileAgentEventRecorder::new(&runs_dir, "run-seq").expect("second recorder");
     assert_eq!(second.last_turn().expect("read restored turn"), Some(3));
-    second.write(record(4)).expect("second write");
+    second.append(record(4)).expect("second append");
     assert_eq!(second.last_turn().expect("read current turn"), Some(4));
 
     let lines = read_agent_event_lines(second.path());
@@ -466,10 +553,10 @@ fn integration_dispatcher(
     store: SessionStore,
     extra_hooks: Vec<Arc<dyn HookHandler>>,
 ) -> EventDispatcher {
-    let writer = FileAgentEventWriter::new(runs_dir, run_id).expect("writer");
+    let recorder = FileAgentEventRecorder::new(runs_dir, run_id).expect("recorder");
     let mut builder = PipelineRegistry::builder()
         .commit(Arc::new(SessionCommitHandler::new(store)))
-        .observe(Arc::new(DeriveObserveHandler::new(writer)));
+        .observe(Arc::new(DeriveObserveHandler::new(recorder)));
     for hook in extra_hooks {
         builder = builder.hook(hook);
     }

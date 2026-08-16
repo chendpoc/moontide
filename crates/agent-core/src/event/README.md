@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R3 已实现（dispatch · derive · `FileAgentEventWriter`）；R4（async bus）未开始。
+> **状态：** R1–R3 已实现（dispatch · derive · `AgentEventRecorder`）；R4（async bus）未开始。
 > **关联：** [`../session/README.md`](../session/README.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md)
 
 ---
@@ -75,7 +75,13 @@ EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 
 类型：`RunEvent`、`TraceContext`、`HookHandler`、`CommitHandler`、`ObserveHandler` — 见 [`DESIGN.md`](DESIGN.md) §7。
 
-R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventWriter`、`FileAgentEventWriter`（`{runs_dir}/{run_id}.active.jsonl`）。writer 创建时扫描已有 active 文件，校验 `runId` 并恢复 `seq` 与最后 `turn`，追加后保持 `seq` 单调；ID 长度由上游生成契约负责，writer 不改写 identity 字段。
+R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventRecorder`、`FileAgentEventRecorder`（`{runs_dir}/{run_id}.active.jsonl`）。`DeriveObserveHandler` 只派生并转交 `AgentEventRecord`；Agent Event recorder 负责校验 `runId`、恢复 `seq` 与最后 `turn`、执行 64 KiB JSONL 行限制，再调用内部 `FileWriter` 完成文件 I/O。ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+
+```rust
+pub trait AgentEventRecorder: Send + Sync {
+    fn append(&self, record: AgentEventRecord) -> anyhow::Result<()>;
+}
+```
 
 ---
 
@@ -108,18 +114,18 @@ fn run_turn(dispatcher: &mut EventDispatcher, turn: u64, text: &str) -> Result<(
 
 ```rust
 use agent_core::event::{
-    DeriveObserveHandler, EventDispatcher, FileAgentEventWriter, PipelineRegistry, TraceContext,
+    DeriveObserveHandler, EventDispatcher, FileAgentEventRecorder, PipelineRegistry, TraceContext,
 };
 use agent_core::session::{SessionCommitHandler, SessionStore};
 
 let store = SessionStore::create(&sessions_dir, cwd)?;
 let session_id = store.header().session_id.clone();
-let writer = FileAgentEventWriter::new(&runs_dir, &run_id)?;
+let recorder = FileAgentEventRecorder::new(&runs_dir, &run_id)?;
 
 let registry = PipelineRegistry::builder()
     .commit(Arc::new(SessionCommitHandler::new(store)))
     // .hook(Arc::new(permission_hook)) // 可选
-    .observe(Arc::new(DeriveObserveHandler::new(writer)))
+    .observe(Arc::new(DeriveObserveHandler::new(recorder)))
     .build_frozen()?;
 
 let mut dispatcher = EventDispatcher::new(registry, TraceContext::new(run_id, session_id));

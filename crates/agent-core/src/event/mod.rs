@@ -1,5 +1,6 @@
 //! Run-level semantic events: hook → commit → observe dispatch.
 
+mod agent_recorder;
 mod derive;
 mod file_writer;
 mod pipeline;
@@ -7,11 +8,8 @@ mod registry;
 mod run_event;
 mod trace_context;
 
-pub use derive::{
-    derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentEventWriter,
-    AgentPhase, DeriveObserveHandler, MAX_AGENT_EVENT_BYTES,
-};
-pub use file_writer::FileAgentEventWriter;
+pub use agent_recorder::{AgentEventRecorder, DeriveObserveHandler, FileAgentEventRecorder};
+pub use derive::{derive_agent_event, AgentChannel, AgentEventRecord, AgentPhase};
 pub use pipeline::EventDispatcher;
 pub use registry::{
     CommitHandler, HookHandler, HookOutcome, ObserveHandler, PipelineRegistry,

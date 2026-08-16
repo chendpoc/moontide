@@ -12,7 +12,7 @@
 |----|------|
 | `RunEvent` 语义协议 | `SessionStore` 实现 |
 | `EventDispatcher::emit`（hook → commit → observe） | `prompt::compile` / `context::materialize` |
-| `derive` → Agent Event Log | loop 时序编排（loop mod） |
+| `derive` → `AgentEventRecord`，经 recorder port 输出 | loop 时序编排（loop mod） |
 | `PipelineRegistry` 类型 | sidecar IPC（agent / 后置） |
 | 可选 `EventBus` broadcast | permission 策略本身（permission mod） |
 
@@ -46,6 +46,8 @@ event/
   pipeline.rs         # dispatch
   registry.rs         # PipelineRegistry
   derive.rs
+  agent_recorder.rs   # Agent Event append semantics and file-backed recorder
+  file_writer.rs      # path-based raw file I/O only
   bus.rs              # R4
   tests.rs
 ```
@@ -206,7 +208,15 @@ Registry 在 run 开始前由 `agent` 装配，run 内不可换表。
 pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentEventRecord>;
 ```
 
-映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)；落盘 64KiB 截断。`FileAgentEventWriter` 创建时扫描已有 active 文件，校验 `runId`，恢复下一个 `seq` 与最后 `turn`；ID 长度由上游生成契约负责，writer 不改写 identity 字段。
+映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+
+```rust
+pub trait AgentEventRecorder: Send + Sync {
+    fn append(&self, record: AgentEventRecord) -> anyhow::Result<()>;
+}
+```
+
+文件创建、原始行读取和追加写入属于 `FileWriter`；记录解析、恢复、序号分配和 JSONL 编码属于 `FileAgentEventRecorder`。两者都不属于 `RunEvent` 语义派生。当前实现仍与 `agent-core` 同 crate，待组合根建立后迁移具体文件适配器。
 
 ---
 
@@ -215,6 +225,8 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
 ```text
 event     → llm::protocol
 event     ↛ session（CommitHandler 由 agent 注入，可调用 session::commit_from_event）
+event derive → AgentEventRecorder::append
+FileAgentEventRecorder → FileWriter → filesystem（当前临时适配器，未来归 agent 组合根）
 
 loop      → EventDispatcher::emit
 agent     → 构建 PipelineRegistry
@@ -230,6 +242,8 @@ cli       → bus 或 tail runs/*.jsonl
 3. dispatch 同步有序；不依赖 bus 完成 commit
 4. derive 不写回 Session Item Log
 5. 当前 `RunEvent` 是内核内部协议；增加必需上下文字段时，必须同步更新 dispatch、derive、commit 和结构测试。持久化 Agent Event / Session Item schema 的变更另行版本化。
+6. derive 不依赖文件格式策略；文件大小限制、截断和恢复只由 `FileAgentEventRecorder` 实现。
+7. `FileWriter` 不依赖任何 Agent Event 类型，只提供路径级文本行读写。
 
 ---
 
@@ -264,6 +278,7 @@ cli       → bus 或 tail runs/*.jsonl
 | **R1** | RunEvent + TraceContext + EventDispatcher + 内存 observer 单测 |
 | **R2** | derive + channel 映射 |
 | **R3** | session commit_from_event + agent-core observer 落盘接线；生产 agent 装配待 agent crate 建立 |
+| **R3-F1** | `AgentEventRecorder` port；文件 recorder 集中处理 JSONL 截断、seq/turn 恢复与追加；未来迁移具体适配器 |
 | **R4** | bus + sidecar bridge |
 
 ---
@@ -274,4 +289,6 @@ cli       → bus 或 tail runs/*.jsonl
 - hook Block 跳过 commit
 - observe 顺序与 fail-open
 - derive channel/kind 映射表
+- derive handler 原样转交 record，不执行文件截断
+- file recorder 的 64 KiB 行限制、identity 校验与 seq/turn 恢复
 - emit 顺序守门（与 loop 契约文档一致）
