@@ -1,7 +1,7 @@
 # session — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** 已定稿（2026-08-15）；实现未开始。
+> **状态：** 已定稿（2026-08-15）；R1–R3 已实现，测试通过。
 > **关联：** [`DESIGN.md`](../event/DESIGN.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---

@@ -85,6 +85,8 @@ fn test_dispatcher(
     EventDispatcher::new(registry, TraceContext::new("run-1", "session-1"))
 }
 
+// 场景：可提交的 RunEvent 进入 dispatcher。
+// 预期：commit handler 执行一次并回填 session item id；不变量：先 commit 再 observe。
 #[test]
 fn committable_event_triggers_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
@@ -104,6 +106,8 @@ fn committable_event_triggers_commit() {
     );
 }
 
+// 场景：观测类 RunEvent 进入 dispatcher。
+// 预期：不会调用 commit handler，也不会产生 session item id。
 #[test]
 fn observational_event_skips_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
@@ -117,6 +121,8 @@ fn observational_event_skips_commit() {
     assert!(dispatcher.trace().session_item_id.is_none());
 }
 
+// 场景：hook 阻断可提交事件。
+// 预期：emit 成功返回但跳过 commit；不变量：被阻断事件不得写 Session。
 #[test]
 fn hook_block_skips_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
@@ -137,6 +143,8 @@ fn hook_block_skips_commit() {
     assert!(dispatcher.trace().session_item_id.is_none());
 }
 
+// 场景：第一个 observer 返回错误，后续 observer 仍可运行。
+// 预期：observe fail-open；不变量：观测错误不阻断 dispatcher。
 #[test]
 fn observe_fail_open_continues_dispatch() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
@@ -159,6 +167,8 @@ fn observe_fail_open_continues_dispatch() {
     assert!(matches!(events[0], RunEvent::TurnStarted { turn: 2 }));
 }
 
+// 场景：可提交事件同时配置 commit 和 observer。
+// 预期：observer 在 commit 之后收到事件；不变量：commit 顺序稳定。
 #[test]
 fn committable_runs_observe_after_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
@@ -190,6 +200,8 @@ fn test_ctx() -> TraceContext {
     TraceContext::new("run-derive", "session-derive")
 }
 
+// 场景：用户消息事件派生为 conversation/user_prompt。
+// 预期：channel、kind、phase 和 payload 保持事件语义。
 #[test]
 fn derive_user_prompt_committed_maps_conversation() {
     let ctx = test_ctx();
@@ -211,6 +223,8 @@ fn derive_user_prompt_committed_maps_conversation() {
     assert_eq!(record.preview.as_deref(), Some("hello world"));
 }
 
+// 场景：turn 开始与结束事件进行 trace 派生。
+// 预期：两者映射到 trace channel，结束事件使用 stop phase。
 #[test]
 fn derive_turn_lifecycle_maps_trace() {
     let ctx = test_ctx();
@@ -227,6 +241,8 @@ fn derive_turn_lifecycle_maps_trace() {
     assert_eq!(ended.phase, AgentPhase::Stop);
 }
 
+// 场景：同一个 LLM call 的开始与结束事件进行派生。
+// 预期：保留 call id、状态和 usage；不变量：仍属于 trace channel。
 #[test]
 fn derive_llm_call_started_and_ended_maps_trace() {
     let ctx = test_ctx();
@@ -265,6 +281,8 @@ fn derive_llm_call_started_and_ended_maps_trace() {
     assert_eq!(ended.payload["usage"]["input_tokens"], 10);
 }
 
+// 场景：流式 snapshot 只有 pending text，没有最终 content。
+// 预期：派生为 assistant_text，并保留正文和字符数。
 #[test]
 fn derive_message_update_pending_text_maps_assistant_text() {
     let ctx = test_ctx();
@@ -293,6 +311,8 @@ fn derive_message_update_pending_text_maps_assistant_text() {
     assert_eq!(record.payload["charCount"], 7);
 }
 
+// 场景：assistant 最终消息包含 text 与 thinking blocks。
+// 预期：派生为 conversation/final，正文来自最终 text block。
 #[test]
 fn derive_assistant_finalized_maps_conversation_final() {
     let ctx = test_ctx();
@@ -317,6 +337,8 @@ fn derive_assistant_finalized_maps_conversation_final() {
     assert_eq!(record.payload["text"], "hello");
 }
 
+// 场景：Agent Event payload 达到 64 KiB 边界。
+// 预期：记录被截断且序列化后不超过上限；不变量：保留 original_bytes。
 #[test]
 fn truncate_record_enforces_64kib_limit() {
     let huge = "x".repeat(MAX_AGENT_EVENT_BYTES);
@@ -375,6 +397,8 @@ fn read_agent_event_lines(path: &PathBuf) -> Vec<serde_json::Value> {
         .collect()
 }
 
+// 场景：生产 dispatcher 提交用户输入并写 Agent Event Log。
+// 预期：Session Item Log 与观测 JSONL 各产生一条对应事实。
 #[test]
 fn integration_user_prompt_commits_session_and_writes_agent_event() {
     let root = TempDir::new().expect("tempdir");
@@ -409,6 +433,8 @@ fn integration_user_prompt_commits_session_and_writes_agent_event() {
     assert_eq!(lines[0]["payload"]["text"], "hello integration");
 }
 
+// 场景：生产 dispatcher 提交 assistant finalized 事件。
+// 预期：Session 保存 AssistantMessage，观测日志保存 conversation/final。
 #[test]
 fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
     let root = TempDir::new().expect("tempdir");
@@ -446,6 +472,8 @@ fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
     assert_eq!(lines[0]["payload"]["text"], "final answer");
 }
 
+// 场景：生产 hook 阻断用户输入事件。
+// 预期：Session 与 Agent Event Log 都不写入；不变量：阻断不产生副作用。
 #[test]
 fn integration_hook_block_skips_commit_and_agent_event_write() {
     let root = TempDir::new().expect("tempdir");

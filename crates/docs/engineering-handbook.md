@@ -101,16 +101,26 @@ scheduler ──────────► llm + tools
 - 模块内部项不加 `pub`；crate 内共享使用 `pub(crate)`；跨 crate 才公开；
 - 不用 trait 表达单实现或未来可能扩展的结构。
 
-### 3.1 两个 trait 纪律
+### 3.1 Trait 使用纪律
 
-内核只保留两个确定存在多实现的 trait：
+Trait 的约束是“是否形成清晰的实现边界”，不是数量上限。只有满足至少一个条件时才引入 trait：
+
+- 存在多个独立实现或运行时替换需求；
+- 需要把实现 owner 与调用方隔离；
+- 需要稳定的测试替身或动态装配 seam；
+- trait 的方法集合可以用一句话描述且保持窄小。
+
+不要为单实现的本地逻辑、数据容器或“未来可能扩展”提前抽象。trait 的数量本身不是架构质量指标。
 
 | Trait | 用途 | 实现来源 |
 |-------|------|----------|
 | `LLMProvider` | 流式模型调用边界 | 云端 provider / 本地 daemon |
 | `ToolExecutor` | 单个工具真实副作用边界 | 内置工具 / sidecar adapter |
+| `HookHandler` | event 提交前的阻断 callback | permission / run hook |
+| `CommitHandler` | 将 committable RunEvent 写入事实源 | session adapter |
+| `ObserveHandler` | 派生 Agent Event Log 或观测输出 | event observer / sidecar |
 
-其余能力优先使用具体类型、枚举和策略对象。不要为了“可测试”或“未来可能”增加第二套执行接口。
+这些 trait 属于不同的窄边界，不互相替代，也不应合并成一个通用 service trait。新增 trait 需要说明实现 owner、生命周期、替换理由和测试 seam。
 
 ---
 

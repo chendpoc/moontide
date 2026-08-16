@@ -23,7 +23,7 @@ cli（纯壳，只消费 AgentEvent）
   → agent（组合根：preset + 依赖注入）
 ```
 
-`agent-core` 不依赖 `cli` / `agent`。`protocol` 先作 core 内类型，跨进程落地后再拆 crate。trait 只留 `LLMProvider` 与 `ToolExecutor`。
+`agent-core` 不依赖 `cli` / `agent`。`protocol` 先作 core 内类型，跨进程落地后再拆 crate。trait 按真实边界使用：`LLMProvider` / `ToolExecutor` 是核心能力端口，event pipeline 等独立实现边界也可使用窄 trait；禁止为未来可能性提前抽象。
 
 ```text
 agent-core/

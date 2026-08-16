@@ -10,6 +10,8 @@ fn sessions_dir(root: &TempDir) -> PathBuf {
     root.path().join("sessions")
 }
 
+// 场景：创建 session 后写入多类 SessionItem，再重新加载。
+// 预期：header、顺序、身份和 payload 往返一致；不变量：seq 连续。
 #[test]
 fn create_commit_load_round_trip() {
     let root = TempDir::new().expect("tempdir");
@@ -68,6 +70,8 @@ fn create_commit_load_round_trip() {
     }
 }
 
+// 场景：首次提交一条 SessionItem。
+// 预期：store 分配 id、seq、at 和 session_id，不接受调用方自填。
 #[test]
 fn commit_assigns_id_seq_at() {
     let root = TempDir::new().expect("tempdir");
@@ -88,6 +92,8 @@ fn commit_assigns_id_seq_at() {
     assert_eq!(item.base().session_id, session_id);
 }
 
+// 场景：AssistantMessage 包含 ToolUse block。
+// 预期：提交被拒绝；不变量：tool invocation 独立存为 SessionItem。
 #[test]
 fn assistant_with_tool_block_rejected() {
     let root = TempDir::new().expect("tempdir");
@@ -110,6 +116,8 @@ fn assistant_with_tool_block_rejected() {
         .contains("assistant message blocks must not contain tool blocks"));
 }
 
+// 场景：从磁盘加载 seq 不连续的 Session Item Log。
+// 预期：load 返回错误，不静默修复事实源。
 #[test]
 fn load_rejects_seq_gap() {
     let root = TempDir::new().expect("tempdir");
@@ -145,6 +153,8 @@ fn load_rejects_seq_gap() {
     }
 }
 
+// 场景：提交 turn 小于当前最后一条 item 的 draft。
+// 预期：校验失败；不变量：Session Item Log 的 turn 单调不下降。
 #[test]
 fn turn_cannot_decrease() {
     let root = TempDir::new().expect("tempdir");
@@ -168,6 +178,8 @@ fn turn_cannot_decrease() {
     assert!(err.to_string().contains("turn cannot decrease"));
 }
 
+// 场景：SessionItem 经过 serde 序列化后再反序列化。
+// 预期：kind、base 和 payload 保持一致；不变量：协议可往返。
 #[test]
 fn session_item_serde_round_trip() {
     use crate::session::{SessionHeader, SessionItem};
@@ -208,6 +220,8 @@ fn session_item_serde_round_trip() {
     assert_eq!(header, header_back);
 }
 
+// 场景：fork 边界不是所在 turn 的最后一条 item。
+// 预期：fork 被拒绝，不创建错误的子 session。
 #[test]
 fn fork_rejects_non_turn_boundary() {
     let root = TempDir::new().expect("tempdir");
@@ -243,6 +257,8 @@ fn fork_rejects_non_turn_boundary() {
     }
 }
 
+// 场景：在合法 turn 边界 fork，并重新加载子 session。
+// 预期：父子关系、seed_len 和 item 顺序可恢复；不变量：子 log seq 连续。
 #[test]
 fn fork_round_trip_load() {
     let root = TempDir::new().expect("tempdir");
@@ -304,6 +320,8 @@ fn fork_round_trip_load() {
     assert_eq!(loaded.items(), child.items());
 }
 
+// 场景：提交 compaction 与 checkpoint 后重新加载 session。
+// 预期：两类控制 item 保持字段和顺序；不变量：事实源只 append、不改历史。
 #[test]
 fn compaction_and_checkpoint_commit_load() {
     use crate::session::{SessionItem, SessionItemBase};
@@ -401,6 +419,8 @@ fn compaction_and_checkpoint_commit_load() {
     }
 }
 
+// 场景：把全部 committable RunEvent 映射到 SessionItem。
+// 预期：每类事件写入对应 item；不变量：非 committable 事件不进入 commit。
 #[test]
 fn commit_from_event_maps_committable_run_events() {
     use crate::event::{RunCompactionKind, RunEvent};
@@ -518,6 +538,8 @@ fn commit_from_event_maps_committable_run_events() {
     assert_eq!(store.items().len(), 5);
 }
 
+// 场景：向 commit_from_event 传入 observational RunEvent。
+// 预期：返回错误且不写 Session Item Log。
 #[test]
 fn commit_from_event_rejects_non_committable() {
     use crate::event::RunEvent;

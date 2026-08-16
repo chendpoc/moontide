@@ -9,7 +9,7 @@
 1. **不依赖归档的 TypeScript draft 代码**（`packages/` 快照只作历史设计参考，Rust `agent-core` 以当前模块契约和实现为准）。
 2. **按依赖顺序逐模块推进**：每个模块走「写设计文档 → 实现 → 单测通过 → 下一个」循环，不先写完 9 份再写代码。
 3. **文档放模块源码目录**：`crates/agent-core/src/{mod}/README.md`（**对外使用说明**）+ `DESIGN.md`（**实现技术方案**）；可选 `TASKS.md`（分批实现）。
-4. **trait 只留给两个**：`LLMProvider`、`ToolExecutor`；其余模块用具体类型 + 策略模式，不上 trait（对齐 agent-kernel-architecture §6 纪律）。
+4. **按边界使用 trait**：`LLMProvider`、`ToolExecutor` 是核心能力端口；event pipeline 等需要独立实现的窄边界也可使用 trait。禁止为未来可能性或单实现逻辑提前抽象。
 
 ## 1. 依赖图（推进顺序）
 
@@ -34,9 +34,10 @@
 
 ## 2. 接口边界（谁 import 谁）
 
-- **只有两个 trait**（多实现确定存在）：
+- **核心能力 trait**（确定存在多实现）：
   - `LLMProvider`：`stream(ModelRequest) -> Stream<Delta>`，实现 = cloud / 本地 daemon
   - `ToolExecutor`：`execute(ToolCall, ToolExecutionContext) -> ToolOutput`，实现 = 内置 / sidecar
+- **其他窄边界**：event pipeline 的 `HookHandler` / `CommitHandler` / `ObserveHandler` 用于 callback 解耦；不把它们扩展成领域能力或全局 service trait。
 - **其余模块是内部 mod**：高层 mod 依赖低层 mod，**低层不反向依赖高层**。
 - **唯一写者**：`session` 是 item log 唯一写者；compaction 由 `context` 计算 `CompactionPlan`、由 loop 转发给 session 执行。
 - **唯一出口**：`prompt.compile()` 是 Session → LLMRequest 的唯一出口；`context.materialize()` 是 item log → messages 的唯一出口。
@@ -53,8 +54,8 @@ session.load()
   → scheduler.admit(tool_call)             # 排队 / 串并行 / 取消
   → tools.execute_one(tool_call)           # 单次副作用
   → scheduler 处理验收 / offload / retry  # 多调用结果与 failover
-  → session.append(new_item)               # 唯一写者落盘
-  → event.publish(RunEvent)                # 广播（UI/持久化/bridge）
+  → event.emit(RunEvent)                   # hook → commit → observe
+  → session commit handler                 # 唯一写者落盘
   → loop 判定 continue / steer / stop
 ```
 

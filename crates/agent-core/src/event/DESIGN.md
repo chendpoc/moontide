@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** 已定稿（2026-08-15）；实现未开始。
+> **状态：** 已定稿（2026-08-15）；R1–R3 已实现，测试通过。
 > **关联：** [`DESIGN.md`](../session/DESIGN.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -11,7 +11,7 @@
 | 做 | 不做 |
 |----|------|
 | `RunEvent` 语义协议 | `SessionStore` 实现 |
-| `EventDispatcher::dispatch`（hook → commit → observe） | `context::compile` |
+| `EventDispatcher::emit`（hook → commit → observe） | `prompt::compile` / `context::materialize` |
 | `derive` → Agent Event Log | loop 时序编排（loop mod） |
 | `PipelineRegistry` 类型 | sidecar IPC（agent / 后置） |
 | 可选 `EventBus` broadcast | permission 策略本身（permission mod） |
@@ -109,7 +109,7 @@ emit(event):
 with_turn:
   emit TurnStarted
   emit UserPromptCommitted          → commit UserMessage
-  [context::compile]
+  [context::materialize → prompt::compile]
   with_step:                         # 可多次
     emit LlmCallStarted
     llm::run_model_call* → MessageUpdate*

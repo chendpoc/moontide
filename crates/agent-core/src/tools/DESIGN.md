@@ -46,7 +46,7 @@ tools ────────────────► serde / serde_json / a
 
 `tools` 不反向 import `loop`、`permission`、`scheduler`、`session`、`event` 或 `llm`。跨模块转换由上层完成：例如 `prompt` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `RunEvent`。
 
-`agent-core` 只保留两个 trait：`LLMProvider` 和 `ToolExecutor`。其余结构使用具体类型和策略枚举。
+`ToolExecutor` 是 tools 的唯一真实副作用 trait。其他模块是否使用 trait 由边界需要决定：必须有独立实现、动态装配或测试替身时可以使用窄 trait；单实现逻辑和未来可能性不提前抽象。
 
 ---
 
