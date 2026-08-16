@@ -1,7 +1,7 @@
 use agent_core::tools::Tool;
 use anyhow::{bail, Context, Result};
 
-use crate::grep;
+use crate::{bash, edit, find, grep, read, write};
 
 type ToolBuilder = fn() -> Result<Tool>;
 
@@ -34,8 +34,14 @@ impl ToolDefinition {
     }
 }
 
-static BUILTIN_TOOL_DEFINITIONS: &[ToolDefinition] =
-    &[ToolDefinition::new(grep::NAME, grep::build)];
+static BUILTIN_TOOL_DEFINITIONS: &[ToolDefinition] = &[
+    ToolDefinition::new(bash::NAME, bash::build),
+    ToolDefinition::new(edit::NAME, edit::build),
+    ToolDefinition::new(find::NAME, find::build),
+    ToolDefinition::new(grep::NAME, grep::build),
+    ToolDefinition::new(read::NAME, read::build),
+    ToolDefinition::new(write::NAME, write::build),
+];
 
 pub fn builtin_tool_definitions() -> &'static [ToolDefinition] {
     BUILTIN_TOOL_DEFINITIONS
