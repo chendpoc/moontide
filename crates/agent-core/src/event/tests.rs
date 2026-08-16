@@ -418,16 +418,16 @@ fn file_writer_enforces_final_line_limit() {
 }
 
 // 场景：writer 在同一 active JSONL 文件被关闭后重新打开并继续写入。
-// 预期：新 writer 从已有最大 seq 后继续；不变量：同一 run 的 seq 单调不重复。
+// 预期：新 writer 从已有最大 seq 和最后 turn 恢复后继续；不变量：同一 run 的 seq 单调不重复。
 #[test]
 fn file_writer_resumes_sequence_from_existing_file() {
     let root = TempDir::new().expect("tempdir");
     let runs_dir = root.path().join("runs");
-    let record = || AgentEventRecord {
+    let record = |turn| AgentEventRecord {
         id: "event-1".into(),
         seq: None,
         run_id: "run-seq".into(),
-        turn: 0,
+        turn,
         phase: AgentPhase::PreLlm,
         channel: AgentChannel::Trace,
         kind: "turn_started".into(),
@@ -439,11 +439,13 @@ fn file_writer_resumes_sequence_from_existing_file() {
     };
 
     let first = FileAgentEventWriter::new(&runs_dir, "run-seq").expect("first writer");
-    first.write(record()).expect("first write");
+    first.write(record(3)).expect("first write");
     drop(first);
 
     let second = FileAgentEventWriter::new(&runs_dir, "run-seq").expect("second writer");
-    second.write(record()).expect("second write");
+    assert_eq!(second.last_turn().expect("read restored turn"), Some(3));
+    second.write(record(4)).expect("second write");
+    assert_eq!(second.last_turn().expect("read current turn"), Some(4));
 
     let lines = read_agent_event_lines(second.path());
     assert_eq!(lines.len(), 2);

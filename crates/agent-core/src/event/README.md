@@ -75,7 +75,7 @@ EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 
 类型：`RunEvent`、`TraceContext`、`HookHandler`、`CommitHandler`、`ObserveHandler` — 见 [`DESIGN.md`](DESIGN.md) §7。
 
-R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventWriter`、`FileAgentEventWriter`（`{runs_dir}/{run_id}.active.jsonl`，单调 `seq`）。
+R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventWriter`、`FileAgentEventWriter`（`{runs_dir}/{run_id}.active.jsonl`）。writer 创建时扫描已有 active 文件，校验 `runId` 并恢复 `seq` 与最后 `turn`，追加后保持 `seq` 单调。
 
 ---
 
