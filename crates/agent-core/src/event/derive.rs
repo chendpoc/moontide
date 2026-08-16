@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -5,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     llm::protocol::{ContentBlock, PendingBlock},
-    tools::ToolContent,
+    tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus},
 };
 
 use super::run_event::RunEvent;
@@ -52,9 +53,45 @@ pub struct AgentEventRecord {
     pub original_bytes: Option<u64>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolCallTracePayload<'a> {
+    tool_name: &'a str,
+    tool_use_id: &'a str,
+    char_count: usize,
+    input: &'a Value,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolUseUpdateTracePayload<'a> {
+    tool_name: &'a str,
+    tool_use_id: &'a str,
+    char_count: usize,
+    input: &'a Value,
+    llm_call_id: &'a str,
+    step: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolResultTracePayload<'a> {
+    tool_name: &'a str,
+    tool_use_id: &'a str,
+    status: &'a ToolResultStatus,
+    body: &'a str,
+    char_count: usize,
+}
+
+type EventMapping = (u64, AgentPhase, AgentChannel, String, Value, Option<String>);
+
 /// Maps a `RunEvent` to an Agent Event Log record, or `None` when the event
-/// produces no persisted observation.
-pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentEventRecord> {
+/// produces no persisted observation. Serialization failures are returned to
+/// the observe boundary instead of being replaced with fabricated payloads.
+pub fn derive_agent_event(
+    ctx: &TraceContext,
+    event: &RunEvent,
+) -> Result<Option<AgentEventRecord>> {
     let (turn, phase, channel, kind, payload, preview) = match event {
         RunEvent::RunStarted { run_id, session_id } => (
             ctx.turn,
@@ -108,37 +145,24 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
             )
         }
         RunEvent::ToolCallRecorded { turn, call } => {
-            let input_str =
-                serde_json::to_string(call.input()).unwrap_or_else(|_| "{}".to_string());
+            let payload = tool_call_trace_payload(call)?;
             (
                 *turn,
                 AgentPhase::PostTool,
                 AgentChannel::Trace,
                 "tool_use".to_string(),
-                json!({
-                    "toolName": call.name(),
-                    "toolUseId": call.tool_use_id(),
-                    "charCount": input_str.len(),
-                    "input": call.input(),
-                }),
+                payload,
                 Some(call.name().to_owned()),
             )
         }
         RunEvent::ToolResultRecorded { turn, result } => {
-            let body = tool_result_body(result.content());
-            let char_count = body.chars().count();
+            let (payload, body) = tool_result_trace_payload(result)?;
             (
                 *turn,
                 AgentPhase::PostTool,
                 AgentChannel::Trace,
                 "tool_result".to_string(),
-                json!({
-                    "toolName": result.name(),
-                    "toolUseId": result.tool_use_id(),
-                    "status": result.status(),
-                    "body": &body,
-                    "charCount": char_count,
-                }),
+                payload,
                 Some(truncate_preview(&body, 120)),
             )
         }
@@ -183,7 +207,10 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
             step,
             llm_call_id,
             snapshot,
-        } => message_update_mapping(*turn, *step, llm_call_id, snapshot)?,
+        } => match message_update_mapping(*turn, *step, llm_call_id, snapshot)? {
+            Some(mapping) => mapping,
+            None => return Ok(None),
+        },
         RunEvent::CompactionApplied {
             turn,
             compaction_kind,
@@ -233,7 +260,7 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
         ),
     };
 
-    Some(AgentEventRecord {
+    Ok(Some(AgentEventRecord {
         id: Uuid::new_v4().to_string(),
         seq: None,
         run_id: ctx.run_id.clone(),
@@ -246,7 +273,7 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
         preview,
         truncated: None,
         original_bytes: None,
-    })
+    }))
 }
 
 fn message_update_mapping(
@@ -254,9 +281,9 @@ fn message_update_mapping(
     step: u32,
     llm_call_id: &str,
     snapshot: &crate::llm::protocol::ModelResponseSnapshot,
-) -> Option<(u64, AgentPhase, AgentChannel, String, Value, Option<String>)> {
+) -> Result<Option<EventMapping>> {
     if let Some(pending) = &snapshot.pending {
-        return Some(match pending {
+        let mapping = match pending {
             PendingBlock::Text { text } => (
                 turn,
                 AgentPhase::PostLlm,
@@ -280,59 +307,70 @@ fn message_update_mapping(
             } => {
                 let input = serde_json::from_str(input_json)
                     .unwrap_or_else(|_| Value::String(input_json.clone()));
+                let payload = serde_json::to_value(ToolUseUpdateTracePayload {
+                    tool_name: name,
+                    tool_use_id: id,
+                    char_count: input_json.chars().count(),
+                    input: &input,
+                    llm_call_id,
+                    step,
+                })
+                .context("serialize pending tool use update payload")?;
                 (
                     turn,
                     AgentPhase::PostLlm,
                     AgentChannel::Trace,
-                    "tool_use".to_string(),
-                    json!({
-                        "toolName": name,
-                        "toolUseId": id,
-                        "charCount": input_json.len(),
-                        "input": input,
-                        "llmCallId": llm_call_id,
-                        "step": step,
-                    }),
+                    "tool_use_update".to_string(),
+                    payload,
                     Some(name.clone()),
                 )
             }
-        });
+        };
+        return Ok(Some(mapping));
     }
 
-    let last = snapshot.content.last()?;
+    let Some(last) = snapshot.content.last() else {
+        return Ok(None);
+    };
     match last {
-        ContentBlock::Text { text } => Some((
+        ContentBlock::Text { text } => Ok(Some((
             turn,
             AgentPhase::PostLlm,
             AgentChannel::Trace,
             "assistant_text".to_string(),
             json!({ "body": text, "charCount": text.chars().count(), "llmCallId": llm_call_id, "step": step }),
             Some(truncate_preview(text, 120)),
-        )),
-        ContentBlock::Thinking { thinking } => Some((
+        ))),
+        ContentBlock::Thinking { thinking } => Ok(Some((
             turn,
             AgentPhase::PostLlm,
             AgentChannel::Trace,
             "thinking".to_string(),
             json!({ "body": thinking, "charCount": thinking.chars().count(), "llmCallId": llm_call_id, "step": step }),
             Some(truncate_preview(thinking, 120)),
-        )),
-        ContentBlock::ToolUse { id, name, input } => Some((
-            turn,
-            AgentPhase::PostLlm,
-            AgentChannel::Trace,
-            "tool_use".to_string(),
-            json!({
-                "toolName": name,
-                "toolUseId": id,
-                "charCount": serde_json::to_string(input).map(|s| s.len()).unwrap_or(0),
-                "input": input,
-                "llmCallId": llm_call_id,
-                "step": step,
-            }),
-            Some(name.clone()),
-        )),
-        ContentBlock::ToolResult { .. } => None,
+        ))),
+        ContentBlock::ToolUse { id, name, input } => {
+            let input_json = serde_json::to_string(input)
+                .context("serialize completed tool use update input")?;
+            let payload = serde_json::to_value(ToolUseUpdateTracePayload {
+                tool_name: name,
+                tool_use_id: id,
+                char_count: input_json.chars().count(),
+                input,
+                llm_call_id,
+                step,
+            })
+            .context("serialize completed tool use update payload")?;
+            Ok(Some((
+                turn,
+                AgentPhase::PostLlm,
+                AgentChannel::Trace,
+                "tool_use_update".to_string(),
+                payload,
+                Some(name.clone()),
+            )))
+        }
+        ContentBlock::ToolResult { .. } => Ok(None),
     }
 }
 
@@ -347,11 +385,36 @@ fn blocks_text(blocks: &[ContentBlock]) -> String {
         .join("")
 }
 
-fn tool_result_body(content: &ToolContent) -> String {
+fn tool_call_trace_payload(call: &ToolCall) -> Result<Value> {
+    let input_json =
+        serde_json::to_string(call.input()).context("serialize committed tool call input")?;
+    serde_json::to_value(ToolCallTracePayload {
+        tool_name: call.name(),
+        tool_use_id: call.tool_use_id(),
+        char_count: input_json.chars().count(),
+        input: call.input(),
+    })
+    .context("serialize committed tool call trace payload")
+}
+
+fn tool_result_trace_payload(result: &ToolResult) -> Result<(Value, String)> {
+    let body = tool_result_body(result.content())?;
+    let payload = serde_json::to_value(ToolResultTracePayload {
+        tool_name: result.name(),
+        tool_use_id: result.tool_use_id(),
+        status: result.status(),
+        body: &body,
+        char_count: body.chars().count(),
+    })
+    .context("serialize committed tool result trace payload")?;
+    Ok((payload, body))
+}
+
+fn tool_result_body(content: &ToolContent) -> Result<String> {
     match content {
-        ToolContent::Text(text) => text.clone(),
+        ToolContent::Text(text) => Ok(text.clone()),
         ToolContent::Json(value) => {
-            serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned())
+            serde_json::to_string(value).context("serialize tool result trace body")
         }
     }
 }

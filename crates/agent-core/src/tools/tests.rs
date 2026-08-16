@@ -525,6 +525,36 @@ fn tool_call_and_result_round_trip_without_losing_semantics() -> Result<()> {
     Ok(())
 }
 
+// 场景：Text 与 Json 的 string、null、boolean、number、array、object 载荷逐一经过 serde；预期：每种变体和 JSON 形状均无损往返且 wire tag 明确；不变量/副作用：JSON string 绝不能被反序列化成 Text。
+#[test]
+fn tool_content_tagged_serde_preserves_all_json_shapes() -> Result<()> {
+    let cases = [
+        ToolContent::Text("same".to_owned()),
+        ToolContent::Json(json!("same")),
+        ToolContent::Json(json!(null)),
+        ToolContent::Json(json!(true)),
+        ToolContent::Json(json!(42)),
+        ToolContent::Json(json!(["same"])),
+        ToolContent::Json(json!({ "value": "same" })),
+    ];
+
+    for content in cases {
+        let encoded = serde_json::to_value(&content)?;
+        let decoded: ToolContent = serde_json::from_value(encoded)?;
+        assert_eq!(decoded, content);
+    }
+
+    assert_eq!(
+        serde_json::to_value(ToolContent::Text("same".to_owned()))?,
+        json!({ "type": "text", "value": "same" })
+    );
+    assert_eq!(
+        serde_json::to_value(ToolContent::Json(json!("same")))?,
+        json!({ "type": "json", "value": "same" })
+    );
+    Ok(())
+}
+
 // 场景：ToolResultStatus 序列化用于跨 session/event 边界持久化；预期：失败与取消状态采用稳定 snake_case 外部标签；不变量/副作用：序列化不丢失 retryable 或 cancellation reason。
 #[test]
 fn tool_result_status_has_stable_serialized_shape() -> Result<()> {

@@ -53,7 +53,7 @@
 
 ### TASK-event-05: AgentEventRecord + derive_agent_event
 
-- **做什么：** `AgentEventRecord`、`AgentPhase`、`AgentChannel`；`derive_agent_event(ctx, event) -> Option<AgentEventRecord>`；RunEvent → channel/kind 映射（DESIGN §4.3 · agent-events.md）。
+- **做什么：** `AgentEventRecord`、`AgentPhase`、`AgentChannel`；`derive_agent_event(ctx, event) -> Result<Option<AgentEventRecord>>`；RunEvent → channel/kind 映射（DESIGN §4.3 · agent-events.md）。
 - **范围：** `derive.rs`、`mod.rs` re-export。
 - **完成标准：** conversation / trace / context 映射表覆盖 Committable 与 Observational 事件。
 - **状态：** ☑

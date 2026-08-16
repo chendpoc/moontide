@@ -83,7 +83,7 @@ pub enum SessionItem {
 - `ToolCall` / `ToolResult` ← `crate::tools`，serde 时 flatten，不复制字段
 - **AssistantMessage.blocks** 仅 `Text` / `Thinking`；tool 独立条目
 
-Session 只负责校验、排序和持久化 canonical call/result，不决定结果状态。当前 header version 是 v2，新写入 kind 为 `tool_call` / `tool_result`；读取 v1 时通过 serde alias 接受历史 kind，缺失 status 的结果保守映射为 `OutcomeUnknown`。仅 v1 与当前版本可读取，未知版本返回错误。
+Session 只负责校验、排序和持久化 canonical call/result，不决定结果状态。当前 header version 是 v2，新写入 kind 为 `tool_call` / `tool_result`，`ToolContent` 带显式 `{ type, value }` tag；读取 v1 时通过 serde alias 接受历史 kind，缺失 status 的结果保守映射为 `OutcomeUnknown`，历史 string content 映射为 Text、其他 JSON 形状映射为 Json。加载后的 v1 session 保持 append-only：历史行不重写，新 append 使用当前 kind/tag，读取时仅 legacy kind 走迁移；fork 创建纯 v2 子 session。仅 v1 与当前版本可读取，未知版本返回错误。
 
 ### 4.3 `SessionHeader`
 
@@ -247,7 +247,7 @@ Pi 式同文件树 fork 后置；R2 用新文件。
 | 4 | trace / turn 边界不进 Item Log |
 | 5 | loop 经 RunEvent commit，不直接 append |
 | 6 | R1 四类 item；Compaction 等 R2 |
-| 7 | v2 直接持久化 typed `ToolResult`；v1 缺失 status 按 `OutcomeUnknown` 读取 |
+| 7 | v2 直接持久化 typed `ToolResult` 并为 `ToolContent` 写显式 tag；v1 缺失 status 按 `OutcomeUnknown`、历史 content 按 JSON 形状迁移 |
 | 8 | 文件名 `.meta.json` + `.log.jsonl` |
 
 ---

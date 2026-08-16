@@ -280,6 +280,81 @@ fn load_v1_tool_items_into_canonical_call_and_result_models() {
     }
 }
 
+// 场景：加载含 JSON object 结果的 v1 session 后继续追加当前 ToolResult，再次重新加载；预期：旧行按 v1 迁移、新行按 tagged content 解码且两者顺序稳定；不变量/副作用：append-only 日志不重写历史行，v1 header 下只按 legacy kind 触发迁移。
+#[test]
+fn load_v1_append_current_tool_result_and_reload_without_content_drift() {
+    use crate::session::SessionItem;
+
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+    let meta_path = dir.join(format!("{session_id}.meta.json"));
+    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+
+    let mut meta: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&meta_path).expect("read session meta"))
+            .expect("parse session meta");
+    meta["version"] = json!(1);
+    std::fs::write(
+        &meta_path,
+        serde_json::to_string_pretty(&meta).expect("serialize v1 meta"),
+    )
+    .expect("write v1 meta");
+
+    let legacy_result = json!({
+        "kind": "tool_outcome",
+        "id": "item-legacy-result",
+        "seq": 0,
+        "session_id": session_id,
+        "turn": 1,
+        "at": "2026-08-15T12:00:00Z",
+        "tool_use_id": "tool-legacy",
+        "name": "grep",
+        "content": { "matches": 1 }
+    });
+    std::fs::write(
+        &log_path,
+        serde_json::to_string(&legacy_result).expect("serialize legacy result") + "\n",
+    )
+    .expect("write v1 log");
+
+    let mut loaded = SessionStore::load(&dir, &session_id).expect("load v1 session");
+    let call = ToolCall::new("tool-current", "grep", json!({ "pattern": "工具" }))
+        .expect("create current call");
+    loaded
+        .commit_item(SessionItemDraft::ToolResult {
+            turn: 2,
+            result: ToolResult::succeeded(&call, ToolContent::Json(json!("工具结果"))),
+        })
+        .expect("append current result");
+
+    let reloaded = SessionStore::load(&dir, &session_id).expect("reload mixed v1 session");
+    assert_eq!(reloaded.header().version, 1);
+    assert_eq!(reloaded.items().len(), 2);
+    match &reloaded.items()[0] {
+        SessionItem::ToolResult { result, .. } => {
+            assert_eq!(result.status(), &ToolResultStatus::OutcomeUnknown);
+            assert_eq!(
+                result.content(),
+                &ToolContent::Json(json!({ "matches": 1 }))
+            );
+        }
+        other => panic!("expected legacy tool result, got {other:?}"),
+    }
+    match &reloaded.items()[1] {
+        SessionItem::ToolResult { result, .. } => {
+            assert_eq!(result.status(), &ToolResultStatus::Succeeded);
+            assert_eq!(result.content(), &ToolContent::Json(json!("工具结果")));
+        }
+        other => panic!("expected current tool result, got {other:?}"),
+    }
+
+    let raw_log = std::fs::read_to_string(&log_path).expect("read mixed log");
+    assert!(raw_log.contains("\"kind\":\"tool_outcome\""));
+    assert!(raw_log.contains("\"kind\":\"tool_result\""));
+}
+
 // 场景：磁盘 header 使用既非 v1 也非当前版本的 schema；预期：load 明确拒绝未知版本；不变量/副作用：不猜测未来 schema，也不修改磁盘内容。
 #[test]
 fn load_rejects_unsupported_header_version() {

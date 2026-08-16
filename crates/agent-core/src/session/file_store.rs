@@ -129,11 +129,22 @@ impl FileSessionStore {
 }
 
 fn migrate_v1_tool_result(version: u32, value: &mut serde_json::Value) {
-    if version == 1
-        && value.get("kind").and_then(serde_json::Value::as_str) == Some("tool_outcome")
-        && value.get("status").is_none()
+    if version != 1 || value.get("kind").and_then(serde_json::Value::as_str) != Some("tool_outcome")
     {
+        return;
+    }
+
+    if value.get("status").is_none() {
         value["status"] = serde_json::Value::String("outcome_unknown".to_owned());
+    }
+
+    if let Some(content) = value.get_mut("content") {
+        let content_type = if content.is_string() { "text" } else { "json" };
+        let legacy_content = content.take();
+        *content = serde_json::json!({
+            "type": content_type,
+            "value": legacy_content,
+        });
     }
 }
 

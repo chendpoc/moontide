@@ -253,7 +253,7 @@ ToolResultStatus
 
 `retryable` 是 `ToolResultStatus::Failed` 的一部分，供 scheduler 做重试判断。`content` 是模型可见载荷；结构化 JSON 使用 `ToolContent::Json`，由 loop 映射为稳定文本。不增加第三个 output/outcome 结构。
 
-`ToolCall`、`ToolResultStatus`、`ToolContent` 与 `ToolResult` 都采用稳定 serde 表示；SessionItem 直接包装 call/result，不复制字段。
+`ToolCall`、`ToolResultStatus`、`ToolContent` 与 `ToolResult` 都采用稳定 serde 表示；SessionItem 直接包装 call/result，不复制字段。`ToolContent` 使用显式 adjacent tag：文本为 `{ "type": "text", "value": "..." }`，JSON 为 `{ "type": "json", "value": <任意 JSON> }`，因此 JSON string 不会在恢复时被误判为 Text。
 
 ### Schema 与校验语义
 

@@ -281,6 +281,8 @@ impl ToolResult {
 
 `ToolResultStatus` 是跨 session/event 接缝的持久化类型，使用稳定的 `serde` snake_case 表示；`Failed { retryable }` 序列化为带 `retryable` 字段的对象。`ToolCall` 与 `ToolResult` 都有稳定 serde 表示，SessionItem 直接 flatten 它们，不复制字段。
 
+`ToolContent` 使用显式 `{ "type", "value" }` adjacent tag，而不是 untagged enum。`Text("ok")` 与 `Json(json!("ok"))` 在 JSON 值层本来不可区分；省略 tag 会让 Session 往返改变 variant 和模型可见渲染。v1 读取迁移把历史 string 映射为 Text，其他 JSON 形状映射为 Json；v2 写入始终带 tag。
+
 `ToolCall` 与 `ToolResult` 是单次调用生命周期仅有的两个结构体。executor 直接返回 `ToolResult`，不再增加 output、invocation、outcome 或 event 结构重复表达同一事实。字段私有且跨 crate 只读，上层可直接将结果持久化或转换成模型的 ToolResult block。
 
 executor 使用公开的 `succeeded` / `failed` / `outcome_unknown` 构造器；loop 使用 crate 内 `with_status` 生成 `UnknownTool`、`InvalidArguments`、`Denied` 或 `Cancelled`。所有构造入口都接收原始 `ToolCall` 并复制稳定身份，不能自行指定 `tool_use_id`。`Tool::execute` 还会核验 executor 返回结果的 id/name 与允许状态集合；身份不匹配，或 executor 返回 pipeline-owned 状态，都会立即返回错误。不引入 rejection typestate；状态与调用顺序由 loop 行为测试守门。

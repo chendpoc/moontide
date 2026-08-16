@@ -56,8 +56,9 @@ Persisted events also include `summary` and `displayHint`.
 - A persisted JSONL line is at most 64 KiB.
 - Context reports omit `messageLines`, messages, system prompts, and tool
   schemas. They retain aggregate token, usage, structure, trend, and alert data.
-- A trace `tool_use` stores structured `input` once; its duplicate JSON body is
-  omitted.
+- A committed trace `tool_use` stores structured `input` once; its duplicate
+  JSON body is omitted. Streaming snapshots use `tool_use_update` and never
+  masquerade as committed calls.
 - Tool use log events store the tool name without duplicating tool input or output.
 - Runtime `AgentEvent` objects remain unchanged; size limits apply only at the
   storage boundary.
@@ -68,14 +69,29 @@ Persisted events also include `summary` and `displayHint`.
 |--------------|-------------------|
 | `conversation/user_prompt` | `{ text }` |
 | `conversation/final` | `{ text }` |
-| `trace/thinking` | `{ body, charCount }` |
-| `trace/assistant_text` | `{ body, charCount }` |
-| `trace/tool_use` | `{ toolName, toolUseId, charCount, input }` |
-| `trace/tool_result` | `{ toolName, toolUseId, body, charCount }` |
+| `trace/thinking` | `{ body, charCount, llmCallId, step }` |
+| `trace/assistant_text` | `{ body, charCount, llmCallId, step }` |
+| `trace/tool_use_update` | `{ toolName, toolUseId, charCount, input, llmCallId, step }` |
+| `trace/tool_use` | `{ toolName, toolUseId, charCount, input }`（仅已提交 `ToolCall`） |
+| `trace/tool_result` | `{ toolName, toolUseId, status, body, charCount }` |
 | `context/metrics_pre` | `{ report }` without historical message details |
 | `context/metrics_post` | `{ report }` without historical message details |
 | `context/context_compact` | compact mode and token deltas |
 | `tool_use_log/tool_use` | `{ toolName }` |
+
+`tool_use` / `tool_use_update` 的 `charCount` 是 input 序列化为紧凑 JSON 后的 Unicode 标量字符数；`tool_result.charCount` 是持久化 `body` 的 Unicode 标量字符数。对于 `ToolContent::Json`，`body` 是紧凑 JSON 文本，因此 JSON string 的引号计入字符数。
+
+`trace/tool_result.status` 使用 `ToolResultStatus` 的稳定 serde 表示：
+
+```text
+"succeeded"
+{ "failed": { "retryable": boolean } }
+"invalid_arguments"
+"unknown_tool"
+"denied"
+{ "cancelled": { "reason": "user" | "parent" | "hook" | "disposed" } }
+"outcome_unknown"
+```
 
 ## Retention and recovery
 

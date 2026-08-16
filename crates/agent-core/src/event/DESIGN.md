@@ -205,10 +205,13 @@ Registry 在 run 开始前由 `agent` 装配，run 内不可换表。
 ### 7.5 `derive`
 
 ```rust
-pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentEventRecord>;
+pub fn derive_agent_event(
+    ctx: &TraceContext,
+    event: &RunEvent,
+) -> anyhow::Result<Option<AgentEventRecord>>;
 ```
 
-映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，序列化失败显式返回 `Err`；`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
 
 ```rust
 pub trait AgentEventRecorder: Send + Sync {
@@ -216,7 +219,7 @@ pub trait AgentEventRecorder: Send + Sync {
 }
 ```
 
-tool 接缝直接持有 `crate::tools::ToolCall` / `ToolResult`。event 只负责传递、分派和 derive，不复制调用字段，也不根据 content 文本推断状态。executor 返回基础设施错误时，loop 先 dispatch `OutcomeUnknown` result 并等待 commit 成功，再向 run 边界传播原始错误；event 不自行合成 result。
+tool 接缝直接持有 `crate::tools::ToolCall` / `ToolResult`。event 只负责传递、分派和 derive，不复制领域事实，也不根据 content 文本推断状态。derive 使用私有、无行为、借用输入的 `ToolCallTracePayload` / `ToolUseUpdateTracePayload` / `ToolResultTracePayload` 固定观测 wire schema；这些类型不拥有 identity，不进入 RunEvent 或 Session，因此不是并行领域模型。`ToolCallRecorded` 映射已提交的 `trace/tool_use`，`MessageUpdate` 中未提交的流式内容映射 `trace/tool_use_update`，两者不得共用 kind。executor 返回基础设施错误时，loop 先 dispatch `OutcomeUnknown` result 并等待 commit 成功，再向 run 边界传播原始错误；event 不自行合成 result。
 
 文件创建、原始行读取和追加写入属于 `FileWriter`；记录解析、恢复、序号分配和 JSONL 编码属于 `FileAgentEventRecorder`。两者都不属于 `RunEvent` 语义派生。当前实现仍与 `agent-core` 同 crate，待组合根建立后迁移具体文件适配器。
 
@@ -247,7 +250,7 @@ cli       → bus 或 tail runs/*.jsonl
 5. 当前 `RunEvent` 是内核内部协议；增加必需上下文字段时，必须同步更新 dispatch、derive、commit 和结构测试。持久化 Agent Event / Session Item schema 的变更另行版本化。
 6. derive 不依赖文件格式策略；文件大小限制、截断和恢复只由 `FileAgentEventRecorder` 实现。
 7. `FileWriter` 不依赖任何 Agent Event 类型，只提供路径级文本行读写。
-8. tool RunEvent 直接包装 `ToolCall` / `ToolResult`，不得重新声明 tool_use_id/name/input/status/content 字段组。
+8. tool RunEvent 直接包装 `ToolCall` / `ToolResult`，不得重新声明 tool_use_id/name/input/status/content 领域字段组；derive 可使用私有、无行为的 wire DTO 固定独立观测 schema。
 
 ---
 

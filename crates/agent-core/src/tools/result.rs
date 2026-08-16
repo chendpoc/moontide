@@ -5,7 +5,7 @@ use super::ToolCall;
 
 /// Provider-neutral content returned by a tool executor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum ToolContent {
     Text(String),
     Json(Value),

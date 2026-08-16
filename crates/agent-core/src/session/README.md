@@ -75,7 +75,7 @@ impl SessionCommitHandler {
 
 **条目类型：** `UserMessage` · `AssistantMessage` · `ToolCall` · `ToolResult` · `Compaction` · `CheckpointCreated`
 
-当前写入 schema 是 v2：`SessionItem::ToolCall` flatten `tools::ToolCall`，`SessionItem::ToolResult` flatten `tools::ToolResult`，完整保留 typed status。读取 v1 时兼容旧 kind，缺失 status 的历史结果映射为 `OutcomeUnknown`，不得默认成功；未知 header version 直接拒绝。
+当前写入 schema 是 v2：`SessionItem::ToolCall` flatten `tools::ToolCall`，`SessionItem::ToolResult` flatten `tools::ToolResult`，完整保留 typed status；`ToolContent` 以显式 `{ type, value }` tag 区分 Text 与任意 JSON。读取 v1 时兼容旧 kind，缺失 status 的历史结果映射为 `OutcomeUnknown`，历史 string content 映射为 Text、其他 JSON 形状映射为 Json；加载后的 v1 session 继续 append 时保留旧行并写当前 kind/tag，读取器仅对 legacy kind 迁移，fork 则生成纯 v2 子 session。未知 header version 直接拒绝。
 
 ---
 
