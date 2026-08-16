@@ -1,3 +1,4 @@
+> **已归档：** TypeScript 时代的 LLM input 对表，仅供追溯。当前 Rust 请求组装见 [`model_input/DESIGN.md`](../../../crates/agent-core/src/model_input/DESIGN.md)。archive 内部链接可能已失效。
 
 > 说明「成熟 agent 一次 LLM 请求应包含什么」，以及 **MoonTide 当前实现** 落在哪、缺什么。
 > 行业背景见 [`context-analysis.md`](../notes/context/context-analysis.md)；Provider / API 适配层见 [`llm-provider.md`](llm-provider.md)；Session 中间态与 **Context Composer** 见 [`context-composer.md`](context-composer.md)（目标产出 **`LLMRequest`**）。

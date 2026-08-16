@@ -1,7 +1,7 @@
 
 > **文档性质：** product（方向与产品定义，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名登记见 [`vision.md`](vision.md)  
-> **关联：** [`platform-strategy.md`](platform-strategy.md) · [`edge-local-models.md`](../notes/llm/edge-local-models.md) · [`context-composer.md`](../spec/context-composer.md)
+> **关联：** [`platform-strategy.md`](platform-strategy.md) · [`edge-local-models.md`](../notes/llm/edge-local-models.md) · 历史 [`context-composer.md`](../archive/spec/context-composer.md)
 
 ---
 
@@ -230,8 +230,8 @@ flowchart LR
 | [`vision.md`](vision.md) | Spark 保留名登记；MoonTide / Buoy 组件 |
 | [`platform-strategy.md`](platform-strategy.md) | 桌面 native、sidecar、不 embed Node |
 | [`edge-local-models.md`](../notes/llm/edge-local-models.md) | L1 catalog、Local Fusion、Qwen3.5-0.8B |
-| [`context-composer.md`](../spec/context-composer.md) | spark Item 与 Session 事实源 |
-| [`llm-provider.md`](../spec/llm-provider.md) | L2 DeepSeek API 适配 |
+| [`context-composer.md`](../archive/spec/context-composer.md) | TypeScript 历史 spark Item 与 Session 方案 |
+| [`llm-provider.md`](../archive/spec/llm-provider.md) | TypeScript 历史 L2 DeepSeek API 方案 |
 | [`TODO.md`](../../TODO.md) | §2 Buoy · §15.3 Local Fusion |
 
 ---

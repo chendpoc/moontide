@@ -184,16 +184,16 @@ Infer **不要**进 WASM；沙箱 **不要**扛 GB 权重。
 | # | Kocoro 做法 | MoonTide 建议 | 关联 Spec / 模块 |
 |---|-------------|-----------|------------------|
 | 1 | Memory sidecar + daemon supervise | `moontide-memory` 独立进程；Node 只调 `memory.query` IPC | [context-backlog.md](../context/context-backlog.md)、[session-handoff.md](../session/session-handoff.md) |
-| 2 | `<private_memory>` 当 turn 注入、不落 transcript | Composer 支持 **ephemeral inject block** + Manifest 审计 | [context-composer.md](../../spec/context-composer.md) |
-| 3 | Small-tier preflight before main LLM | Model Router v2：0.8B 本地做 intent / memory intent | [edge-local-models.md](../llm/edge-local-models.md)、[llm-provider.md](../../spec/llm-provider.md) §10 |
+| 2 | `<private_memory>` 当 turn 注入、不落 transcript | Composer 支持 **ephemeral inject block** + Manifest 审计 | 历史 [context-composer.md](../../archive/spec/context-composer.md) |
+| 3 | Small-tier preflight before main LLM | Model Router v2：0.8B 本地做 intent / memory intent | [edge-local-models.md](../llm/edge-local-models.md)、历史 [llm-provider.md](../../archive/spec/llm-provider.md) §10 |
 | 4 | `runLLM` 是唯一 LLM 出口 | 已实现 seam；cloud / local-direct 都走 `LLMProvider` | [`runLLM.ts`](../../../packages/llm/src/pipeline/runLLM.ts) |
-| 5 | Tool spill 三层 budget | 对齐 tool artifact + prune；避免 `messages[]` splice 丢事实 | [context-composer.md](../../spec/context-composer.md) |
-| 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 解析一致 | [llm-input.md](../../spec/llm-input.md) |
+| 5 | Tool spill 三层 budget | 对齐 tool artifact + prune；避免 `messages[]` splice 丢事实 | 历史 [context-composer.md](../../archive/spec/context-composer.md) |
+| 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 解析一致 | 历史 [llm-input.md](../../archive/spec/llm-input.md) |
 | 7 | Daemon HTTP + SSE 本地 API | 远期：MoonTide daemon 模式（IM / 自动化），不只 REPL | [runtime-multilang.md](runtime-multilang.md) |
 | 8 | Desktop reverse RPC for TCC | Slint host UDS：审批 UI、系统 API broker | `ui/` Rust、`runtime-multilang.md` |
-| 9 | Capability token on handshake | WS/IPC 版本协商；避免 UI 与 engine 耦合 | [agent-events.md](../../spec/agent-events.md) 观测字段扩展 |
-| 10 | Interrupted turn resume + route pin | Checkpoint + Session Log；多来源 session 串行 | [context-composer.md](../../spec/context-composer.md) § Checkpoint |
-| 11 | Content-free memory audit | `memory_preflight` 式 audit：只记 outcome/count，不记 query 正文 | [agent-events.md](../../spec/agent-events.md) |
+| 9 | Capability token on handshake | WS/IPC 版本协商；避免 UI 与 engine 耦合 | 历史 [agent-events.md](../../archive/spec/agent-events.md) 观测字段扩展 |
+| 10 | Interrupted turn resume + route pin | Checkpoint + Session Log；多来源 session 串行 | 历史 [context-composer.md](../../archive/spec/context-composer.md) § Checkpoint |
+| 11 | Content-free memory audit | `memory_preflight` 式 audit：只记 outcome/count，不记 query 正文 | 历史 [agent-events.md](../../archive/spec/agent-events.md) |
 | 12 | 本地 LLM 仍走统一 provider 接口 | `local-direct` preset → Rust IPC，**不**在 loop 里绑 Ollama | [edge-local-models.md](../llm/edge-local-models.md) |
 
 ### 6.3 建议的 MoonTide 目标架构（综合 Kocoro + 前述讨论）

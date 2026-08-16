@@ -3,13 +3,13 @@
 
 产品品牌是 **MoonTide**，公司是 **OceanSpark**。技术标识：工作区 `.moontide/`、`MOONTIDE_*` 环境变量。
 
-Rust 内核架构以 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md) 为准（薄内核、MVP 四 crate、模块清单与决策清单）。产品方向见 [`docs/product/plan.md`](docs/product/plan.md)；文档索引见 [`docs/README.md`](docs/README.md)。TypeScript 初版已删除，快照在 `main`，文档在 [`docs/archive/`](docs/archive/)。
+Rust 内核架构以 [`crates/docs/agent-core.md`](crates/docs/agent-core.md) 为准（薄内核、MVP 四 crate、模块清单与边界）；工程规则见 [`crates/docs/engineering-handbook.md`](crates/docs/engineering-handbook.md)。产品方向见 [`docs/product/plan.md`](docs/product/plan.md)；TypeScript 初版文档在 [`docs/archive/`](docs/archive/)。
 
 ## 当前焦点
 
 正在重建内核 crate [`crates/agent-core`](crates/agent-core/README.md)，按依赖顺序逐模块推进。
 
-**当前模块：`tools` / `agent-tools`** — `agent-core::tools` 已完成 `ToolSpec` + frozen registry + 单次校验/执行/结果规范化；独立 [`agent-tools`](crates/agent-tools/README.md) R1 已完成静态 catalog、内建 `grep` 与独立双轴 Review。`llm`、`session` 和 `event` 已完成当前分期；初版 draft crate 已删除，不 import、不复用。
+**当前模块：`model_input`** — 设计已确认，作为 `ModelRequest` 的纯组装与唯一运行时构造出口，Rust 实现待开始。`llm`、`session`、`tools`、`event` 与 `agent-tools` 当前分期已完成；初版 draft crate 已删除，不 import、不复用。
 
 ## 目标架构（Rust）
 
@@ -29,7 +29,7 @@ agent-core/
   session/      # item log 唯一写者
   tools/        # ToolSpec + 单次调用边界
   event/        # RunEvent bus
-  prompt/       # compile 唯一出口
+  model_input/  # ModelRequest 的 compile 唯一出口
   context/      # materialize + compaction
   loop/         # turn 状态机 + ToolPermissionMap 查表
   scheduler/    # 后置：分诊 / fan-out / delegate
@@ -48,10 +48,11 @@ moontide/
 ├── crates/
 │   ├── agent-core/             # 内核运行时契约
 │   ├── agent-tools/            # 第一方 catalog 与 builtin
-│   └── docs/                   # Rust 工程手册
+│   └── docs/                   # Rust 工程手册与系统设计
 ├── docs/
-│   ├── spec/                   # 当前契约
-│   └── notes/runtime/          # 内核架构与迁移
+│   ├── spec/                   # 候选系统规格与 draft
+│   ├── notes/                  # 调研与候选设计
+│   └── archive/                # TypeScript 历史文档
 ├── Cargo.toml
 └── justfile
 ```

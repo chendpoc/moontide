@@ -19,7 +19,7 @@
 4. 校验一次 `ToolCall` 的输入；
 5. 通过唯一 `ToolExecutor` trait 执行真实副作用；
 6. 让 executor 直接返回带状态的 `ToolResult`；
-7. 为 `prompt`、`loop`、`scheduler` 提供明确接缝。
+7. 为 `model_input`、`loop`、`scheduler` 提供明确接缝。
 
 ### 1.2 明确不做
 
@@ -30,21 +30,21 @@
 | 取消树、重试、模型 offload/failover 验收 | `scheduler` / `loop` |
 | Session Item Log 写入 | `event` commit → `session` |
 | Agent Event Log、UI、telemetry | `event` / `cli` |
-| prompt 文本组装 | `prompt` |
+| ModelRequest 组装 | `model_input` |
 | LLM wire 协议和 provider | `llm` |
 | sidecar IPC | `agent` / 后置 runtime |
 
 ### 1.3 依赖方向
 
 ```text
-prompt ───────────────► tools（读取 ToolSpec）
+model_input ──────────► tools（读取 ToolSpec）
 scheduler ────────────► tools（读取调用/结果契约，调用单次入口）
 loop ─────────────────► tools + llm + event
 agent-tools ──────────► tools（实现第一方 executor，构造 Tool）
 tools ────────────────► serde / serde_json / anyhow / std
 ```
 
-`tools` 不反向 import `loop`、`scheduler`、`session`、`event`、`llm` 或 `agent-tools`。跨模块转换由上层完成：例如 `prompt` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `RunEvent`。`agent-tools` 是相邻的第一方实现库，不是内核 mod；其 `ToolDefinition` 只保存静态 name 与零参数 build function，`build()` 返回已绑定 spec/executor 的 `Tool`，不复制第二套 runtime registry。
+`tools` 不反向 import `loop`、`scheduler`、`session`、`event`、`llm` 或 `agent-tools`。跨模块转换由上层完成：例如 `model_input` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `RunEvent`。`agent-tools` 是相邻的第一方实现库，不是内核 mod；其 `ToolDefinition` 只保存静态 name 与零参数 build function，`build()` 返回已绑定 spec/executor 的 `Tool`，不复制第二套 runtime registry。
 
 `ToolExecutor` 是 tools 的唯一真实副作用 trait。其他模块是否使用 trait 由边界需要决定：必须有独立实现、动态装配或测试替身时可以使用窄 trait；单实现逻辑和未来可能性不提前抽象。
 
@@ -141,7 +141,7 @@ agent 按 preset 选择 agent-tools definitions
 要求：
 
 1. frozen snapshot 在一个 LLM step 内不可变；
-2. 迭代顺序稳定，prompt 和测试不依赖 HashMap 顺序；
+2. 迭代顺序稳定，model input compilation 和测试不依赖 HashMap 顺序；
 3. lookup、schema 暴露和执行器绑定来自同一 `Tool`；
 4. 动态/MCP 工具变化从下一 step 的新 snapshot 生效；
 5. 每个 input schema 在 registry 构造时编译一次，调用时复用缓存的 validator；
@@ -349,13 +349,13 @@ Tool::execute:
 `tools` 不持有 provider，也不认识厂商 wire protocol。
 
 ```text
-ToolSpec ──prompt.compile──► llm::protocol::ToolSchema
+ToolSpec ──model_input::compile──► llm::protocol::ToolSchema
 ToolResult ──loop 映射──────► llm::protocol::ContentBlock::ToolResult
 ```
 
 当前 `llm::protocol::ToolSchema` 只有 name、description、input schema，与 tools R1 契约一致。
 
-`prompt` 只复制 canonical schema，不改写关键词。具体 LLM adapter 编码时默认透传；已确认的 provider 关键词异常可以在该编码路径中做最小转换，但不反向改变 `ToolSpec` 或 registry validator。该兼容工作属于 R4 接缝，不进入 tools RB1。
+`model_input` 只复制 canonical schema，不改写关键词。具体 LLM adapter 编码时默认透传；已确认的 provider 关键词异常可以在该编码路径中做最小转换，但不反向改变 `ToolSpec` 或 registry validator。该兼容工作属于 R4 接缝，不进入 tools RB1。
 
 ### 6.2 与 `ToolPermissionMap`
 
@@ -407,7 +407,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 ### Registry
 
 1. 一个 frozen snapshot 内工具名唯一；
-2. prompt 暴露的 spec 与实际 executor 来自同一 `Tool`；
+2. `ModelRequest.tools` 中的 schema 与实际 executor 来自同一 `Tool`；
 3. snapshot 冻结后不能增删改；
 4. registry 迭代顺序稳定；
 5. 任一 input schema 非法时 registry 构造整体失败；
@@ -448,7 +448,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 | **R2** | frozen registry、重复注册、稳定排序、input schema 守门 |
 | **R3** | 输入校验、executor 调用、错误/未知结果规范化 |
 | **RB2** | 删除重复结果模型；SessionItem/RunEvent 直接携带 `ToolCall` / `ToolResult`；Session v2 兼容读取 v1 |
-| **R4** | 与 prompt、loop 的完整调用顺序联调 |
+| **R4** | 与 model_input、loop 的完整调用顺序联调 |
 | **后置** | scheduler 资源 claim、bounded pool、模型 offload/failover、artifact spill |
 
 每批实现前先更新本文件的类型和不变量，再由 `batch-implement` 按 review 批推进。实现阶段发现必须改变上述公开签名时，停止当前批次，先回架构对齐；不能在 TASKS 中以“必要时补充文档”代替确认。`tools` 设计不因后置 scheduler 的复杂度提前膨胀。
@@ -462,7 +462,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 - registry 冻结后不能改变，顺序稳定；
 - registry 构造后调用复用已编译 validator，不做 lazy schema 初始化；
 - registry 不暴露可变 `Tool`；
-- prompt 暴露的 spec 与 dispatch 使用同一 `Tool`；
+- `ModelRequest.tools` 中的 schema 与 dispatch 使用同一 `Tool`；
 - `ToolCall::new` 拒绝空 identity，合法 identity 的 unknown tool 仍返回可配对结果；
 - registry `resolve` 未命中返回 `None`，`ToolResult::with_status` 可表达 `UnknownTool`；完整映射顺序由 loop 集成测试守门；
 - 非法 input → `InvalidArguments`，且 executor 不被调用；

@@ -18,7 +18,7 @@ description: MoonTide 内核 Rust 化路线图与进度（8 模块依赖顺序�
 
 - 8 个模块**按依赖顺序逐模块推进**，不跳跃、不并行。
 - `LLMProvider`、`ToolExecutor` 是核心能力 trait；其他 trait 只在存在独立实现、动态装配或测试替身的真实边界时引入，不以 trait 数量作为架构指标。
-- `session` 是 item log **唯一写者**；`prompt.compile()` 和 `context.materialize()` 是**唯一出口**。
+- `session` 是 item log **唯一写者**；`model_input::compile()` 和 `context::materialize()` 是**唯一出口**。
 - **不 import、不复用** `crates/` 下旧 draft 代码（`moontide-agent` / `composer` / `llm` / `session` / `tools` / `observability` / `protocol` 等，只作设计参考）。
 - 每个模块走「架构对齐 → 落文档 → 实现 → 单测 → 更新 PROGRESS」循环，不先写完 8 份再写代码。
 
@@ -101,7 +101,7 @@ README（产品面）          DESIGN（实现面）
 
 ```
 契约层  1. llm → 2. session → 3. tools → 4. event
-装配层  5. prompt → 6. context
+装配层  5. model_input → 6. context
 编排层  7. loop
 后置    8. scheduler
 ```

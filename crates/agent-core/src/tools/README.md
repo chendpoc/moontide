@@ -61,7 +61,7 @@ Session Item Log 是恢复事实源；RunEvent 是由运行过程 derive 的观�
 
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
-| **`prompt`** | 读取冻结的 `ToolRegistry`，把 `ToolSpec` 转成 `llm::protocol::ToolSchema` | 调 executor、执行 IO |
+| **`model_input`** | 读取冻结的 `ToolRegistry`，把 `ToolSpec` 转成 `llm::protocol::ToolSchema` | 调 executor、执行 IO |
 | **`scheduler`** | 读取调用与结果契约；未来结合已确认的资源声明决定排队、串并行、取消、offload、重试 | 修改工具 schema、绕过 registry |
 | **`loop`** | 解析模型 `ToolUse`，依次完成 tools 校验、查询 `ToolPermissionMap`、tools 执行，emit RunEvent | 绕过输入校验或 permission map、直接写 session |
 | **`agent`** | 按 preset 从 `agent-tools` catalog 选择并构造 `Tool`，创建 registry 和独立 permission map | 在 loop 内临时修改注册表 |
@@ -319,12 +319,12 @@ ToolPermissionMap["apply_patch"] = Ask
 
 | 做法 | 问题 |
 |------|------|
-| handler 自己定义 schema | prompt 与执行参数可能漂移 |
+| handler 自己定义 schema | model input 与执行参数可能漂移 |
 | registry 同时做权限判断 | 能力目录和运行政策耦合，难以测试 |
 | tools 内实现多调用并发 | scheduler 无法统一取消、排队和 offload |
 | 只返回一段错误文本 | 无法恢复、重试或判断副作用是否未知 |
 | tools 直接写 Session | 破坏 `event → commit → session` 唯一写入链 |
-| 动态修改当前 step 的 registry | prompt 中的工具目录和实际执行器不一致 |
+| 动态修改当前 step 的 registry | `ModelRequest.tools` 和实际执行器不一致 |
 | 为每个工具定义独立 trait | 失去统一的执行边界，扩展成本上升 |
 
 ---
@@ -333,8 +333,9 @@ ToolPermissionMap["apply_patch"] = Ask
 
 本模块已完成 runtime contract、frozen registry、input validator 缓存、第一方 `grep`，以及 `ToolCall` / `ToolResult` 的 session/event 复用。后续按以下顺序推进：
 
-1. 在 prompt / loop 中完成 ToolUse → ToolCall、校验、permission、执行与结果回填；
-2. 为完整拒绝顺序与 executor `Err` 的 `OutcomeUnknown` 配对补端到端测试；
-3. 最后由 `scheduler` 接管多调用调度、取消和模型 offload 验收。
+1. 在 model_input 中完成 `ToolSpec` → `ToolSchema` 的稳定映射；
+2. 在 loop 中完成 ToolUse → ToolCall、校验、permission、执行与结果回填；
+3. 为完整拒绝顺序与 executor `Err` 的 `OutcomeUnknown` 配对补端到端测试；
+4. 最后由 `scheduler` 接管多调用调度、取消和模型 offload 验收。
 
 后续集成不得把 `verify/failover` 重新塞回 tools。

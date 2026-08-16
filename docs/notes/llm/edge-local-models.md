@@ -1,7 +1,7 @@
 
 > 产品讨论备忘：在用户设备部署量化小模型，处理简单任务以降低 cloud token 消耗、提升体验。  
 > **后续计划轨 8.3：** [`context-window-roadmap.md`](../context/context-window-roadmap.md) §8.3 · [`TODO.md`](../../../TODO.md) §15.3  
-> **非实现承诺** — 与 [`llm-provider.md`](../../spec/llm-provider.md) Model Router 及 [`runtime-multilang.md`](../runtime/runtime-multilang.md) 对齐的演进候选。
+> **非实现承诺** — 与归档的 [`llm-provider.md`](../../archive/spec/llm-provider.md) Model Router 方案及 [`runtime-multilang.md`](../runtime/runtime-multilang.md) 对齐的演进候选。
 
 **已定产品原则（2026-08）：**
 
@@ -10,7 +10,7 @@
 - **Download = opt-in ability** — 用户显式开启本地模型；catalog **仅 MoonTide 签名白名单**。
 - **Runtime** — Rust `moontide-infer` sidecar + direct GGUF（llama.cpp），**不用 Ollama/vLLM 套壳**。
 
-**阅读顺序：** [`llm-provider.md`](../../spec/llm-provider.md) §3.4 / §10 → [`runtime-multilang.md`](../runtime/runtime-multilang.md) §5.5 → [`kocoro-architecture.md`](../runtime/kocoro-architecture.md) §6.5。
+**阅读顺序：** 归档 [`llm-provider.md`](../../archive/spec/llm-provider.md) §3.4 / §10 → [`runtime-multilang.md`](../runtime/runtime-multilang.md) §5.5 → [`kocoro-architecture.md`](../runtime/kocoro-architecture.md) §6.5。
 
 ---
 
@@ -64,7 +64,7 @@ flowchart TB
 | 目标 | 成本/质量平衡 | **降 cloud token**；简单任务本地完成 |
 | 用户感知 | 单一 API | opt-in 下载 catalog；透明 tier 切换 |
 
-**不是：** provider upstream 竞价（见 [`llm-provider.md`](../../spec/llm-provider.md) §1 — Provider routing 非本期目标）。  
+**不是：** provider upstream 竞价（历史背景见 [`llm-provider.md`](../../archive/spec/llm-provider.md) §1）。
 **是：** 意图分类 → local 可完成则本地推理 → 否则 escalate 到 DeepSeek 等 cloud。
 
 实现依赖：`moontide/router-v1`（Cloud train → 本地下载）、Model Router 接线、usage 分账（local vs cloud token 统计）。
@@ -357,7 +357,7 @@ MOONTIDE_LOCAL_INFER=on          # ability 总开关
 
 | 文档 | 关系 |
 |------|------|
-| [`llm-provider.md`](../../spec/llm-provider.md) | Model Router、`local-direct` preset、`RoutingDecision` |
+| [`llm-provider.md`](../../archive/spec/llm-provider.md) | TypeScript 历史 Model Router、`local-direct` preset、`RoutingDecision` |
 | [`runtime-multilang.md`](../runtime/runtime-multilang.md) | Rust host、`moontide-infer` sidecar |
 | [`kocoro-architecture.md`](../runtime/kocoro-architecture.md) | bundle pull、sidecar supervise |
 | [`session-handoff.md`](../session/session-handoff.md) | memory 指针 |

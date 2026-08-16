@@ -3,7 +3,7 @@
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
 > **状态：** R1–R3 与 tools typed payload 接缝已实现；R4（async bus）未开始。
-> **关联：** [`../session/README.md`](../session/README.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md)
+> **关联：** [`../session/README.md`](../session/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
 

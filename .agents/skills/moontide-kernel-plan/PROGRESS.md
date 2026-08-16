@@ -9,7 +9,7 @@
 | 2 | `session` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + v2 call/result payload |
 | 3 | `tools` | 契约 | 无 | ☑ | ☑ | ☑ | RB1–RB2 + agent-tools R1；loop 集成归 loop 模块 |
 | 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
-| 5 | `prompt` | 装配 | tools | ◐ | ☐ | ☐ | 架构对齐中；compile 唯一出口 |
+| 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成，等待 Review；compile 唯一出口 |
 | 6 | `context` | 装配 | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 7 | `loop` | 编排 | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
 | 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
@@ -18,10 +18,13 @@
 
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
-- 当前推进：模块 5 `prompt` **架构对齐**；先确认职责、公开 API 与 tools/LLM 接缝，用户确认前不落 README/DESIGN 或实现。
+- 当前推进：模块 5 `model_input` **R1 Review**；实现、测试与 workspace 门禁已通过，等待用户 Review 后 commit。
 
 ## 变更记录
 
+- 2026-08-16：`model_input` R1 完成：`SystemPrompt`、`ModelRequestConfig`、crate-private `compile`、ToolSchema 精确映射与 3 个结构测试；crate 112 tests、workspace clippy/test 通过。
+- 2026-08-16：`model_input` 实现前 Review 收窄 `compile` 为 `pub(crate)`，补齐 invalid request pass-through 测试 case并修正 tool 校验 owner；TypeScript `docs/spec` 正文归档，当前 Rust Agent Core 系统设计迁入 `crates/docs/agent-core.md`。
+- 2026-08-16：模块 5 从 `prompt` 收敛为 `model_input`；确认 `SystemPrompt` 每 user turn 解析一次、`compile` 每 model step 纯组装 `ModelRequest`，messages shaping 与未来 manifest 归 `context`；README/DESIGN 落地。
 - 2026-08-16：`tools` RB1–RB2、`agent-tools` R1 与 event/session typed payload 接缝完成；PR [#14](https://github.com/chendpoc/moontide/pull/14)、[#15](https://github.com/chendpoc/moontide/pull/15)、[#17](https://github.com/chendpoc/moontide/pull/17) 合并，workspace 门禁与独立最终 Review 通过；下一模块转入 `prompt` 架构对齐。
 - 2026-08-16：`tools` RB2 收敛为 `ToolCall` / `ToolResult` 两个结构体；executor 直接返回 `ToolResult`，`Tool::execute` 校验身份和状态 owner；event/session 直接包装 canonical payload，Session v2 兼容读取 v1 缺失 status 为 `OutcomeUnknown`。
 - 2026-08-16：`agent-tools` R1 完成独立 crate、最小 `ToolDefinition` 静态 catalog、内建 `grep` spec/executor 与有界文件搜索测试；双轴 Review 修复结构守门、typed-input、symlink/read IO 与 max-results 停止语义后通过。

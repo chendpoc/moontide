@@ -1,3 +1,4 @@
+> **已归档：** TypeScript 时代的 LLM provider 设计，仅供追溯。当前 Rust provider 设计见 [`llm/DESIGN.md`](../../../crates/agent-core/src/llm/DESIGN.md)。archive 内部链接可能已失效。
 
 > MoonTide 如何把「选模型、接 API、发请求」从 agent loop 里拆出来。
 > LLM 一次 input 的三参数对表见 [`llm-input.md`](llm-input.md)；context 组装见 [`context-analysis.md`](../notes/context/context-analysis.md)。

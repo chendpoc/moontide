@@ -11,13 +11,13 @@
 | `crates/docs/extension-sidecar-runtime.md` | 扩展边界与 Sidecar Runtime：通信四层、隔离、runtime 成本分配（共享 runtime 默认） |
 | `crates/docs/logging-and-session-design.md` | 日志与 Session：三流分离 + session log 四不变量 + 双写原则 |
 
-## 当前契约与架构（`docs/`）
+## 当前 Rust 契约与架构
 
 | 文档 | 主题 |
 |---|---|
-| `docs/spec/agent-core.md` | 当前契约：时序唯一权威、窄钩子按签名、拒绝 context 容器、扩展不进 process |
-| `docs/spec/agent-events.md` | Agent Event Log 的 schema 与持久化边界 |
-| `docs/spec/context-composer.md` | Session / Context Composer / Compaction / Context Manifest |
+| `crates/docs/agent-core.md` | Rust Agent Core 系统设计：八模块 owner、依赖、请求组装与 conformance |
+| `crates/agent-core/src/event/DESIGN.md` | Rust Agent Event、derive、dispatcher 与 recorder 边界 |
+| `docs/archive/spec/context-composer.md` | TypeScript 历史 Context Composer，仅供追溯 |
 | `docs/notes/runtime/agent-kernel-architecture.md` | 内核架构收敛：crate 判据、多语言 trade-off、event bus、决策清单 |
 
 ## 关键设计决策速查
@@ -30,7 +30,9 @@
 6. **错误建模**：取消原因（user/parent/hook/disposed）与请求失败（可恢复/不可恢复）是两个正交枚举；steer 是独立通道。
 7. **llm 分层（2026-08-14）**：`llm/protocol/` = MoonTide 协议（block 模型）；`LLMProvider` = 唯一 trait；`AdapterFamily` = wire 协议族（与 preset 解耦）；每个 family 必须配对 `adapter/{family}/` + `normalize/{family}/`（族内 tool/thinking/stream）；跨族逻辑仅 `normalize/common.rs`；preset/路由在 `agent/`，不在 llm；首版 DeepSeek 默认 `OpenAiChatCompletions`。用法 [`llm/README.md`](../../../crates/agent-core/src/llm/README.md)；实现 [`llm/DESIGN.md`](../../../crates/agent-core/src/llm/DESIGN.md)。
 8. **llm 流式消费（2026-08-15）**：`ModelStreamEvent`（含 `block_index`）由 adapter 产出；`ModelResponseBuilder` 唯一 fold → `ModelResponseSnapshot`（含 `pending`）/ `ModelResponse`；loop 经 `run_model_call*`（禁止直接 match 事件）；`Finished` 非全文 Completed；lifecycle 归 `RunEvent`。
-8. **实现子流程**：README ☑ → [`batch-implement`](batch-implement/SKILL.md)——Review 批合并交付；GitHub stacked PR：`r1→base`，`r{n≥2}→r{n−1}`，R{n−1} merge 后 rebase 改 base；模块完成 `base→main`。
+9. **实现子流程**：README ☑ → [`batch-implement`](batch-implement/SKILL.md)——Review 批合并交付；GitHub stacked PR：`r1→base`，`r{n≥2}→r{n−1}`，R{n−1} merge 后 rebase 改 base；模块完成 `base→main`。
+
+> model_input 最终设计（2026-08-16）：模块名从 `prompt` 收敛为 `model_input`，作为 `ModelRequest` 唯一运行时构造出口；公开 `SystemPrompt`、`ModelRequestConfig` 与 infallible `compile(config, system_prompt, messages, tool_registry)`。`SystemPrompt` 由 `agent` 每 user turn 解析一次并在 turn 内稳定；`compile` 每 model step 调用。messages 由 `context::materialize` 原样交付，compaction/prune/retrieval/manifest 归 context；tool schemas 从冻结 registry 稳定、精确映射；provider 兼容和请求 preflight 仍归 llm。
 
 > tools 最终设计（2026-08-16）：公开类型使用构造器与只读访问器；registry 构造即冻结、稳定排序并编译缓存 input validator，非法 schema 阻止整个 registry；使用关闭 default features 的 `jsonschema` 0.49，固定 Draft 2020-12 并禁用 HTTP/file resolver；registry 仅以 crate 内部 `validate_input(tool, call) -> Result<(), String>` 暴露预期参数错误，`Tool::execute` 隐藏 executor、直接返回 `ToolResult`，并校验结果 identity 与 executor 可拥有的 status。执行前只保留 input validation 与 permission check，不引入阶段型 call、ToolAdmission 或 scheduler admission；R1 只保留 `input_schema`，`output_schema` 后置；tools 保留 canonical schema，LLM adapter 默认透传且只对已确认关键词异常做小型显式转换。调用生命周期只使用 `ToolCall` / `ToolResult` 两个结构体；不存在 `ToolOutput` / invocation / outcome 中间模型。结果载荷为带显式 serde tag 的 `ToolContent::Text | Json`；executor 使用 `succeeded` / `failed` / `outcome_unknown` 构造结果，loop 通过 crate 内 `with_status` 生成 pipeline-owned 状态。基础设施错误走 `anyhow::Result`，loop 先提交 `OutcomeUnknown` 配对结果再传播原错误。executor 只读借用 `&ToolCall` 并显式接收 `working_dir: &Path`；run/session/turn 身份留在高层。permission 不进入 `ToolSpec`，组合根维护 `ToolPermissionMap<tool_name, Allow | Ask>`，完整拒绝顺序归 loop 集成测试；scheduler 的资源、并发、重试和 offload/failover 仍在后置模块。
 

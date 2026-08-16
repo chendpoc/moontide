@@ -1,6 +1,6 @@
 
 > 产品讨论备忘：对话内容是否有价值共享给其他 agent、如何处理、业界为何未将其做成一等 feature。  
-> **非实现承诺** — 与 [`context-composer.md`](../../spec/context-composer.md) 主路径对齐的演进候选。
+> **非实现承诺** — 与归档的 [`context-composer.md`](../../archive/spec/context-composer.md) 方案对齐的演进候选。
 
 ---
 
@@ -75,7 +75,7 @@
 
 ### 4.2 L0/L1：Session 作为可共享资产（中期）
 
-与 [`context-composer.md`](../../spec/context-composer.md) 架构一致：
+与归档的 [`context-composer.md`](../../archive/spec/context-composer.md) 方案一致：
 
 | 组件 | 路径 / 职责 |
 |------|-------------|
@@ -96,7 +96,7 @@ flowchart LR
 
 另一个 agent 读的不是「原始 chat」，而是 **针对它编译过的 LLMRequest + Context Manifest**。
 
-MoonTide `StructuredPayload` 已预留 handoff 相关字段（[`context-composer.md` §6.3](../../spec/context-composer.md#63-compaction-record)）：
+TypeScript 时代 `StructuredPayload` 曾预留 handoff 相关字段（[`context-composer.md` §6.3](../../archive/spec/context-composer.md#63-compaction-record)）：
 
 ```typescript
 export interface StructuredPayload {
@@ -251,7 +251,7 @@ Multi-agent 工作流未成为主流前，friction 不足以驱动平台投入�
 
 | 文档 | 关系 |
 |------|------|
-| [`context-composer.md`](../../spec/context-composer.md) | Session Event Log、Compaction Record、Checkpoint、Composer 编译 — handoff 的实现基础 |
+| [`context-composer.md`](../../archive/spec/context-composer.md) | TypeScript 历史 Session、Compaction、Checkpoint 与 Composer 方案 |
 | [`context-analysis.md`](../context/context-analysis.md) | 竞品 resume / compaction / subagent 对比 |
 | [`context-backlog.md`](../context/context-backlog.md) | 演进特性排期；handoff 可作为 Backlog 独立 feature |
 | [`vision.md`](../../product/vision.md) | Zephyr = 跨产品迁移远期方向 |

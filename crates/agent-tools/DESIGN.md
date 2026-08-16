@@ -105,7 +105,7 @@ if tool.spec().name() != definition.name:
 return tool
 ```
 
-这个检查避免 catalog 按 `grep` 被选择，实际却把另一个 name 放进 registry。错误发生在组合根启动阶段，不延迟到 prompt/dispatch 漂移后。
+这个检查避免 catalog 按 `grep` 被选择，实际却把另一个 name 放进 registry。错误发生在组合根启动阶段，不延迟到 model-input/dispatch 漂移后。
 
 ### 3.2 静态表
 

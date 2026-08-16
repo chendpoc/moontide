@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
 > **状态：** R1–R6 已完成；48 tests。
-> **关联：** [`docs/spec/llm-provider.md`](../../../../docs/spec/llm-provider.md) · [`../../README.md`](../../README.md)
+> **关联：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`../../README.md`](../../README.md)
 
 ---
 
@@ -45,7 +45,7 @@ llm/
 ## 3. 分层与依赖
 
 ```text
-loop / context / session / prompt
+loop / context / session / model_input
     └── llm::protocol + llm::run_model_call[_with_updates]
     └── （禁止）直接 match ModelStreamEvent / 自行 fold
 

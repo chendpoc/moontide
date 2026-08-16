@@ -1,12 +1,12 @@
 # 插件设计 Agent：用户扩展需求处理链路（候选设计）
 
-> 状态：候选设计（notes），未实现。当前契约见 `../spec/`；执行优先级见根 `TODO.md` 条目 19。
+> 状态：候选设计（notes），未实现。当前 Rust 系统设计见 [`agent-core.md`](agent-core.md)；执行优先级见根 `TODO.md` 条目 19。
 
 ## 背景
 
 用户不可避免会有自己的扩展需求。与其让用户直接写扩展，不如用一条受控的处理链路，由 agent 判断「要不要做扩展、怎么做」，最终产出功能插件实现或替代方案文档。
 
-这里的 extension 指 MoonTide 的自主扩展设计：**MCP 进程 JSON-RPC + sidecar hook**（扩展不进 process；见 `docs/spec/agent-core.md` §12、§15）。
+这里的 extension 指 MoonTide 的自主扩展候选：**MCP 进程 JSON-RPC + sidecar hook**（历史背景见 `docs/archive/spec/agent-core.md` §12、§15；尚未进入当前 Rust 契约）。
 
 ## 结论
 

@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
 > **状态：** 已定稿（2026-08-15）；R1–R3 与 Session v2 tool payload 迁移已实现，测试通过。
-> **关联：** [`DESIGN.md`](../event/DESIGN.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
+> **关联：** [`DESIGN.md`](../event/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
 
@@ -13,7 +13,7 @@
 | 做 | 不做 |
 |----|------|
 | `create` / `load` / `commit_item` / `fork` / `items()` | `materialize`（context） |
-| 不变量校验、`id`/`seq` 分配 | `compile`（context / prompt） |
+| 不变量校验、`id`/`seq` 分配 | model-visible messages / request 组装（context / model_input） |
 | `commit_from_event`（R3） | RunEvent Pipeline 引擎（event） |
 | | turn 生命周期观测（Agent Event Log） |
 
