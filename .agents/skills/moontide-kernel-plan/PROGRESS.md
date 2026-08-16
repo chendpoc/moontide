@@ -18,10 +18,11 @@
 
 - 模块 1 `llm`：**完成**，已进 `main`。
 - 模块 2 `session` / 4 `event`：**R1–R3 完成** → review → 分批 commit。
-- 当前推进：`tools` RB1 Review 通过；下一批推进独立 `agent-tools` catalog 与首个 builtin。
+- 当前推进：`tools` RB1 Review 通过；独立 `agent-tools` R1 已完成静态 catalog、首个 builtin `grep`、质量门禁与独立双轴 Review。
 
 ## 变更记录
 
+- 2026-08-16：`agent-tools` R1 完成独立 crate、最小 `ToolDefinition` 静态 catalog、内建 `grep` spec/executor 与有界文件搜索测试；双轴 Review 修复结构守门、typed-input、symlink/read IO 与 max-results 停止语义后通过。
 - 2026-08-15：开始 `tools` 架构对齐；区分工具执行结果分类与 scheduler 模型 offload 验收/failover。
 - 2026-08-16：`tools` 架构确认；落 README + DESIGN，明确单次执行边界与结果状态，offload 验收归 scheduler。
 - 2026-08-16：`tools` 设计复核：执行前收敛为 input validation → permission check，不引入阶段对象、ToolAdmission 或 scheduler admission；实现暂缓至其余接缝复核完成。

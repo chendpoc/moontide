@@ -9,7 +9,7 @@ Rust 内核架构以 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/no
 
 正在重建内核 crate [`crates/agent-core`](crates/agent-core/README.md)，按依赖顺序逐模块推进。
 
-**当前模块：`tools`** — `ToolSpec` + frozen registry + 单次校验/执行/结果规范化。设计见 [`crates/agent-core/src/tools/README.md`](crates/agent-core/src/tools/README.md)。`llm`、`session` 和 `event` 已完成当前分期；初版 draft crate 已删除，不 import、不复用。
+**当前模块：`tools` / `agent-tools`** — `agent-core::tools` 已完成 `ToolSpec` + frozen registry + 单次校验/执行/结果规范化；独立 [`agent-tools`](crates/agent-tools/README.md) R1 已完成静态 catalog、内建 `grep` 与独立双轴 Review。`llm`、`session` 和 `event` 已完成当前分期；初版 draft crate 已删除，不 import、不复用。
 
 ## 目标架构（Rust）
 
@@ -46,7 +46,9 @@ Permission 当前不是独立模块：`agent` 组合根声明 `tool_name → All
 ```
 moontide/
 ├── crates/
-│   └── agent-core/             # 内核（当前主轨）
+│   ├── agent-core/             # 内核运行时契约
+│   ├── agent-tools/            # 第一方 catalog 与 builtin
+│   └── docs/                   # Rust 工程手册
 ├── docs/
 │   ├── spec/                   # 当前契约
 │   └── notes/runtime/          # 内核架构与迁移
@@ -59,6 +61,7 @@ moontide/
 ```sh
 just check                      # fmt + clippy + workspace test
 cargo test -p agent-core
+cargo test -p agent-tools
 ```
 
 可选 git hooks：`pre-commit install` 与 `pre-commit install --hook-type pre-push`（见 [`.pre-commit-config.yaml`](.pre-commit-config.yaml)）。commit 跑 `just pre-commit`，push 跑 `just pre-push`。
