@@ -35,10 +35,12 @@ pub fn commit_from_event<'a>(
         RunEvent::ToolOutcomeRecorded {
             turn,
             tool_use_id,
+            name,
             content,
         } => SessionItemDraft::ToolOutcome {
             turn: *turn,
             tool_use_id: tool_use_id.clone(),
+            name: name.clone(),
             content: content.clone(),
         },
         RunEvent::CompactionApplied {

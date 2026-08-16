@@ -48,6 +48,7 @@ pub enum RunEvent {
     ToolOutcomeRecorded {
         turn: u64,
         tool_use_id: String,
+        name: String,
         content: ToolResultContent,
     },
 

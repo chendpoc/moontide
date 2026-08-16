@@ -48,6 +48,7 @@ pub enum SessionItem {
         #[serde(flatten)]
         base: SessionItemBase,
         tool_use_id: String,
+        name: String,
         content: ToolResultContent,
     },
     Compaction {
@@ -117,6 +118,7 @@ pub enum SessionItemDraft {
     ToolOutcome {
         turn: u64,
         tool_use_id: String,
+        name: String,
         content: ToolResultContent,
     },
     Compaction {
@@ -187,9 +189,14 @@ pub(crate) fn validate_draft(
                 anyhow::bail!("tool name must not be empty");
             }
         }
-        SessionItemDraft::ToolOutcome { tool_use_id, .. } => {
+        SessionItemDraft::ToolOutcome {
+            tool_use_id, name, ..
+        } => {
             if tool_use_id.is_empty() {
                 anyhow::bail!("tool_use_id must not be empty");
+            }
+            if name.is_empty() {
+                anyhow::bail!("tool name must not be empty");
             }
         }
         SessionItemDraft::CheckpointCreated { checkpoint_id, .. } => {
@@ -222,11 +229,13 @@ pub(crate) fn freeze_item(draft: SessionItemDraft, base: SessionItemBase) -> Ses
         },
         SessionItemDraft::ToolOutcome {
             tool_use_id,
+            name,
             content,
             ..
         } => SessionItem::ToolOutcome {
             base,
             tool_use_id,
+            name,
             content,
         },
         SessionItemDraft::Compaction {
@@ -276,11 +285,13 @@ pub(crate) fn rebase_item(item: &SessionItem, base: SessionItemBase) -> SessionI
         },
         SessionItem::ToolOutcome {
             tool_use_id,
+            name,
             content,
             ..
         } => SessionItem::ToolOutcome {
             base,
             tool_use_id: tool_use_id.clone(),
+            name: name.clone(),
             content: content.clone(),
         },
         SessionItem::Compaction {

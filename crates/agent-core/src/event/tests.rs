@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -6,9 +6,10 @@ use anyhow::{anyhow, Result};
 use tempfile::TempDir;
 
 use crate::event::{
-    derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentPhase, CommitHandler,
-    DeriveObserveHandler, EventDispatcher, FileAgentEventWriter, HookHandler, HookOutcome,
-    ObserveHandler, PipelineRegistry, RunEvent, TraceContext, MAX_AGENT_EVENT_BYTES,
+    derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentEventWriter,
+    AgentPhase, CommitHandler, DeriveObserveHandler, EventDispatcher, FileAgentEventWriter,
+    HookHandler, HookOutcome, ObserveHandler, PipelineRegistry, RunEvent, TraceContext,
+    MAX_AGENT_EVENT_BYTES,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
@@ -337,6 +338,28 @@ fn derive_assistant_finalized_maps_conversation_final() {
     assert_eq!(record.payload["text"], "hello");
 }
 
+// 场景：tool outcome 携带工具名称、调用 ID 和文本结果。
+// 预期：trace/tool_result payload 保留 toolName；不变量：观测日志可独立识别工具。
+#[test]
+fn derive_tool_outcome_includes_tool_name() {
+    let record = derive_agent_event(
+        &test_ctx(),
+        &RunEvent::ToolOutcomeRecorded {
+            turn: 1,
+            tool_use_id: "tool-1".into(),
+            name: "read_file".into(),
+            content: crate::llm::protocol::ToolResultContent::Text("ok".into()),
+        },
+    )
+    .expect("record");
+
+    assert_eq!(record.channel, AgentChannel::Trace);
+    assert_eq!(record.kind, "tool_result");
+    assert_eq!(record.payload["toolName"], "read_file");
+    assert_eq!(record.payload["toolUseId"], "tool-1");
+    assert_eq!(record.payload["body"], "ok");
+}
+
 // 场景：Agent Event payload 达到 64 KiB 边界。
 // 预期：记录被截断且序列化后不超过上限；不变量：保留 original_bytes。
 #[test]
@@ -344,7 +367,7 @@ fn truncate_record_enforces_64kib_limit() {
     let huge = "x".repeat(MAX_AGENT_EVENT_BYTES);
     let record = AgentEventRecord {
         id: "id-1".to_string(),
-        seq: None,
+        seq: Some(u64::MAX),
         run_id: "run-1".to_string(),
         turn: 1,
         phase: AgentPhase::PreLlm,
@@ -363,6 +386,69 @@ fn truncate_record_enforces_64kib_limit() {
 
     let bytes = serde_json::to_vec(&truncated).expect("serialize");
     assert!(bytes.len() <= MAX_AGENT_EVENT_BYTES);
+}
+
+// 场景：事件的 payload、preview、id 和 run_id 同时异常膨胀。
+// 预期：writer 写出的最终 JSONL 行（含换行）不超过 64 KiB；不变量：持久化边界不能被字段组合绕过。
+#[test]
+fn file_writer_enforces_final_line_limit() {
+    let root = TempDir::new().expect("tempdir");
+    let runs_dir = root.path().join("runs");
+    let writer = FileAgentEventWriter::new(&runs_dir, "run-limit").expect("writer");
+    writer
+        .write(AgentEventRecord {
+            id: "i".repeat(MAX_AGENT_EVENT_BYTES),
+            seq: None,
+            run_id: "r".repeat(MAX_AGENT_EVENT_BYTES),
+            turn: 0,
+            phase: AgentPhase::PreLlm,
+            channel: AgentChannel::Trace,
+            kind: "kind".into(),
+            ts: 1,
+            payload: serde_json::json!({"body": "x".repeat(MAX_AGENT_EVENT_BYTES)}),
+            preview: Some("p".repeat(MAX_AGENT_EVENT_BYTES)),
+            truncated: None,
+            original_bytes: None,
+        })
+        .expect("write bounded event");
+
+    let raw = std::fs::read_to_string(writer.path()).expect("read event log");
+    let line = raw.lines().next().expect("event line");
+    assert!(line.len() < MAX_AGENT_EVENT_BYTES);
+}
+
+// 场景：writer 在同一 active JSONL 文件被关闭后重新打开并继续写入。
+// 预期：新 writer 从已有最大 seq 后继续；不变量：同一 run 的 seq 单调不重复。
+#[test]
+fn file_writer_resumes_sequence_from_existing_file() {
+    let root = TempDir::new().expect("tempdir");
+    let runs_dir = root.path().join("runs");
+    let record = || AgentEventRecord {
+        id: "event-1".into(),
+        seq: None,
+        run_id: "run-seq".into(),
+        turn: 0,
+        phase: AgentPhase::PreLlm,
+        channel: AgentChannel::Trace,
+        kind: "turn_started".into(),
+        ts: 1,
+        payload: serde_json::json!({"turn": 0}),
+        preview: None,
+        truncated: None,
+        original_bytes: None,
+    };
+
+    let first = FileAgentEventWriter::new(&runs_dir, "run-seq").expect("first writer");
+    first.write(record()).expect("first write");
+    drop(first);
+
+    let second = FileAgentEventWriter::new(&runs_dir, "run-seq").expect("second writer");
+    second.write(record()).expect("second write");
+
+    let lines = read_agent_event_lines(second.path());
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["seq"], 0);
+    assert_eq!(lines[1]["seq"], 1);
 }
 
 fn integration_dirs(root: &TempDir) -> (PathBuf, PathBuf) {
@@ -389,7 +475,7 @@ fn integration_dispatcher(
     EventDispatcher::new(registry, TraceContext::new(run_id, session_id))
 }
 
-fn read_agent_event_lines(path: &PathBuf) -> Vec<serde_json::Value> {
+fn read_agent_event_lines(path: &Path) -> Vec<serde_json::Value> {
     let raw = std::fs::read_to_string(path).expect("read agent events");
     raw.lines()
         .filter(|line| !line.is_empty())

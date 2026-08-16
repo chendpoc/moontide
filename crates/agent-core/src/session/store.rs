@@ -39,7 +39,7 @@ impl SessionStore {
         let store = FileSessionStore::open(sessions_dir, session_id)?;
         let header = store.read_header()?;
         let items = store.read_items()?;
-        validate_loaded_items(&items)?;
+        validate_loaded_items(&items, &header.session_id)?;
 
         Ok(Self {
             next_seq: items.len() as u64,
@@ -141,13 +141,20 @@ fn validate_fork_boundary(items: &[SessionItem], boundary_idx: usize) -> Result<
     Ok(())
 }
 
-fn validate_loaded_items(items: &[SessionItem]) -> Result<()> {
+fn validate_loaded_items(items: &[SessionItem], session_id: &str) -> Result<()> {
     for (expected_seq, item) in items.iter().enumerate() {
         let actual_seq = item.base().seq;
         if actual_seq != expected_seq as u64 {
             anyhow::bail!(
                 "session log seq gap at line {}: expected {expected_seq}, got {actual_seq}",
                 expected_seq + 1
+            );
+        }
+        if item.base().session_id != session_id {
+            anyhow::bail!(
+                "session log session_id mismatch at line {}: expected {session_id}, got {}",
+                expected_seq + 1,
+                item.base().session_id
             );
         }
     }

@@ -47,6 +47,7 @@ fn create_commit_load_round_trip() {
         .commit_item(SessionItemDraft::ToolOutcome {
             turn: 1,
             tool_use_id: "tool-1".into(),
+            name: "read_file".into(),
             content: ToolResultContent::Text("file contents".into()),
         })
         .expect("commit outcome");
@@ -150,6 +151,43 @@ fn load_rejects_seq_gap() {
     match result {
         Err(err) => assert!(err.to_string().contains("seq gap")),
         Ok(_) => panic!("expected seq gap error"),
+    }
+}
+
+// 场景：磁盘上的 item session_id 被篡改为另一场 session 的身份。
+// 预期：load 拒绝跨 session item；不变量：Session Item Log 的每行身份必须匹配 header。
+#[test]
+fn load_rejects_item_from_another_session() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+
+    store
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 0,
+            text: "one".into(),
+        })
+        .expect("commit");
+
+    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let raw = std::fs::read_to_string(&log_path).expect("read log");
+    let mut item: serde_json::Value = serde_json::from_str(raw.trim()).expect("parse item");
+    item["session_id"] = json!("other-session");
+    std::fs::write(
+        &log_path,
+        serde_json::to_string(&item).expect("serialize item") + "\n",
+    )
+    .expect("write log");
+
+    let result = SessionStore::load(&dir, &session_id);
+    match result {
+        Err(err) => {
+            let message = err.to_string();
+            assert!(message.contains("session_id mismatch"));
+            assert!(message.contains("other-session"));
+        }
+        Ok(_) => panic!("expected session_id mismatch error"),
     }
 }
 
@@ -489,6 +527,7 @@ fn commit_from_event_maps_committable_run_events() {
         &RunEvent::ToolOutcomeRecorded {
             turn: 1,
             tool_use_id: "tool-1".into(),
+            name: "read_file".into(),
             content: ToolResultContent::Text("ok".into()),
         },
     )
@@ -496,10 +535,12 @@ fn commit_from_event_maps_committable_run_events() {
     match outcome {
         SessionItem::ToolOutcome {
             tool_use_id,
+            name,
             content,
             ..
         } => {
             assert_eq!(tool_use_id, "tool-1");
+            assert_eq!(name, "read_file");
             assert_eq!(content, &ToolResultContent::Text("ok".into()));
         }
         other => panic!("expected tool outcome, got {other:?}"),

@@ -143,7 +143,7 @@ pub enum RunEvent {
     UserPromptCommitted { turn: u64, text: String },
     AssistantFinalized { turn: u64, blocks: Vec<ContentBlock> },
     ToolInvocationRecorded { turn: u64, tool_use_id: String, name: String, input: Value },
-    ToolOutcomeRecorded { turn: u64, tool_use_id: String, content: ToolResultContent },
+    ToolOutcomeRecorded { turn: u64, tool_use_id: String, name: String, content: ToolResultContent },
 
     LlmCallStarted { turn: u64, step: u32, llm_call_id: String },
     LlmCallEnded { turn: u64, step: u32, llm_call_id: String, stop_reason: StopReason, usage: Option<Usage> },
@@ -263,7 +263,7 @@ cli       → bus 或 tail runs/*.jsonl
 |----|------|
 | **R1** | RunEvent + TraceContext + EventDispatcher + 内存 observer 单测 |
 | **R2** | derive + channel 映射 |
-| **R3** | session commit_from_event + agent wiring |
+| **R3** | session commit_from_event + agent-core observer 落盘接线；生产 agent 装配待 agent crate 建立 |
 | **R4** | bus + sidecar bridge |
 
 ---

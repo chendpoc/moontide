@@ -74,7 +74,7 @@ pub enum SessionItem {
     UserMessage      { base: SessionItemBase, text: String },
     AssistantMessage { base: SessionItemBase, blocks: Vec<ContentBlock> },
     ToolInvocation   { base: SessionItemBase, tool_use_id: String, name: String, input: Value },
-    ToolOutcome      { base: SessionItemBase, tool_use_id: String, content: ToolResultContent },
+    ToolOutcome      { base: SessionItemBase, tool_use_id: String, name: String, content: ToolResultContent },
     // R2+：Compaction · CheckpointCreated · Routing
 }
 ```

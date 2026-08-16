@@ -12,7 +12,7 @@
 |----|------|------|------|
 | **R1** | 01–04 | RunEvent + TraceContext + PipelineRegistry + EventDispatcher + dispatch 单测 | ☑ |
 | **R2** | 05–07 | derive + channel/kind 映射 + 64KiB 截断 + 映射单测 | ☑ |
-| **R3** | 08–09 | session commit_from_event + agent wiring + DeriveObserveHandler 落盘 | ☑ |
+| **R3** | 08–09 | session commit_from_event + agent-core observer 落盘接线 | ☑ |
 | **R4** | 10–11 | EventBus + sidecar bridge | ☐ |
 
 ---
@@ -79,10 +79,10 @@
 - **范围：** `session/commit.rs`（跨模块）。
 - **状态：** ☑
 
-### TASK-event-09: agent 装配
+### TASK-event-09: agent-core observer 接线
 
-- **做什么：** `PipelineRegistry` 注册 session commit + `DeriveObserveHandler` JSONL writer。
-- **范围：** `agent` crate。
+- **做什么：** 在 agent-core 的 pipeline 集成测试中注册 session commit + `DeriveObserveHandler` JSONL writer，验证端到端落盘。
+- **范围：** `event/tests.rs`；生产 `agent` crate 装配待 agent crate 建立后补齐。
 - **状态：** ☑
 
 ---
@@ -93,10 +93,10 @@
 
 - **做什么：** tokio broadcast；observe 之后 publish；失败忽略。
 - **范围：** `bus.rs`。
-- **状态：** ☑
+- **状态：** ☐
 
 ### TASK-event-11: sidecar bridge
 
 - **做什么：** bus 订阅 → Transport（后置）。
 - **范围：** `agent` / `cli`。
-- **状态：** ☑
+- **状态：** ☐
