@@ -206,7 +206,7 @@ Registry 在 run 开始前由 `agent` 装配，run 内不可换表。
 pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentEventRecord>;
 ```
 
-映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)；落盘 64KiB 截断。`FileAgentEventWriter` 创建时扫描已有 active 文件，校验 `runId`，恢复下一个 `seq` 与最后 `turn`。
+映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)；落盘 64KiB 截断。`FileAgentEventWriter` 创建时扫描已有 active 文件，校验 `runId`，恢复下一个 `seq` 与最后 `turn`；路由键 `run_id` 超过 128 bytes 时拒绝创建。
 
 ---
 
@@ -229,7 +229,7 @@ cli       → bus 或 tail runs/*.jsonl
 2. Observational 不进 commit 阶段
 3. dispatch 同步有序；不依赖 bus 完成 commit
 4. derive 不写回 Session Item Log
-5. `RunEvent` 协议只增不改
+5. 当前 `RunEvent` 是内核内部协议；增加必需上下文字段时，必须同步更新 dispatch、derive、commit 和结构测试。持久化 Agent Event / Session Item schema 的变更另行版本化。
 
 ---
 
