@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 
 use super::derive::{truncate_record, AgentEventRecord, AgentEventWriter, MAX_AGENT_EVENT_BYTES};
 
-/// Maximum byte length for a run identifier used as the active-file routing key.
-pub const MAX_AGENT_EVENT_RUN_ID_BYTES: usize = 128;
+/// Maximum byte length for a compact run identifier used as the active-file routing key.
+pub const MAX_AGENT_EVENT_RUN_ID_BYTES: usize = 20;
 
 /// Appends derived Agent Event records to `{runs_dir}/{run_id}.active.jsonl`.
 pub struct FileAgentEventWriter {
