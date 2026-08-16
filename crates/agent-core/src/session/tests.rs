@@ -280,7 +280,7 @@ fn load_v1_tool_items_into_canonical_call_and_result_models() {
     }
 }
 
-// 场景：加载含 JSON object 结果的 v1 session 后继续追加当前 ToolResult，再次重新加载；预期：旧行按 v1 迁移、新行按 tagged content 解码且两者顺序稳定；不变量/副作用：append-only 日志不重写历史行，v1 header 下只按 legacy kind 触发迁移。
+// 场景：加载含历史 ToolResultContent::Blocks 数组的 v1 session 后继续追加当前 ToolResult，再次重新加载；预期：旧数组无损迁移为 Json、新行按 tagged content 解码且两者顺序稳定；不变量/副作用：append-only 日志不重写历史行，v1 header 下只按 legacy kind 触发迁移。
 #[test]
 fn load_v1_append_current_tool_result_and_reload_without_content_drift() {
     use crate::session::SessionItem;
@@ -311,7 +311,9 @@ fn load_v1_append_current_tool_result_and_reload_without_content_drift() {
         "at": "2026-08-15T12:00:00Z",
         "tool_use_id": "tool-legacy",
         "name": "grep",
-        "content": { "matches": 1 }
+        "content": [
+            { "type": "text", "text": "legacy result" }
+        ]
     });
     std::fs::write(
         &log_path,
@@ -337,7 +339,9 @@ fn load_v1_append_current_tool_result_and_reload_without_content_drift() {
             assert_eq!(result.status(), &ToolResultStatus::OutcomeUnknown);
             assert_eq!(
                 result.content(),
-                &ToolContent::Json(json!({ "matches": 1 }))
+                &ToolContent::Json(json!([
+                    { "type": "text", "text": "legacy result" }
+                ]))
             );
         }
         other => panic!("expected legacy tool result, got {other:?}"),

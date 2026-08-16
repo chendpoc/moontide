@@ -333,7 +333,10 @@ fn derive_message_update_pending_text_maps_assistant_text() {
 // 场景：流式 snapshot 携带尚未提交的 Unicode tool input；预期：使用独立的 trace/tool_use_update schema 并按字符计数；不变量/副作用：流式观测不能冒充已提交的 ToolCall 事实。
 #[test]
 fn derive_message_update_separates_partial_tool_use_from_committed_call() {
-    let input_json = r#"{"pattern":"工具"}"#;
+    let input_json = r#"{ "pattern": "\u5de5\u5177" }"#;
+    let expected_input = serde_json::json!({ "pattern": "工具" });
+    let persisted_input =
+        serde_json::to_string(&expected_input).expect("serialize persisted input");
     let record = derive_record(
         &test_ctx(),
         &RunEvent::MessageUpdate {
@@ -360,12 +363,42 @@ fn derive_message_update_separates_partial_tool_use_from_committed_call() {
         serde_json::json!({
             "toolName": "grep",
             "toolUseId": "tool-stream-1",
-            "charCount": input_json.chars().count(),
-            "input": { "pattern": "工具" },
+            "charCount": persisted_input.chars().count(),
+            "input": expected_input,
             "llmCallId": "llm-call-1",
             "step": 2,
         })
     );
+}
+
+// 场景：流式 tool input 仍是无效 partial JSON；预期：payload 将原文持久化为 JSON string，并按该最终 string 的紧凑 JSON 表示计数；不变量/副作用：charCount 不依赖无法持久化的原始字节形状。
+#[test]
+fn derive_message_update_counts_persisted_invalid_partial_input() {
+    let input_json = r#"{"pattern":"工具""#;
+    let persisted_input = serde_json::to_string(input_json).expect("serialize persisted input");
+    let record = derive_record(
+        &test_ctx(),
+        &RunEvent::MessageUpdate {
+            turn: 1,
+            step: 2,
+            llm_call_id: "llm-call-invalid".to_owned(),
+            snapshot: ModelResponseSnapshot {
+                content: vec![],
+                pending: Some(PendingBlock::ToolUse {
+                    id: "tool-stream-invalid".to_owned(),
+                    name: "grep".to_owned(),
+                    input_json: input_json.to_owned(),
+                }),
+                stop_reason: None,
+                usage: None,
+                model: None,
+            },
+        },
+    );
+
+    assert_eq!(record.kind, "tool_use_update");
+    assert_eq!(record.payload["input"], input_json);
+    assert_eq!(record.payload["charCount"], persisted_input.chars().count());
 }
 
 // 场景：流式 snapshot 已形成完整 ToolUse block 但尚未产生 ToolCallRecorded；预期：仍使用 tool_use_update，并输出与 committed schema 区分的 llmCallId/step；不变量/副作用：snapshot 完整不等于调用事实已提交。

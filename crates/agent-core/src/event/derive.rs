@@ -307,10 +307,12 @@ fn message_update_mapping(
             } => {
                 let input = serde_json::from_str(input_json)
                     .unwrap_or_else(|_| Value::String(input_json.clone()));
+                let persisted_input = serde_json::to_string(&input)
+                    .context("serialize pending tool use update input")?;
                 let payload = serde_json::to_value(ToolUseUpdateTracePayload {
                     tool_name: name,
                     tool_use_id: id,
-                    char_count: input_json.chars().count(),
+                    char_count: persisted_input.chars().count(),
                     input: &input,
                     llm_call_id,
                     step,
