@@ -88,7 +88,7 @@ TS 时代的文档见 [`archive/`](archive/)：仅供追溯，不参与当前契
 | 路径 | 内容 |
 |------|------|
 | [`crates/agent-core/README.md`](../crates/agent-core/README.md) | 内核模块清单与推进顺序 |
-| [`crates/docs/`](../crates/docs/) | crate 级候选设计（扩展 pipeline、sidecar、分层 memory、日志与 session） |
+| [`crates/docs/`](../crates/docs/) | Rust crate 级工程手册与候选设计 |
 | [`schema/README.md`](../schema/README.md) | 跨语言契约的落点判据 |
 | [`services/README.md`](../services/README.md) | Go 后台服务边界（后置） |
 | [`node/README.md`](../node/README.md) | Node 扩展生态边界（后置） |

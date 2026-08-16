@@ -1,6 +1,6 @@
 本文件是 MoonTide **Instruction State** 来源：经 `instruction-state` 每 turn 拼进 `LLMRequest.system`。
 
-**完整工程手册**（分层详表、Conformance 范围、术语全集、示例）—— TypeScript 时代版本已归档至 [`docs/archive/guides/engineering-handbook.md`](docs/archive/guides/engineering-handbook.md)，Rust 分层与 Conformance 范围待重建；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 handbook（重建后）。
+**完整工程手册**（Rust 分层、Conformance 范围、术语全集、示例）位于 [`crates/docs/engineering-handbook.md`](crates/docs/engineering-handbook.md)。TypeScript 时代版本已归档至 [`docs/archive/guides/engineering-handbook.md`](docs/archive/guides/engineering-handbook.md)，仅供追溯；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 Rust handbook。
 
 代码库是 Rust（Cargo workspace，`crates/`）。TypeScript 初版已删除，快照在 `main` 分支，文档在 [`docs/archive/`](docs/archive/)。
 
@@ -68,7 +68,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 5. **Conformance 守门** — 注册表与边界变更须有结构测试守门（Rust 侧待重建，TS 版见 archive）；不变量写测试，热路径不加 runtime assert。
 6. **简单冗余** — 不为省行数抽泛型；相似 store 可各写一份。
 
-详表与示例：handbook §1–§6（TS 版，分层部分以上表为准）。
+详表与示例：Rust handbook §1–§7（分层部分以上表为准）。
 
 ---
 
@@ -103,7 +103,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 - REPL turn 失败：打印 ERROR 后 REPL 继续（配置类致命错误除外）
 - 排查：stderr ERROR → `/thinking on` → `.moontide/sessions/*.jsonl`
 
-详表：handbook §8（TS 版）。
+详表：Rust handbook §6–§7。
 
 ---
 
