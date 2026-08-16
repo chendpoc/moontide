@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。
 > **对外集成：** [`README.md`](README.md)。
-> **状态：** RB2 实现中；`ToolCall` / `ToolResult` 唯一建模及 session/event typed 接缝已落地。
+> **状态：** RB1–RB2 已实现并完成 Review；`ToolCall` / `ToolResult` 唯一建模及 session/event typed 接缝已完成。
 > **关联：** [`../llm/DESIGN.md`](../llm/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../../../../docs/notes/runtime/agent-kernel-architecture.md`](../../../../docs/notes/runtime/agent-kernel-architecture.md)
 
 ---

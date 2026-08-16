@@ -1,7 +1,7 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；`llm` R1–R6 完成，`session` / `event` R1–R3 完成，`tools` RB2 Review 中；其余模块按 roadmap 推进
+> **状态：** 顶层设计已定；`llm` / `session` / `tools` / `event` 完成；当前进入 `prompt` 架构对齐
 > **关联：** [`docs/notes/runtime/agent-kernel-architecture.md`](../../docs/notes/runtime/agent-kernel-architecture.md)（§7 模块清单，本文是其落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
@@ -67,9 +67,9 @@ session.load()
 |---|---|---|---|---|---|---|
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
 | 2 | `session` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；v2 call/result payload；item log 唯一写者 |
-| 3 | `tools` | 无 | ☑ | ◐ | ◐ | RB2 Review 中；loop 接缝待后续；验收 / offload 归 scheduler |
+| 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2；loop 接缝归后续 loop；验收 / offload 归 scheduler |
 | 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
-| 5 | `prompt` | tools | ☐ | ☐ | ☐ | compile 唯一出口 |
+| 5 | `prompt` | tools | ◐ | ☐ | ☐ | 架构对齐中；compile 唯一出口 |
 | 6 | `context` | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 7 | `loop` | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
 | 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 后置 |
@@ -90,9 +90,9 @@ session.load()
 - 顶层设计：☑（本文）
 - 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R6）
 - 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3 + typed call/result 接缝）
-- 模块 3 `tools`：设计 ☑ · 实现 ◐ · 测试 ◐（RB2 Review 中，loop 集成待后续）
-- 模块 5–8：☐ 未开始
-- 当前推进：`ToolCall` / `ToolResult` 唯一建模 Review；之后进入 prompt / loop 集成
+- 模块 3 `tools`：设计 ☑ · 实现 ☑ · 测试 ☑（RB1–RB2 + `agent-tools` R1；loop 集成归后续模块）
+- 模块 5 `prompt`：◐ 架构对齐中；模块 6–8：☐ 未开始
+- 当前推进：确认 `prompt` 的职责、公开 API 与 tools/LLM 接缝；未确认前不落实现
 
 ### 文档与集成入口
 

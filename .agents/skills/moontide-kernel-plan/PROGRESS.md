@@ -7,21 +7,22 @@
 |---|---|---|---|---|---|---|---|
 | 1 | `llm` | 契约 | 无 | ☑ | ☑ | ☑ | R1–R6 完成；PR [#1](https://github.com/chendpoc/moontide/pull/1)–[#8](https://github.com/chendpoc/moontide/pull/8) |
 | 2 | `session` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + v2 call/result payload |
-| 3 | `tools` | 契约 | 无 | ☑ | ◐ | ◐ | RB2 Review 中；loop 集成待后续模块 |
+| 3 | `tools` | 契约 | 无 | ☑ | ☑ | ☑ | RB1–RB2 + agent-tools R1；loop 集成归 loop 模块 |
 | 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
-| 5 | `prompt` | 装配 | tools | ☐ | ☐ | ☐ | compile 唯一出口 |
+| 5 | `prompt` | 装配 | tools | ◐ | ☐ | ☐ | 架构对齐中；compile 唯一出口 |
 | 6 | `context` | 装配 | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 7 | `loop` | 编排 | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
 | 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
 
 ## 当前目标
 
-- 模块 1 `llm`：**完成**，已进 `main`。
-- 模块 2 `session` / 4 `event`：**R1–R3 + tools typed payload 完成**。
-- 当前推进：`tools` RB2 将调用生命周期收敛为 `ToolCall` / `ToolResult`，实现与文档已完成，等待 Review。
+- 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
+- `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
+- 当前推进：模块 5 `prompt` **架构对齐**；先确认职责、公开 API 与 tools/LLM 接缝，用户确认前不落 README/DESIGN 或实现。
 
 ## 变更记录
 
+- 2026-08-16：`tools` RB1–RB2、`agent-tools` R1 与 event/session typed payload 接缝完成；PR [#14](https://github.com/chendpoc/moontide/pull/14)、[#15](https://github.com/chendpoc/moontide/pull/15)、[#17](https://github.com/chendpoc/moontide/pull/17) 合并，workspace 门禁与独立最终 Review 通过；下一模块转入 `prompt` 架构对齐。
 - 2026-08-16：`tools` RB2 收敛为 `ToolCall` / `ToolResult` 两个结构体；executor 直接返回 `ToolResult`，`Tool::execute` 校验身份和状态 owner；event/session 直接包装 canonical payload，Session v2 兼容读取 v1 缺失 status 为 `OutcomeUnknown`。
 - 2026-08-16：`agent-tools` R1 完成独立 crate、最小 `ToolDefinition` 静态 catalog、内建 `grep` spec/executor 与有界文件搜索测试；双轴 Review 修复结构守门、typed-input、symlink/read IO 与 max-results 停止语义后通过。
 - 2026-08-15：开始 `tools` 架构对齐；区分工具执行结果分类与 scheduler 模型 offload 验收/failover。

@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::tools` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** RB2 实现中；单次调用唯一建模与 session/event typed 接缝已落地，loop 联调待后续批次。
+> **状态：** RB1–RB2 已实现并完成 Review；单次调用唯一建模与 session/event typed 接缝已完成，permission 与执行顺序联调归后续 loop 模块。
 > **关联：** [`../llm/README.md`](../llm/README.md) · [`../session/README.md`](../session/README.md) · [`../event/README.md`](../event/README.md)
 
 ---

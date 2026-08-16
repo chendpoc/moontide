@@ -18,7 +18,7 @@
 | 批 | TASK | 主题 | 预估 diff | 状态 |
 |---|---|---|---:|---|
 | RB1 | tools-01–04 | 契约类型、冻结 registry、单次调用规范化与结构测试（覆盖 DESIGN R1–R3） | ~900–1400 行 | ☑ |
-| RB2 | tools-05–08 | `ToolCall` / `ToolResult` 唯一建模与 event/session 复用 | ~800–1400 行 | ◐ |
+| RB2 | tools-05–08 | `ToolCall` / `ToolResult` 唯一建模与 event/session 复用 | ~800–1400 行 | ☑ |
 
 ## TASK 明细
 
