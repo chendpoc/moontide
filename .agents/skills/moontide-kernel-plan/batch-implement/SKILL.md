@@ -1,26 +1,26 @@
 ---
 name: batch-implement
-description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000 行）；可选 GitHub 模块分支 + 批 PR。Use when 模块 README 已确认、开始写代码或按 Review 批推进。
+description: MoonTide 模块分批实现：Review 批合并交付（diff 通常控制在约 2000 行内，允许有说明的例外）；可选 GitHub 模块分支 + 批 PR。Use when 模块 README + DESIGN 已确认、开始写代码或按 Review 批推进。
 ---
 
 # 拆任务 · 实现 · Review · Commit
 
-父 skill：[moontide-kernel-plan](../SKILL.md)。**前置条件：** 对应模块 `src/{mod}/README.md` 已由用户确认落盘。
+父 skill：[moontide-kernel-plan](../SKILL.md)。**前置条件：** 对应模块 `README.md` + `DESIGN.md` 已由用户确认落盘。
 
-用户扮演 **架构师 + reviewer**；Agent 扮演 **implementer**。公开签名以 README 为准；若实现中必须改契约，**停批、回架构对齐**，禁止静默改 API。
+用户扮演 **架构师 + reviewer**；Agent 扮演 **implementer**。**公开 API 以 README 为准**；实现细节以 **DESIGN.md** 为准。若实现中必须改公开签名，**停批、回架构对齐**，禁止静默改 API。
 
 **两层粒度（不要混）：**
 
 | 层 | 作用 | 粒度 |
 |----|------|------|
 | **TASK** | 实现跟踪、依赖、完成标准 | 细（可 ~80 行）——**不等于一次 review** |
-| **Review 批** | 用户 `git diff` 的单位 | 粗——合并多个 TASK，**目标 ~300–1500 行**，上限 **2000** |
+| **Review 批** | 用户 `git diff` 的单位 | 粗——合并多个 TASK，**目标 ~300–1500 行**，软预算约 **2000** 行 |
 
 80 行的 scaffold **不应**单独停一轮 review；应与同层后续 TASK 合并，直到够一个可理解的心智模型（如「契约层整包」）。
 
 **Review 预算：**
 
-- **上限 2000 行** — 超过必须拆 Review 批
+- **软预算约 2000 行** — 超过时先判断是否仍是单一语义边界；小幅超过且仍易审查可以保留，并说明原因
 - **目标 300–1500 行** — 值得用户开一轮 review
 - **&lt;300 行** — 默认继续合并下一 TASK（除非已是逻辑边界且下一 TASK 很大）
 
@@ -28,7 +28,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 
 ## 何时启用
 
-- 模块 README 已 ☑，进入「实现 + 单测」阶段
+- 模块 README + DESIGN 已 ☑，进入「实现 + 单测」阶段
 - 用户说：继续实现 / 按 TASKS 做 / 下一批 / review 过了 commit
 
 ## 何时停止本 skill、回到父 skill
@@ -41,12 +41,12 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 ## 流程总览
 
 ```text
-读 README + PROGRESS
+读 README（契约）+ DESIGN（实现范围）+ PROGRESS
   → 生成/更新 src/{mod}/TASKS.md（细 TASK + **Review 批** 合并表）
   → 向用户展示：TASK 列表 + **Review 批怎么合并**
   → 按 **Review 批** 实现（一批可含多个 TASK）
   → just check
-  → git diff --shortstat：>2000 拆批；<300 且还能合并 → 考虑继续下一 TASK 再一起交 review
+  → git diff --shortstat：>2000 评估可审查性并说明保留/拆批理由；<300 且还能合并 → 考虑继续下一 TASK 再一起交 review
   → 停等 review → commit → 下一 Review 批
 ```
 
@@ -56,9 +56,9 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 
 ## Step 1：拆任务（TASKS.md）
 
-路径：`crates/moontide-agent-core/src/{mod}/TASKS.md`
+路径：`crates/agent-core/src/{mod}/TASKS.md`
 
-从 README 拆成 **细 TASK**（实现步），再规划 **Review 批**（合并表）：
+从 **DESIGN.md** 拆成 **细 TASK**（实现步），公开 API 对照 **README.md**，再规划 **Review 批**（合并表）：
 
 **TASK：** 单一 concern、依赖清晰、预估 ≤800 行（便于合并）
 
@@ -69,7 +69,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff ≤2000
 | 多个小 TASK 同层（如 01+02+03 契约层） | 合并为一 Review 批 |
 | 单 TASK 预估 ≥500 行 | 可单独成 Review 批（如 adapter 联调） |
 | 合并后 &lt;300 行 | 继续并下一 TASK，除非已无依赖后继 |
-| 合并后 &gt;2000 行 | 拆 Review 批 |
+| 合并后 &gt;2000 行 | 优先拆批；若仍是单一语义边界且超出有限，可说明原因后保留 |
 | 心智模型 | 一批 = 用户能用一个主题概括（「normalize 层」「adapter 层」） |
 
 TASKS.md 须含两个表：**Review 批总览**（用户主要看）+ **TASK 明细**（跟踪用）。
@@ -119,12 +119,12 @@ TASKS.md 须含两个表：**Review 批总览**（用户主要看）+ **TASK 明
 
 | 原则 | 说明 |
 |------|------|
-| **Review 预算** | 拆 TASK 时按 2000 行上限反推；大文件（adapter 联调）单独成 TASK |
+| **Review 预算** | 拆 TASK 时按约 2000 行软预算反推；大文件（adapter 联调）优先单独成 TASK |
 | 先契约后 IO | `protocol` → `provider` → `normalize` → `adapter` |
 | 先骨架后联调 | enum/stub 可先落地，HTTP 联调单独 TASK |
 | 测试跟行为 | 单测跟对应 TASK 走，避免末尾一个 TASK 塞满千行测试 |
 | 不改公开 API | 与 README 冲突时停批 |
-| 逻辑子模块可整批 | 如整个 `protocol/` 若预估 ≤800 行，可单独 1 TASK；合并多 TASK 时合计 ≤2000 |
+| 逻辑子模块可整批 | 如整个 `protocol/` 若预估 ≤800 行，可单独 1 TASK；合并多 TASK 时以约 2000 行为软目标 |
 
 ### 典型 TASK 粒度（参考）
 
@@ -155,7 +155,7 @@ git diff --shortstat
 
 | 合计行数 | 做法 |
 |----------|------|
-| &gt;2000 | 拆 Review 批重做 |
+| &gt;2000 | 评估是否混入多个 concern；难审查则拆批，单一边界且仅小幅超出则说明原因后交 review |
 | 300–2000 | 交 review |
 | &lt;300 | 若还有同主题 TASK 未做 → **继续实现再一起 review**；否则可交（仅剩尾批时） |
 
@@ -169,7 +169,7 @@ git diff --shortstat
 - **契约：** 不增删改 README 中的 `pub` 类型 / trait 方法，除非用户在本批前已改 README
 - **旧 draft：** 不 import `crates/moontide-*` 旧实现（父 skill 铁律）
 - **检查：** 代码变更后跑 `just check`；仅文档批可跳过
-- **crate：** 若 `moontide-agent-core` 尚未入 workspace，本模块第一批 TASK 含 scaffold（Cargo.toml + workspace member）
+- **crate：** 若 `agent-core` 尚未入 workspace，本模块第一批 TASK 含 scaffold（Cargo.toml + workspace member）
 
 ---
 
@@ -184,7 +184,7 @@ git diff --shortstat
 契约层：scaffold + protocol + provider
 
 ### Diff 规模
-- `git diff --shortstat`：{N} insertions, {M} deletions → **合计 {N+M} 行**（预算 ≤2000）
+- `git diff --shortstat`：{N} insertions, {M} deletions → **合计 {N+M} 行**（软预算约 2000；超出时说明原因）
 
 ### 变更摘要
 - …
@@ -195,8 +195,8 @@ git diff --stat
 git diff
 
 ### 建议关注
-- 公开 API 是否仍与 README 一致
-- 依赖方向是否违反 README §2
+- 公开 API 是否仍与 **README** 一致
+- 依赖方向是否违反 **DESIGN** import 边界
 - …
 
 请 review diff。通过则回复「commit」或「commit：{说明}」；要改请直接说。
@@ -294,7 +294,7 @@ gh pr create --base feat/agent-core-llm/base --title "feat(agent-core/llm): R1 c
 契约层：crate + protocol + provider（TASK 01–03）
 
 ## Test plan
-- [ ] cargo test -p moontide-agent-core
+- [ ] cargo test -p agent-core
 
 EOF
 )"
@@ -317,7 +317,7 @@ gh pr create --base feat/agent-core-llm/r1 --title "feat(agent-core/llm): R2 nor
 normalize 层（TASK 04–08）
 
 ## Test plan
-- [ ] cargo test -p moontide-agent-core
+- [ ] cargo test -p agent-core
 
 EOF
 )"
@@ -354,7 +354,7 @@ gh pr create --base main --head feat/agent-core-llm/base --title "feat(agent-cor
 全部 TASK ☑ 且 `just check` 全绿：
 
 1. PROGRESS.md：该模块 **实现 ☑ · 测试 ☑**
-2. `moontide-agent-core/README.md` checklist 同步
+2. `agent-core/README.md` checklist 同步
 3. 告知用户：本模块完成，下一模块需先 **架构对齐**（父 skill §1）
 
 ---
@@ -377,7 +377,7 @@ gh pr create --base main --head feat/agent-core-llm/base --title "feat(agent-cor
 - [ ] 本批 scope 与 TASK 一致
 - [ ] 未静默改 README 公开签名
 - [ ] `just check` 通过（若改了代码）
-- [ ] `git diff --shortstat` 合计 **≤2000 行**（否则已拆批，未交 review）
+- [ ] `git diff --shortstat` 已评估可审查性；超过约 2000 行时已拆批或记录保留原因
 - [ ] 汇报中含 diff 行数
 - [ ] 已停等 review，未自动 commit
 - [ ] 未自动开始下一批

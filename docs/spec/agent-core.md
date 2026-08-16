@@ -278,7 +278,8 @@ interface Plugin {
     turnStart?: (ctx: TurnContext) => void | Promise<void>;
     turnEnd?:   (ctx: TurnContext) => void | Promise<void>;
     message?:   (msg: AgentMessage) => void | Promise<void>;     // 仅 append 边界
-    tool?:      (event: ToolEvent) => void | Promise<void>;
+    toolCall?:   (call: ToolCall) => void | Promise<void>;
+    toolResult?: (result: ToolResult) => void | Promise<void>;
   };
   hooks?: Hooks;   // 控制通道，见 §10
 }

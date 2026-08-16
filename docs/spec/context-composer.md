@@ -11,7 +11,7 @@
 MoonTide 的 context window 不是「一个可变 `messages[]`」，而是：
 
 ```
-Session Event Log + Session State Stores + Tool Definitions + ModelProfile
+Session Item Log + Session State Stores + Tool Definitions + ModelProfile
         ↓
 Context Composer（含 Compaction compose 策略）
         ↓
@@ -23,7 +23,7 @@ API 适配层 → 厂商 API
 **Context Composer** 是唯一允许产出「发给模型的 immutable input」的模块。Harness（`agent/loop`、tool 执行）只 mutate **SessionContext**（内存）、append **SessionItem**（jsonl）、经 **SessionTransform** 转为协议 `Message[]`，再调用 Composer 与 `LLMProvider`。
 
 > **TypeScript（2026）：** 运行时真相为 [`SessionContext`](../notes/session/session-domain-model.md)（`{ messages }` only）；**Session Item Log** 存 `SessionItem`；**Context Composer**（`composeContext`）为唯一 LLM 输入出口；Agent 观测在 [`src/log`](../../packages/agent-cli/src/log/)。
-> **Rust R1：** `moontide-composer` + `moontide-session` 已实现 Artifact Store 分级 spill、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Log append-only 不变。
+> **Rust R1：** `moontide-composer` + `moontide-session` 已实现 Artifact Store 分级 spill、TruncationFallback、`read_artifact`、prune compaction（无 LLM summary）；Session Item Log append-only 不变。
 
 ### 1.2 与相关文档的分工
 
@@ -53,7 +53,7 @@ API 适配层 → 厂商 API
 | **derive / 派生** | RunEvent → **Agent Event**（观测，不写回 Session Item Log） | `createRunEventDeriveListener` · [`run-event-derive.ts`](../../packages/agent/src/log/run-event-derive.ts) |
 | **Fact vs Compile** | Item Log 是事实源；发给模型的是 **Composer 编译产物** | C6 不变量 |
 
-**避免：** 用「投影 / Projection」指上述过程（易与图形学或模糊隐喻混淆）；Rust 侧历史类型名 `ToolProjectionConfig` 指 tool 输出 truncate 策略，TS 文档统一称 **Artifact spill + ToolResultSummary**。
+**避免：** 用「投影 / Projection」指上述过程（易与图形学或模糊隐喻混淆）；Rust 侧历史类型名 `ToolProjectionConfig` 指 tool 输出 truncate 策略，TS 文档统一称 **Artifact spill + result summary**。
 
 ---
 
@@ -125,8 +125,8 @@ flowchart TB
 
 **关系（目标）：**
 
-- Session Event Log 为权威；Agent Event Log 可从其 **派生** 或 **双写** 观测字段。
-- 第一版实现可并存；不得以 Agent Event Log 反向覆盖 Session Event Log。
+- Session Item Log 为权威；Agent Event Log 可从其 **派生** 或 **双写** 观测字段。
+- 第一版实现可并存；不得以 Agent Event Log 反向覆盖 Session Item Log。
 
 **Session Item 提交边界（计划修复）：** [`Session`](../../packages/session/src/session.ts) **不得** `import agent/hooks`。Item 产生后通过注入的 **`SessionItemCommitPort`** 通知外界；**Harness**（`AgentSession.create`）注入 port：先 `FileSessionItemWriter` 落盘，再 `sessionItem` hook **仅 derive** Agent Event（**删除** manifest 中的 `sessionItem/file` handler）。port 注入 Harness 后，Session **零** `agent/` import。
 
@@ -134,73 +134,81 @@ flowchart TB
 
 ---
 
-## 5. Session Event Log — 条目 Spec
+## 5. Session Item Log — 条目 Spec
 
 每行一条 JSON（NDJSON）。条目厂商中性；assistant / tool 块对齐 MoonTide `ContentBlock`。
 
 ```typescript
-export type SessionLogEntry =
-  | UserMessageEntry
-  | AssistantMessageEntry
-  | ToolInvocationEntry
-  | ToolOutcomeEntry
-  | CompactionEventEntry
-  | CheckpointCreatedEntry
-  | RoutingEntry;
+export type SessionItem =
+  | UserMessageItem
+  | AssistantMessageItem
+  | (SessionItemBase & { kind: "tool_call" } & ToolCall)
+  | (SessionItemBase & { kind: "tool_result" } & ToolResult)
+  | CompactionItem
+  | CheckpointCreatedItem
+  | RoutingItem;
 
-interface SessionLogEntryBase {
+interface SessionItemBase {
   id: string;
   sessionId: string;
   turn: number;
   at: string; // ISO 8601
 }
 
-export interface UserMessageEntry extends SessionLogEntryBase {
+export interface UserMessageItem extends SessionItemBase {
   kind: "user_message";
   text: string;
 }
 
-export interface AssistantMessageEntry extends SessionLogEntryBase {
+export interface AssistantMessageItem extends SessionItemBase {
   kind: "assistant_message";
   blocks: ContentBlock[];
 }
 
-export interface ToolInvocationEntry extends SessionLogEntryBase {
-  kind: "tool_invocation";
+export interface ToolCall {
   toolUseId: string;
   name: string;
   input: Record<string, unknown>;
 }
 
-export interface ToolResultSummary {
-  summary: string;
-  byteCount: number;
-  lineCount?: number;
-  truncated?: boolean;
-}
+export type ToolResultStatus =
+  | "succeeded"
+  | { failed: { retryable: boolean } }
+  | "invalid_arguments"
+  | "unknown_tool"
+  | "denied"
+  | { cancelled: { reason: "user" | "parent" | "hook" | "disposed" } }
+  | "outcome_unknown";
 
-export interface ToolOutcomeEntry extends SessionLogEntryBase {
-  kind: "tool_outcome";
+export interface ToolResult {
   toolUseId: string;
+  name: string;
+  status: ToolResultStatus;
+  content: string | boolean | number | null | Record<string, unknown> | unknown[];
   artifactId?: string;
-  resultSummary: ToolResultSummary;
+  resultSummary?: {
+    summary: string;
+    byteCount: number;
+    lineCount?: number;
+    truncated?: boolean;
+  };
 }
 
-export interface CompactionEventEntry extends SessionLogEntryBase {
+export interface CompactionItem extends SessionItemBase {
   kind: "compaction";
   compactionKind: "prune" | "tail_window" | "summary";
   compactionRecordId?: string;
-  excludedEntryIds: string[];
+  excludedItemIds: string[];
   beforeTokens?: number;
   afterTokens?: number;
 }
 
-export interface CheckpointCreatedEntry extends SessionLogEntryBase {
+export interface CheckpointCreatedItem extends SessionItemBase {
   kind: "checkpoint_created";
   checkpointId: string;
 }
 
-export interface RoutingEntry extends SessionLogEntryBase {
+export interface RoutingItem extends SessionItemBase {
   kind: "routing";
   decision: RoutingDecision; // 见 llm-provider.md §9.5
 }
@@ -210,8 +218,8 @@ export interface RoutingEntry extends SessionLogEntryBase {
 
 - user 输入 → `user_message`
 - LLM 返回 → `assistant_message`
-- 模型发起 tool → `tool_invocation`（可与 assistant 同 turn 关联）
-- tool 执行完 → `tool_outcome`
+- 模型发起 tool → `tool_call`（可与 assistant 同 turn 关联）
+- tool 执行完 → `tool_result`
 - 发生 Compaction → `compaction`
 - 创建 Checkpoint → `checkpoint_created`
 
@@ -219,7 +227,7 @@ export interface RoutingEntry extends SessionLogEntryBase {
 
 ## 6. Session State Stores
 
-与 Session Event Log **并列**；Composer 编译时一并读取。
+与 Session Item Log **并列**；Composer 编译时一并读取。
 
 ### 6.1 Instruction State
 
@@ -251,7 +259,7 @@ export interface Artifact {
 ```
 
 - **路径：** `.moontide/artifacts/<sessionId>/<artifactId>`
-- **Session Event Log：** `tool_outcome` 只存 `artifactId` + `resultSummary`（`ToolResultSummary`）；全文在 Artifact Store。
+- **Session Item Log：** 大结果的 `tool_result` 可存 `artifactId` + result summary；全文在 Artifact Store。
 - **Composer：** 默认 compose 只含 `resultSummary`；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
 
 ### 6.3 CompactionSave
@@ -299,7 +307,7 @@ export interface Checkpoint {
 - **用途：** resume、debug、fork；**不**等同于 CompactionSave
 - **CLI：** `/checkpoint [label]` · `/checkpoint list` · `/resume <checkpoint-id>`（同 session 内）
 - **跨 session：** `/resume session <session-id>` · `/save` · `/save list` — 见 [session-persistence.md](../notes/session/session-persistence.md)
-- **恢复：** 内存 `messages` 截到 `lastItemId`；Item Log 继续 append-only；`composeContext({ resumeFromCheckpointId })`
+- **恢复：** 内存 `messages` 截到 `lastItemId`；Session Item Log 继续 append-only；`composeContext({ resumeFromCheckpointId })`
 
 ---
 
@@ -309,8 +317,8 @@ export interface Checkpoint {
 
 **Compaction** 是为把 compose 产出纳入 **ModelProfile** context 预算而调整 Composer 规则的一次操作。
 
-- **不删除** Session Event Log 条目。
-- **必留痕迹：** Session Event Log 的 `compaction` 事件 + 本轮 **Context Manifest**。
+- **不删除** Session Item Log 条目。
+- **必留痕迹：** Session Item Log 的 `compaction` 事件 + 本轮 **Context Manifest**。
 
 ### 7.2 Compaction 类型
 
@@ -399,7 +407,7 @@ CLI 报告格式：`preview: 12,000 → 8,500 L2 tok (saved 3,500)`.
 | **T 工具表** | 各 tool 的 name · description · schema | `tools[]` | [`tools/`](../../packages/tools/src/) → `ToolSchema[]` | 传入或 `resolveToolDefinitions()` |
 | **M 对话时间线** | 各 turn：user prompt、assistant、tool_use、tool_result | `messages[]` | [`session/`](../../packages/session/src/) → `SessionMessage[]` | `messagesFromContext` |
 | **M′ 压缩与窗口** | summary 注入、prune、checkpoint tail | `messages[]`（编译规则） | Session State Stores + `CompactionPolicy` | `applyTailWindow` · `applySummary` · `applyPrune` |
-| **M″ 大 tool 引用** | Artifact 全文 vs `ToolResultSummary` | `messages[]` 内 `tool_result` 文本 | Artifact Store + Item Log | materialize 时已格式化；compose 不读全文 |
+| **M″ 大 tool 引用** | Artifact 全文 vs result summary | `messages[]` 内 `tool_result` 文本 | Artifact Store + Item Log | materialize 时已格式化；compose 不读全文 |
 
 **一轮 user prompt** 是 **M 时间线末尾的 `role: user` 条目**，不是独立 API 字段。
 

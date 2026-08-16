@@ -1,0 +1,19 @@
+[package]
+name = "agent-tools"
+description = "MoonTide first-party tool catalog and builtin executors (OceanSpark)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+agent-core = { workspace = true }
+anyhow = { workspace = true }
+ignore = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

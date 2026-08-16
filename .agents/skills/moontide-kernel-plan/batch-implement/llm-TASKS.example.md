@@ -1,6 +1,6 @@
 # llm 子任务示例（复制为 `src/llm/TASKS.md` 使用）
 
-> 源自 [`src/llm/README.md`](../../../../crates/moontide-agent-core/src/llm/README.md) §2、§14、§15。
+> 契约：[`src/llm/README.md`](../../../../crates/agent-core/src/llm/README.md) · 实现范围：[`src/llm/DESIGN.md`](../../../../crates/agent-core/src/llm/DESIGN.md) §2、§14、§15。
 > **条目：** **做什么**（1–3 句）+ 依赖 + 范围 + 预估 + 完成标准。见 [`batch-implement/SKILL.md`](SKILL.md)。
 
 ## 批次建议
@@ -27,14 +27,14 @@
 
 - **依赖：** 01
 - **范围：** `src/llm/protocol/{mod,message,request,delta,error}.rs`
-- **完成标准：** 类型与 README §6 一致；`cargo test -p moontide-agent-core protocol`（serde round-trip 若有）
+- **完成标准：** 类型与 DESIGN §6 一致；`cargo test -p agent-core protocol`（serde round-trip 若有）
 - **状态：** ☐
 
 ### TASK-llm-03: LLMProvider + complete
 
 - **依赖：** 02
 - **范围：** `src/llm/provider.rs`、`src/llm/tests.rs`（MockProvider 骨架）
-- **完成标准：** trait 签名与 README §7 一致；MockProvider 可产出合法 StreamDelta 序列
+- **完成标准：** trait 签名与 README 公开 API 一致；MockProvider 可产出合法 `ModelStreamEvent` 序列
 - **状态：** ☐
 
 ### TASK-llm-04: normalize/common

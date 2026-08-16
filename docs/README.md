@@ -15,7 +15,6 @@ docs/
     ├── runtime/           # 内核架构、多语言迁移与生态兼容
     ├── context/           # Context 架构对比
     ├── session/           # 跨 agent 会话与 artifact 交接
-    ├── evals/             # Task taxonomy 与 Model–Harness Fit 研究
     ├── llm/               # Edge / local model 与路由候选
     └── tool-hints/        # 工具自动记录的人工审核候选；路径由代码使用
 ```
@@ -46,10 +45,6 @@ docs/
 
 [`product/vision.md`](product/vision.md) → [`product/plan.md`](product/plan.md) → [`spec/agent-core.md`](spec/agent-core.md) → [`spec/context-composer.md`](spec/context-composer.md) → [`spec/llm-provider.md`](spec/llm-provider.md)
 
-### 执行 TypeScript → Rust 迁移
-
-[`notes/runtime/migration-plan.md`](notes/runtime/migration-plan.md) → [`notes/runtime/agent-kernel-architecture.md`](notes/runtime/agent-kernel-architecture.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
-
 ### 修改 Agent Core / RunEvent
 
 [`spec/agent-core.md`](spec/agent-core.md) → [`notes/runtime/agent-kernel-architecture.md`](notes/runtime/agent-kernel-architecture.md) → [`spec/agent-events.md`](spec/agent-events.md)
@@ -68,11 +63,7 @@ docs/
 
 ### 修改 Plugin / MCP / Sidecar
 
-[`product/platform-strategy.md`](product/platform-strategy.md) → [`notes/runtime/ecosystem-compat.md`](notes/runtime/ecosystem-compat.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
-
-### 研究 Model–Harness Fit
-
-[`notes/evals/model-harness-fit.md`](notes/evals/model-harness-fit.md) → [`notes/evals/agent-eval-task-taxonomy.md`](notes/evals/agent-eval-task-taxonomy.md) → [`notes/runtime/agent-runtime-product-direction.md`](notes/runtime/agent-runtime-product-direction.md)
+[`product/platform-strategy.md`](product/platform-strategy.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
 
 ## 4. 文档归档规则
 
@@ -96,7 +87,8 @@ TS 时代的文档见 [`archive/`](archive/)：仅供追溯，不参与当前契
 
 | 路径 | 内容 |
 |------|------|
-| [`crates/moontide-agent-core/README.md`](../crates/moontide-agent-core/README.md) | 内核模块清单与推进顺序 |
+| [`crates/agent-core/README.md`](../crates/agent-core/README.md) | 内核模块清单与推进顺序 |
+| [`crates/docs/`](../crates/docs/) | Rust crate 级工程手册与候选设计 |
 | [`schema/README.md`](../schema/README.md) | 跨语言契约的落点判据 |
 | [`services/README.md`](../services/README.md) | Go 后台服务边界（后置） |
 | [`node/README.md`](../node/README.md) | Node 扩展生态边界（后置） |

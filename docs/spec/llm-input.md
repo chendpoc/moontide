@@ -143,7 +143,7 @@ flowchart LR
 ## 相关文档
 
 - [`context-window-roadmap.md`](../notes/context/context-window-roadmap.md) — 当前六件事执行计划
-- [`context-composer.md`](context-composer.md) — Session Event Log、Context Composer、Compaction / Checkpoint
+- [`context-composer.md`](context-composer.md) — Session Item Log、Context Composer、Compaction / Checkpoint
 - [`context-backlog.md`](../notes/context/context-backlog.md) — Context 演进特性（分账、IR、实验与 Deferred）
 - [`llm-provider.md`](llm-provider.md) — API 适配方案 A、Provider Preset、`LLMRequest`、`ModelProfile`
 - [`context-analysis.md`](../notes/context/context-analysis.md) — 行业 SOTA 与产品对比
