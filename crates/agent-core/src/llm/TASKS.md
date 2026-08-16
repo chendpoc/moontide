@@ -53,7 +53,7 @@ R5–R6 = DESIGN §14 R2。建议 **R5 协议+builder+API**，**R6 全库迁移+
 
 ### TASK-llm-17: README / DESIGN / CONTEXT 对齐
 
-- **做什么：** DESIGN checklist 旧名更新；README 拆分为对外用法；`docs/spec/llm-provider.md` 交叉引用（可选一句）。
+- **做什么：** DESIGN checklist 旧名更新；README 拆分为对外用法；TypeScript 历史 `docs/archive/spec/llm-provider.md` 交叉引用（可选一句）。
 - **状态：** ☑
 
 ---

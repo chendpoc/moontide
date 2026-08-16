@@ -1,4 +1,4 @@
-本文件是 MoonTide **Instruction State** 来源：经 `instruction-state` 每 turn 拼进 `LLMRequest.system`。
+本文件是 MoonTide 运行时指令来源之一：由 `agent` 在每个 user turn 解析为 `SystemPrompt`，再由 `model_input::compile` 写入 `ModelRequest.system`。
 
 **完整工程手册**（Rust 分层、Conformance 范围、术语全集、示例）位于 [`crates/docs/engineering-handbook.md`](crates/docs/engineering-handbook.md)。TypeScript 时代版本已归档至 [`docs/archive/guides/engineering-handbook.md`](docs/archive/guides/engineering-handbook.md)，仅供追溯；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 Rust handbook。
 
@@ -61,7 +61,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 工程原则（摘要）
 
-1. **分层** — MVP 四 crate：`agent-core`（引擎）、`agent-tools`（第一方 catalog/builtins）、`agent`（组合根）、`cli`（纯壳）。`agent-tools → agent-core`，`agent` 依赖二者，`agent-core` 不反向依赖任何上层 crate。内核 8 个内部 mod（`llm` / `session` / `tools` / `event` / `prompt` / `context` / `loop` / `scheduler`），不拆 crate。Session Log 为事实源，Agent Event 仅 derive。架构见 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md)。
+1. **分层** — MVP 四 crate：`agent-core`（引擎）、`agent-tools`（第一方 catalog/builtins）、`agent`（组合根）、`cli`（纯壳）。`agent-tools → agent-core`，`agent` 依赖二者，`agent-core` 不反向依赖任何上层 crate。内核 8 个内部 mod（`llm` / `session` / `tools` / `event` / `model_input` / `context` / `loop` / `scheduler`），不拆 crate。Session Log 为事实源，Agent Event 仅 derive。架构见 [`crates/docs/agent-core.md`](crates/docs/agent-core.md)。
 2. **高内聚低耦合** — `session` 不依赖 `loop` / `agent`；permission 是组合根随 tool 注册声明的 `tool_name → Allow | Ask` map，由 `loop` 查表，缺失项安全拒绝；当前不设独立 permission mod。
 3. **Spec / Impl 分离** — tool schema 与 handler 分开；handler 不定义 schema，schema 无 IO 副作用。
 4. **声明式注册表** — tool 注册用表驱动；新增 tool 改表不改长 match。
@@ -79,7 +79,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 | 过程 | 用词 |
 |------|------|
 | Session Item Log → messages | **materialize**（不用 derive_messages / 投影 / 还原） |
-| Session → LLMRequest | **compile**（不用 compose） |
+| SystemPrompt + messages + tools → ModelRequest | **compile**（不用 compose） |
 | RunEvent → Agent Event | **derive**（`event::derive` 已落地；完整 bus/sidecar 仍后置） |
 
 **实体：**

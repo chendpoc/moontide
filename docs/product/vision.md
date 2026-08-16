@@ -20,7 +20,7 @@
 | **Ciel** | 天 | 产品家族 / 天象母题总称 |
 | **Lyra** | 天琴（星） | 独立 agent harness 产品线（若与 MoonTide 分叉） |
 | **Zephyr** | 风 | 跨 agent 产品切换与迁移 |
-| **Bruma** | 雾 | Session 事实为 source of truth（技术 Spec：**Session Event Log**，见 [`context-composer.md`](../spec/context-composer.md)） |
+| **Bruma** | 雾 | Session 事实为 source of truth（历史 Context Composer 方案见 [`context-composer.md`](../archive/spec/context-composer.md)） |
 
 **Bruma 用法：** 仅指远期独立产品线方向。MoonTide 内演进 Session Event Log / Context Composer 时，**产品名仍称 MoonTide**，spec 与实现用 **Session Event Log**、**Context Composer**——**不把 Bruma 当作架构或模块代号**。
 
@@ -73,7 +73,7 @@ flowchart TB
 
 ### 备忘（非现行规格）
 
-- **Bruma** — Session 完整事实为 source of truth（**Session Event Log**）；model context 仅为 **`LLMRequest` 编译产物**。Spec：[`context-composer.md`](../spec/context-composer.md)；在 MoonTide 中由 `src/context/` 等模块逐步演进。
+- **Bruma** — Session 完整事实为 source of truth；model context 仅为请求编译产物。历史方案：[`context-composer.md`](../archive/spec/context-composer.md)；Rust context 尚待架构对齐。
 - **Spark** — OceanSpark 移动端 capture / 成长助手（**随形**）；内容原语 **`spark`**；详 [`spark.md`](spark.md)。
 - **MoonTide / Tide / Fleet / Buoy** — MoonTide 桌面 shell 与 panel 设想；**Buoy** 承接 Spark sync，见 [`TODO.md`](../../TODO.md)。
 - **Zephyr** — 跨 Cursor / Claude Code / Codex 等工具的会话管理与迁移，远期。

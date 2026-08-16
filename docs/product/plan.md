@@ -28,7 +28,7 @@
 - active segment 原地 compact。
 - privacy/redaction policy。
 
-事件字段、恢复流程和 retention 规则见 [`agent-events.md`](../spec/agent-events.md)。
+事件字段、恢复流程和 retention 规则见当前 Rust [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md)。
 
 ## CLI 双轨
 

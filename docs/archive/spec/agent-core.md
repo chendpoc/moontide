@@ -1,3 +1,4 @@
+> **已归档：** TypeScript 时代的 Agent Core 设计，仅供追溯，不定义当前 Rust 架构。当前设计见 [`crates/docs/agent-core.md`](../../../crates/docs/agent-core.md)。archive 内部链接可能已失效。
 
 LLM agent 运行时的架构设计文档：如何把一条 prompt 推进为一次完整对话执行、对外暴露给观察者、让 developer 以专业方式内置系统能力，而最终用户只面对窄而专业的配置面。
 

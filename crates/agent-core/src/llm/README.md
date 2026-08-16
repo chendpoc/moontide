@@ -3,7 +3,7 @@
 > **对外使用说明** — 集成 `agent-core::llm` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
 > **状态：** R1–R6 已完成；48 tests。
-> **关联：** [`docs/spec/llm-provider.md`](../../../../docs/spec/llm-provider.md)
+> **系统边界：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
 
@@ -22,7 +22,7 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 ## 设计原理（brief）
 
 ```text
-  loop / session / context          agent（组合根）
+  loop / model_input                agent（组合根）
          │                                │
          │  ModelRequest                  │ build_provider(family, config)
          ▼                                ▼
@@ -48,7 +48,8 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 |--------|------|------|
 | **`loop`** | `protocol` 类型、`run_model_call*` | `match ModelStreamEvent`、自写 fold、`adapter` |
 | **`session`** | `protocol` 类型（`ContentBlock` 等） | `LLMProvider`、`stream` |
-| **`context`** | `ModelRequest` / `Message` | HTTP、adapter |
+| **`context`** | `Message` | `ModelRequest` 构造、HTTP、adapter |
+| **`model_input`** | `ModelRequest` / `Message` / `ToolSchema` | HTTP、adapter、请求 preflight |
 | **`agent`** | `build_provider`、`AdapterFamily`、`AdapterConfig` | 在 loop 内硬编码 endpoint |
 | **`cli`** | `ModelResponseSnapshot`、`ContentBlock`（渲染） | `ModelStreamEvent` |
 | **测试** | `MockProvider`、`complete` 别名 | — |
@@ -109,15 +110,12 @@ pub trait LLMProvider: Send + Sync {
 ### loop：一次模型调用
 
 ```rust
-let request = ModelRequest {
-    model: "deepseek-chat".into(),
-    system: system_prompt,
+let request = model_input::compile(
+    &request_config,
+    &system_prompt,
     messages,
-    tools,
-    max_tokens: 8192,
-    thinking_level: None,
-    session_id: Some(session_id.clone()),
-};
+    &tool_registry,
+);
 
 let response = run_model_call(provider.as_ref(), request).await?;
 // response.content → 解析 tool_call / 文本
@@ -198,5 +196,5 @@ if let Some(PendingBlock::ToolUse { name, .. }) = &snapshot.pending {
 ## 进一步阅读
 
 - 模块结构、normalize/adapter、不变量、单测：[`DESIGN.md`](DESIGN.md)
-- 厂商 spec：[`docs/spec/llm-provider.md`](../../../../docs/spec/llm-provider.md)
+- TypeScript 历史 provider 方案：[`docs/archive/spec/llm-provider.md`](../../../../docs/archive/spec/llm-provider.md)
 - 实现任务历史：[`TASKS.md`](TASKS.md)

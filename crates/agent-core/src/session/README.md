@@ -3,7 +3,7 @@
 > **对外使用说明** — 集成 `agent-core::session` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
 > **状态：** R1–R3 与 v2 tool payload 迁移已实现（store · fork/compaction · typed commit）。
-> **关联：** [`../event/README.md`](../event/README.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md)
+> **关联：** [`../event/README.md`](../event/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
 > **状态：** 已定稿（2026-08-15）；R1–R3 与 tools typed payload 接缝已实现，测试通过。
-> **关联：** [`DESIGN.md`](../session/DESIGN.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
+> **关联：** [`DESIGN.md`](../session/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
 
@@ -11,7 +11,7 @@
 | 做 | 不做 |
 |----|------|
 | `RunEvent` 语义协议 | `SessionStore` 实现 |
-| `EventDispatcher::emit`（hook → commit → observe） | `prompt::compile` / `context::materialize` |
+| `EventDispatcher::emit`（hook → commit → observe） | `model_input::compile` / `context::materialize` |
 | `derive` → `AgentEventRecord`，经 recorder port 输出 | loop 时序编排（loop mod） |
 | `PipelineRegistry` 类型 | sidecar IPC（agent / 后置） |
 | 可选 `EventBus` broadcast | ToolPermissionMap 声明与查表（agent / loop） |
@@ -23,8 +23,8 @@
 ## 2. 三条线
 
 ```text
-  Session Item Log          LLMRequest              Agent Event Log
-  （session）               （context）              （event derive）
+  Session Item Log          ModelRequest            Agent Event Log
+  （session）               （model_input）          （event derive）
         ▲                         │                        ▲
         │ commit                   │ compile                │ observe
         └──────── dispatch ────────────────────────────────┘
@@ -111,7 +111,7 @@ emit(event):
 with_turn:
   emit TurnStarted
   emit UserPromptCommitted          → commit UserMessage
-  [context::materialize → prompt::compile]
+  [context::materialize → model_input::compile]
   with_step:                         # 可多次
     emit LlmCallStarted
     llm::run_model_call* → MessageUpdate*
@@ -211,7 +211,7 @@ pub fn derive_agent_event(
 ) -> anyhow::Result<Option<AgentEventRecord>>;
 ```
 
-映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，序列化失败显式返回 `Err`；`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+字段历史可追溯至归档的 [`agent-events.md`](../../../../docs/archive/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，序列化失败显式返回 `Err`；`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
 
 ```rust
 pub trait AgentEventRecorder: Send + Sync {

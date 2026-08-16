@@ -817,5 +817,5 @@ WASM 负责插件隔离和纯计算扩展。
 |------|------|
 | [`edge-local-models.md`](../llm/edge-local-models.md) | catalog pull、`moontide-infer` 详细设计 |
 | [`kocoro-architecture.md`](kocoro-architecture.md) | sidecar supervise、bundle pull 参考 |
-| [`llm-provider.md`](../../spec/llm-provider.md) | `local-direct` preset、Model Router |
-| [`context-composer.md`](../../spec/context-composer.md) | Composer / Session Log 与 loop 边界 |
+| [`llm-provider.md`](../../archive/spec/llm-provider.md) | TypeScript 历史 `local-direct` preset、Model Router |
+| [`context-composer.md`](../../archive/spec/context-composer.md) | TypeScript 历史 Composer / Session / loop 方案 |

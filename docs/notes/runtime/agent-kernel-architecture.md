@@ -2,7 +2,7 @@
 
 > **文档性质：** notes（讨论收敛，非实现 Spec、非近期交付承诺）
 > **状态：** 决策已收敛（2026-08）
-> **关联：** [`agent-core.md`](../../spec/agent-core.md) · [`agent-core-roadmap.md`](agent-core-roadmap.md) · [`agent-runtime-product-direction.md`](agent-runtime-product-direction.md) · [`edge-local-models.md`](../llm/edge-local-models.md) · [`runtime-multilang.md`](runtime-multilang.md) · [`agent-eval-roadmap.md`](../evals/agent-eval-roadmap.md)
+> **关联：** 当前 [`agent-core.md`](../../../crates/docs/agent-core.md) · [`agent-core-roadmap.md`](agent-core-roadmap.md) · [`agent-runtime-product-direction.md`](agent-runtime-product-direction.md) · [`edge-local-models.md`](../llm/edge-local-models.md) · [`runtime-multilang.md`](runtime-multilang.md) · [`agent-eval-roadmap.md`](../evals/agent-eval-roadmap.md)
 
 本文档记录一次从「Pi 教训」出发、逐层收敛到「内核完整模块清单 + 决策清单」的架构讨论。多数结论与现有 spec/notes 一致，本文聚焦**增量**（Pi 事实核验、性能认知校准、蒸馏误区、验收网关、多 agent 形态、A2A 通信、crate 拆分判据、subagent 定位、多语言 trade-off、event bus 设计），重叠部分只引用不重复。
 
@@ -85,7 +85,7 @@
 
 ## 4. 多 agent 形态与并行度分水岭
 
-> 与 [`agent-core.md`](../../spec/agent-core.md) 非目标「不设计嵌套 agent 内核，多 agent 编排是组合层的事」一致，本节只补形态区分。
+> TypeScript 历史 [`agent-core.md`](../../archive/spec/agent-core.md) 已提出“不设计嵌套 agent 内核，多 agent 编排是组合层的事”；本节只补候选形态区分。
 
 | 形态 | 本质 | cloud | native |
 |---|---|---|---|
@@ -154,7 +154,7 @@
 **落到本项目的结论：MVP 四 crate**（详见 §11、§15）：
 
 - 拆：`cli`（纯壳）、`agent-tools`（第一方 builtins）、`agent`（组合根，唯一全依赖）。
-- 不拆：`agent-core` 全家桶（loop/context/prompt/session/tools/scheduler/event/llm，见 §7）。
+- 不拆：`agent-core` 全家桶（loop/context/model_input/session/tools/scheduler/event/llm，见 §7）。
 - 后置：`protocol` 独立 crate——MVP 单进程无跨二进制共享需求，先作 agent-core 内 `types/` mod，跨进程落地时再拆。
 
 ---
@@ -167,7 +167,7 @@
 agent-core/
   loop/          # turn 状态机 + steer/stop/continue + abort + retry
   context/       # item log → messages + compaction + summary + polish（策略模式）
-  prompt/        # system prompt 组装（compile：skill/rules/tool schema 注入）
+  model_input/   # provider-neutral ModelRequest 纯组装（compile）
   session/       # item log 事实源 + 持久化 + load/resume
   tools/         # ToolSpec + frozen registry + 单次校验/执行/结果规范化
   scheduler/     # 分诊 + fan-out + delegate + 排队/升级（先模块后拆 crate）
@@ -178,7 +178,7 @@ agent-core/
 对应的边界纪律：
 
 - `agent` 声明 `ToolPermissionMap`，`loop` 查表并处理 `Ask`；缺失项安全拒绝，sidecar 不可修改宿主 map。只有路径、命令前缀、session scope 或动态风险等真实规则出现后，才重新评审独立 permission 模块。
-- `prompt/` ← 「compile 唯一出口」的落点（context 管动态消息历史，prompt 管静态指令骨架 + 动态注入，职责不同，不混入 context）。
+- `model_input/` ← `ModelRequest` 的「compile 唯一出口」；context 管 model-visible messages，agent 每 user turn 解析稳定 `SystemPrompt`，model_input 不拥有二者的生成策略。
 - `event/` ← RunEvent 的统一分发落点；Session Item Log 是恢复事实源，Agent Event Log 是派生观测记录。
 
 **两个「完整内核该有、但 MVP 可后置」的诚实标注**：
@@ -194,7 +194,7 @@ agent-core/
 
 ```text
 cli（纯壳，只消费 AgentEvent）→ agent（组合根）
-                                  ├──► agent-core（loop/context/prompt/session/tools/event/llm 云端 provider）
+                                  ├──► agent-core（loop/context/model_input/session/tools/event/llm 云端 provider）
                                   └──► agent-tools（声明 catalog/builtins）──► agent-core
 ```
 
@@ -395,7 +395,7 @@ impl Tool for DelegateTool {
 | 用途 | UI 渲染、持久化、遥测、sidecar 观察 | beforeToolUse、llmCall 拦截/改参 |
 | 语义 | 「发生了什么」 | 「该不该继续 / 怎么改」 |
 
-`spec/agent-core.md` 已区分（Hook 返回决策，Event 供观察者）。event bus 只负责 Event，Hook 是另一套机制。
+归档的 `archive/spec/agent-core.md` 曾区分 Hook 与 Event；当前 Rust event bus 只负责 Event，Hook 机制仍待后续架构对齐。
 
 ### 13.2 Event bus：tokio broadcast
 
@@ -468,7 +468,7 @@ impl SidecarHook {
 4. 嵌套/数量限制 = preset 配置 + 运行时配额（DelegatePolicy）
 5. crate 判据：依赖方向强制 + 跨二进制共享契约；防膨胀 = mod + lint
 6. MVP crate：`cli` + `agent-core` + `agent-tools` + `agent`；protocol 先 mod 后 crate
-7. 内核模块：loop / context / prompt / session / tools / scheduler / event / llm；permission 当前是组合根 map + loop 查表，不是独立模块
+7. 内核模块：loop / context / model_input / session / tools / scheduler / event / llm；permission 当前是组合根 map + loop 查表，不是独立模块
 8. 模型分层：router 分诊 → 本地 7B（验收网关 + failover）→ 云端兜底
 9. 微调：unsloth（训练）+ llama.cpp/MLX（推理），adapter→GGUF 转换链
 10. 卖点：隐私 / 离线 / 确定性，不打并行

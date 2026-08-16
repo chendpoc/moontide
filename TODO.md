@@ -8,7 +8,7 @@
   [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md) §6–§7。
 
   - 迁移执行 checklist：[`docs/notes/runtime/migration-plan.md`](docs/notes/runtime/migration-plan.md)
-  - 设计 Spec：[`docs/spec/agent-core.md`](docs/spec/agent-core.md) · [`docs/spec/agent-events.md`](docs/spec/agent-events.md)
+  - Rust 系统设计：[`crates/docs/agent-core.md`](crates/docs/agent-core.md) · Event 模块：[`crates/agent-core/src/event/DESIGN.md`](crates/agent-core/src/event/DESIGN.md)
 
   - [x] **16.1** R0 主循环：Session Log → Composer → LLM → builtin tools（`moontide-agent` · `moontide-cli`）
   - [ ] **16.2** Agent Event JSONL + `status.json` 写入（`moontide-ui` 消费侧已就绪）
@@ -84,7 +84,7 @@
 - [ ] **6. Session — Context Window（C6+）**
   - C1–C6 **done**（TS harness）· **Context Budget Tiers done**
   - 开发计划（六件事）：[`context-window-roadmap.md`](docs/archive/notes/context/context-window-roadmap.md) — **#1–#6 + Budget Tiers 均 done（TS 实现）**
-  - Spec：[`context-composer.md`](docs/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/archive/notes/runtime/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/archive/notes/context/context-backlog.md)
+  - 历史设计：[`context-composer.md`](docs/archive/spec/context-composer.md) · Utils：[`utils-infrastructure.md`](docs/archive/notes/runtime/utils-infrastructure.md) · Backlog：[`context-backlog.md`](docs/archive/notes/context/context-backlog.md)
   - **下一阶段四条轨** → 见 **§15**
 
 - [ ] **15. 后续开发计划（2026-08 起）**
@@ -104,7 +104,7 @@
     - 本地微调/量化小模型处理低复杂度任务，降低 cloud API token 成本
     - **类比 OpenRouter Fusion，但是 edge local router** — 在设备侧做 tier 路由，非 provider upstream 竞价
     - `moontide/router-v1` catalog · Model Router · `moontide-infer` sidecar
-    - 详设：[`edge-local-models.md`](docs/notes/llm/edge-local-models.md) · [`llm-provider.md`](docs/spec/llm-provider.md) §3.4 / §10
+    - 详设：[`edge-local-models.md`](docs/notes/llm/edge-local-models.md) · 历史 [`llm-provider.md`](docs/archive/spec/llm-provider.md) §3.4 / §10
 
   - [ ] **15.4 Conversation Normalization（Preflight / Postflight）**
     - 每次 LLM request 前：统一 Context Projection + `ContextManifest`（预算、配对、provider 不变量）
@@ -161,7 +161,7 @@
     - 选择指定 agent（Codewhale / Reasonix / Pi Agent / Cursor / Codex / Claude Code 等）进行对话
     - 向选定 agent 派发任务
   - 适配层：各产品 session / transcript / status 格式的 reader + 可选 writer
-  - 与 **6. Bruma**、context-window 设计对齐（**Session Event Log** 作为 source of truth；见 [`docs/spec/context-composer.md`](docs/spec/context-composer.md)）
+  - 与 **6. Bruma**、context-window 设计对齐（历史方案见 [`docs/archive/spec/context-composer.md`](docs/archive/spec/context-composer.md)；Rust context 尚待架构对齐）
 
 - [ ] **14. Agent 外网数据源可达性与体验（国内网络）**
   - **背景**：大量国内用户无法稳定访问 GitHub、Google 等外网数据源；agent 拉依赖、搜文档、clone、调 API 时易失败

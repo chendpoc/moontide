@@ -1,3 +1,4 @@
+> **已归档：** TypeScript 时代的 Context Composer 设计，仅供追溯，不定义当前 Rust context。当前已确认的系统边界见 [`crates/docs/agent-core.md`](../../../crates/docs/agent-core.md)；context 内部设计尚未开始。archive 内部链接可能已失效。
 
 > Context window 的数据组成、持久化边界与编译流程。  
 > 一次 API 调用的出口类型见 [`llm-provider.md`](llm-provider.md)（`LLMRequest`）；三参数对表见 [`llm-input.md`](llm-input.md)；行业背景见 [`context-analysis.md`](../notes/context/context-analysis.md)。

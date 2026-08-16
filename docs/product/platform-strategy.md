@@ -7,7 +7,7 @@
 
 ## 1. 一句话定位
 
-**MoonTide** 是轻量 **native coding agent**：以 **Session Event Log + Context Composer** 为架构核心（Spec 见 [`context-composer.md`](../spec/context-composer.md)），**MCP** 为默认工具扩展面，**可选 Node sidecar** 承载深度 TS 插件；**release 不嵌入 JavaScript runtime**，也不绑定单一云厂商。
+**MoonTide** 是轻量 **native coding agent**：Session 事实源与 context 编译边界见当前 [`agent-core.md`](../../crates/docs/agent-core.md)；历史 Context Composer 方案见 [`context-composer.md`](../archive/spec/context-composer.md)。**MCP** 为默认工具扩展面，**可选 Node sidecar** 承载深度 TS 插件；**release 不嵌入 JavaScript runtime**，也不绑定单一云厂商。
 
 ---
 
@@ -118,7 +118,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 - Rust CLI + Rust UI：**一条 native 栈**
 - Session / Agent **双 log** + Composer Spec：文档领先 prototype
 - MCP + 可选 sidecar：**不 embed Node 又能接生态**
-- 多 provider / workdir 本地优先：见 [`llm-provider.md`](../spec/llm-provider.md)
+- 多 provider / workdir 本地优先：历史方案见 [`llm-provider.md`](../archive/spec/llm-provider.md)
 
 ### Weaknesses
 
@@ -185,13 +185,13 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 |------|------|
 | [`vision.md`](vision.md) | 产品名、保留产品名 |
 | [`plan.md`](plan.md) | 当前优先级、JSONL 存储 |
-| [`context-composer.md`](../spec/context-composer.md) | Session 事实、Composer invariant |
+| [`context-composer.md`](../archive/spec/context-composer.md) | TypeScript 历史 Session / Composer 方案 |
 | [`context-analysis.md`](../notes/context/context-analysis.md) | 竞品 context 深度对比 |
 | [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) | Desktop IPC、20MB 分发、sidecar 监管 |
 | [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md) | Go daemon / sidecar 参考 |
 | [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md) | Hook 生命周期与 loop 工程落地 |
 | [`plugin-host.md`](../notes/runtime/plugin-host.md) | Plugin host、MCP attach、tool registry |
-| [`agent-events.md`](../spec/agent-events.md) | Run 级观测 JSONL |
+| [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md) | 当前 Rust Run 级观测边界 |
 
 ---
 

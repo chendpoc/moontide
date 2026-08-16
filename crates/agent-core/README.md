@@ -1,8 +1,8 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；`llm` / `session` / `tools` / `event` 完成；当前进入 `prompt` 架构对齐
-> **关联：** [`docs/notes/runtime/agent-kernel-architecture.md`](../../docs/notes/runtime/agent-kernel-architecture.md)（§7 模块清单，本文是其落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
+> **状态：** 顶层设计已定；`llm` / `session` / `tools` / `event` 完成；`model_input` R1 实现与测试完成，等待 Review
+> **关联：** [`crates/docs/agent-core.md`](../docs/agent-core.md)（Rust 系统设计，本文是模块进度落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
 
@@ -21,7 +21,7 @@
   4. event       RunEvent 类型 + bus（tool RunEvent 直接包装 tools call/result）
 
 装配层（依赖契约层）
-  5. prompt      system prompt 组装（依赖 tools 的 ToolSpec）
+  5. model_input 纯组装 ModelRequest（依赖 tools + llm protocol）
   6. context     materialize + compaction（依赖 session 的 item log）
 
 编排层
@@ -39,15 +39,15 @@
 - **其他窄边界**：event pipeline 的 `HookHandler` / `CommitHandler` / `ObserveHandler` 用于 callback 解耦；不把它们扩展成领域能力或全局 service trait。
 - **其余模块是内部 mod**：高层 mod 依赖低层 mod，**低层不反向依赖高层**。
 - **唯一写者**：`session` 是 item log 唯一写者；compaction 由 `context` 计算 `CompactionPlan`、由 loop 转发给 session 执行。tool item 直接包装 tools 的 `ToolCall` / `ToolResult`，session 只持久化，不决定状态。
-- **唯一出口**：`prompt.compile()` 是 Session → LLMRequest 的唯一出口；`context.materialize()` 是 item log → messages 的唯一出口。
+- **唯一出口**：`model_input::compile()` 是 `ModelRequest` 的唯一运行时构造出口；`context::materialize()` 是 item log → model-visible messages 的唯一出口。
 
 ## 3. 数据流（一次 Run 的完整链路）
 
 ```text
 session.load()
   → context.materialize(item_log)          # item log → messages（含 compaction）
-  → prompt.compile(system, tool_schema)    # Session → LLMRequest
-  → llm.stream(request)                     # 流式返回
+  → model_input::compile(config, system, messages, registry) # → ModelRequest
+  → llm::run_model_call*(request)           # 流式返回与统一 fold
   → 解析响应（tool_call / text）
   → tools.resolve + validate(tool_call)     # 名称与 input schema 守门
   → loop.check_permission(tool_call.name)  # 查组合根注入的 ToolPermissionMap
@@ -69,7 +69,7 @@ session.load()
 | 2 | `session` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；v2 call/result payload；item log 唯一写者 |
 | 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2；loop 接缝归后续 loop；验收 / offload 归 scheduler |
 | 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
-| 5 | `prompt` | tools | ◐ | ☐ | ☐ | 架构对齐中；compile 唯一出口 |
+| 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
 | 6 | `context` | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 7 | `loop` | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
 | 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 后置 |
@@ -91,8 +91,8 @@ session.load()
 - 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R6）
 - 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3 + typed call/result 接缝）
 - 模块 3 `tools`：设计 ☑ · 实现 ☑ · 测试 ☑（RB1–RB2 + `agent-tools` R1；loop 集成归后续模块）
-- 模块 5 `prompt`：◐ 架构对齐中；模块 6–8：☐ 未开始
-- 当前推进：确认 `prompt` 的职责、公开 API 与 tools/LLM 接缝；未确认前不落实现
+- 模块 5 `model_input`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 等待 Review；模块 6–8：☐ 未开始
+- 当前推进：R1 Review 通过并 commit 后，进入模块 6 `context` 架构对齐；不提前设计 context 内部实现
 
 ### 文档与集成入口
 
@@ -102,5 +102,6 @@ session.load()
 | `event` | [`src/event/README.md`](src/event/README.md) | [`src/event/DESIGN.md`](src/event/DESIGN.md) |
 | `llm` | [`src/llm/README.md`](src/llm/README.md) | [`src/llm/DESIGN.md`](src/llm/DESIGN.md) |
 | `tools` | [`src/tools/README.md`](src/tools/README.md) | [`src/tools/DESIGN.md`](src/tools/DESIGN.md) |
+| `model_input` | [`src/model_input/README.md`](src/model_input/README.md) | [`src/model_input/DESIGN.md`](src/model_input/DESIGN.md) |
 
 **原则：** `loop` 只 `emit`；`session` 只经 commit 阶段写盘；`agent` 装配 Registry；`cli` 只读观测。

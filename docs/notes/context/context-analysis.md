@@ -15,7 +15,7 @@ flowchart LR
 
 也就是说：
 
-- Session history 是 source of truth（MoonTide：**Session Event Log**，见 [`context-composer.md`](../../spec/context-composer.md)）。
+- Session history 是 source of truth（MoonTide 当前边界见 [`agent-core.md`](../../../crates/docs/agent-core.md)；TypeScript 历史方案见 [`context-composer.md`](../../archive/spec/context-composer.md)）。
 - Model context 只是针对某次请求 **compile** 出来的 ephemeral 产物（**LLMRequest**）。
 - System instructions、permissions、用户约束不能依赖 conversation summary 存活。
 - 大型 tool output 应先变成可寻址 artifact，而不是直接塞进 summary。
@@ -164,8 +164,8 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 
 建议保持克制，按这个顺序推进（**背景参考**；当前执行顺序以 [roadmap](context-window-roadmap.md) 为准）：
 
-1. 修正 model profile，并区分 previous actual usage、下一轮 compile 输入体量、reserved output。Model Profile 对应 **ModelProfile**（[`llm-provider.md`](../../spec/llm-provider.md) §9.4）；Session 中间态见 [`context-composer.md`](../../spec/context-composer.md)。
-2. 增加 **Context Composer** Module，让所有 LLM 请求只能从这里获得 `LLMRequest` 与 Manifest（Spec：[`context-composer.md`](../../spec/context-composer.md)）。
+1. 修正 model profile，并区分 previous actual usage、下一轮 compile 输入体量、reserved output。历史 Model Profile 方案见 [`llm-provider.md`](../../archive/spec/llm-provider.md) §9.4；历史 Session 中间态见 [`context-composer.md`](../../archive/spec/context-composer.md)。
+2. Rust 当前已将 messages materialize 与 `ModelRequest` compile 分责；边界见 [`agent-core.md`](../../../crates/docs/agent-core.md)，context 内部仍待设计。
 3. 把 system/project/runtime instruction state 移出 conversation compaction。
 4. 给 tool result 增加 full artifact + compose 时 bounded 的 prompt 片段；先解决最大的 context 消耗来源。
 5. 再实现 structured checkpoint + 最近完整 turns，验证成功后才替换 active context。

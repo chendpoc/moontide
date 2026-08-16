@@ -19,24 +19,25 @@ AGENTS.md
 crates/docs/engineering-handbook.md
   Rust 工程规则的完整解释、判据、示例、Conformance 方法
         │
-        ├── docs/spec/
-        │     系统级当前契约
+        ├── crates/docs/*.md（标记为“当前”的文档）
+        │     Rust 系统级 owner、边界和不变量
         └── crates/agent-core/src/*/{README,DESIGN}.md
               模块局部 API、实现方案、不变量和测试方向
 ```
 
-候选设计、调研和迁移材料放在 `crates/docs/` 的候选文件或 `docs/notes/`，不能因为标题写了“定稿”就自动覆盖当前 Spec。
+`docs/spec/` 与 `docs/notes/` 都是候选、draft、调研或迁移材料，不参与当前 Rust 契约的权威裁决。`crates/docs/` 中每份文档必须在开头标明“当前”或“候选”；候选文件不能因为标题写了“定稿”就覆盖当前设计。
 
 发生冲突时按以下顺序处理：
 
 1. `AGENTS.md`；
-2. `TODO.md` 当前执行优先级；
-3. `docs/spec/` 当前系统契约；
-4. 本 handbook；
-5. 模块 `README.md` / `DESIGN.md`；
-6. `docs/notes/` 与候选设计。
+2. 本 handbook；
+3. `crates/docs/` 中标记为当前的 Rust 系统设计；
+4. 模块 `README.md` / `DESIGN.md`；
+5. `TODO.md`（只决定执行优先级，不覆盖架构）；
+6. `docs/spec/`、`docs/notes/` 与其他候选设计；
+7. `docs/archive/` 历史材料。
 
-模块文档若与系统 Spec 冲突，应先修正边界和入口，不以局部文档悄悄改变系统契约。
+模块文档若与 handbook 或当前 Rust 系统设计冲突，应先修正边界和入口，不以局部文档悄悄改变系统契约。
 
 ---
 
@@ -46,7 +47,7 @@ crates/docs/engineering-handbook.md
 
 ```text
 cli（纯壳）→ agent（组合根）
-               ├──► agent-core（引擎：llm / session / tools / event / prompt / context / loop / scheduler）
+               ├──► agent-core（引擎：llm / session / tools / event / model_input / context / loop / scheduler）
                └──► agent-tools（第一方 catalog / builtins）──► agent-core
 ```
 
@@ -77,9 +78,9 @@ llm ───────────────► provider / protocol
 session ───────────► llm protocol + tools result status
 tools ──────────────► std + serde + anyhow
 event ──────────────► protocol / RunEvent + tools result status
-prompt ─────────────► tools + llm protocol
+model_input ────────► tools + llm protocol
 context ────────────► session + llm protocol
-loop ───────────────► llm + session + tools + event + prompt + context
+loop ───────────────► llm + session + tools + event + model_input + context
 scheduler ──────────► llm + tools
 ```
 
@@ -150,12 +151,12 @@ agent 组合配置
 一个 LLM step 使用冻结的 registry snapshot：
 
 ```text
-prompt 中暴露的 ToolSpec
+ModelRequest.tools 中由 ToolSpec 映射的 schema
        ==
 实际 dispatch 使用的 ToolExecutor
 ```
 
-动态工具或 MCP 工具的增删在下一 step 的新 snapshot 生效，不能让当前 prompt 与实际执行器漂移。
+动态工具或 MCP 工具的增删在下一 step 的新 snapshot 生效，不能让当前 `ModelRequest.tools` 与实际执行器漂移。
 
 `agent` 组合根声明 `ToolPermissionMap`，`loop` 只负责按 tool name 查表并处理 `Ask`；当前不为这一次查询设独立 permission 模块。scheduler 负责“何时执行、如何并行、如何取消”；tools 只负责单次调用。模型 offload、验收、retry、failover 不属于 tools。
 
@@ -176,9 +177,9 @@ Session Item Log
     │ materialize
     ▼
 Context / messages
-    │ prompt.compile
+    │ model_input::compile
     ▼
-LLMRequest
+ModelRequest
     │ LLMProvider
     ▼
 ModelResponse / ToolUse
@@ -212,7 +213,7 @@ Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断�
 | 过程 | 规范用词 |
 |------|----------|
 | Session Item Log → messages | `materialize` |
-| Session → LLMRequest | `compile` |
+| SystemPrompt + messages + tools → ModelRequest | `compile` |
 | RunEvent → Agent Event | `derive` |
 
 ---
@@ -348,7 +349,7 @@ just check
 | 变更 | 必须更新 |
 |------|----------|
 | 新增每 turn 必须遵守的硬规则 | `AGENTS.md` + 本手册对应章节 |
-| 改八模块职责或 import 边界 | 本手册 + `docs/spec/agent-core.md` + 受影响模块 DESIGN |
+| 改八模块职责或 import 边界 | 本手册 + [`agent-core.md`](agent-core.md) + 受影响模块 DESIGN |
 | 改单个模块 API / 不变量 | 模块 `README.md` / `DESIGN.md` |
 | 改候选方案 | 候选文档，并注明未实现 |
 | 完成一个模块实现 | 模块文档 + `PROGRESS.md` + 测试证据 |
