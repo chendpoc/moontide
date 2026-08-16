@@ -611,7 +611,7 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 | **H** | `thinkingLevel` 各 adapter 映射 + ESLint 边界 rule | 与 trace 开关分离可测 |
 | **I** | `local-direct` adapter + `moontide-infer` IPC；本地 model catalog pull CLI | `MOONTIDE_LOCAL_INFER=on` 时 router tier 可本地完成；fallback cloud |
 
-**与 Session Event Log 的顺序：** 先完成 A–C（类型 + Provider + Capabilities），再动 Session Event Log / Context Composer（TODO #6 / Bruma），避免 session 事实存厂商专有类型。
+**与 Session Item Log 的顺序：** 先完成 A–C（类型 + Provider + Capabilities），再动 Session Item Log / Context Composer（TODO #6 / Bruma），避免 session 事实存厂商专有类型。
 
 **各阶段均不做（显式排除）：**
 
@@ -629,7 +629,7 @@ MOONTIDE_LOCAL_GENERAL=moontide/general-v1
 | 文档 | 关系 |
 |------|------|
 | [`llm-input.md`](llm-input.md) | 一次 LLM 调用的 `system` / `tools` / `messages`；目标产出 `LLMRequest`；Provider 层负责 **谁执行** `chat()` |
-| [`context-composer.md`](context-composer.md) | Session Event Log、Context Composer、Compaction / Checkpoint；产出 `LLMRequest` |
+| [`context-composer.md`](context-composer.md) | Session Item Log、Context Composer、Compaction / Checkpoint；产出 `LLMRequest` |
 | [`context-analysis.md`](../notes/context/context-analysis.md) | 行业 SOTA；ModelProfile 与 Tool Definitions 进入 Composer |
 | [`vision.md`](../product/vision.md) | 产品名 MoonTide；run 观测需 provider + model 字段 |
 | [`agent-events.md`](agent-events.md) | `RoutingDecision` 写入 run event log |

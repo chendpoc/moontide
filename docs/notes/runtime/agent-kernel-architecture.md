@@ -149,7 +149,7 @@
 **两条纪律**：
 
 - context/session/compaction/summary 用 mod 组织，**不拆 crate、不上 trait**；「多种更新」用策略模式在模块内部解决。
-- **trait 只留给确定多实现的 `LLMProvider` 和 `ToolExecutor`**，不为「未来可能」上依赖倒置。
+- **trait 按真实边界使用**：`LLMProvider` / `ToolExecutor` 是核心能力端口；event pipeline 等需要独立实现的窄边界也可使用 trait；不为「未来可能」或单实现逻辑提前上依赖倒置。
 
 **落到本项目的结论：MVP 三 crate**（详见 §11、§15）：
 

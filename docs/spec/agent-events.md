@@ -1,14 +1,14 @@
 
-MoonTide 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session Event Log** 区分；后者见 [`context-composer.md`](context-composer.md)）。
+MoonTide 将单次 run 的观测 JSONL 称为 **Agent Event Log**（与 **Session Item Log** 区分；后者见 [`context-composer.md`](context-composer.md)）。
 
-## Agent Event Log vs Session Event Log
+## Agent Event Log vs Session Item Log
 
-| | Agent Event Log | Session Event Log |
+| | Agent Event Log | Session Item Log |
 |---|-----------------|-------------------|
 | Scope | 单次 run | 整场 session |
 | Path | `.moontide/runs/<runId>.active.jsonl` | `.moontide/sessions/<sessionId>.jsonl` |
 | 职责 | trace、metrics、tool use log、UI tail | 会话事实 source of truth |
-| Schema | 本文 + `src/log/types.ts` | [`context-composer.md` §5](context-composer.md#5-session-event-log--条目-spec) |
+| Schema | 本文 + `src/log/types.ts` | [`context-composer.md` §5](context-composer.md#5-session-item-log--条目-spec) |
 
 ---
 

@@ -64,5 +64,5 @@
 
 1. **「Session Event Log」一词两义** —— `docs/spec/agent-events.md` 里它是 Session Item Log 的同义词；`crates/docs/logging-and-session-design.md` 里 `SessionEvent` 指「含生命周期的条目 enum」。建议：废弃「Session Event Log」，统一 **Session Item Log**；生命周期事实归 **Agent Event Log**。
 2. **条目三名词** —— `SessionEvent` / `SessionLogEntry` / `SessionItem` 指同一概念。统一 **SessionItem**。
-3. **compose vs compile** —— 已裁决：统一 **compile**（对应已落地函数 `prompt.compile()`）。`AGENTS.md` 术语表已改；「compose」仅作 Context Composer 的泛称，不作精确术语。
+3. **compose vs compile** —— 已裁决：统一 **compile**（对应目标函数 `prompt.compile()`；prompt 模块尚未实现）。`AGENTS.md` 术语表已改；「compose」仅作 Context Composer 的泛称，不作精确术语。
 4. **还原四名词** —— `derive_messages` / `messagesFromItems` / `投影` / `还原` 指同一概念。统一 **materialize**（`AGENTS.md` 已定）。

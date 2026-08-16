@@ -1,15 +1,15 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；9 个模块全部未开始（设计文档 / 实现 / 测试均待做）
-> **关联：** [`docs/notes/runtime/agent-kernel-architecture.md`](../../docs/notes/runtime/agent-kernel-architecture.md)（§7 模块清单，本文是其落地）· [`docs/notes/runtime/migration-plan.md`](../../docs/notes/runtime/migration-plan.md)
+> **状态：** 顶层设计已定；`llm` R1–R6 完成，`session` / `event` R1–R3 完成，`tools` 设计完成；其余模块按 `PROGRESS.md` 推进
+> **关联：** [`docs/notes/runtime/agent-kernel-architecture.md`](../../docs/notes/runtime/agent-kernel-architecture.md)（§7 模块清单，本文是其落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
 
-1. **不依赖当前 `crates/` 的 draft 代码**（`moontide-agent`/`composer`/`llm`/`session`/`tools`/`observability`/`protocol` 等是初版草稿，只作设计参考，**不 import、不复用其实现**）。
+1. **不依赖归档的 TypeScript draft 代码**（`packages/` 快照只作历史设计参考，Rust `agent-core` 以当前模块契约和实现为准）。
 2. **按依赖顺序逐模块推进**：每个模块走「写设计文档 → 实现 → 单测通过 → 下一个」循环，不先写完 9 份再写代码。
 3. **文档放模块源码目录**：`crates/agent-core/src/{mod}/README.md`（**对外使用说明**）+ `DESIGN.md`（**实现技术方案**）；可选 `TASKS.md`（分批实现）。
-4. **trait 只留给两个**：`LLMProvider`、`ToolExecutor`；其余模块用具体类型 + 策略模式，不上 trait（对齐 agent-kernel-architecture §6 纪律）。
+4. **按边界使用 trait**：`LLMProvider`、`ToolExecutor` 是核心能力端口；event pipeline 等需要独立实现的窄边界也可使用 trait。禁止为未来可能性或单实现逻辑提前抽象。
 
 ## 1. 依赖图（推进顺序）
 
@@ -17,7 +17,7 @@
 契约层（先定，供上层引用）
   1. llm         LLMProvider trait + ModelRequest/Response/Delta 类型
   2. session     item log 事实源（依赖 llm 的 message 类型）
-  3. tools       ToolSpec + 验收网关（相对独立）
+  3. tools       ToolSpec + 单次执行边界（相对独立；验收 / offload 归 scheduler）
   4. permission  权限策略（独立）
   5. event       RunEvent 类型 + bus（契约提前定，loop 靠它 emit）
 
@@ -34,9 +34,10 @@
 
 ## 2. 接口边界（谁 import 谁）
 
-- **只有两个 trait**（多实现确定存在）：
+- **核心能力 trait**（确定存在多实现）：
   - `LLMProvider`：`stream(ModelRequest) -> Stream<Delta>`，实现 = cloud / 本地 daemon
-  - `ToolExecutor`：`execute(ToolCall) -> ToolResult`，实现 = 内置 / sidecar
+  - `ToolExecutor`：`execute(ToolCall, ToolExecutionContext) -> ToolOutput`，实现 = 内置 / sidecar
+- **其他窄边界**：event pipeline 的 `HookHandler` / `CommitHandler` / `ObserveHandler` 用于 callback 解耦；不把它们扩展成领域能力或全局 service trait。
 - **其余模块是内部 mod**：高层 mod 依赖低层 mod，**低层不反向依赖高层**。
 - **唯一写者**：`session` 是 item log 唯一写者；compaction 由 `context` 计算 `CompactionPlan`、由 loop 转发给 session 执行。
 - **唯一出口**：`prompt.compile()` 是 Session → LLMRequest 的唯一出口；`context.materialize()` 是 item log → messages 的唯一出口。
@@ -50,10 +51,11 @@ session.load()
   → llm.stream(request)                     # 流式返回
   → 解析响应（tool_call / text）
   → permission.check(tool_call)            # 授权判定
-  → tools.execute(tool_call)               # 执行
-  → tools.verify(result)                   # 验收网关，失败则 failover
-  → session.append(new_item)               # 唯一写者落盘
-  → event.publish(RunEvent)                # 广播（UI/持久化/bridge）
+  → scheduler.admit(tool_call)             # 排队 / 串并行 / 取消
+  → tools.execute_one(tool_call)           # 单次副作用
+  → scheduler 处理验收 / offload / retry  # 多调用结果与 failover
+  → event.emit(RunEvent)                   # hook → commit → observe
+  → session commit handler                 # 唯一写者落盘
   → loop 判定 continue / steer / stop
 ```
 
@@ -63,11 +65,11 @@ session.load()
 
 | # | 模块 | 依赖 | 设计文档 | 实现 | 测试 | 备注 |
 |---|---|---|---|---|---|---|
-| 1 | `llm` | 无 | ☑ | ☑ | ☑ | [`src/llm/README.md`](src/llm/README.md) |
-| 2 | `session` | llm 类型 | ☐ | ☐ | ☐ | item log 唯一写者 |
-| 3 | `tools` | 无 | ☐ | ☐ | ☐ | ToolSpec + 验收网关 |
+| 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
+| 2 | `session` | llm 类型 | ☑ | ☑ | ☑ | R1–R3；item log 唯一写者 |
+| 3 | `tools` | 无 | ☑ | ☐ | ☐ | ToolSpec + 单次执行边界；验收 / offload 归 scheduler |
 | 4 | `permission` | 无 | ☐ | ☐ | ☐ | 授权策略 |
-| 5 | `event` | 无 | ☑ | ☐ | ☐ | [`src/event/README.md`](src/event/README.md) |
+| 5 | `event` | 无 | ☑ | ☑ | ☑ | R1–R3；[`src/event/README.md`](src/event/README.md) |
 | 6 | `prompt` | tools | ☐ | ☐ | ☐ | compile 唯一出口 |
 | 7 | `context` | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 8 | `loop` | 1–7 全部 | ☐ | ☐ | ☐ | turn 状态机 |
@@ -87,10 +89,11 @@ session.load()
 ## 6. 当前进度快照
 
 - 顶层设计：☑（本文）
-- 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑
-- 模块 2 `session`、5 `event`：设计 ☑ · 实现 ☐ · 测试 ☐
-- 模块 3–4、6–9：☐ 未开始
-- 当前推进：**session R1** + **event R1**（类型与 dispatch 契约）
+- 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R6）
+- 模块 2 `session`、5 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3）
+- 模块 3 `tools`：设计 ☑ · 实现 ☐ · 测试 ☐
+- 模块 4、6–9：☐ 未开始
+- 当前推进：**tools R1**（纯类型、冻结 registry、单次调用规范化）
 
 ### 文档与集成入口
 
@@ -99,5 +102,6 @@ session.load()
 | `session` | [`src/session/README.md`](src/session/README.md) | [`src/session/DESIGN.md`](src/session/DESIGN.md) |
 | `event` | [`src/event/README.md`](src/event/README.md) | [`src/event/DESIGN.md`](src/event/DESIGN.md) |
 | `llm` | [`src/llm/README.md`](src/llm/README.md) | [`src/llm/DESIGN.md`](src/llm/DESIGN.md) |
+| `tools` | [`src/tools/README.md`](src/tools/README.md) | [`src/tools/DESIGN.md`](src/tools/DESIGN.md) |
 
 **原则：** `loop` 只 `emit`；`session` 只经 commit 阶段写盘；`agent` 装配 Registry；`cli` 只读观测。
