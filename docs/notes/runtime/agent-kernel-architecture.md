@@ -151,17 +151,17 @@
 - context/session/compaction/summary 用 mod 组织，**不拆 crate、不上 trait**；「多种更新」用策略模式在模块内部解决。
 - **trait 按真实边界使用**：`LLMProvider` / `ToolExecutor` 是核心能力端口；event pipeline 等需要独立实现的窄边界也可使用 trait；不为「未来可能」或单实现逻辑提前上依赖倒置。
 
-**落到本项目的结论：MVP 三 crate**（详见 §11、§15）：
+**落到本项目的结论：MVP 四 crate**（详见 §11、§15）：
 
-- 拆：`cli`（依赖方向强制）、`agent`（组合根，唯一全依赖）。
-- 不拆：`agent-core` 全家桶（loop/context/prompt/session/permission/tools/scheduler/event/llm，见 §7）。
+- 拆：`cli`（纯壳）、`agent-tools`（第一方 builtins）、`agent`（组合根，唯一全依赖）。
+- 不拆：`agent-core` 全家桶（loop/context/prompt/session/tools/scheduler/event/llm，见 §7）。
 - 后置：`protocol` 独立 crate——MVP 单进程无跨二进制共享需求，先作 agent-core 内 `types/` mod，跨进程落地时再拆。
 
 ---
 
 ## 7. 完整内核模块清单
 
-用「agent 完整生命周期」推演得出，补齐了此前讨论中遗漏的三个模块（permission / prompt / event）：
+用「agent 完整生命周期」推演后，当前保留八个高内聚模块。早期曾把 permission 单独列为模块；2026-08-16 复核发现 MVP 只有静态 `tool_name → Allow | Ask` map 与一次查表，不足以形成独立领域边界，因此折叠为组合根配置和 loop 内部检查：
 
 ```text
 agent-core/
@@ -169,18 +169,17 @@ agent-core/
   context/       # item log → messages + compaction + summary + polish（策略模式）
   prompt/        # system prompt 组装（compile：skill/rules/tool schema 注入）
   session/       # item log 事实源 + 持久化 + load/resume
-  permission/    # tool 授权、自动批准规则、白名单（sidecar 不可绕过）
-  tools/         # tool 调度 + 验收网关
+  tools/         # ToolSpec + frozen registry + 单次校验/执行/结果规范化
   scheduler/     # 分诊 + fan-out + delegate + 排队/升级（先模块后拆 crate）
-  event/         # event bus + Run JSONL 事实源（Agent Event 唯一，ops log 派生）
+  event/         # RunEvent bus + commit/derive pipeline + Agent Event Log
   llm/           # LLMProvider trait（多实现）
 ```
 
-三个补齐模块对应三条铁律：
+对应的边界纪律：
 
-- `permission/` ← 「内核握 tool 执行权」的落点（`sidecar 不可绕过`）。
+- `agent` 声明 `ToolPermissionMap`，`loop` 查表并处理 `Ask`；缺失项安全拒绝，sidecar 不可修改宿主 map。只有路径、命令前缀、session scope 或动态风险等真实规则出现后，才重新评审独立 permission 模块。
 - `prompt/` ← 「compile 唯一出口」的落点（context 管动态消息历史，prompt 管静态指令骨架 + 动态注入，职责不同，不混入 context）。
-- `event/` ← 「Agent Event 唯一事实源」的落点（Run 级 JSONL 与 Session 持久化分离，ops log 只做派生视图）。
+- `event/` ← RunEvent 的统一分发落点；Session Item Log 是恢复事实源，Agent Event Log 是派生观测记录。
 
 **两个「完整内核该有、但 MVP 可后置」的诚实标注**：
 
@@ -191,12 +190,12 @@ agent-core/
 
 ## 8. MVP 边界与演进路线
 
-**第一版（三 crate，证明架构成立）**：
+**第一版（四 crate，证明架构成立）**：
 
 ```text
-cli（纯壳，只消费 AgentEvent）
-  → agent-core（loop/context/prompt/session/permission/tools/event/llm 云端 provider）
-  → agent（组合根，preset 加载 + 依赖组装）
+cli（纯壳，只消费 AgentEvent）→ agent（组合根）
+                                  ├──► agent-core（loop/context/prompt/session/tools/event/llm 云端 provider）
+                                  └──► agent-tools（声明 catalog/builtins）──► agent-core
 ```
 
 **后置（架构已验证后再上）**：
@@ -231,19 +230,20 @@ cli（纯壳，只消费 AgentEvent）
 ### 10.1 依赖方向总图
 
 ```text
-                    agent-core（引擎，Transport client 侧，含 types/ mod）
-                    ↑            ↑
-              cli（纯壳）     agent（组合根，全依赖）
-                                  ↑
-                          （后置）runtime：daemon(Rust) / sidecar(语言未定)
-                          （后置）protocol 独立 crate（跨进程契约）
+cli（纯壳）──► agent（组合根，全依赖）
+                 ├──► agent-core（引擎，含 tools runtime contract）
+                 ├──► agent-tools（builtins）──► agent-core
+                 └──►（后置）runtime client
+
+（后置）runtime / sidecar ──► protocol 独立 crate ◄── agent-core
 ```
 
-依赖铁律三条：
+依赖铁律四条：
 
-1. **agent-core 不依赖 cli / agent / runtime**——它们依赖 agent-core，永不反向。
-2. **agent 是唯一全依赖的组合根**——同时依赖 agent-core + preset 配置 +（后置的）runtime client。
-3. **runtime 与 agent-core 对等**——只通过（后置的）protocol 契约通信，互不 import。
+1. **agent-core 不依赖 cli / agent / agent-tools / runtime**——它们直接或间接依赖 agent-core，永不反向。
+2. **agent-tools 单向依赖 agent-core**——只提供第一方 `ToolDefinition` catalog 与具体 executor；agent-core 不反向依赖 builtins。
+3. **agent 是唯一全依赖的组合根**——同时依赖 agent-core + agent-tools + preset 配置 +（后置的）runtime client。
+4. **runtime 与 agent-core 对等**——只通过（后置的）protocol 契约通信，互不 import。
 
 ### 10.2 cli
 
@@ -265,11 +265,11 @@ cli/
 
 ```text
 agent/
-  preset/        # skill、rules、tool、prompt 的声明式配置（数据，非逻辑）
+  preset/        # skill、rules、tool name、permission、prompt 的声明式配置
   bootstrap.rs   # 组合根：new AgentCore(store, ctx, tools, llm, ...) 注入
 ```
 
-`resolveRunConfig` / config 解析归属这里。独立成 crate 的理由是**依赖方向**——它同时依赖 agent-core + preset +（后置的）runtime，是唯一「全依赖」的 crate，desktop 复用。
+`resolveRunConfig` / config 解析归属这里。bootstrap 按 preset name 从 `agent-tools::builtin_tool_definitions()` 选择、build 并冻结 `ToolRegistry`。独立成 crate 的理由是**依赖方向**——它同时依赖 agent-core + agent-tools + preset +（后置的）runtime，是唯一「全依赖」的 crate，desktop 复用。
 
 ### 10.4 protocol（后置，先 mod 后 crate）
 
@@ -467,8 +467,8 @@ impl SidecarHook {
 3. subagent = 一个 tool，= 同一 Rust 二进制的 `--role sub` 实例，非独立类型
 4. 嵌套/数量限制 = preset 配置 + 运行时配额（DelegatePolicy）
 5. crate 判据：依赖方向强制 + 跨二进制共享契约；防膨胀 = mod + lint
-6. MVP crate：`cli` + `agent-core` + `agent`；protocol 先 mod 后 crate
-7. 内核模块：loop / context / prompt / session / permission / tools / scheduler / event / llm
+6. MVP crate：`cli` + `agent-core` + `agent-tools` + `agent`；protocol 先 mod 后 crate
+7. 内核模块：loop / context / prompt / session / tools / scheduler / event / llm；permission 当前是组合根 map + loop 查表，不是独立模块
 8. 模型分层：router 分诊 → 本地 7B（验收网关 + failover）→ 云端兜底
 9. 微调：unsloth（训练）+ llama.cpp/MLX（推理），adapter→GGUF 转换链
 10. 卖点：隐私 / 离线 / 确定性，不打并行
@@ -494,14 +494,13 @@ impl SidecarHook {
 | schema auto-gen 工具（schemars/ts-rs/prost） | 跨语言契约真实出现 |
 | 本地 7B daemon + router | 内核架构被 MVP 验证后 |
 | sidecar 语言（TS/Go/Rust） | 深 hook 生态真要设计时 |
-| agent 装配层拆独立 crate | desktop（slint）落地时 |
 | Go 后台服务引入 | 后台服务复杂到 tokio 真痛 |
 
 ---
 
 ## 15. 开放问题（讨论中未收敛）
 
-已收敛（前几轮遗留、本轮解决）：语言/双轨终局（D1）、MVP 边界（§8 三 crate）。
+已收敛（前几轮遗留、本轮解决）：语言/双轨终局（D1）、MVP 边界（§8 四 crate）。
 
 仍待后续决策（实现细节，非架构）：
 

@@ -38,7 +38,8 @@ impl SessionStore {
     pub fn load(sessions_dir: impl AsRef<Path>, session_id: &str) -> Result<Self> {
         let store = FileSessionStore::open(sessions_dir, session_id)?;
         let header = store.read_header()?;
-        let items = store.read_items()?;
+        validate_header_version(header.version)?;
+        let items = store.read_items(header.version)?;
         validate_loaded_items(&items, &header.session_id)?;
 
         Ok(Self {
@@ -157,6 +158,32 @@ fn validate_loaded_items(items: &[SessionItem], session_id: &str) -> Result<()> 
                 item.base().session_id
             );
         }
+        match item {
+            SessionItem::ToolCall { call, .. }
+                if call.tool_use_id().trim().is_empty() || call.name().trim().is_empty() =>
+            {
+                anyhow::bail!(
+                    "invalid tool call identity at session log line {}",
+                    expected_seq + 1
+                );
+            }
+            SessionItem::ToolResult { result, .. }
+                if result.tool_use_id().trim().is_empty() || result.name().trim().is_empty() =>
+            {
+                anyhow::bail!(
+                    "invalid tool result identity at session log line {}",
+                    expected_seq + 1
+                );
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_header_version(version: u32) -> Result<()> {
+    if !matches!(version, 1 | SESSION_HEADER_VERSION) {
+        anyhow::bail!("unsupported session header version: {version}");
     }
     Ok(())
 }

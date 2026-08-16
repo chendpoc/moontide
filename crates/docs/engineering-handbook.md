@@ -45,18 +45,9 @@ crates/docs/engineering-handbook.md
 当前目标结构是：
 
 ```text
-cli（纯壳）
-  └── agent-core（引擎）
-        ├── llm
-        ├── session
-        ├── tools
-        ├── permission
-        ├── event
-        ├── prompt
-        ├── context
-        ├── loop
-        └── scheduler
-  └── agent（组合根，后续）
+cli（纯壳）→ agent（组合根）
+               ├──► agent-core（引擎：llm / session / tools / event / prompt / context / loop / scheduler）
+               └──► agent-tools（第一方 catalog / builtins）──► agent-core
 ```
 
 ### 2.1 分层职责
@@ -65,10 +56,11 @@ cli（纯壳）
 |----|------|--------|
 | `cli` | 参数、REPL、渲染、退出码 | Agent 内核逻辑、provider 组装 |
 | `agent-core` | 生命周期、协议、状态、工具和调度内核 | CLI 细节、厂商 preset、sidecar 进程管理 |
+| `agent-tools` | 第一方 `ToolDefinition` catalog、spec 与 executor 实现 | runtime registry、permission、loop 编排 |
 | `agent` | 组合根、preset、provider、runtime 注入 | 在 loop 内硬编码 endpoint 或工具表 |
 | `sidecar` / runtime | 进程外扩展和隔离 | 直接绕过内核 permission |
 
-`agent-core` 的九个模块是同一 crate 内的内部 mod，不为了目录好看提前拆 crate。只有出现真实的跨二进制共享契约或独立发布需求时，才重新评估拆分。
+`agent-core` 的八个模块是同一 crate 内的内部 mod，不为了目录好看提前拆 crate。只有出现真实的跨二进制共享契约或独立发布需求时，才重新评估拆分。
 
 ### 2.2 当前推进状态
 
@@ -82,20 +74,20 @@ cli（纯壳）
 
 ```text
 llm ───────────────► provider / protocol
-session ───────────► llm protocol
+session ───────────► llm protocol + tools result status
 tools ──────────────► std + serde + anyhow
-permission ─────────► tools contract
-event ──────────────► protocol / RunEvent
+event ──────────────► protocol / RunEvent + tools result status
 prompt ─────────────► tools + llm protocol
 context ────────────► session + llm protocol
-loop ───────────────► 1–7 契约模块
+loop ───────────────► llm + session + tools + event + prompt + context
 scheduler ──────────► llm + tools
 ```
 
 约束：
 
 - `session` 不依赖 `loop` 或 `agent`；
-- `tools` 不依赖 `permission`、`scheduler`、`session`、`event` 或 `llm` 的实现；
+- `tools` 不依赖 `loop`、`scheduler`、`session`、`event` 或 `llm` 的实现；
+- `session` / `event` 如需持久化 tool status，只依赖 `tools` 的稳定结果契约，不依赖 tools 的 executor/registry 实现；
 - `event` 不拥有 Session Store；commit handler 由组合根装配；
 - `loop` 只经 `event::EventDispatcher::emit` 发送事件，不直接写 Session；
 - 模块内部项不加 `pub`；crate 内共享使用 `pub(crate)`；跨 crate 才公开；
@@ -116,7 +108,7 @@ Trait 的约束是“是否形成清晰的实现边界”，不是数量上限�
 |-------|------|----------|
 | `LLMProvider` | 流式模型调用边界 | 云端 provider / 本地 daemon |
 | `ToolExecutor` | 单个工具真实副作用边界 | 内置工具 / sidecar adapter |
-| `HookHandler` | event 提交前的阻断 callback | permission / run hook |
+| `HookHandler` | event 提交前的阻断 callback | run / lifecycle guard |
 | `CommitHandler` | 将 committable RunEvent 写入事实源 | session adapter |
 | `ObserveHandler` | 派生 Agent Event Log 或观测输出 | event observer / sidecar |
 
@@ -130,13 +122,16 @@ Trait 的约束是“是否形成清晰的实现边界”，不是数量上限�
 
 ```text
 spec.rs
-  ToolSpec / schema / approval floor / static capability
+  ToolSpec / schema
 
 impl.rs
   handler / executor / IO / subprocess / network
 
 registry.rs
   declaration → implementation 的绑定与冻结
+
+agent 组合配置
+  ToolPermissionMap: tool-name → Allow | Ask
 ```
 
 ### 4.1 硬判据
@@ -162,7 +157,11 @@ prompt 中暴露的 ToolSpec
 
 动态工具或 MCP 工具的增删在下一 step 的新 snapshot 生效，不能让当前 prompt 与实际执行器漂移。
 
-Permission 负责“是否允许”；scheduler 负责“何时执行、如何并行、如何取消”；tools 只负责单次调用。模型 offload、验收、retry、failover 不属于 tools。
+`agent` 组合根声明 `ToolPermissionMap`，`loop` 只负责按 tool name 查表并处理 `Ask`；当前不为这一次查询设独立 permission 模块。scheduler 负责“何时执行、如何并行、如何取消”；tools 只负责单次调用。模型 offload、验收、retry、failover 不属于 tools。
+
+`ToolCall` 与 `ToolResult` 是单次调用生命周期仅有的两个结构体建模。executor 直接返回 `ToolResult`；event/session 只包装它们，不复制 id/name/input/status/content 字段组。`ToolResultStatus` 是 host 侧规范状态，`Failed { retryable }` 不得丢失；LLM `ContentBlock::ToolResult` 仍只承载模型可见 content，控制流不得从 content 反推 status。结构化结果统一使用 `ToolContent::Json`，不重复维护 host-only 载荷。`ToolContent` 的持久化必须带显式 `type` tag，不能用会混淆 Text 与 JSON string 的 untagged 表示。
+
+canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定的 JSON Schema Draft 2020-12；R1 只保留 `input_schema`，其顶层 JSON 值必须是 object，object 内的 schema 文档在注册时校验，调用 input 在执行前校验。`output_schema` 等出现明确结构化消费者后再设计。
 
 详见 [`agent-core/src/tools/README.md`](../agent-core/src/tools/README.md) 与 [`agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。
 
@@ -184,10 +183,10 @@ LLMRequest
     ▼
 ModelResponse / ToolUse
     │
-    ├─ ToolCall → permission → scheduler → ToolExecutor
-    │                                  │
-    │                                  ▼
-    │                              ToolResult
+    ├─ ToolCall → input validation → loop permission-map check → ToolExecutor
+    │                                                               │
+    │                                                               ▼
+    │                                                           ToolResult
     │
     ├─ loop emit RunEvent
     └─ event commit / derive
@@ -225,7 +224,8 @@ Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断�
 | 类型 | 表达 | 处理 |
 |------|------|------|
 | 工具预期失败 | 模型可见的 tool result | 返回错误文本/结构化结果，通常继续 turn |
-| 工具或 LLM 基础设施故障 | `anyhow::Result` | 向 run 边界传播，统一处理 |
+| 工具基础设施故障 | `anyhow::Result` | loop 先提交 `OutcomeUnknown` 配对结果，再向 run 边界传播原始错误 |
+| LLM 基础设施故障 | `anyhow::Result` | 向 run 边界传播，统一处理 |
 
 预期失败不得 panic；基础设施错误不得在中途吞掉。库代码不用 `unwrap()`、`expect()` 或 panic 处理外部输入。
 
@@ -248,13 +248,13 @@ Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断�
 
 ```text
 AssistantFinalized
-  → ToolInvocationRecorded
-  → permission / scheduler
+  → ToolCallRecorded { call }
+  → input validation / loop permission-map check
   → ToolExecutor
-  → ToolOutcomeRecorded
+  → ToolResultRecorded { result }
 ```
 
-执行副作用前必须使模型请求事实可恢复；结果完成后再提交结果事实。
+执行副作用前必须使 `ToolCall` 事实可恢复；结果完成后再提交 `ToolResult` 事实。executor 返回基础设施错误时，loop 也必须先提交一个 `OutcomeUnknown` result，再传播原始错误，不能留下已记录但无结果的 call。scheduler 后续作为多调用外层编排接入，不是当前单次调用的第三道门禁。
 
 ---
 
@@ -282,7 +282,9 @@ AssistantFinalized
 - loop 不直接写 Session；
 - Committable RunEvent 才能进入 commit 阶段；
 - ToolResult 状态与 content 独立；
-- `OutcomeUnknown` 不得归一成成功。
+- 单次工具生命周期只用 ToolCall / ToolResult 建模，event/session 直接包装，不复制字段；
+- `OutcomeUnknown` 不得归一成成功；
+- executor `Err` 必须先产生一次配对的 `OutcomeUnknown`，再向 run 边界传播。
 
 Conformance 测试验证不变量；热路径不增加 runtime assert 来替代测试。
 
@@ -346,7 +348,7 @@ just check
 | 变更 | 必须更新 |
 |------|----------|
 | 新增每 turn 必须遵守的硬规则 | `AGENTS.md` + 本手册对应章节 |
-| 改九模块职责或 import 边界 | 本手册 + `docs/spec/agent-core.md` + 受影响模块 DESIGN |
+| 改八模块职责或 import 边界 | 本手册 + `docs/spec/agent-core.md` + 受影响模块 DESIGN |
 | 改单个模块 API / 不变量 | 模块 `README.md` / `DESIGN.md` |
 | 改候选方案 | 候选文档，并注明未实现 |
 | 完成一个模块实现 | 模块文档 + `PROGRESS.md` + 测试证据 |

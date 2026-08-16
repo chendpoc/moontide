@@ -37,7 +37,7 @@ where
     W: AgentEventRecorder,
 {
     fn observe(&self, ctx: &TraceContext, event: &RunEvent) -> anyhow::Result<()> {
-        if let Some(record) = derive_agent_event(ctx, event) {
+        if let Some(record) = derive_agent_event(ctx, event)? {
             self.recorder.append(record)?;
         }
         Ok(())

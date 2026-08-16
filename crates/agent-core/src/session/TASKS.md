@@ -13,6 +13,7 @@
 | **R1** | 01–05 | types + FileSessionStore + SessionStore create/load/commit + 不变量单测 | ☑ |
 | **R2** | 06–08 | fork + Compaction/Checkpoint item 类型 | ☑ |
 | **R3** | 09–10 | commit_from_event + agent/event 联调 | ☑ |
+| **R3-F1** | 11 | Session v2 ToolCall / ToolResult payload 迁移 | ☑ |
 
 ---
 
@@ -85,7 +86,7 @@
 
 - **做什么：** `commit.rs`；Committable `RunEvent` → `SessionItemDraft` → `commit_item`；非 Committable → `Err`。
 - **范围：** `commit.rs`、`mod.rs`。
-- **完成标准：** 映射表单测（UserPromptCommitted / AssistantFinalized / ToolInvocationRecorded / ToolOutcomeRecorded）。
+- **完成标准：** 映射表单测（UserPromptCommitted / AssistantFinalized / ToolCallRecorded / ToolResultRecorded）。
 - **状态：** ☑
 
 ### TASK-session-10: agent/event 联调
@@ -93,4 +94,16 @@
 - **做什么：** event commit handler 注册；生产路径不写盘绕过 Pipeline。
 - **范围：** `agent` + `event`（跨模块）。
 - **完成标准：** 集成测试或 conformance 守门。
+- **状态：** ☑
+
+---
+
+## R3-F1：Session v2 tool payload
+
+### TASK-session-11: 直接持久化 ToolCall / ToolResult
+
+- **做什么：** 将 tool item/draft 收敛为 `ToolCall` / `ToolResult`；header 升到 v2；兼容读取 v1 历史 kind，并将缺失 status 映射为 `OutcomeUnknown`。
+- **依赖：** agent-core tools RB2
+- **范围：** `types.rs`、`store.rs`、`commit.rs`、`tests.rs`
+- **完成标准：** 新写入不复制 tool 字段；v1 load、typed status、未知 header version 与 event commit 测试通过。
 - **状态：** ☑

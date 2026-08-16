@@ -14,6 +14,7 @@ use crate::event::{
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
+use crate::tools::{ToolCall, ToolCancellationReason, ToolContent, ToolResult, ToolResultStatus};
 
 struct MockCommitHandler {
     calls: Arc<AtomicUsize>,
@@ -216,19 +217,24 @@ fn test_ctx() -> TraceContext {
     TraceContext::new("run-derive", "session-derive")
 }
 
+fn derive_record(ctx: &TraceContext, event: &RunEvent) -> AgentEventRecord {
+    derive_agent_event(ctx, event)
+        .expect("derive agent event")
+        .expect("event should produce a persisted observation")
+}
+
 // 场景：用户消息事件派生为 conversation/user_prompt。
 // 预期：channel、kind、phase 和 payload 保持事件语义。
 #[test]
 fn derive_user_prompt_committed_maps_conversation() {
     let ctx = test_ctx();
-    let record = derive_agent_event(
+    let record = derive_record(
         &ctx,
         &RunEvent::UserPromptCommitted {
             turn: 1,
             text: "hello world".to_string(),
         },
-    )
-    .expect("record");
+    );
 
     assert_eq!(record.channel, AgentChannel::Conversation);
     assert_eq!(record.kind, "user_prompt");
@@ -245,13 +251,13 @@ fn derive_user_prompt_committed_maps_conversation() {
 fn derive_turn_lifecycle_maps_trace() {
     let ctx = test_ctx();
 
-    let started = derive_agent_event(&ctx, &RunEvent::TurnStarted { turn: 3 }).expect("started");
+    let started = derive_record(&ctx, &RunEvent::TurnStarted { turn: 3 });
     assert_eq!(started.channel, AgentChannel::Trace);
     assert_eq!(started.kind, "turn_started");
     assert_eq!(started.phase, AgentPhase::PreLlm);
     assert_eq!(started.turn, 3);
 
-    let ended = derive_agent_event(&ctx, &RunEvent::TurnEnded { turn: 3 }).expect("ended");
+    let ended = derive_record(&ctx, &RunEvent::TurnEnded { turn: 3 });
     assert_eq!(ended.channel, AgentChannel::Trace);
     assert_eq!(ended.kind, "turn_ended");
     assert_eq!(ended.phase, AgentPhase::Stop);
@@ -263,21 +269,20 @@ fn derive_turn_lifecycle_maps_trace() {
 fn derive_llm_call_started_and_ended_maps_trace() {
     let ctx = test_ctx();
 
-    let started = derive_agent_event(
+    let started = derive_record(
         &ctx,
         &RunEvent::LlmCallStarted {
             turn: 2,
             step: 1,
             llm_call_id: "call-1".to_string(),
         },
-    )
-    .expect("started");
+    );
     assert_eq!(started.channel, AgentChannel::Trace);
     assert_eq!(started.kind, "llm_call");
     assert_eq!(started.payload["status"], "started");
     assert_eq!(started.payload["llmCallId"], "call-1");
 
-    let ended = derive_agent_event(
+    let ended = derive_record(
         &ctx,
         &RunEvent::LlmCallEnded {
             turn: 2,
@@ -289,8 +294,7 @@ fn derive_llm_call_started_and_ended_maps_trace() {
                 output_tokens: 5,
             }),
         },
-    )
-    .expect("ended");
+    );
     assert_eq!(ended.channel, AgentChannel::Trace);
     assert_eq!(ended.kind, "llm_call");
     assert_eq!(ended.payload["status"], "ended");
@@ -302,7 +306,7 @@ fn derive_llm_call_started_and_ended_maps_trace() {
 #[test]
 fn derive_message_update_pending_text_maps_assistant_text() {
     let ctx = test_ctx();
-    let record = derive_agent_event(
+    let record = derive_record(
         &ctx,
         &RunEvent::MessageUpdate {
             turn: 1,
@@ -318,8 +322,7 @@ fn derive_message_update_pending_text_maps_assistant_text() {
                 model: None,
             },
         },
-    )
-    .expect("record");
+    );
 
     assert_eq!(record.channel, AgentChannel::Trace);
     assert_eq!(record.kind, "assistant_text");
@@ -327,12 +330,115 @@ fn derive_message_update_pending_text_maps_assistant_text() {
     assert_eq!(record.payload["charCount"], 7);
 }
 
+// 场景：流式 snapshot 携带尚未提交的 Unicode tool input；预期：使用独立的 trace/tool_use_update schema 并按字符计数；不变量/副作用：流式观测不能冒充已提交的 ToolCall 事实。
+#[test]
+fn derive_message_update_separates_partial_tool_use_from_committed_call() {
+    let input_json = r#"{ "pattern": "\u5de5\u5177" }"#;
+    let expected_input = serde_json::json!({ "pattern": "工具" });
+    let persisted_input =
+        serde_json::to_string(&expected_input).expect("serialize persisted input");
+    let record = derive_record(
+        &test_ctx(),
+        &RunEvent::MessageUpdate {
+            turn: 1,
+            step: 2,
+            llm_call_id: "llm-call-1".to_owned(),
+            snapshot: ModelResponseSnapshot {
+                content: vec![],
+                pending: Some(PendingBlock::ToolUse {
+                    id: "tool-stream-1".to_owned(),
+                    name: "grep".to_owned(),
+                    input_json: input_json.to_owned(),
+                }),
+                stop_reason: None,
+                usage: None,
+                model: None,
+            },
+        },
+    );
+
+    assert_eq!(record.kind, "tool_use_update");
+    assert_eq!(
+        record.payload,
+        serde_json::json!({
+            "toolName": "grep",
+            "toolUseId": "tool-stream-1",
+            "charCount": persisted_input.chars().count(),
+            "input": expected_input,
+            "llmCallId": "llm-call-1",
+            "step": 2,
+        })
+    );
+}
+
+// 场景：流式 tool input 仍是无效 partial JSON；预期：payload 将原文持久化为 JSON string，并按该最终 string 的紧凑 JSON 表示计数；不变量/副作用：charCount 不依赖无法持久化的原始字节形状。
+#[test]
+fn derive_message_update_counts_persisted_invalid_partial_input() {
+    let input_json = r#"{"pattern":"工具""#;
+    let persisted_input = serde_json::to_string(input_json).expect("serialize persisted input");
+    let record = derive_record(
+        &test_ctx(),
+        &RunEvent::MessageUpdate {
+            turn: 1,
+            step: 2,
+            llm_call_id: "llm-call-invalid".to_owned(),
+            snapshot: ModelResponseSnapshot {
+                content: vec![],
+                pending: Some(PendingBlock::ToolUse {
+                    id: "tool-stream-invalid".to_owned(),
+                    name: "grep".to_owned(),
+                    input_json: input_json.to_owned(),
+                }),
+                stop_reason: None,
+                usage: None,
+                model: None,
+            },
+        },
+    );
+
+    assert_eq!(record.kind, "tool_use_update");
+    assert_eq!(record.payload["input"], input_json);
+    assert_eq!(record.payload["charCount"], persisted_input.chars().count());
+}
+
+// 场景：流式 snapshot 已形成完整 ToolUse block 但尚未产生 ToolCallRecorded；预期：仍使用 tool_use_update，并输出与 committed schema 区分的 llmCallId/step；不变量/副作用：snapshot 完整不等于调用事实已提交。
+#[test]
+fn derive_message_update_completed_tool_block_remains_update() {
+    let input = serde_json::json!({ "path": "文档.md" });
+    let input_json = serde_json::to_string(&input).expect("serialize expected input");
+    let record = derive_record(
+        &test_ctx(),
+        &RunEvent::MessageUpdate {
+            turn: 1,
+            step: 3,
+            llm_call_id: "llm-call-2".to_owned(),
+            snapshot: ModelResponseSnapshot {
+                content: vec![ContentBlock::ToolUse {
+                    id: "tool-stream-2".to_owned(),
+                    name: "read_file".to_owned(),
+                    input: input.clone(),
+                }],
+                pending: None,
+                stop_reason: None,
+                usage: None,
+                model: None,
+            },
+        },
+    );
+
+    assert_eq!(record.kind, "tool_use_update");
+    assert_eq!(record.payload["input"], input);
+    assert_eq!(record.payload["charCount"], input_json.chars().count());
+    assert_eq!(record.payload["llmCallId"], "llm-call-2");
+    assert_eq!(record.payload["step"], 3);
+}
+
 // 场景：assistant 最终消息包含 text 与 thinking blocks。
 // 预期：派生为 conversation/final，正文来自最终 text block。
 #[test]
 fn derive_assistant_finalized_maps_conversation_final() {
     let ctx = test_ctx();
-    let record = derive_agent_event(
+    let record = derive_record(
         &ctx,
         &RunEvent::AssistantFinalized {
             turn: 1,
@@ -345,34 +451,64 @@ fn derive_assistant_finalized_maps_conversation_final() {
                 },
             ],
         },
-    )
-    .expect("record");
+    );
 
     assert_eq!(record.channel, AgentChannel::Conversation);
     assert_eq!(record.kind, "final");
     assert_eq!(record.payload["text"], "hello");
 }
 
-// 场景：tool outcome 携带工具名称、调用 ID 和文本结果。
-// 预期：trace/tool_result payload 保留 toolName；不变量：观测日志可独立识别工具。
+// 场景：ToolResult 携带工具名称、调用 ID、状态和文本结果；预期：trace/tool_result payload 完整保留这些语义；不变量/副作用：观测日志直接读取 ToolResult，不复制另一套结果结构。
 #[test]
-fn derive_tool_outcome_includes_tool_name() {
-    let record = derive_agent_event(
+fn derive_tool_result_includes_identity_status_and_content() {
+    let call = ToolCall::new("tool-1", "read_file", serde_json::json!({"path": "a.rs"}))
+        .expect("create tool call");
+    let record = derive_record(
         &test_ctx(),
-        &RunEvent::ToolOutcomeRecorded {
+        &RunEvent::ToolResultRecorded {
             turn: 1,
-            tool_use_id: "tool-1".into(),
-            name: "read_file".into(),
-            content: crate::llm::protocol::ToolResultContent::Text("ok".into()),
+            result: ToolResult::succeeded(&call, ToolContent::Text("ok".into())),
         },
-    )
-    .expect("record");
+    );
 
     assert_eq!(record.channel, AgentChannel::Trace);
     assert_eq!(record.kind, "tool_result");
-    assert_eq!(record.payload["toolName"], "read_file");
-    assert_eq!(record.payload["toolUseId"], "tool-1");
-    assert_eq!(record.payload["body"], "ok");
+    assert_eq!(
+        record.payload,
+        serde_json::json!({
+            "toolName": "read_file",
+            "toolUseId": "tool-1",
+            "status": "succeeded",
+            "body": "ok",
+            "charCount": 2,
+        })
+    );
+}
+
+// 场景：ToolCall 进入 Agent Event 派生边界；预期：tool_use payload 保留名称、调用 ID 与原始 input；不变量/副作用：派生过程只读 ToolCall，不重新建模或改写输入。
+#[test]
+fn derive_tool_call_reuses_canonical_call_payload() {
+    let call = ToolCall::new("tool-2", "grep", serde_json::json!({"pattern": "工具"}))
+        .expect("create tool call");
+
+    let record = derive_record(
+        &test_ctx(),
+        &RunEvent::ToolCallRecorded {
+            turn: 2,
+            call: call.clone(),
+        },
+    );
+
+    let input_json = serde_json::to_string(call.input()).expect("serialize expected input");
+    assert_eq!(
+        record.payload,
+        serde_json::json!({
+            "toolName": call.name(),
+            "toolUseId": call.tool_use_id(),
+            "charCount": input_json.chars().count(),
+            "input": call.input(),
+        })
+    );
 }
 
 // 场景：observe handler 将一个大 payload 的语义事件交给 recorder。
@@ -645,6 +781,80 @@ fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
     assert_eq!(lines[0]["kind"], "final");
     assert_eq!(lines[0]["seq"], 0);
     assert_eq!(lines[0]["payload"]["text"], "final answer");
+}
+
+// 场景：失败、取消和结果未知的 ToolResult 经过 dispatcher 同时进入 Session 与 Agent Event Log；预期：typed status 和 JSON string 内容在两条持久化路径完整保留；不变量/副作用：观测投影不改变 canonical result，Session serde 不混淆 Text 与 Json。
+#[test]
+fn integration_tool_result_preserves_status_and_content_across_both_logs() {
+    let cases = [
+        (
+            "failed",
+            ToolResultStatus::Failed { retryable: true },
+            serde_json::json!({ "failed": { "retryable": true } }),
+        ),
+        (
+            "cancelled",
+            ToolResultStatus::Cancelled {
+                reason: ToolCancellationReason::User,
+            },
+            serde_json::json!({ "cancelled": { "reason": "user" } }),
+        ),
+        (
+            "unknown",
+            ToolResultStatus::OutcomeUnknown,
+            serde_json::json!("outcome_unknown"),
+        ),
+    ];
+
+    for (suffix, status, expected_status) in cases {
+        let root = TempDir::new().expect("tempdir");
+        let (sessions_dir, runs_dir) = integration_dirs(&root);
+        let run_id = format!("run-tool-result-{suffix}");
+        let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
+        let session_id = store.header().session_id.clone();
+        let call = ToolCall::new("tool-integration", "grep", serde_json::json!({}))
+            .expect("create tool call");
+        let result = ToolResult::with_status(
+            &call,
+            status,
+            ToolContent::Json(serde_json::json!("工具结果")),
+        );
+        let mut dispatcher = integration_dispatcher(&runs_dir, &run_id, &session_id, store, vec![]);
+
+        dispatcher
+            .emit(RunEvent::ToolResultRecorded {
+                turn: 1,
+                result: result.clone(),
+            })
+            .expect("emit tool result");
+
+        let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
+        match &loaded.items()[0] {
+            SessionItem::ToolResult {
+                result: stored_result,
+                ..
+            } => assert_eq!(stored_result, &result),
+            other => panic!("expected tool result, got {other:?}"),
+        }
+
+        let session_log =
+            std::fs::read_to_string(sessions_dir.join(format!("{session_id}.log.jsonl")))
+                .expect("read session log");
+        let session_line: serde_json::Value =
+            serde_json::from_str(session_log.trim()).expect("parse session line");
+        assert_eq!(
+            session_line["content"],
+            serde_json::json!({ "type": "json", "value": "工具结果" })
+        );
+
+        let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
+        let lines = read_agent_event_lines(&event_path);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0]["kind"], "tool_result");
+        assert_eq!(lines[0]["payload"]["status"], expected_status);
+        assert_eq!(lines[0]["payload"]["body"], r#""工具结果""#);
+        assert_eq!(lines[0]["payload"]["charCount"], 6);
+    }
 }
 
 // 场景：生产 hook 阻断用户输入事件。

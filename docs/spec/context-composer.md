@@ -53,7 +53,7 @@ API 适配层 → 厂商 API
 | **derive / 派生** | RunEvent → **Agent Event**（观测，不写回 Session Item Log） | `createRunEventDeriveListener` · [`run-event-derive.ts`](../../packages/agent/src/log/run-event-derive.ts) |
 | **Fact vs Compile** | Item Log 是事实源；发给模型的是 **Composer 编译产物** | C6 不变量 |
 
-**避免：** 用「投影 / Projection」指上述过程（易与图形学或模糊隐喻混淆）；Rust 侧历史类型名 `ToolProjectionConfig` 指 tool 输出 truncate 策略，TS 文档统一称 **Artifact spill + ToolResultSummary**。
+**避免：** 用「投影 / Projection」指上述过程（易与图形学或模糊隐喻混淆）；Rust 侧历史类型名 `ToolProjectionConfig` 指 tool 输出 truncate 策略，TS 文档统一称 **Artifact spill + result summary**。
 
 ---
 
@@ -142,8 +142,8 @@ flowchart TB
 export type SessionItem =
   | UserMessageItem
   | AssistantMessageItem
-  | ToolInvocationItem
-  | ToolOutcomeItem
+  | (SessionItemBase & { kind: "tool_call" } & ToolCall)
+  | (SessionItemBase & { kind: "tool_result" } & ToolResult)
   | CompactionItem
   | CheckpointCreatedItem
   | RoutingItem;
@@ -165,25 +165,33 @@ export interface AssistantMessageItem extends SessionItemBase {
   blocks: ContentBlock[];
 }
 
-export interface ToolInvocationItem extends SessionItemBase {
-  kind: "tool_invocation";
+export interface ToolCall {
   toolUseId: string;
   name: string;
   input: Record<string, unknown>;
 }
 
-export interface ToolResultSummary {
-  summary: string;
-  byteCount: number;
-  lineCount?: number;
-  truncated?: boolean;
-}
+export type ToolResultStatus =
+  | "succeeded"
+  | { failed: { retryable: boolean } }
+  | "invalid_arguments"
+  | "unknown_tool"
+  | "denied"
+  | { cancelled: { reason: "user" | "parent" | "hook" | "disposed" } }
+  | "outcome_unknown";
 
-export interface ToolOutcomeItem extends SessionItemBase {
-  kind: "tool_outcome";
+export interface ToolResult {
   toolUseId: string;
+  name: string;
+  status: ToolResultStatus;
+  content: string | boolean | number | null | Record<string, unknown> | unknown[];
   artifactId?: string;
-  resultSummary: ToolResultSummary;
+  resultSummary?: {
+    summary: string;
+    byteCount: number;
+    lineCount?: number;
+    truncated?: boolean;
+  };
 }
 
 export interface CompactionItem extends SessionItemBase {
@@ -210,8 +218,8 @@ export interface RoutingItem extends SessionItemBase {
 
 - user 输入 → `user_message`
 - LLM 返回 → `assistant_message`
-- 模型发起 tool → `tool_invocation`（可与 assistant 同 turn 关联）
-- tool 执行完 → `tool_outcome`
+- 模型发起 tool → `tool_call`（可与 assistant 同 turn 关联）
+- tool 执行完 → `tool_result`
 - 发生 Compaction → `compaction`
 - 创建 Checkpoint → `checkpoint_created`
 
@@ -251,7 +259,7 @@ export interface Artifact {
 ```
 
 - **路径：** `.moontide/artifacts/<sessionId>/<artifactId>`
-- **Session Item Log：** `tool_outcome` 只存 `artifactId` + `resultSummary`（`ToolResultSummary`）；全文在 Artifact Store。
+- **Session Item Log：** 大结果的 `tool_result` 可存 `artifactId` + result summary；全文在 Artifact Store。
 - **Composer：** 默认 compose 只含 `resultSummary`；模型可通过 `read_artifact` 类 tool 按需读取（产品行为，实现期定义阈值）。
 
 ### 6.3 CompactionSave
@@ -399,7 +407,7 @@ CLI 报告格式：`preview: 12,000 → 8,500 L2 tok (saved 3,500)`.
 | **T 工具表** | 各 tool 的 name · description · schema | `tools[]` | [`tools/`](../../packages/tools/src/) → `ToolSchema[]` | 传入或 `resolveToolDefinitions()` |
 | **M 对话时间线** | 各 turn：user prompt、assistant、tool_use、tool_result | `messages[]` | [`session/`](../../packages/session/src/) → `SessionMessage[]` | `messagesFromContext` |
 | **M′ 压缩与窗口** | summary 注入、prune、checkpoint tail | `messages[]`（编译规则） | Session State Stores + `CompactionPolicy` | `applyTailWindow` · `applySummary` · `applyPrune` |
-| **M″ 大 tool 引用** | Artifact 全文 vs `ToolResultSummary` | `messages[]` 内 `tool_result` 文本 | Artifact Store + Item Log | materialize 时已格式化；compose 不读全文 |
+| **M″ 大 tool 引用** | Artifact 全文 vs result summary | `messages[]` 内 `tool_result` 文本 | Artifact Store + Item Log | materialize 时已格式化；compose 不读全文 |
 
 **一轮 user prompt** 是 **M 时间线末尾的 `role: user` 条目**，不是独立 API 字段。
 

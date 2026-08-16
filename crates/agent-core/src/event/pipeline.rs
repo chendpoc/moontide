@@ -55,14 +55,13 @@ fn apply_event_to_trace(trace: &mut TraceContext, event: &RunEvent) {
         | RunEvent::ContextPostflightEnded { turn } => {
             trace.turn = *turn;
         }
-        RunEvent::ToolInvocationRecorded {
-            turn, tool_use_id, ..
-        }
-        | RunEvent::ToolOutcomeRecorded {
-            turn, tool_use_id, ..
-        } => {
+        RunEvent::ToolCallRecorded { turn, call } => {
             trace.turn = *turn;
-            trace.tool_use_id = Some(tool_use_id.clone());
+            trace.tool_use_id = Some(call.tool_use_id().to_owned());
+        }
+        RunEvent::ToolResultRecorded { turn, result } => {
+            trace.turn = *turn;
+            trace.tool_use_id = Some(result.tool_use_id().to_owned());
         }
         RunEvent::LlmCallStarted {
             turn,

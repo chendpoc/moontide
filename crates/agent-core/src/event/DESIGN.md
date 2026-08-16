@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** 已定稿（2026-08-15）；R1–R3 已实现，测试通过。
+> **状态：** 已定稿（2026-08-15）；R1–R3 与 tools typed payload 接缝已实现，测试通过。
 > **关联：** [`DESIGN.md`](../session/DESIGN.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -14,7 +14,7 @@
 | `EventDispatcher::emit`（hook → commit → observe） | `prompt::compile` / `context::materialize` |
 | `derive` → `AgentEventRecord`，经 recorder port 输出 | loop 时序编排（loop mod） |
 | `PipelineRegistry` 类型 | sidecar IPC（agent / 后置） |
-| 可选 `EventBus` broadcast | permission 策略本身（permission mod） |
+| 可选 `EventBus` broadcast | ToolPermissionMap 声明与查表（agent / loop） |
 
 **核心：** `loop` 只 `emit`；事实落盘在 commit 阶段委托 `session`；观测在 observe 阶段 `derive`。
 
@@ -69,8 +69,8 @@ event/
 |------------|-----------------|------|
 | `UserPromptCommitted` | `UserMessage` | LLM 前 |
 | `AssistantFinalized` | `AssistantMessage` | 流式结束 |
-| `ToolInvocationRecorded` | `ToolInvocation` | tool 调用 |
-| `ToolOutcomeRecorded` | `ToolOutcome` | tool 结果 |
+| `ToolCallRecorded { call }` | `ToolCall { call }` | tool 调用 |
+| `ToolResultRecorded { result }` | `ToolResult { result }` | tool 结果 |
 | `CompactionApplied` | `Compaction` | R2+ |
 
 ### 4.3 Observational
@@ -117,8 +117,8 @@ with_turn:
     llm::run_model_call* → MessageUpdate*
     emit LlmCallEnded
     emit AssistantFinalized           → commit AssistantMessage
-    emit ToolInvocationRecorded     → commit
-  emit ToolOutcomeRecorded          → commit
+    emit ToolCallRecorded             → commit
+  emit ToolResultRecorded             → commit
   emit TurnEnded
   [context::postflight]
 ```
@@ -144,8 +144,8 @@ pub enum RunEvent {
 
     UserPromptCommitted { turn: u64, text: String },
     AssistantFinalized { turn: u64, blocks: Vec<ContentBlock> },
-    ToolInvocationRecorded { turn: u64, tool_use_id: String, name: String, input: Value },
-    ToolOutcomeRecorded { turn: u64, tool_use_id: String, name: String, content: ToolResultContent },
+    ToolCallRecorded { turn: u64, call: ToolCall },
+    ToolResultRecorded { turn: u64, result: ToolResult },
 
     LlmCallStarted { turn: u64, step: u32, llm_call_id: String },
     LlmCallEnded { turn: u64, step: u32, llm_call_id: String, stop_reason: StopReason, usage: Option<Usage> },
@@ -205,16 +205,21 @@ Registry 在 run 开始前由 `agent` 装配，run 内不可换表。
 ### 7.5 `derive`
 
 ```rust
-pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentEventRecord>;
+pub fn derive_agent_event(
+    ctx: &TraceContext,
+    event: &RunEvent,
+) -> anyhow::Result<Option<AgentEventRecord>>;
 ```
 
-映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)。`derive_agent_event` 只构造 `AgentEventRecord`，序列化失败显式返回 `Err`；`DeriveObserveHandler` 通过 `AgentEventRecorder::append` 转交，不执行文件格式处理。当前文件适配器 `FileAgentEventRecorder` 负责校验 `runId`、恢复下一个 `seq` 与最后 `turn`，并在追加前执行 64 KiB JSONL 截断与最终行长校验，之后调用内部 `FileWriter` 完成文件读写；ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
 
 ```rust
 pub trait AgentEventRecorder: Send + Sync {
     fn append(&self, record: AgentEventRecord) -> anyhow::Result<()>;
 }
 ```
+
+tool 接缝直接持有 `crate::tools::ToolCall` / `ToolResult`。event 只负责传递、分派和 derive，不复制领域事实，也不根据 content 文本推断状态。derive 使用私有、无行为、借用输入的 `ToolCallTracePayload` / `ToolUseUpdateTracePayload` / `ToolResultTracePayload` 固定观测 wire schema；这些类型不拥有 identity，不进入 RunEvent 或 Session，因此不是并行领域模型。`ToolCallRecorded` 映射已提交的 `trace/tool_use`，`MessageUpdate` 中未提交的流式内容映射 `trace/tool_use_update`，两者不得共用 kind。executor 返回基础设施错误时，loop 先 dispatch `OutcomeUnknown` result 并等待 commit 成功，再向 run 边界传播原始错误；event 不自行合成 result。
 
 文件创建、原始行读取和追加写入属于 `FileWriter`；记录解析、恢复、序号分配和 JSONL 编码属于 `FileAgentEventRecorder`。两者都不属于 `RunEvent` 语义派生。当前实现仍与 `agent-core` 同 crate，待组合根建立后迁移具体文件适配器。
 
@@ -224,6 +229,7 @@ pub trait AgentEventRecorder: Send + Sync {
 
 ```text
 event     → llm::protocol
+event     → tools（只读 ToolCall / ToolResult 契约）
 event     ↛ session（CommitHandler 由 agent 注入，可调用 session::commit_from_event）
 event derive → AgentEventRecorder::append
 FileAgentEventRecorder → FileWriter → filesystem（当前临时适配器，未来归 agent 组合根）
@@ -244,6 +250,7 @@ cli       → bus 或 tail runs/*.jsonl
 5. 当前 `RunEvent` 是内核内部协议；增加必需上下文字段时，必须同步更新 dispatch、derive、commit 和结构测试。持久化 Agent Event / Session Item schema 的变更另行版本化。
 6. derive 不依赖文件格式策略；文件大小限制、截断和恢复只由 `FileAgentEventRecorder` 实现。
 7. `FileWriter` 不依赖任何 Agent Event 类型，只提供路径级文本行读写。
+8. tool RunEvent 直接包装 `ToolCall` / `ToolResult`，不得重新声明 tool_use_id/name/input/status/content 领域字段组；derive 可使用私有、无行为的 wire DTO 固定独立观测 schema。
 
 ---
 
@@ -268,6 +275,7 @@ cli       → bus 或 tail runs/*.jsonl
 | 4 | 流式 `MessageUpdate`；全文 `AssistantFinalized` commit |
 | 5 | `TurnStarted` 不进 Item Log |
 | 6 | 扩展注册在 agent crate |
+| 7 | tool 事件直接携带 canonical `ToolCall` / `ToolResult`，不建立 invocation/outcome 副本 |
 
 ---
 
@@ -279,6 +287,7 @@ cli       → bus 或 tail runs/*.jsonl
 | **R2** | derive + channel 映射 |
 | **R3** | session commit_from_event + agent-core observer 落盘接线；生产 agent 装配待 agent crate 建立 |
 | **R3-F1** | `AgentEventRecorder` port；文件 recorder 集中处理 JSONL 截断、seq/turn 恢复与追加；未来迁移具体适配器 |
+| **R3-F2** | `ToolCallRecorded` / `ToolResultRecorded` 直接复用 tools 契约，并在 Agent Event payload 保留 typed status |
 | **R4** | bus + sidecar bridge |
 
 ---
@@ -291,4 +300,5 @@ cli       → bus 或 tail runs/*.jsonl
 - derive channel/kind 映射表
 - derive handler 原样转交 record，不执行文件截断
 - file recorder 的 64 KiB 行限制、identity 校验与 seq/turn 恢复
+- tool call/result 的 identity、input、status 与 content derive 不丢失
 - emit 顺序守门（与 loop 契约文档一致）

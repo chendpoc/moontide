@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R3 已实现（dispatch · derive · `AgentEventRecorder`）；R4（async bus）未开始。
+> **状态：** R1–R3 与 tools typed payload 接缝已实现；R4（async bus）未开始。
 > **关联：** [`../session/README.md`](../session/README.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md)
 
 ---
@@ -40,7 +40,7 @@ loop.emit(RunEvent)
 | **Committable** | 是（commit 阶段） | `UserPromptCommitted`、`AssistantFinalized` |
 | **Observational** | 否 | `TurnStarted`、`MessageUpdate` |
 
-扩展（permission、trace、sidecar）挂在 **Pipeline 注册表**，不改 `loop` 源码。
+扩展（run guard、trace、sidecar observer）挂在 **Pipeline 注册表**，不改 `loop` 源码。Tool permission 仍由 `loop` 查询组合根注入的 map，不借 event hook 隐式授权。
 
 ---
 
@@ -75,7 +75,7 @@ EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 
 类型：`RunEvent`、`TraceContext`、`HookHandler`、`CommitHandler`、`ObserveHandler` — 见 [`DESIGN.md`](DESIGN.md) §7。
 
-R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventRecorder`、`FileAgentEventRecorder`（`{runs_dir}/{run_id}.active.jsonl`）。`DeriveObserveHandler` 只派生并转交 `AgentEventRecord`；Agent Event recorder 负责校验 `runId`、恢复 `seq` 与最后 `turn`、执行 64 KiB JSONL 行限制，再调用内部 `FileWriter` 完成文件 I/O。ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventRecorder`、`FileAgentEventRecorder`（`{runs_dir}/{run_id}.active.jsonl`）。`DeriveObserveHandler` 只派生并转交 `AgentEventRecord`；派生内部以私有、借用型 DTO 固定 Agent Event wire schema，序列化失败返回 `Err`，不伪造 payload。Agent Event recorder 负责校验 `runId`、恢复 `seq` 与最后 `turn`、执行 64 KiB JSONL 行限制，再调用内部 `FileWriter` 完成文件 I/O。ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
 
 ```rust
 pub trait AgentEventRecorder: Send + Sync {
@@ -124,7 +124,7 @@ let recorder = FileAgentEventRecorder::new(&runs_dir, &run_id)?;
 
 let registry = PipelineRegistry::builder()
     .commit(Arc::new(SessionCommitHandler::new(store)))
-    // .hook(Arc::new(permission_hook)) // 可选
+    // .hook(Arc::new(run_guard)) // 可选
     .observe(Arc::new(DeriveObserveHandler::new(recorder)))
     .build_frozen()?;
 
@@ -147,12 +147,14 @@ tail workdir/.moontide/runs/<runId>.active.jsonl
 |------|------------|
 | 用户输入落盘 | `UserPromptCommitted` |
 | 助手最终回复 | `AssistantFinalized` |
-| tool 调用 / 结果 | `ToolInvocationRecorded` / `ToolOutcomeRecorded` |
+| tool 调用 / 结果 | `ToolCallRecorded { call }` / `ToolResultRecorded { result }` |
 | turn / run 边界 | `TurnStarted` / `TurnEnded` / `RunStarted` / `RunEnded` |
 | 流式 UI | `MessageUpdate` |
 | 单次 LLM 往返 | `LlmCallStarted` / `LlmCallEnded` |
 
 **不要**在 loop 里 `session.commit_item` — 由 commit handler 在 `dispatch` 内完成。
+
+tool 事件直接携带 `tools::ToolCall` / `tools::ToolResult`，event 不复制字段，也不解释 permission 或 scheduler 策略。executor 返回基础设施错误时，loop 必须先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded` 并等待 commit，再向 run 边界传播原始错误；event 不自行补写或推断。
 
 ---
 

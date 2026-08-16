@@ -1,11 +1,13 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-use crate::llm::protocol::{ContentBlock, ToolResultContent};
+use crate::{
+    llm::protocol::ContentBlock,
+    tools::{ToolCall, ToolResult},
+};
 
-pub const SESSION_HEADER_VERSION: u32 = 1;
+pub const SESSION_HEADER_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -37,19 +39,19 @@ pub enum SessionItem {
         base: SessionItemBase,
         blocks: Vec<ContentBlock>,
     },
-    ToolInvocation {
+    #[serde(rename = "tool_call", alias = "tool_invocation")]
+    ToolCall {
         #[serde(flatten)]
         base: SessionItemBase,
-        tool_use_id: String,
-        name: String,
-        input: Value,
+        #[serde(flatten)]
+        call: ToolCall,
     },
-    ToolOutcome {
+    #[serde(rename = "tool_result", alias = "tool_outcome")]
+    ToolResult {
         #[serde(flatten)]
         base: SessionItemBase,
-        tool_use_id: String,
-        name: String,
-        content: ToolResultContent,
+        #[serde(flatten)]
+        result: ToolResult,
     },
     Compaction {
         #[serde(flatten)]
@@ -75,8 +77,8 @@ impl SessionItem {
         match self {
             SessionItem::UserMessage { base, .. }
             | SessionItem::AssistantMessage { base, .. }
-            | SessionItem::ToolInvocation { base, .. }
-            | SessionItem::ToolOutcome { base, .. }
+            | SessionItem::ToolCall { base, .. }
+            | SessionItem::ToolResult { base, .. }
             | SessionItem::Compaction { base, .. }
             | SessionItem::CheckpointCreated { base, .. } => base,
         }
@@ -109,17 +111,13 @@ pub enum SessionItemDraft {
         turn: u64,
         blocks: Vec<ContentBlock>,
     },
-    ToolInvocation {
+    ToolCall {
         turn: u64,
-        tool_use_id: String,
-        name: String,
-        input: Value,
+        call: ToolCall,
     },
-    ToolOutcome {
+    ToolResult {
         turn: u64,
-        tool_use_id: String,
-        name: String,
-        content: ToolResultContent,
+        result: ToolResult,
     },
     Compaction {
         turn: u64,
@@ -140,8 +138,8 @@ impl SessionItemDraft {
         match self {
             SessionItemDraft::UserMessage { turn, .. }
             | SessionItemDraft::AssistantMessage { turn, .. }
-            | SessionItemDraft::ToolInvocation { turn, .. }
-            | SessionItemDraft::ToolOutcome { turn, .. }
+            | SessionItemDraft::ToolCall { turn, .. }
+            | SessionItemDraft::ToolResult { turn, .. }
             | SessionItemDraft::Compaction { turn, .. }
             | SessionItemDraft::CheckpointCreated { turn, .. } => *turn,
         }
@@ -179,23 +177,19 @@ pub(crate) fn validate_draft(
             }
         }
         SessionItemDraft::AssistantMessage { blocks, .. } => validate_assistant_blocks(blocks)?,
-        SessionItemDraft::ToolInvocation {
-            tool_use_id, name, ..
-        } => {
-            if tool_use_id.is_empty() {
+        SessionItemDraft::ToolCall { call, .. } => {
+            if call.tool_use_id().trim().is_empty() {
                 anyhow::bail!("tool_use_id must not be empty");
             }
-            if name.is_empty() {
+            if call.name().trim().is_empty() {
                 anyhow::bail!("tool name must not be empty");
             }
         }
-        SessionItemDraft::ToolOutcome {
-            tool_use_id, name, ..
-        } => {
-            if tool_use_id.is_empty() {
+        SessionItemDraft::ToolResult { result, .. } => {
+            if result.tool_use_id().trim().is_empty() {
                 anyhow::bail!("tool_use_id must not be empty");
             }
-            if name.is_empty() {
+            if result.name().trim().is_empty() {
                 anyhow::bail!("tool name must not be empty");
             }
         }
@@ -216,28 +210,8 @@ pub(crate) fn freeze_item(draft: SessionItemDraft, base: SessionItemBase) -> Ses
         SessionItemDraft::AssistantMessage { blocks, .. } => {
             SessionItem::AssistantMessage { base, blocks }
         }
-        SessionItemDraft::ToolInvocation {
-            tool_use_id,
-            name,
-            input,
-            ..
-        } => SessionItem::ToolInvocation {
-            base,
-            tool_use_id,
-            name,
-            input,
-        },
-        SessionItemDraft::ToolOutcome {
-            tool_use_id,
-            name,
-            content,
-            ..
-        } => SessionItem::ToolOutcome {
-            base,
-            tool_use_id,
-            name,
-            content,
-        },
+        SessionItemDraft::ToolCall { call, .. } => SessionItem::ToolCall { base, call },
+        SessionItemDraft::ToolResult { result, .. } => SessionItem::ToolResult { base, result },
         SessionItemDraft::Compaction {
             compaction_kind,
             compaction_save_id,
@@ -272,27 +246,13 @@ pub(crate) fn rebase_item(item: &SessionItem, base: SessionItemBase) -> SessionI
             base,
             blocks: blocks.clone(),
         },
-        SessionItem::ToolInvocation {
-            tool_use_id,
-            name,
-            input,
-            ..
-        } => SessionItem::ToolInvocation {
+        SessionItem::ToolCall { call, .. } => SessionItem::ToolCall {
             base,
-            tool_use_id: tool_use_id.clone(),
-            name: name.clone(),
-            input: input.clone(),
+            call: call.clone(),
         },
-        SessionItem::ToolOutcome {
-            tool_use_id,
-            name,
-            content,
-            ..
-        } => SessionItem::ToolOutcome {
+        SessionItem::ToolResult { result, .. } => SessionItem::ToolResult {
             base,
-            tool_use_id: tool_use_id.clone(),
-            name: name.clone(),
-            content: content.clone(),
+            result: result.clone(),
         },
         SessionItem::Compaction {
             compaction_kind,

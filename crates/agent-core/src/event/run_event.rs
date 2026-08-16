@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-use crate::llm::protocol::{
-    ContentBlock, ModelResponseSnapshot, StopReason, ToolResultContent, Usage,
+use crate::{
+    llm::protocol::{ContentBlock, ModelResponseSnapshot, StopReason, Usage},
+    tools::{ToolCall, ToolResult},
 };
 
 /// Compaction mode carried on `CompactionApplied` (maps to session `CompactionKind`).
@@ -39,17 +39,13 @@ pub enum RunEvent {
         turn: u64,
         blocks: Vec<ContentBlock>,
     },
-    ToolInvocationRecorded {
+    ToolCallRecorded {
         turn: u64,
-        tool_use_id: String,
-        name: String,
-        input: Value,
+        call: ToolCall,
     },
-    ToolOutcomeRecorded {
+    ToolResultRecorded {
         turn: u64,
-        tool_use_id: String,
-        name: String,
-        content: ToolResultContent,
+        result: ToolResult,
     },
 
     LlmCallStarted {
@@ -98,8 +94,8 @@ impl RunEvent {
             self,
             RunEvent::UserPromptCommitted { .. }
                 | RunEvent::AssistantFinalized { .. }
-                | RunEvent::ToolInvocationRecorded { .. }
-                | RunEvent::ToolOutcomeRecorded { .. }
+                | RunEvent::ToolCallRecorded { .. }
+                | RunEvent::ToolResultRecorded { .. }
                 | RunEvent::CompactionApplied { .. }
         )
     }
