@@ -1,7 +1,7 @@
 # agent-tools — 技术设计
 
 > **读者：** 实现者、代码审查。
-> **状态：** R1 已实现并完成 Review。
+> **状态：** R1 已实现；catalog 与 builtin 仍按同一 Review 批交付。
 > **对外契约：** [`README.md`](README.md)。
 > **上游边界：** [`../agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。
 
@@ -15,7 +15,7 @@
 2. 用最小 `ToolDefinition` 表达“名称 + build 配方”；
 3. 每次 build 返回 `agent_core::tools::Tool`，复用唯一 runtime contract；
 4. 每个 builtin 保持 spec 与 executor 物理分离；
-5. 首批用 `grep` 验证 catalog、文件边界、blocking IO 与有界结果。
+5. 用 `read`、`write`、`edit`、`find`、`grep` 与 `bash` 验证 catalog、文件边界、blocking IO 与有界结果。
 
 ### 1.2 不做
 
@@ -42,6 +42,10 @@ crates/agent-tools/
   src/
     lib.rs
     catalog.rs
+    find/
+      mod.rs
+      spec.rs
+      executor.rs
     grep/
       mod.rs
       spec.rs
@@ -64,11 +68,12 @@ agent-tools
   ├── anyhow
   ├── ignore         # respect ignore files, stable recursive walk, no symlink following
   ├── regex
+  ├── globset
   ├── serde / serde_json
   └── tokio          # spawn_blocking
 ```
 
-`ignore` 使用 0.4 系列，`regex` 复用 workspace 1.x。首批不引入 `grep-searcher` 或外部 `rg` 进程：当前只需要“一行是否匹配”，`ignore + regex` 足够，且能由本 crate直接控制 path containment 与输出预算。
+`ignore` 使用 0.4 系列，`regex` 与 `globset` 复用 workspace 1.x。首批不引入 `grep-searcher` 或外部 `rg` 进程：`find` 用 `ignore + globset` 做文件发现，`grep` 用 `ignore + regex` 做内容搜索。
 
 ---
 
@@ -159,7 +164,20 @@ grep::build()
 
 ---
 
-## 5. `grep` 设计
+## 5. `find` 设计
+
+`find` 只发现路径，不读取文件内容。schema 为：
+
+```text
+pattern: string, minLength=1, required
+path: string, minLength=1, optional, default="."
+max_results: integer, minimum=1, maximum=1000, optional, default=100
+additionalProperties=false
+```
+
+executor 使用 `globset::Glob` 编译 glob，并用 `ignore::WalkBuilder` 遍历 target 目录。它只返回 regular file 的相对路径，遵守标准 ignore 规则、不跟随 symlink、按路径排序；达到 `max_results` 后立即停止。非法 glob、非目录 target、越界路径和 walker 错误返回不可重试的工具失败；无匹配返回 `Succeeded("No files found.")`。
+
+## 6. `grep` 设计
 
 ### 5.1 schema 与 typed input
 
@@ -256,7 +274,7 @@ executor 不返回 `OutcomeUnknown`：`grep` 是只读操作，不存在“写�
 
 ---
 
-## 6. 测试设计
+## 7. 测试设计
 
 每个测试前按 `AGENTS.md` 写清场景、预期和不变量/副作用。
 
@@ -287,18 +305,18 @@ executor 不返回 `OutcomeUnknown`：`grep` 是只读操作，不存在“写�
 
 ---
 
-## 7. 实现分期
+## 8. 实现分期
 
 | 批 | 范围 |
 |----|------|
-| **R1** | crate scaffold、`ToolDefinition`、静态 catalog、`grep` spec/executor、结构与行为测试 |
-| 后续 | `bash` 设计确认后单独一批；`web_fetch` 设计确认后单独一批 |
+| **R1** | crate scaffold、`ToolDefinition`、静态 catalog、builtin `read` / `write` / `edit` / `find` / `grep` / `bash` spec/executor、结构与行为测试 |
+| 后续 | `web_fetch` 设计确认后单独一批 |
 
 R1 不同时实现 `bash` / `web_fetch`。这些工具的权限、进程/网络错误和输出语义不同，强行共用首批抽象会降低内聚。
 
 ---
 
-## 8. 决策记录
+## 9. 决策记录
 
 1. `agent-core::tools` 保留 runtime contract，builtins 独立为 `agent-tools` crate；
 2. 依赖只能是 `agent-tools → agent-core`；
@@ -311,4 +329,5 @@ R1 不同时实现 `bash` / `web_fetch`。这些工具的权限、进程/网络�
 9. `grep` target 被限制在 canonical working directory 内，目录遍历不跟随 symlink；
 10. `grep` 使用 `ignore` + `regex`，blocking IO 经 `spawn_blocking`；
 11. `grep` 输出受 max results 与 32 KiB 双上限约束；
-12. 不为未来 builtin 预设 ToolLibrary、manifest、build context、宏注册或公共 executor 基类。
+12. `find` 使用 `globset` 做路径匹配，不读取文件内容；`grep` 保留正则内容匹配语义。
+13. 不为未来 builtin 预设 ToolLibrary、manifest、build context、宏注册或公共 executor 基类。

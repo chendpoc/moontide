@@ -1,5 +1,11 @@
+mod bash;
 mod catalog;
+mod edit;
+mod find;
 mod grep;
+mod read;
+mod workspace;
+mod write;
 
 pub use catalog::{builtin_tool_definitions, ToolDefinition};
 

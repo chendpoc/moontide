@@ -1,7 +1,7 @@
 # agent-tools
 
 > **性质：** 第一方工具库的对外使用说明。
-> **状态：** R1 已实现并完成 Review；已加入 Cargo workspace，并落地静态 catalog 与首个 builtin `grep`。
+> **状态：** R1 已实现；静态 catalog 当前包含 `read`、`write`、`edit`、`find`、`grep`、`bash`。
 > **运行时契约：** [`../agent-core/src/tools/README.md`](../agent-core/src/tools/README.md)。
 > **实现细节：** [`DESIGN.md`](DESIGN.md) · **实现批次：** [`TASKS.md`](TASKS.md)。
 
@@ -9,14 +9,15 @@
 
 ## 这是什么
 
-`agent-tools` 存放 MoonTide 自带的具体工具，例如 `grep`、后续的 `bash` 和 `web_fetch`。它负责“有哪些第一方工具、每个工具如何构造”，不拥有运行时调用管线。
+`agent-tools` 存放 MoonTide 自带的具体工具，例如 `read`、`write`、`edit`、`find`、`grep` 和 `bash`。它负责“有哪些第一方工具、每个工具如何构造”，不拥有运行时调用管线。
 
 ```text
 agent-tools                         agent-core::tools
 ───────────                         ─────────────────
 ToolDefinition                     ToolSpec
 builtin_tool_definitions()   build Tool + ToolExecutor
-grep / bash / web_fetch             ToolRegistry
+read / write / edit / find / grep   ToolRegistry
+ / bash
                                     ToolCall / ToolResult
 ```
 
@@ -104,7 +105,26 @@ src/grep/
 
 ---
 
-## 首个 builtin：`grep`
+## Builtin 工具
+
+### `find`
+
+`find` 只按 glob 搜索文件路径，不读取文件内容：
+
+```json
+{
+  "pattern": "**/*.rs",
+  "path": "crates",
+  "max_results": 100
+}
+```
+
+- 结果是相对 `working_dir` 的文件路径；
+- 目录递归搜索遵守 `.ignore` / `.gitignore`，不跟随 symlink；
+- 路径、结果数量和 glob 都在 executor 内校验；
+- 没有匹配时返回 `Succeeded("No files found.")`。
+
+### `grep`
 
 `grep` 是 catalog 的 tracer bullet：它能同时验证声明式 definition、spec / executor 分离、`working_dir` 语义和有界 tool result，但不引入 shell 或网络权限问题。
 
@@ -168,10 +188,10 @@ crates/agent-core/src/tools/registry.rs:47:    pub fn new(mut tools: Vec<Tool>) 
 - 不提供 scheduler resource claim；
 - 不把 `bash`、`web_fetch` 与 `grep` 塞进一个通用 executor；
 - 不用外部 `rg` 可执行文件作为首版运行时依赖；
-- 不在首批实现 `bash` 或 `web_fetch`。
+- `web_fetch` 仍未实现；网络工具需要单独定义权限、超时和输出语义。
 
 ---
 
 ## 当前阶段
 
-R1 已按确认后的 [`DESIGN.md`](DESIGN.md) 完成 crate scaffold、静态 catalog、`grep` spec/executor、结构测试与独立双轴 Review。公开接口未扩张；后续 `bash` / `web_fetch` 仍需分别完成设计确认后再实现。
+R1 已按确认后的 [`DESIGN.md`](DESIGN.md) 完成 crate scaffold、静态 catalog、`read` / `write` / `edit` / `find` / `grep` / `bash` spec/executor 与测试。公开接口未扩张；`web_fetch` 仍需单独完成设计确认后再实现。

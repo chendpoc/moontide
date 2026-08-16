@@ -1,21 +1,21 @@
 # agent-tools 实现任务
 
 > 依据 [`README.md`](README.md) 对外契约与 [`DESIGN.md`](DESIGN.md) 技术方案拆分。
-> 当前仅规划首个 Review 批；README + DESIGN 已经用户确认，R1 实现、质量门禁与独立双轴 Review 均已完成。
-> R1 只落静态 catalog 与 `grep` tracer bullet，不实现 `bash`、`web_fetch`、permission、runtime registry 或 scheduler。
+> 当前 R1 已完成；本次在同一 catalog 边界内补充 `find`。
+> `web_fetch`、permission、runtime registry 与 scheduler 仍不属于本 crate。
 
 ## R1 范围
 
 - **允许修改：** `crates/agent-tools/**`、根 `Cargo.toml`、`Cargo.lock`，以及直接记录进度的 README / handbook / `PROGRESS.md`。
 - **禁止修改：** `agent-core` 的公开 tools API 与 loop/session/event/llm 实现；如果 `agent-tools` 无法使用当前公开 API，停止实现并回架构确认。
-- **依赖：** `agent-core`、`anyhow`、`ignore` 0.4、`regex`、`serde`、`serde_json`、`tokio`；测试使用 `tempfile`。
+- **依赖：** `agent-core`、`anyhow`、`globset`、`ignore` 0.4、`regex`、`serde`、`serde_json`、`tokio`；测试使用 `tempfile`。
 - **验证：** 先 `cargo test -p agent-tools`，再执行 `just check`；`just` 不可用时执行等价的 fmt + clippy + workspace test。
 
 ## Review 批总览
 
 | 批 | TASK | 主题 | 预估 diff | 状态 |
 |---|---|---|---:|---|
-| R1 | agent-tools-01–03 | 独立 crate、声明式 catalog、内建 grep 与结构测试 | ~700–1100 行 | ☑ |
+| R1 | agent-tools-01–03 | 独立 crate、声明式 catalog、内建 read/write/edit/find/grep/bash 与结构测试 | ~1800–2200 行 | ☑ |
 
 约 2000 行是软预算；本批优先保持一个可独立理解的 tracer-bullet 边界，实际超出时说明原因，不按数字机械拆散 spec/executor/测试。
 
@@ -37,6 +37,15 @@
 - **范围：** `src/grep/mod.rs`、`src/grep/spec.rs`、`src/grep/executor.rs`
 - **预估 diff：** ~420 行
 - **完成标准：** 单文件/目录搜索、ignore、containment、binary/UTF-8 与输出截断语义均可由临时目录测试
+- **状态：** ☑
+
+### TASK-agent-tools-04: 补充 `find` 文件发现工具
+
+- **做什么：** 在现有静态 catalog 中增加 Pi 风格的 `find` builtin。按 glob 发现工作目录内的 regular file，不读取内容，遵守 ignore 规则并限制结果数量。
+- **依赖：** TASK-agent-tools-01
+- **范围：** `src/find/**`、`src/catalog.rs`、`src/lib.rs`、`src/tests.rs`、相关 README / DESIGN
+- **预估 diff：** ~300 行
+- **完成标准：** `cargo test -p agent-tools` 与 `cargo clippy -p agent-tools --all-targets -- -D warnings` 通过
 - **状态：** ☑
 
 ### TASK-agent-tools-03: 补 catalog 与 grep 契约测试
