@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::llm::protocol::{ContentBlock, PendingBlock, ToolResultContent};
+use crate::{
+    llm::protocol::{ContentBlock, PendingBlock},
+    tools::ToolContent,
+};
 
 use super::run_event::RunEvent;
 use super::trace_context::TraceContext;
@@ -104,34 +107,25 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
                 Some(truncate_preview(&text, 120)),
             )
         }
-        RunEvent::ToolInvocationRecorded {
-            turn,
-            tool_use_id,
-            name,
-            input,
-        } => {
-            let input_str = serde_json::to_string(input).unwrap_or_else(|_| "{}".to_string());
+        RunEvent::ToolCallRecorded { turn, call } => {
+            let input_str =
+                serde_json::to_string(call.input()).unwrap_or_else(|_| "{}".to_string());
             (
                 *turn,
                 AgentPhase::PostTool,
                 AgentChannel::Trace,
                 "tool_use".to_string(),
                 json!({
-                    "toolName": name,
-                    "toolUseId": tool_use_id,
+                    "toolName": call.name(),
+                    "toolUseId": call.tool_use_id(),
                     "charCount": input_str.len(),
-                    "input": input,
+                    "input": call.input(),
                 }),
-                Some(name.clone()),
+                Some(call.name().to_owned()),
             )
         }
-        RunEvent::ToolOutcomeRecorded {
-            turn,
-            tool_use_id,
-            name,
-            content,
-        } => {
-            let body = tool_result_body(content);
+        RunEvent::ToolResultRecorded { turn, result } => {
+            let body = tool_result_body(result.content());
             let char_count = body.chars().count();
             (
                 *turn,
@@ -139,8 +133,9 @@ pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentE
                 AgentChannel::Trace,
                 "tool_result".to_string(),
                 json!({
-                    "toolName": name,
-                    "toolUseId": tool_use_id,
+                    "toolName": result.name(),
+                    "toolUseId": result.tool_use_id(),
+                    "status": result.status(),
                     "body": &body,
                     "charCount": char_count,
                 }),
@@ -352,10 +347,12 @@ fn blocks_text(blocks: &[ContentBlock]) -> String {
         .join("")
 }
 
-fn tool_result_body(content: &ToolResultContent) -> String {
+fn tool_result_body(content: &ToolContent) -> String {
     match content {
-        ToolResultContent::Text(text) => text.clone(),
-        ToolResultContent::Blocks(blocks) => blocks_text(blocks),
+        ToolContent::Text(text) => text.clone(),
+        ToolContent::Json(value) => {
+            serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned())
+        }
     }
 }
 

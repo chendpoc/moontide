@@ -41,6 +41,17 @@
 | **Artifact Store** | 大 tool 输出全文的存储 | — |
 | **Instruction State** | 拼进 `system` 的规则来源（AGENTS.md / rules） | rules、prompt state |
 
+## Tools（工具调用）
+
+| Term | Definition | Aliases to avoid |
+| ---- | ---------- | ---------------- |
+| **ToolCall** | 一次模型发起的工具调用事实：稳定 id、工具名与 input | ToolInvocation、ToolEvent |
+| **ToolResult** | 对一个 ToolCall 的规范结果：相同身份、typed status 与 content | ToolOutcome、ToolOutput |
+| **ToolCallRecorded** | RunEvent 对 ToolCall 的直接包装，执行副作用前 commit | ToolInvocationRecorded |
+| **ToolResultRecorded** | RunEvent 对 ToolResult 的直接包装，结果确定后 commit | ToolOutcomeRecorded |
+
+`ToolCall` / `ToolResult` 是单次调用生命周期仅有的两个结构体建模。SessionItem 和 RunEvent 只包装它们；历史 v1 kind 仅用于兼容读取，不是当前术语。
+
 ## Relationships
 
 - 一个 **Session** 拥有恰好一个 **SessionHeader** + 一份 **Session Item Log**。
@@ -48,6 +59,7 @@
 - **materialize** 读 **Session Item Log** → 产出 `messages[]`；**compile** 消费 `messages[]` → 产出 `LLMRequest` + **Context Manifest**。
 - **Agent Event Log** 可从 **Session Item Log** 通过 **derive** 派生或双写，但不得反向覆盖。
 - **Compaction** 不删 **SessionItem**，只改 **compile** 规则；**Checkpoint** 保存恢复指针——二者独立。
+- 一个 **ToolCall** 必须与恰好一个同身份 **ToolResult** 配对；event/session 不再复制它们的字段。
 
 ## Example dialogue
 

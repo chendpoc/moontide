@@ -1,7 +1,7 @@
 # session — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** 已定稿（2026-08-15）；R1–R3 已实现，测试通过。
+> **状态：** 已定稿（2026-08-15）；R1–R3 与 Session v2 tool payload 迁移已实现，测试通过。
 > **关联：** [`DESIGN.md`](../event/DESIGN.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -73,16 +73,17 @@ pub struct SessionItemBase {
 pub enum SessionItem {
     UserMessage      { base: SessionItemBase, text: String },
     AssistantMessage { base: SessionItemBase, blocks: Vec<ContentBlock> },
-    ToolInvocation   { base: SessionItemBase, tool_use_id: String, name: String, input: Value },
-    ToolOutcome      { base: SessionItemBase, tool_use_id: String, name: String, content: ToolResultContent },
+    ToolCall         { base: SessionItemBase, call: ToolCall },
+    ToolResult       { base: SessionItemBase, result: ToolResult },
     // R2+：Compaction · CheckpointCreated · Routing
 }
 ```
 
-- `ContentBlock` / `ToolResultContent` / `Value` ← `crate::llm::protocol`
+- `ContentBlock` ← `crate::llm::protocol`
+- `ToolCall` / `ToolResult` ← `crate::tools`，serde 时 flatten，不复制字段
 - **AssistantMessage.blocks** 仅 `Text` / `Thinking`；tool 独立条目
 
-tools R4 接缝：`ToolOutcome` 将增加 `crate::tools::ToolResultStatus` typed 字段。该字段由 loop 从 `ToolResult` 映射，Session 只负责校验、排序和持久化；executor 基础设施错误同样由 loop 先提交 `OutcomeUnknown` outcome，再传播原始错误，Session 不自行推断或补写。当前 R1–R3 代码仍使用无 status 的旧形状，接缝实现单独成批。该变更把 Session header 从 v1 升为 v2；读取 v1 时缺失 status 的旧条目映射为 `OutcomeUnknown`，不得默认成功。
+Session 只负责校验、排序和持久化 canonical call/result，不决定结果状态。当前 header version 是 v2，新写入 kind 为 `tool_call` / `tool_result`；读取 v1 时通过 serde alias 接受历史 kind，缺失 status 的结果保守映射为 `OutcomeUnknown`。仅 v1 与当前版本可读取，未知版本返回错误。
 
 ### 4.3 `SessionHeader`
 
@@ -135,8 +136,8 @@ pub fn commit_from_event(
 |------------|---------------|
 | `UserPromptCommitted` | `UserMessage` |
 | `AssistantFinalized` | `AssistantMessage` |
-| `ToolInvocationRecorded` | `ToolInvocation` |
-| `ToolOutcomeRecorded` | `ToolOutcome` |
+| `ToolCallRecorded { call }` | `ToolCall { call }` |
+| `ToolResultRecorded { result }` | `ToolResult { result }` |
 | `CompactionApplied` | `Compaction`（R2+） |
 
 非 Committable → `Err`。
@@ -186,6 +187,7 @@ load → 重放 jsonl → items[] → context::materialize(items)
 
 ```text
 session ──► crate::llm::protocol
+session ──► crate::tools（ToolCall / ToolResult）
 
 context  ──► session.items()（只读）
 agent    ──► SessionStore + 注册 commit handler
@@ -203,6 +205,8 @@ loop     ──► （不 import session）
 4. header 不进 log
 5. 单写者：`commit_item` 唯一写盘入口
 6. `UserPromptCommitted` commit 先于 LLM（由 loop + event 顺序保证，非 session 职责）
+7. 每行 `session_id` 必须与 header 一致；仅 v1 与当前 header version 可加载
+8. tool item 直接包装 canonical `ToolCall` / `ToolResult`，不重复声明其字段
 
 ---
 
@@ -238,12 +242,12 @@ Pi 式同文件树 fork 后置；R2 用新文件。
 | # | 决策 |
 |---|------|
 | 1 | 一行 jsonl = 一个 `SessionItem`，无 Envelope |
-| 2 | tool 拆 invocation / outcome；materialize 在 context |
+| 2 | tool 拆 `ToolCall` / `ToolResult` 两行；materialize 在 context |
 | 3 | `seq`（位置）+ `id`（身份）双字段 |
 | 4 | trace / turn 边界不进 Item Log |
 | 5 | loop 经 RunEvent commit，不直接 append |
 | 6 | R1 四类 item；Compaction 等 R2 |
-| 7 | R1 ToolOutcome 全文；artifact spill 后 schema 只增不改 |
+| 7 | v2 直接持久化 typed `ToolResult`；v1 缺失 status 按 `OutcomeUnknown` 读取 |
 | 8 | 文件名 `.meta.json` + `.log.jsonl` |
 
 ---
@@ -255,6 +259,7 @@ Pi 式同文件树 fork 后置；R2 用新文件。
 | **R1** | types + FileSessionStore + SessionStore create/load/commit + seq 守门单测 |
 | **R2** | fork + Compaction/Checkpoint item 类型 |
 | **R3** | `commit_from_event` + agent/event 联调 |
+| **R3-F1** | Session v2：ToolCall/ToolResult 直接复用、v1 兼容读取与未知版本拒绝 |
 
 任务拆分见 `TASKS.md`（待写）。
 
@@ -267,4 +272,5 @@ Pi 式同文件树 fork 后置；R2 用新文件。
 - create → commit × N → load 往返一致
 - commit 后 `id`/`seq`/`at` 由 store 分配
 - `commit_from_event` 映射表（R3）
+- ToolCall/ToolResult v2 serde 与 v1 load 兼容；未知版本拒绝
 - fork 边界校验（R2）

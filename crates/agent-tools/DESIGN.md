@@ -60,7 +60,7 @@ crates/agent-tools/
 
 ```text
 agent-tools
-  ├── agent-core     # Tool / ToolSpec / ToolCall / ToolExecutor / ToolOutput
+  ├── agent-core     # Tool / ToolSpec / ToolCall / ToolExecutor / ToolResult
   ├── anyhow
   ├── ignore         # respect ignore files, stable recursive walk, no symlink following
   ├── regex
@@ -188,7 +188,7 @@ require canonical_target.starts_with(canonical_working_dir)
 语义：
 
 - working directory 无法 canonicalize 是宿主配置/基础设施错误，走 `Err`；
-- target 不存在或越界是模型可修正的工具失败，走 `ToolOutput::Failed`；
+- target 不存在或越界是模型可修正的工具失败，走 `ToolResult::failed`；
 - target 可以是单个文件或目录；其他文件类型返回失败；
 - 目录用 `ignore::WalkBuilder`，保留 standard filters，显式绑定调用传入的 `working_dir`、允许非 Git 仓库中的 `.gitignore`、设置 `follow_links(false)`，并按路径排序；
 - walker 只处理 regular files；symlink、directory 和特殊文件不读；
@@ -205,7 +205,7 @@ execute(&ToolCall, &Path)
   → clone 已验证 input + PathBuf
   → tokio::task::spawn_blocking(move || search(...))
   → join error: anyhow::Error
-  → search result: ToolOutput
+  → search result: ToolResult
 ```
 
 R1 没有 cancellation token；`spawn_blocking` 开始后不能可靠取消。scheduler 的取消/预算模型确认前，不在 executor 私造全局线程池或取消 flag。搜索自身依靠 match/output 上限提前停止。
@@ -246,11 +246,11 @@ MAX_OUTPUT_BYTES = 32 * 1024
 | 来源 | 返回 |
 |------|------|
 | schema 已通过但 typed input 反序列化失败 | `Err(anyhow::Error)`，表示 spec/impl 漂移 |
-| regex 编译失败 | `Ok(Failed { retryable: false })` |
-| target 不存在、越界、类型不支持 | `Ok(Failed { retryable: false })` |
-| walker/read IO error | `Ok(Failed { retryable: false })` |
+| regex 编译失败 | `Ok(ToolResult::failed(call, ..., false))` |
+| target 不存在、越界、类型不支持 | `Ok(ToolResult::failed(call, ..., false))` |
+| walker/read IO error | `Ok(ToolResult::failed(call, ..., false))` |
 | `spawn_blocking` JoinError | `Err(anyhow::Error)` |
-| 找到/未找到匹配 | `Ok(Succeeded(Text))` |
+| 找到/未找到匹配 | `Ok(ToolResult::succeeded(call, Text))` |
 
 executor 不返回 `OutcomeUnknown`：`grep` 是只读操作，不存在“写入是否发生未知”。
 

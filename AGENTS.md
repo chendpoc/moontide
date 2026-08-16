@@ -100,7 +100,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 - Tool 预期失败：把错误文本作为 tool result 返回给模型，不 panic
 - tool / LLM 调用：错误经 `Result` 传到 run 边界统一处理，不在中途吞掉
-- executor 基础设施错误：`loop` 先 emit `OutcomeUnknown` 的 `ToolOutcomeRecorded`，再把原始 `Result::Err` 传到 run 边界，禁止留下已记录但无结果的 tool invocation
+- executor 基础设施错误：`loop` 先 emit `OutcomeUnknown` 的 `ToolResultRecorded`，再把原始 `Result::Err` 传到 run 边界，禁止留下已记录但无 `ToolResult` 的 `ToolCall`
 - REPL turn 失败：打印 ERROR 后 REPL 继续（配置类致命错误除外）
 - 排查：stderr ERROR → `/thinking on` → `.moontide/sessions/*.jsonl`
 

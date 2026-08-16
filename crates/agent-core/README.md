@@ -1,7 +1,7 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；`llm` R1–R6 完成，`session` / `event` R1–R3 完成，`tools` RB1 完成；其余模块按 `PROGRESS.md` 推进
+> **状态：** 顶层设计已定；`llm` R1–R6 完成，`session` / `event` R1–R3 完成，`tools` RB2 Review 中；其余模块按 roadmap 推进
 > **关联：** [`docs/notes/runtime/agent-kernel-architecture.md`](../../docs/notes/runtime/agent-kernel-architecture.md)（§7 模块清单，本文是其落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
@@ -16,9 +16,9 @@
 ```text
 契约层（先定，供上层引用）
   1. llm         LLMProvider trait + ModelRequest/Response/Delta 类型
-  2. session     item log 事实源（依赖 llm 的 message 类型；R4 接入 tools result status）
+  2. session     item log 事实源（依赖 llm message 与 tools call/result 契约）
   3. tools       ToolSpec + 单次执行边界（相对独立；验收 / offload 归 scheduler）
-  4. event       RunEvent 类型 + bus（契约提前定，R4 接入 tools result status）
+  4. event       RunEvent 类型 + bus（tool RunEvent 直接包装 tools call/result）
 
 装配层（依赖契约层）
   5. prompt      system prompt 组装（依赖 tools 的 ToolSpec）
@@ -35,10 +35,10 @@
 
 - **核心能力 trait**（确定存在多实现）：
   - `LLMProvider`：`stream(ModelRequest) -> Stream<Delta>`，实现 = cloud / 本地 daemon
-  - `ToolExecutor`：`execute(&ToolCall, working_dir) -> ToolOutput`，实现 = 内置 / sidecar
+  - `ToolExecutor`：`execute(&ToolCall, working_dir) -> ToolResult`，实现 = 内置 / sidecar
 - **其他窄边界**：event pipeline 的 `HookHandler` / `CommitHandler` / `ObserveHandler` 用于 callback 解耦；不把它们扩展成领域能力或全局 service trait。
 - **其余模块是内部 mod**：高层 mod 依赖低层 mod，**低层不反向依赖高层**。
-- **唯一写者**：`session` 是 item log 唯一写者；compaction 由 `context` 计算 `CompactionPlan`、由 loop 转发给 session 执行。ToolOutcome 的 typed status 由 tools 提供契约，session 只持久化，不决定状态。
+- **唯一写者**：`session` 是 item log 唯一写者；compaction 由 `context` 计算 `CompactionPlan`、由 loop 转发给 session 执行。tool item 直接包装 tools 的 `ToolCall` / `ToolResult`，session 只持久化，不决定状态。
 - **唯一出口**：`prompt.compile()` 是 Session → LLMRequest 的唯一出口；`context.materialize()` 是 item log → messages 的唯一出口。
 
 ## 3. 数据流（一次 Run 的完整链路）
@@ -66,9 +66,9 @@ session.load()
 | # | 模块 | 依赖 | 设计文档 | 实现 | 测试 | 备注 |
 |---|---|---|---|---|---|---|
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
-| 2 | `session` | llm 类型；R4 接入 tools status | ☑ | ☑ | ☑ | R1–R3；item log 唯一写者 |
-| 3 | `tools` | 无 | ☑ | ◐ | ◐ | RB1 完成；R4 typed status 与 loop 接缝待后续；验收 / offload 归 scheduler |
-| 4 | `event` | 无；R4 接入 tools status | ☑ | ☑ | ☑ | R1–R3；[`src/event/README.md`](src/event/README.md) |
+| 2 | `session` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；v2 call/result payload；item log 唯一写者 |
+| 3 | `tools` | 无 | ☑ | ◐ | ◐ | RB2 Review 中；loop 接缝待后续；验收 / offload 归 scheduler |
+| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
 | 5 | `prompt` | tools | ☐ | ☐ | ☐ | compile 唯一出口 |
 | 6 | `context` | session | ☐ | ☐ | ☐ | materialize + compaction |
 | 7 | `loop` | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
@@ -89,10 +89,10 @@ session.load()
 
 - 顶层设计：☑（本文）
 - 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R6）
-- 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3）
-- 模块 3 `tools`：设计 ☑ · 实现 ◐ · 测试 ◐（RB1 完成，R4 集成待后续）
+- 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3 + typed call/result 接缝）
+- 模块 3 `tools`：设计 ☑ · 实现 ◐ · 测试 ◐（RB2 Review 中，loop 集成待后续）
 - 模块 5–8：☐ 未开始
-- 当前推进：独立 `agent-tools` catalog 与首个 builtin；`agent-core::tools` R4 status 接缝另批
+- 当前推进：`ToolCall` / `ToolResult` 唯一建模 Review；之后进入 prompt / loop 集成
 
 ### 文档与集成入口
 

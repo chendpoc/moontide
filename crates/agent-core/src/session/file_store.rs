@@ -59,7 +59,7 @@ impl FileSessionStore {
         Ok(header)
     }
 
-    pub(crate) fn read_items(&self) -> Result<Vec<SessionItem>> {
+    pub(crate) fn read_items(&self, version: u32) -> Result<Vec<SessionItem>> {
         let file = File::open(&self.log_path)
             .with_context(|| format!("open session log {}", self.log_path.display()))?;
         let reader = BufReader::new(file);
@@ -76,7 +76,15 @@ impl FileSessionStore {
             if line.trim().is_empty() {
                 continue;
             }
-            let item: SessionItem = serde_json::from_str(&line).with_context(|| {
+            let mut value: serde_json::Value = serde_json::from_str(&line).with_context(|| {
+                format!(
+                    "parse session log line {} in {}",
+                    line_no + 1,
+                    self.log_path.display()
+                )
+            })?;
+            migrate_v1_tool_result(version, &mut value);
+            let item: SessionItem = serde_json::from_value(value).with_context(|| {
                 format!(
                     "parse session log line {} in {}",
                     line_no + 1,
@@ -117,6 +125,15 @@ impl FileSessionStore {
         fs::write(&self.meta_path, raw)
             .with_context(|| format!("write session meta {}", self.meta_path.display()))?;
         Ok(())
+    }
+}
+
+fn migrate_v1_tool_result(version: u32, value: &mut serde_json::Value) {
+    if version == 1
+        && value.get("kind").and_then(serde_json::Value::as_str) == Some("tool_outcome")
+        && value.get("status").is_none()
+    {
+        value["status"] = serde_json::Value::String("outcome_unknown".to_owned());
     }
 }
 

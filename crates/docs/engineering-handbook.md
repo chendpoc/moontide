@@ -159,7 +159,7 @@ prompt 中暴露的 ToolSpec
 
 `agent` 组合根声明 `ToolPermissionMap`，`loop` 只负责按 tool name 查表并处理 `Ask`；当前不为这一次查询设独立 permission 模块。scheduler 负责“何时执行、如何并行、如何取消”；tools 只负责单次调用。模型 offload、验收、retry、failover 不属于 tools。
 
-`ToolResultStatus` 是单次调用的 host 侧规范状态；`Failed { retryable }` 不得在规范化时丢失。R4 集成时，session/event 可依赖 tools 的稳定结果契约来持久化 typed status，但 LLM `ToolResult` 仍只承载模型可见 content，控制流不得从 content 反推 status。结构化结果统一使用 `ToolContent::Json`，不重复维护 host-only 载荷。
+`ToolCall` 与 `ToolResult` 是单次调用生命周期仅有的两个结构体建模。executor 直接返回 `ToolResult`；event/session 只包装它们，不复制 id/name/input/status/content 字段组。`ToolResultStatus` 是 host 侧规范状态，`Failed { retryable }` 不得丢失；LLM `ContentBlock::ToolResult` 仍只承载模型可见 content，控制流不得从 content 反推 status。结构化结果统一使用 `ToolContent::Json`，不重复维护 host-only 载荷。
 
 canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定的 JSON Schema Draft 2020-12；R1 只保留 `input_schema`，其顶层 JSON 值必须是 object，object 内的 schema 文档在注册时校验，调用 input 在执行前校验。`output_schema` 等出现明确结构化消费者后再设计。
 
@@ -248,13 +248,13 @@ Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断�
 
 ```text
 AssistantFinalized
-  → ToolInvocationRecorded
+  → ToolCallRecorded { call }
   → input validation / loop permission-map check
   → ToolExecutor
-  → ToolOutcomeRecorded
+  → ToolResultRecorded { result }
 ```
 
-执行副作用前必须使模型请求事实可恢复；结果完成后再提交结果事实。executor 返回基础设施错误时，loop 也必须先提交一个 `OutcomeUnknown` outcome，再传播原始错误，不能留下已记录但无结果的 invocation。scheduler 后续作为多调用外层编排接入，不是当前单次调用的第三道门禁。
+执行副作用前必须使 `ToolCall` 事实可恢复；结果完成后再提交 `ToolResult` 事实。executor 返回基础设施错误时，loop 也必须先提交一个 `OutcomeUnknown` result，再传播原始错误，不能留下已记录但无结果的 call。scheduler 后续作为多调用外层编排接入，不是当前单次调用的第三道门禁。
 
 ---
 
@@ -282,6 +282,7 @@ AssistantFinalized
 - loop 不直接写 Session；
 - Committable RunEvent 才能进入 commit 阶段；
 - ToolResult 状态与 content 独立；
+- 单次工具生命周期只用 ToolCall / ToolResult 建模，event/session 直接包装，不复制字段；
 - `OutcomeUnknown` 不得归一成成功；
 - executor `Err` 必须先产生一次配对的 `OutcomeUnknown`，再向 run 边界传播。
 

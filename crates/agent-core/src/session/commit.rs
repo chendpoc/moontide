@@ -21,27 +21,13 @@ pub fn commit_from_event<'a>(
             turn: *turn,
             blocks: blocks.clone(),
         },
-        RunEvent::ToolInvocationRecorded {
-            turn,
-            tool_use_id,
-            name,
-            input,
-        } => SessionItemDraft::ToolInvocation {
+        RunEvent::ToolCallRecorded { turn, call } => SessionItemDraft::ToolCall {
             turn: *turn,
-            tool_use_id: tool_use_id.clone(),
-            name: name.clone(),
-            input: input.clone(),
+            call: call.clone(),
         },
-        RunEvent::ToolOutcomeRecorded {
-            turn,
-            tool_use_id,
-            name,
-            content,
-        } => SessionItemDraft::ToolOutcome {
+        RunEvent::ToolResultRecorded { turn, result } => SessionItemDraft::ToolResult {
             turn: *turn,
-            tool_use_id: tool_use_id.clone(),
-            name: name.clone(),
-            content: content.clone(),
+            result: result.clone(),
         },
         RunEvent::CompactionApplied {
             turn,
@@ -83,8 +69,8 @@ fn non_committable_label(event: &RunEvent) -> &'static str {
         RunEvent::ContextPostflightEnded { .. } => "ContextPostflightEnded",
         RunEvent::UserPromptCommitted { .. }
         | RunEvent::AssistantFinalized { .. }
-        | RunEvent::ToolInvocationRecorded { .. }
-        | RunEvent::ToolOutcomeRecorded { .. }
+        | RunEvent::ToolCallRecorded { .. }
+        | RunEvent::ToolResultRecorded { .. }
         | RunEvent::CompactionApplied { .. } => "committable",
     }
 }

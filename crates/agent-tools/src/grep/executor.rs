@@ -6,7 +6,7 @@ use std::{
     pin::Pin,
 };
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolOutput};
+use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
 use anyhow::{Context, Result};
 use ignore::WalkBuilder;
 use regex::Regex;
@@ -49,20 +49,21 @@ impl ToolExecutor for GrepExecutor {
         &'a self,
         call: &'a ToolCall,
         working_dir: &'a Path,
-    ) -> Pin<Box<dyn Future<Output = Result<ToolOutput>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ToolResult>> + Send + 'a>> {
         Box::pin(async move {
             let input = serde_json::from_value::<GrepInput>(call.input().clone())
                 .context("grep input no longer matches its schema")?;
+            let call = call.clone();
             let working_dir = working_dir.to_path_buf();
 
-            tokio::task::spawn_blocking(move || search(input, working_dir))
+            tokio::task::spawn_blocking(move || search(&call, input, working_dir))
                 .await
                 .context("grep blocking task failed")?
         })
     }
 }
 
-fn search(input: GrepInput, working_dir: PathBuf) -> Result<ToolOutput> {
+fn search(call: &ToolCall, input: GrepInput, working_dir: PathBuf) -> Result<ToolResult> {
     let working_dir = fs::canonicalize(&working_dir).with_context(|| {
         format!(
             "failed to canonicalize grep working directory {}",
@@ -79,36 +80,40 @@ fn search(input: GrepInput, working_dir: PathBuf) -> Result<ToolOutput> {
     let target = match fs::canonicalize(&requested_path) {
         Ok(target) => target,
         Err(error) => {
-            return Ok(expected_failure(format!(
-                "grep target {} is unavailable: {error}",
-                input.path
-            )));
+            return Ok(expected_failure(
+                call,
+                format!("grep target {} is unavailable: {error}", input.path),
+            ));
         }
     };
 
     if !target.starts_with(&working_dir) {
-        return Ok(expected_failure(format!(
-            "grep target {} is outside the working directory",
-            input.path
-        )));
+        return Ok(expected_failure(
+            call,
+            format!(
+                "grep target {} is outside the working directory",
+                input.path
+            ),
+        ));
     }
 
     let regex = match Regex::new(&input.pattern) {
         Ok(regex) => regex,
         Err(error) => {
-            return Ok(expected_failure(format!(
-                "invalid grep regular expression: {error}"
-            )));
+            return Ok(expected_failure(
+                call,
+                format!("invalid grep regular expression: {error}"),
+            ));
         }
     };
 
     let metadata = match fs::metadata(&target) {
         Ok(metadata) => metadata,
         Err(error) => {
-            return Ok(expected_failure(format!(
-                "failed to inspect grep target {}: {error}",
-                input.path
-            )));
+            return Ok(expected_failure(
+                call,
+                format!("failed to inspect grep target {}: {error}", input.path),
+            ));
         }
     };
 
@@ -118,19 +123,26 @@ fn search(input: GrepInput, working_dir: PathBuf) -> Result<ToolOutput> {
     } else if metadata.is_dir() {
         search_directory(&target, &working_dir, &regex, &mut matches)
     } else {
-        return Ok(expected_failure(format!(
-            "grep target {} is neither a file nor a directory",
-            input.path
-        )));
+        return Ok(expected_failure(
+            call,
+            format!(
+                "grep target {} is neither a file nor a directory",
+                input.path
+            ),
+        ));
     };
 
-    Ok(finish_search(search_result, matches))
+    Ok(finish_search(call, search_result, matches))
 }
 
-fn finish_search(search_result: Result<()>, matches: MatchCollector) -> ToolOutput {
+fn finish_search(
+    call: &ToolCall,
+    search_result: Result<()>,
+    matches: MatchCollector,
+) -> ToolResult {
     match search_result {
-        Ok(()) => matches.finish(),
-        Err(error) => expected_failure(format!("grep search failed: {error:#}")),
+        Ok(()) => matches.finish(call),
+        Err(error) => expected_failure(call, format!("grep search failed: {error:#}")),
     }
 }
 
@@ -239,11 +251,8 @@ fn relative_display_path(path: &Path, working_dir: &Path) -> Result<String> {
     Ok(relative.to_string_lossy().replace('\\', "/"))
 }
 
-fn expected_failure(message: String) -> ToolOutput {
-    ToolOutput::Failed {
-        content: ToolContent::Text(message),
-        retryable: false,
-    }
+fn expected_failure(call: &ToolCall, message: String) -> ToolResult {
+    ToolResult::failed(call, ToolContent::Text(message), false)
 }
 
 #[derive(Clone, Copy)]
@@ -292,7 +301,7 @@ impl MatchCollector {
         }
     }
 
-    fn finish(mut self) -> ToolOutput {
+    fn finish(mut self, call: &ToolCall) -> ToolResult {
         if let Some(truncation) = self.truncation {
             if !self.output.is_empty() && !self.output.ends_with('\n') {
                 self.output.push('\n');
@@ -304,9 +313,9 @@ impl MatchCollector {
         }
 
         if self.output.is_empty() {
-            ToolOutput::Succeeded(ToolContent::Text("No matches found.".to_owned()))
+            ToolResult::succeeded(call, ToolContent::Text("No matches found.".to_owned()))
         } else {
-            ToolOutput::Succeeded(ToolContent::Text(self.output))
+            ToolResult::succeeded(call, ToolContent::Text(self.output))
         }
     }
 }
@@ -323,7 +332,7 @@ fn utf8_prefix(value: &str, max_bytes: usize) -> &str {
 mod tests {
     use std::{fs, path::Path};
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolOutput};
+    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult, ToolResultStatus};
     use anyhow::{anyhow, bail, ensure, Result};
     use serde_json::{json, Value};
     use tempfile::TempDir;
@@ -340,24 +349,23 @@ mod tests {
         std::os::windows::fs::symlink_file(original, link)
     }
 
-    async fn execute(input: Value, working_dir: &std::path::Path) -> Result<ToolOutput> {
+    async fn execute(input: Value, working_dir: &std::path::Path) -> Result<ToolResult> {
         let call = ToolCall::new("call-1", super::super::NAME, input)?;
         GrepExecutor.execute(&call, working_dir).await
     }
 
-    fn succeeded_text(output: ToolOutput) -> Result<String> {
-        match output {
-            ToolOutput::Succeeded(ToolContent::Text(text)) => Ok(text),
-            other => bail!("expected successful text output, got {other:?}"),
+    fn succeeded_text(result: ToolResult) -> Result<String> {
+        match (result.status(), result.content()) {
+            (ToolResultStatus::Succeeded, ToolContent::Text(text)) => Ok(text.clone()),
+            other => bail!("expected successful text result, got {other:?}"),
         }
     }
 
-    fn failed_text(output: ToolOutput) -> Result<String> {
-        match output {
-            ToolOutput::Failed {
-                content: ToolContent::Text(text),
-                retryable: false,
-            } => Ok(text),
+    fn failed_text(result: ToolResult) -> Result<String> {
+        match (result.status(), result.content()) {
+            (ToolResultStatus::Failed { retryable: false }, ToolContent::Text(text)) => {
+                Ok(text.clone())
+            }
             other => bail!("expected non-retryable text failure, got {other:?}"),
         }
     }
@@ -538,8 +546,9 @@ mod tests {
         let mut matches = MatchCollector::new(1);
 
         ensure!(!matches.push("file.txt:1:needle\n"));
+        let call = ToolCall::new("call-limit", super::super::NAME, json!({}))?;
         ensure!(
-            succeeded_text(matches.finish())?
+            succeeded_text(matches.finish(&call))?
                 == "file.txt:1:needle\n[truncated: result limit reached]"
         );
         Ok(())
@@ -555,7 +564,8 @@ mod tests {
         let read_error = search_file(workspace.path(), workspace.path(), &regex, &mut matches);
         ensure!(read_error.is_err());
 
-        let output = finish_search(Err(anyhow!("simulated read failure")), matches);
+        let call = ToolCall::new("call-read-error", super::super::NAME, json!({}))?;
+        let output = finish_search(&call, Err(anyhow!("simulated read failure")), matches);
         ensure!(failed_text(output)?.contains("grep search failed: simulated read failure"));
         Ok(())
     }

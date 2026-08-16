@@ -14,6 +14,7 @@
 | **R2** | 05–07 | derive + channel/kind 映射 + 64KiB 截断 + 映射单测 | ☑ |
 | **R3** | 08–09 | session commit_from_event + agent-core observer 落盘接线 | ☑ |
 | **R3-F1** | 12–13 | AgentEventRecorder 边界 + 文件持久化策略解耦 | ☑ |
+| **R3-F2** | 14 | ToolCall / ToolResult typed payload 接缝 | ☑ |
 | **R4** | 10–11 | EventBus + sidecar bridge | ☐ |
 
 ---
@@ -106,6 +107,18 @@
 - **范围：** `agent_recorder.rs`、`file_writer.rs`、`event/tests.rs`、`README.md`、`DESIGN.md`
 - **预估 diff：** ~260 行
 - **完成标准：** 文件输出含换行不超过 64 KiB；重启恢复 seq/turn；错误 identity 不写入；文档术语与实现一致。
+- **状态：** ☑
+
+---
+
+## R3-F2：tool typed payload 接缝
+
+### TASK-event-14: 直接复用 ToolCall / ToolResult
+
+- **做什么：** 将 tool RunEvent 收敛为 `ToolCallRecorded { call }` / `ToolResultRecorded { result }`；trace 与 Agent Event derive 只读 canonical payload，并保留 typed status。
+- **依赖：** agent-core tools RB2
+- **范围：** `run_event.rs`、`pipeline.rs`、`derive.rs`、`tests.rs`
+- **完成标准：** event 不再声明重复字段组；call/result identity、input、status 与 content 映射测试通过。
 - **状态：** ☑
 
 ---

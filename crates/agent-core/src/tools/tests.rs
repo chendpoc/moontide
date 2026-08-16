@@ -12,23 +12,30 @@ use anyhow::{bail, Result};
 use serde_json::json;
 
 use super::{
-    Tool, ToolCall, ToolCancellationReason, ToolContent, ToolExecutor, ToolOutput, ToolRegistry,
-    ToolResult, ToolResultStatus, ToolSpec,
+    Tool, ToolCall, ToolCancellationReason, ToolContent, ToolExecutor, ToolRegistry, ToolResult,
+    ToolResultStatus, ToolSpec,
 };
 
 struct ReturningExecutor {
-    output: ToolOutput,
+    status: ToolResultStatus,
+    content: ToolContent,
     call_count: Arc<AtomicUsize>,
 }
 
 impl ToolExecutor for ReturningExecutor {
     fn execute<'a>(
         &'a self,
-        _call: &'a ToolCall,
+        call: &'a ToolCall,
         _working_dir: &'a Path,
-    ) -> Pin<Box<dyn Future<Output = Result<ToolOutput>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ToolResult>> + Send + 'a>> {
         self.call_count.fetch_add(1, Ordering::SeqCst);
-        Box::pin(async { Ok(self.output.clone()) })
+        Box::pin(async {
+            Ok(ToolResult::with_status(
+                call,
+                self.status.clone(),
+                self.content.clone(),
+            ))
+        })
     }
 }
 
@@ -39,12 +46,15 @@ impl ToolExecutor for ContextEchoExecutor {
         &'a self,
         call: &'a ToolCall,
         working_dir: &'a Path,
-    ) -> Pin<Box<dyn Future<Output = Result<ToolOutput>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ToolResult>> + Send + 'a>> {
         Box::pin(async move {
-            Ok(ToolOutput::Succeeded(ToolContent::Json(json!({
-                "input": call.input(),
-                "working_dir": working_dir,
-            }))))
+            Ok(ToolResult::succeeded(
+                call,
+                ToolContent::Json(json!({
+                    "input": call.input(),
+                    "working_dir": working_dir,
+                })),
+            ))
         })
     }
 }
@@ -56,8 +66,26 @@ impl ToolExecutor for FailingExecutor {
         &'a self,
         _call: &'a ToolCall,
         _working_dir: &'a Path,
-    ) -> Pin<Box<dyn Future<Output = Result<ToolOutput>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ToolResult>> + Send + 'a>> {
         Box::pin(async { Err(anyhow::anyhow!("executor transport failed")) })
+    }
+}
+
+struct MismatchedIdentityExecutor;
+
+impl ToolExecutor for MismatchedIdentityExecutor {
+    fn execute<'a>(
+        &'a self,
+        _call: &'a ToolCall,
+        _working_dir: &'a Path,
+    ) -> Pin<Box<dyn Future<Output = Result<ToolResult>> + Send + 'a>> {
+        Box::pin(async {
+            let other_call = ToolCall::new("other-call", "other_tool", json!({}))?;
+            Ok(ToolResult::succeeded(
+                &other_call,
+                ToolContent::Text("wrong result".to_owned()),
+            ))
+        })
     }
 }
 
@@ -72,10 +100,19 @@ fn object_schema() -> serde_json::Value {
     })
 }
 
-fn returning_tool(name: &str, output: ToolOutput, call_count: Arc<AtomicUsize>) -> Result<Tool> {
+fn returning_tool(
+    name: &str,
+    status: ToolResultStatus,
+    content: ToolContent,
+    call_count: Arc<AtomicUsize>,
+) -> Result<Tool> {
     Ok(Tool::new(
         ToolSpec::new(name, format!("execute {name}"), object_schema())?,
-        Arc::new(ReturningExecutor { output, call_count }),
+        Arc::new(ReturningExecutor {
+            status,
+            content,
+            call_count,
+        }),
     ))
 }
 
@@ -118,12 +155,14 @@ fn registry_sorts_tools_and_resolves_by_name_without_execution() -> Result<()> {
     let registry = ToolRegistry::new(vec![
         returning_tool(
             "write_file",
-            ToolOutput::Succeeded(ToolContent::Text("written".to_owned())),
+            ToolResultStatus::Succeeded,
+            ToolContent::Text("written".to_owned()),
             Arc::clone(&call_count),
         )?,
         returning_tool(
             "read_file",
-            ToolOutput::Succeeded(ToolContent::Text("content".to_owned())),
+            ToolResultStatus::Succeeded,
+            ToolContent::Text("content".to_owned()),
             Arc::clone(&call_count),
         )?,
     ])?;
@@ -149,12 +188,14 @@ fn registry_rejects_duplicate_tool_names_atomically() -> Result<()> {
     let result = ToolRegistry::new(vec![
         returning_tool(
             "read_file",
-            ToolOutput::Succeeded(ToolContent::Text("one".to_owned())),
+            ToolResultStatus::Succeeded,
+            ToolContent::Text("one".to_owned()),
             Arc::clone(&call_count),
         )?,
         returning_tool(
             "read_file",
-            ToolOutput::Succeeded(ToolContent::Text("two".to_owned())),
+            ToolResultStatus::Succeeded,
+            ToolContent::Text("two".to_owned()),
             Arc::clone(&call_count),
         )?,
     ]);
@@ -272,7 +313,8 @@ fn registry_validates_input_without_executing_tool() -> Result<()> {
     let call_count = Arc::new(AtomicUsize::new(0));
     let registry = ToolRegistry::new(vec![returning_tool(
         "read_file",
-        ToolOutput::Succeeded(ToolContent::Text("content".to_owned())),
+        ToolResultStatus::Succeeded,
+        ToolContent::Text("content".to_owned()),
         Arc::clone(&call_count),
     )?])?;
     let tool = registry
@@ -326,10 +368,8 @@ async fn tool_execute_preserves_expected_failure_without_retrying() -> Result<()
     let call_count = Arc::new(AtomicUsize::new(0));
     let tool = returning_tool(
         "read_file",
-        ToolOutput::Failed {
-            content: ToolContent::Text("file is temporarily locked".to_owned()),
-            retryable: true,
-        },
+        ToolResultStatus::Failed { retryable: true },
+        ToolContent::Text("file is temporarily locked".to_owned()),
         Arc::clone(&call_count),
     )?;
     let call = ToolCall::new("call-failed", "read_file", json!({ "path": "README.md" }))?;
@@ -354,9 +394,8 @@ async fn tool_execute_preserves_unknown_outcome() -> Result<()> {
     let call_count = Arc::new(AtomicUsize::new(0));
     let tool = returning_tool(
         "write_file",
-        ToolOutput::OutcomeUnknown(ToolContent::Text(
-            "connection closed after request was sent".to_owned(),
-        )),
+        ToolResultStatus::OutcomeUnknown,
+        ToolContent::Text("connection closed after request was sent".to_owned()),
         Arc::clone(&call_count),
     )?;
     let call = ToolCall::new("call-unknown", "write_file", json!({ "path": "README.md" }))?;
@@ -389,17 +428,17 @@ async fn tool_execute_propagates_infrastructure_error() -> Result<()> {
 #[test]
 fn tool_result_constructor_supports_non_executor_outcomes() -> Result<()> {
     let call = ToolCall::new("call-denied", "shell", json!({ "command": "pwd" }))?;
-    let unknown = ToolResult::new(
+    let unknown = ToolResult::with_status(
         &call,
         ToolResultStatus::UnknownTool,
         ToolContent::Text("unknown tool: shell".to_owned()),
     );
-    let denied = ToolResult::new(
+    let denied = ToolResult::with_status(
         &call,
         ToolResultStatus::Denied,
         ToolContent::Text("tool permission denied".to_owned()),
     );
-    let cancelled = ToolResult::new(
+    let cancelled = ToolResult::with_status(
         &call,
         ToolResultStatus::Cancelled {
             reason: ToolCancellationReason::User,
@@ -417,6 +456,72 @@ fn tool_result_constructor_supports_non_executor_outcomes() -> Result<()> {
     );
     assert_eq!(cancelled.tool_use_id(), "call-denied");
     assert_eq!(cancelled.name(), "shell");
+    Ok(())
+}
+
+// 场景：executor 返回属于另一调用的 ToolResult；预期：Tool 边界拒绝该结果并报告身份不匹配；不变量/副作用：错误结果不会越过工具边界，也不会被改写成当前调用的结果。
+#[tokio::test]
+async fn tool_execute_rejects_result_with_mismatched_identity() -> Result<()> {
+    let tool = Tool::new(
+        ToolSpec::new("read_file", "returns wrong identity", object_schema())?,
+        Arc::new(MismatchedIdentityExecutor),
+    );
+    let call = ToolCall::new("call-identity", "read_file", json!({ "path": "README.md" }))?;
+
+    let error = match tool.execute(&call, Path::new("workspace")).await {
+        Ok(_) => bail!("mismatched executor result unexpectedly succeeded"),
+        Err(error) => error,
+    };
+
+    assert!(error
+        .to_string()
+        .contains("tool executor result identity mismatch"));
+    Ok(())
+}
+
+// 场景：executor 试图返回只属于调用管线的 Denied 状态；预期：Tool 边界拒绝该结果；不变量/副作用：permission、参数校验与取消状态只能由 loop 组装，executor 不能通过反序列化或 crate 内实现伪造。
+#[tokio::test]
+async fn tool_execute_rejects_pipeline_owned_status_from_executor() -> Result<()> {
+    let call_count = Arc::new(AtomicUsize::new(0));
+    let tool = returning_tool(
+        "read_file",
+        ToolResultStatus::Denied,
+        ToolContent::Text("forged denial".to_owned()),
+        Arc::clone(&call_count),
+    )?;
+    let call = ToolCall::new("call-status", "read_file", json!({ "path": "README.md" }))?;
+
+    let error = match tool.execute(&call, Path::new("workspace")).await {
+        Ok(_) => bail!("pipeline-owned executor status unexpectedly succeeded"),
+        Err(error) => error,
+    };
+
+    assert!(error
+        .to_string()
+        .contains("tool executor returned pipeline-owned status: Denied"));
+    assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+// 场景：ToolCall 与 ToolResult 跨 event/session 边界序列化后再读取；预期：调用身份、输入、状态及内容完整往返；不变量/副作用：序列化不创建第三种调用生命周期模型，也不执行工具。
+#[test]
+fn tool_call_and_result_round_trip_without_losing_semantics() -> Result<()> {
+    let call = ToolCall::new(
+        "call-round-trip",
+        "read_file",
+        json!({ "path": "README.md" }),
+    )?;
+    let result = ToolResult::failed(
+        &call,
+        ToolContent::Json(json!({ "error": "temporarily unavailable" })),
+        true,
+    );
+
+    let decoded_call: ToolCall = serde_json::from_value(serde_json::to_value(&call)?)?;
+    let decoded_result: ToolResult = serde_json::from_value(serde_json::to_value(&result)?)?;
+
+    assert_eq!(decoded_call, call);
+    assert_eq!(decoded_result, result);
     Ok(())
 }
 

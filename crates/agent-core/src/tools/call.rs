@@ -1,8 +1,9 @@
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Provider-neutral request to execute one registered tool.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolCall {
     tool_use_id: String,
     name: String,

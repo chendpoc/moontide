@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。
 > **对外集成：** [`README.md`](README.md)。
-> **状态：** RB1 已实现并通过 workspace 检查；公开 API、结果状态和 R4 接缝已冻结为本文契约。
+> **状态：** RB2 实现中；`ToolCall` / `ToolResult` 唯一建模及 session/event typed 接缝已落地。
 > **关联：** [`../llm/DESIGN.md`](../llm/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../../../../docs/notes/runtime/agent-kernel-architecture.md`](../../../../docs/notes/runtime/agent-kernel-architecture.md)
 
 ---
@@ -18,7 +18,7 @@
 3. 用不可变 `ToolRegistry` 提供确定性的名称解析和 schema 暴露；
 4. 校验一次 `ToolCall` 的输入；
 5. 通过唯一 `ToolExecutor` trait 执行真实副作用；
-6. 将 executor 输出统一为带状态的 `ToolResult`；
+6. 让 executor 直接返回带状态的 `ToolResult`；
 7. 为 `prompt`、`loop`、`scheduler` 提供明确接缝。
 
 ### 1.2 明确不做
@@ -61,8 +61,8 @@ tools/
   registry.rs      # Tool、ToolRegistry、冻结 snapshot
   call.rs          # ToolCall
   executor.rs      # ToolExecutor trait
-  result.rs        # ToolOutput、ToolResult、状态与内容
-  validate.rs      # 名称、input schema、结果规范化
+  result.rs        # ToolResult、状态与内容
+  validate.rs      # 名称与 input schema 校验
   tests.rs
 ```
 
@@ -206,7 +206,7 @@ pub trait ToolExecutor: Send + Sync {
         call: &'a ToolCall,
         working_dir: &'a std::path::Path,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = anyhow::Result<ToolOutput>> + Send + 'a>,
+        Box<dyn std::future::Future<Output = anyhow::Result<ToolResult>> + Send + 'a>,
     >;
 }
 ```
@@ -223,25 +223,16 @@ R1 不定义通用 execution context。`working_dir` 是当前唯一有真实消
 - executor 不自行决定 permission；
 - executor 不生成/修改 `tool_use_id`；
 - executor 不写 Session 或 RunEvent；
-- 预期业务失败返回 `Ok(ToolOutput::Failed { ... })`；
+- 预期业务失败返回 `Ok(ToolResult::failed(call, ...))`；
 - IO、进程、协议等基础设施错误返回 `Err(anyhow::Error)`；
 - 不使用 `unwrap`、`expect` 或 panic 处理外部输入。
 
-### 3.6 `ToolOutput` 与 `ToolResult`
+### 3.6 `ToolResult`
 
 ```rust
 pub enum ToolContent {
     Text(String),
     Json(serde_json::Value),
-}
-
-pub enum ToolOutput {
-    Succeeded(ToolContent),
-    Failed {
-        content: ToolContent,
-        retryable: bool,
-    },
-    OutcomeUnknown(ToolContent),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -265,6 +256,7 @@ pub enum ToolResultStatus {
     OutcomeUnknown,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ToolResult {
     // private fields
 }
@@ -275,24 +267,23 @@ impl ToolResult {
     pub fn status(&self) -> &ToolResultStatus;
     pub fn content(&self) -> &ToolContent;
 
-    pub(crate) fn new(
+    pub fn succeeded(call: &ToolCall, content: ToolContent) -> Self;
+    pub fn failed(call: &ToolCall, content: ToolContent, retryable: bool) -> Self;
+    pub fn outcome_unknown(call: &ToolCall, content: ToolContent) -> Self;
+
+    pub(crate) fn with_status(
         call: &ToolCall,
         status: ToolResultStatus,
         content: ToolContent,
     ) -> Self;
-
-    pub(crate) fn from_output(
-        call: &ToolCall,
-        output: ToolOutput,
-    ) -> Self;
 }
 ```
 
-`ToolResultStatus` 是跨 session/event 接缝的持久化类型，使用稳定的 `serde` snake_case 表示；`Failed { retryable }` 序列化为带 `retryable` 字段的对象。`ToolResult` 本身是运行时包装，不直接作为 Session JSONL 行序列化。
+`ToolResultStatus` 是跨 session/event 接缝的持久化类型，使用稳定的 `serde` snake_case 表示；`Failed { retryable }` 序列化为带 `retryable` 字段的对象。`ToolCall` 与 `ToolResult` 都有稳定 serde 表示，SessionItem 直接 flatten 它们，不复制字段。
 
-`ToolOutput` 是 executor 的语义输出；它直接用 enum 绑定 outcome 与 content，不再增加独立的 `ToolOutputOutcome`。`ToolResult` 是 tools 对输入拒绝或 executor 输出进行规范化后的边界结果，字段私有且跨 crate 只读；后者才允许上层转换成模型的 ToolResult block。
+`ToolCall` 与 `ToolResult` 是单次调用生命周期仅有的两个结构体。executor 直接返回 `ToolResult`，不再增加 output、invocation、outcome 或 event 结构重复表达同一事实。字段私有且跨 crate 只读，上层可直接将结果持久化或转换成模型的 ToolResult block。
 
-`ToolResult::new` 是 crate 内部的通用组装入口，供 loop 生成 `UnknownTool`、`InvalidArguments`、`Denied` 或 `Cancelled`；`ToolResult::from_output` 专门把 executor 的三个 `ToolOutput` 变体映射为对应执行结果。二者都接收原始 `ToolCall` 并复制稳定身份，handler 无法自行指定 `tool_use_id`。不再为每种拒绝状态创建 constructor，也不引入 rejection typestate；状态与调用顺序由 loop 行为测试守门。
+executor 使用公开的 `succeeded` / `failed` / `outcome_unknown` 构造器；loop 使用 crate 内 `with_status` 生成 `UnknownTool`、`InvalidArguments`、`Denied` 或 `Cancelled`。所有构造入口都接收原始 `ToolCall` 并复制稳定身份，不能自行指定 `tool_use_id`。`Tool::execute` 还会核验 executor 返回结果的 id/name 与允许状态集合；身份不匹配，或 executor 返回 pipeline-owned 状态，都会立即返回错误。不引入 rejection typestate；状态与调用顺序由 loop 行为测试守门。
 
 `Denied`、`Cancelled`、`InvalidArguments` 等不是 executor 的业务结果，而是调用管线的结果。handler 不能通过返回普通内容伪造这些状态。
 
@@ -306,27 +297,27 @@ R1 只保留一份结果载荷。结构化结果使用 `ToolContent::Json` 表�
 loop:
   1. ToolCall::new 已完成 identity 校验
   2. tool = registry.resolve(call.name)
-     └─ missing → ToolResult::new(call, UnknownTool, content)
+     └─ missing → ToolResult::with_status(call, UnknownTool, content)
   3. registry.validate_input(tool, call)
-     └─ invalid → ToolResult::new(call, InvalidArguments, content)
+     └─ invalid → ToolResult::with_status(call, InvalidArguments, content)
   4. 按 call.name 查询组合根注入的 ToolPermissionMap
-     ├─ missing                 → ToolResult::new(call, Denied, content)
-     ├─ Ask 且用户拒绝          → ToolResult::new(call, Denied, content)
+     ├─ missing                 → ToolResult::with_status(call, Denied, content)
+     ├─ Ask 且用户拒绝          → ToolResult::with_status(call, Denied, content)
      └─ Allow / Ask 经用户确认  → continue
   5. match tool.execute(&call, working_dir).await
      ├─ Ok(result) → continue
      └─ Err(error)
-          → ToolResult::new(&call, OutcomeUnknown, safe_error_summary)
-          → emit ToolOutcomeRecorded
+          → ToolResult::outcome_unknown(&call, safe_error_summary)
+          → emit ToolResultRecorded
           → return Err(error) to run boundary
 
 Tool::execute:
-  6. output = tool.executor.execute(&call, working_dir).await?
-  7. ToolResult::from_output(&call, output)
-  8. return ToolResult
+  6. result = tool.executor.execute(&call, working_dir).await?
+  7. verify result identity matches call and status belongs to executor result set
+  8. return result
 ```
 
-输入校验和执行规范化由 tools 提供，permission map lookup 与总体顺序由 loop 编排。这里不为阶段顺序创建 `ValidatedToolCall` 或 `ToolAdmission`；顺序不变量由 loop 测试守门。`ToolOutput::Failed { retryable }` 必须归一为 `ToolResultStatus::Failed { retryable }`；`OutcomeUnknown` 不得降级为成功。
+输入校验和执行边界由 tools 提供，permission map lookup 与总体顺序由 loop 编排。这里不为阶段顺序创建 `ValidatedToolCall` 或 `ToolAdmission`；顺序不变量由 loop 测试守门。`ToolResultStatus::Failed { retryable }` 必须保留 retryable；`OutcomeUnknown` 不得降级为成功。
 
 多调用算法不属于这里。scheduler 后置负责调用顺序、并行窗口、资源冲突、取消后哪些调用尚未开始，以及模型 offload 的验收；它不进入当前 MVP 的单调用执行前门禁。
 
@@ -393,17 +384,17 @@ calls + confirmed resource claims + cancellation
 tools 不直接写盘、不发布 event。loop/event 按既定顺序负责：
 
 ```text
-ToolInvocationRecorded → session::ToolInvocation
-ToolOutcomeRecorded    → session::ToolOutcome
+ToolCallRecorded   { call }   → session::ToolCall   { call }
+ToolResultRecorded { result } → session::ToolResult { result }
 ```
 
 Session Item Log 是事实源；Agent Event Log 只是 RunEvent derive 的观测记录。
 
-R4 的接缝必须把 `ToolResultStatus` 作为 typed 字段带入 `RunEvent::ToolOutcomeRecorded` 和 `SessionItem::ToolOutcome`。该接缝是高层对 tools **契约类型**的单向依赖，tools 不依赖高层实现。
+该接缝直接携带完整 `ToolResult`，因此 typed `ToolResultStatus` 不会丢失。这是高层对 tools **契约类型**的单向依赖，tools 不依赖高层实现。
 
-R4 还必须覆盖 executor `Err` 路径：loop 先 emit status 为 `OutcomeUnknown` 的 `ToolOutcomeRecorded`，等待 commit 成功后再把原始 `anyhow::Error` 返回 run 边界。禁止只记录 invocation 后直接 `?` 返回；也禁止 event/session 层自行猜测或补写 outcome。
+loop 集成仍必须覆盖 executor `Err` 路径：loop 先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded`，等待 commit 成功后再把原始 `anyhow::Error` 返回 run 边界。禁止只记录 call 后直接 `?` 返回；也禁止 event/session 层自行猜测或补写 result。
 
-这是 Session Item Log 的 schema 变更：R4 必须把 Session header/version bump 到 v2；读取 v1 时，对缺失 status 的旧 `ToolOutcome` 映射为 `OutcomeUnknown`，禁止默认推断为 `Succeeded`，新写入统一使用 v2。迁移与兼容测试属于 R4，不混入 RB1。
+Session Item Log 已升级到 v2，新写入使用 `tool_call` / `tool_result`。读取 v1 时通过 serde alias 接受旧 kind，对缺失 status 的历史结果映射为 `OutcomeUnknown`，禁止默认推断为 `Succeeded`。
 
 LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先使用 typed status 决定控制流，再把 status 说明编码为 content；不能在恢复或控制流中从 content 文本反推 status。
 
@@ -427,8 +418,8 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 9. `tool_use_id` 非空；注册的 `name` 匹配 `^[A-Za-z0-9_-]{1,64}$`；
 10. 未知工具和非法输入不 panic；
 11. input 不匹配 schema 时 permission 与 executor 均不调用；
-12. 每个已记录的 tool invocation 都必须生成且只生成一个可配对的 `ToolResult`；executor 基础设施错误先记录 `OutcomeUnknown`，再传播原始错误；
-13. handler 不能修改调用身份或伪造 permission/scheduler 状态。
+12. 每个已记录的 `ToolCall` 都必须生成且只生成一个可配对的 `ToolResult`；executor 基础设施错误先记录 `OutcomeUnknown`，再传播原始错误；
+13. handler 不能修改调用身份或伪造 permission/scheduler 状态；`Tool::execute` 同时校验身份和 executor 允许状态集合。
 
 ### Result
 
@@ -443,7 +434,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 19. tools 不产生 RunEvent；
 20. 多调用并发、取消补偿、offload 验收归 scheduler；
 21. 动态 registry 变化下一 step 才生效；
-22. R4 的 session/event 结果记录必须保留 typed `ToolResultStatus`。
+22. session/event 直接包装 `ToolCall` / `ToolResult`，不得复制同义字段结构。
 
 ---
 
@@ -451,10 +442,11 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 
 | 批 | 范围 |
 |----|------|
-| **R1** | `ToolSpec`、`ToolCall`、`ToolExecutor`、`ToolOutput` / `ToolResult` |
+| **R1** | `ToolSpec`、`ToolCall`、`ToolExecutor`、`ToolResult` |
 | **R2** | frozen registry、重复注册、稳定排序、input schema 守门 |
 | **R3** | 输入校验、executor 调用、错误/未知结果规范化 |
-| **R4** | 与 prompt、loop、session、event 的契约联调；SessionItem/RunEvent 保留 typed `ToolResultStatus` |
+| **RB2** | 删除重复结果模型；SessionItem/RunEvent 直接携带 `ToolCall` / `ToolResult`；Session v2 兼容读取 v1 |
+| **R4** | 与 prompt、loop 的完整调用顺序联调 |
 | **后置** | scheduler 资源 claim、bounded pool、模型 offload/failover、artifact spill |
 
 每批实现前先更新本文件的类型和不变量，再由 `batch-implement` 按 review 批推进。实现阶段发现必须改变上述公开签名时，停止当前批次，先回架构对齐；不能在 TASKS 中以“必要时补充文档”代替确认。`tools` 设计不因后置 scheduler 的复杂度提前膨胀。
@@ -470,7 +462,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 - registry 不暴露可变 `Tool`；
 - prompt 暴露的 spec 与 dispatch 使用同一 `Tool`；
 - `ToolCall::new` 拒绝空 identity，合法 identity 的 unknown tool 仍返回可配对结果；
-- registry `resolve` 未命中返回 `None`，`ToolResult::new` 可表达 `UnknownTool`；完整映射顺序由 loop 集成测试守门；
+- registry `resolve` 未命中返回 `None`，`ToolResult::with_status` 可表达 `UnknownTool`；完整映射顺序由 loop 集成测试守门；
 - 非法 input → `InvalidArguments`，且 executor 不被调用；
 - permission 的 allowed/denied 顺序与映射在 loop 集成批测试，不在 tools RB1 伪造 admission；
 - expected business failure → `Failed { retryable }` + 内容；
@@ -478,6 +470,8 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 - `OutcomeUnknown` 不会被归一成成功；
 - `ToolContent::Json` 的 LLM 映射稳定，结果载荷不重复维护；
 - 每个成功进入执行的 call 都能生成稳定的 result 配对信息；
+- executor 返回不同调用身份或 pipeline-owned 状态的 result 会在 `Tool` 边界失败；
+- v1 tool item 可读取为新模型，缺失 status 保守映射为 `OutcomeUnknown`；
 - tools 不 import session/event/loop/scheduler 的结构测试守门。
 
 ---
@@ -499,10 +493,10 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 13. input schema 在 frozen registry 构造时校验并编译一次；schema 错误阻止注册，调用 input 错误返回 `InvalidArguments`。
 14. provider schema 编码默认透传，只修复已确认的关键词异常；不在 tools 内建设通用兼容层。
 15. permission 是组合根声明的 `tool_name → Allow | Ask` map，由 loop 私有查表；当前不设独立模块。
-16. `ToolOutput` 直接以 enum 绑定 outcome 与 content；`ToolResult` 字段私有并对跨 crate 调用者只读。
-17. `ToolResult` 仅提供 crate 内部 `new` / `from_output` 构造入口；loop 决定管线状态，tools 统一组装身份和结果表示。
+16. 单次调用生命周期只用 `ToolCall` 与 `ToolResult` 两个结构体建模，不保留同义 output/invocation/outcome/event 结构。
+17. executor 使用公开的成功/失败/未知结果构造器；loop 使用 crate 内 `with_status`，两者都只能从原 `ToolCall` 复制身份。
 18. executor 只借用 `ToolCall`，并显式接收 `working_dir`；不复制调用身份，也不使用进程全局 cwd。
-19. registry 以 crate 内部 `validate_input(tool, call)` 暴露缓存校验；`Tool::execute` 隐藏 executor 并完成输出规范化，不增加执行 service 或阶段 wrapper。
+19. registry 以 crate 内部 `validate_input(tool, call)` 暴露缓存校验；`Tool::execute` 隐藏 executor 并核验结果身份，不增加执行 service 或阶段 wrapper。
 20. executor `Err` 不转成新的基础设施状态；loop 先记录 `OutcomeUnknown` 配对结果，再传播原始错误。
 21. `agent-core::tools` 保留运行时契约；第一方实现归 `agent-tools`，其 `ToolDefinition` 表达 name + build 配方；依赖只能是 `agent-tools → agent-core`，`Tool` 仍是唯一进入 runtime registry 的绑定。
 22. canonical 工具名采用当前 provider 共同支持的 `^[A-Za-z0-9_-]{1,64}$`；`input_schema` 顶层必须是 JSON object，避免注册成功后在首次 provider 请求才失败。

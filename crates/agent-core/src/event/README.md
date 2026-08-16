@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R3 已实现（dispatch · derive · `AgentEventRecorder`）；R4（async bus）未开始。
+> **状态：** R1–R3 与 tools typed payload 接缝已实现；R4（async bus）未开始。
 > **关联：** [`../session/README.md`](../session/README.md) · [`docs/spec/agent-events.md`](../../../../docs/spec/agent-events.md)
 
 ---
@@ -147,14 +147,14 @@ tail workdir/.moontide/runs/<runId>.active.jsonl
 |------|------------|
 | 用户输入落盘 | `UserPromptCommitted` |
 | 助手最终回复 | `AssistantFinalized` |
-| tool 调用 / 结果 | `ToolInvocationRecorded` / `ToolOutcomeRecorded` |
+| tool 调用 / 结果 | `ToolCallRecorded { call }` / `ToolResultRecorded { result }` |
 | turn / run 边界 | `TurnStarted` / `TurnEnded` / `RunStarted` / `RunEnded` |
 | 流式 UI | `MessageUpdate` |
 | 单次 LLM 往返 | `LlmCallStarted` / `LlmCallEnded` |
 
 **不要**在 loop 里 `session.commit_item` — 由 commit handler 在 `dispatch` 内完成。
 
-**tools R4 接缝（待实现）：** `ToolOutcomeRecorded` 将携带 `tools::ToolResultStatus` typed 字段；event 只广播/提交该契约值，不解释 permission 或 scheduler 策略。executor 返回基础设施错误时，loop 必须先 emit status 为 `OutcomeUnknown` 的 outcome 并等待 commit，再向 run 边界传播原始错误；event 不自行补写或推断。当前 R1–R3 实现尚未接入该字段。
+tool 事件直接携带 `tools::ToolCall` / `tools::ToolResult`，event 不复制字段，也不解释 permission 或 scheduler 策略。executor 返回基础设施错误时，loop 必须先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded` 并等待 commit，再向 run 边界传播原始错误；event 不自行补写或推断。
 
 ---
 

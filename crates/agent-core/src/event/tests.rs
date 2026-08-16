@@ -14,6 +14,7 @@ use crate::event::{
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
+use crate::tools::{ToolCall, ToolContent, ToolResult};
 
 struct MockCommitHandler {
     calls: Arc<AtomicUsize>,
@@ -353,17 +354,16 @@ fn derive_assistant_finalized_maps_conversation_final() {
     assert_eq!(record.payload["text"], "hello");
 }
 
-// 场景：tool outcome 携带工具名称、调用 ID 和文本结果。
-// 预期：trace/tool_result payload 保留 toolName；不变量：观测日志可独立识别工具。
+// 场景：ToolResult 携带工具名称、调用 ID、状态和文本结果；预期：trace/tool_result payload 完整保留这些语义；不变量/副作用：观测日志直接读取 ToolResult，不复制另一套结果结构。
 #[test]
-fn derive_tool_outcome_includes_tool_name() {
+fn derive_tool_result_includes_identity_status_and_content() {
+    let call = ToolCall::new("tool-1", "read_file", serde_json::json!({"path": "a.rs"}))
+        .expect("create tool call");
     let record = derive_agent_event(
         &test_ctx(),
-        &RunEvent::ToolOutcomeRecorded {
+        &RunEvent::ToolResultRecorded {
             turn: 1,
-            tool_use_id: "tool-1".into(),
-            name: "read_file".into(),
-            content: crate::llm::protocol::ToolResultContent::Text("ok".into()),
+            result: ToolResult::succeeded(&call, ToolContent::Text("ok".into())),
         },
     )
     .expect("record");
@@ -372,7 +372,28 @@ fn derive_tool_outcome_includes_tool_name() {
     assert_eq!(record.kind, "tool_result");
     assert_eq!(record.payload["toolName"], "read_file");
     assert_eq!(record.payload["toolUseId"], "tool-1");
+    assert_eq!(record.payload["status"], "succeeded");
     assert_eq!(record.payload["body"], "ok");
+}
+
+// 场景：ToolCall 进入 Agent Event 派生边界；预期：tool_use payload 保留名称、调用 ID 与原始 input；不变量/副作用：派生过程只读 ToolCall，不重新建模或改写输入。
+#[test]
+fn derive_tool_call_reuses_canonical_call_payload() {
+    let call = ToolCall::new("tool-2", "grep", serde_json::json!({"pattern": "ToolCall"}))
+        .expect("create tool call");
+
+    let record = derive_agent_event(
+        &test_ctx(),
+        &RunEvent::ToolCallRecorded {
+            turn: 2,
+            call: call.clone(),
+        },
+    )
+    .expect("record");
+
+    assert_eq!(record.payload["toolName"], call.name());
+    assert_eq!(record.payload["toolUseId"], call.tool_use_id());
+    assert_eq!(record.payload["input"], call.input().clone());
 }
 
 // 场景：observe handler 将一个大 payload 的语义事件交给 recorder。

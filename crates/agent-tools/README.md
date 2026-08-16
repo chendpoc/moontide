@@ -152,11 +152,11 @@ crates/agent-core/src/tools/registry.rs:47:    pub fn new(mut tools: Vec<Tool>) 
 
 | 场景 | 表达 |
 |------|------|
-| 非法 regex、target 不存在、target 越出 working directory | `Ok(ToolOutput::Failed { retryable: false, ... })` |
-| 文件遍历或读取失败 | `Ok(ToolOutput::Failed { retryable: false, ... })` |
+| 非法 regex、target 不存在、target 越出 working directory | `Ok(ToolResult::failed(call, ..., false))` |
+| 文件遍历或读取失败 | `Ok(ToolResult::failed(call, ..., false))` |
 | blocking task join / runtime 故障 | `Err(anyhow::Error)` |
 
-executor 不生成 `Denied`、`InvalidArguments` 或 `OutcomeUnknown`；这些状态仍归 `agent-core` 调用管线。
+`grep` executor 不生成 `Denied`、`InvalidArguments` 或 `OutcomeUnknown`；这些状态仍归 `agent-core` 调用管线。
 
 ---
 

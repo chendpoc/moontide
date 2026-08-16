@@ -3,15 +3,15 @@ use std::path::PathBuf;
 use serde_json::json;
 use tempfile::TempDir;
 
-use crate::llm::protocol::{ContentBlock, ToolResultContent};
+use crate::llm::protocol::ContentBlock;
 use crate::session::{CompactionKind, SessionItemDraft, SessionStore};
+use crate::tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus};
 
 fn sessions_dir(root: &TempDir) -> PathBuf {
     root.path().join("sessions")
 }
 
-// 场景：创建 session 后写入多类 SessionItem，再重新加载。
-// 预期：header、顺序、身份和 payload 往返一致；不变量：seq 连续。
+// 场景：创建 v2 session 后写入消息、ToolCall 与 ToolResult，再重新加载；预期：header、顺序、身份、状态和 payload 往返一致；不变量/副作用：seq 连续，Session Item Log 不产生额外的调用模型。
 #[test]
 fn create_commit_load_round_trip() {
     let root = TempDir::new().expect("tempdir");
@@ -35,27 +35,26 @@ fn create_commit_load_round_trip() {
             }],
         })
         .expect("commit assistant");
+    let call =
+        ToolCall::new("tool-1", "read_file", json!({"path": "a.rs"})).expect("create tool call");
     store
-        .commit_item(SessionItemDraft::ToolInvocation {
+        .commit_item(SessionItemDraft::ToolCall {
             turn: 1,
-            tool_use_id: "tool-1".into(),
-            name: "read_file".into(),
-            input: json!({"path": "a.rs"}),
+            call: call.clone(),
         })
-        .expect("commit invocation");
+        .expect("commit call");
     store
-        .commit_item(SessionItemDraft::ToolOutcome {
+        .commit_item(SessionItemDraft::ToolResult {
             turn: 1,
-            tool_use_id: "tool-1".into(),
-            name: "read_file".into(),
-            content: ToolResultContent::Text("file contents".into()),
+            result: ToolResult::succeeded(&call, ToolContent::Text("file contents".into())),
         })
-        .expect("commit outcome");
+        .expect("commit result");
 
     let loaded = SessionStore::load(&dir, &session_id).expect("load");
     assert_eq!(loaded.header().cwd, cwd);
     assert_eq!(loaded.header().parent_session, None);
     assert_eq!(loaded.header().seed_len, 0);
+    assert_eq!(loaded.header().version, 2);
     assert_eq!(loaded.items().len(), 4);
 
     for (seq, item) in loaded.items().iter().enumerate() {
@@ -94,7 +93,7 @@ fn commit_assigns_id_seq_at() {
 }
 
 // 场景：AssistantMessage 包含 ToolUse block。
-// 预期：提交被拒绝；不变量：tool invocation 独立存为 SessionItem。
+// 预期：提交被拒绝；不变量：ToolCall 独立存为 SessionItem。
 #[test]
 fn assistant_with_tool_block_rejected() {
     let root = TempDir::new().expect("tempdir");
@@ -189,6 +188,164 @@ fn load_rejects_item_from_another_session() {
         }
         Ok(_) => panic!("expected session_id mismatch error"),
     }
+}
+
+// 场景：加载并 fork v1 中旧名 tool_invocation/tool_outcome 且结果缺少 status 的 Session Item Log；预期：读取为 ToolCall/ToolResult，把历史状态保守映射为 OutcomeUnknown，并用 v2 写出子 session；不变量/副作用：兼容逻辑只读旧数据，后续持久化统一使用当前 schema。
+#[test]
+fn load_v1_tool_items_into_canonical_call_and_result_models() {
+    use crate::session::SessionItem;
+
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+    let meta_path = dir.join(format!("{session_id}.meta.json"));
+    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+
+    let mut meta: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&meta_path).expect("read session meta"))
+            .expect("parse session meta");
+    meta["version"] = json!(1);
+    std::fs::write(
+        &meta_path,
+        serde_json::to_string_pretty(&meta).expect("serialize v1 meta"),
+    )
+    .expect("write v1 meta");
+
+    let call_line = json!({
+        "kind": "tool_invocation",
+        "id": "item-call",
+        "seq": 0,
+        "session_id": session_id,
+        "turn": 1,
+        "at": "2026-08-15T12:00:00Z",
+        "tool_use_id": "tool-1",
+        "name": "read_file",
+        "input": {"path": "a.rs"}
+    });
+    let result_line = json!({
+        "kind": "tool_outcome",
+        "id": "item-result",
+        "seq": 1,
+        "session_id": session_id,
+        "turn": 1,
+        "at": "2026-08-15T12:00:01Z",
+        "tool_use_id": "tool-1",
+        "name": "read_file",
+        "content": "ok"
+    });
+    std::fs::write(
+        &log_path,
+        format!(
+            "{}\n{}\n",
+            serde_json::to_string(&call_line).expect("serialize call"),
+            serde_json::to_string(&result_line).expect("serialize result")
+        ),
+    )
+    .expect("write v1 log");
+
+    let loaded = SessionStore::load(&dir, &session_id).expect("load v1 session");
+
+    match &loaded.items()[0] {
+        SessionItem::ToolCall { call, .. } => {
+            assert_eq!(call.tool_use_id(), "tool-1");
+            assert_eq!(call.name(), "read_file");
+        }
+        other => panic!("expected canonical tool call, got {other:?}"),
+    }
+    match &loaded.items()[1] {
+        SessionItem::ToolResult { result, .. } => {
+            assert_eq!(result.status(), &ToolResultStatus::OutcomeUnknown);
+            assert_eq!(result.content(), &ToolContent::Text("ok".into()));
+        }
+        other => panic!("expected canonical tool result, got {other:?}"),
+    }
+
+    let boundary_id = loaded.items()[1].base().id.clone();
+    let forked = loaded
+        .fork(&dir, &boundary_id)
+        .expect("fork migrated v1 session");
+    assert_eq!(forked.header().version, 2);
+    let forked_id = forked.header().session_id.clone();
+    let forked_log = std::fs::read_to_string(dir.join(format!("{forked_id}.log.jsonl")))
+        .expect("read v2 fork log");
+    assert!(forked_log.contains("\"kind\":\"tool_result\""));
+    assert!(!forked_log.contains("\"kind\":\"tool_outcome\""));
+    let reloaded_fork = SessionStore::load(&dir, &forked_id).expect("load v2 fork");
+    match &reloaded_fork.items()[1] {
+        SessionItem::ToolResult { result, .. } => {
+            assert_eq!(result.status(), &ToolResultStatus::OutcomeUnknown);
+        }
+        other => panic!("expected migrated tool result, got {other:?}"),
+    }
+}
+
+// 场景：磁盘 header 使用既非 v1 也非当前版本的 schema；预期：load 明确拒绝未知版本；不变量/副作用：不猜测未来 schema，也不修改磁盘内容。
+#[test]
+fn load_rejects_unsupported_header_version() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+    let meta_path = dir.join(format!("{session_id}.meta.json"));
+    let mut meta: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&meta_path).expect("read session meta"))
+            .expect("parse session meta");
+    meta["version"] = json!(99);
+    std::fs::write(
+        &meta_path,
+        serde_json::to_string_pretty(&meta).expect("serialize unsupported meta"),
+    )
+    .expect("write unsupported meta");
+
+    let error = match SessionStore::load(&dir, &session_id) {
+        Ok(_) => panic!("unsupported session version unexpectedly loaded"),
+        Err(error) => error,
+    };
+
+    assert!(error
+        .to_string()
+        .contains("unsupported session header version: 99"));
+}
+
+// 场景：v2 ToolResult 行被破坏并删除必需的 status；预期：load 拒绝该行，而不是套用 v1 迁移默认值；不变量/副作用：兼容逻辑只作用于 v1 历史数据，不掩盖当前 schema 损坏。
+#[test]
+fn load_v2_rejects_tool_result_without_status() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+    let call =
+        ToolCall::new("tool-1", "read_file", json!({"path": "a.rs"})).expect("create tool call");
+    store
+        .commit_item(SessionItemDraft::ToolResult {
+            turn: 1,
+            result: ToolResult::succeeded(&call, ToolContent::Text("ok".into())),
+        })
+        .expect("commit tool result");
+
+    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let mut item: serde_json::Value = serde_json::from_str(
+        std::fs::read_to_string(&log_path)
+            .expect("read session log")
+            .trim(),
+    )
+    .expect("parse tool result");
+    item.as_object_mut()
+        .expect("tool result object")
+        .remove("status");
+    std::fs::write(
+        &log_path,
+        serde_json::to_string(&item).expect("serialize damaged result") + "\n",
+    )
+    .expect("write damaged result");
+
+    let error = match SessionStore::load(&dir, &session_id) {
+        Ok(_) => panic!("v2 result without status unexpectedly loaded"),
+        Err(error) => error,
+    };
+
+    assert!(error.to_string().contains("parse session log line 1"));
 }
 
 // 场景：提交 turn 小于当前最后一条 item 的 draft。
@@ -498,52 +655,42 @@ fn commit_from_event_maps_committable_run_events() {
         other => panic!("expected assistant message, got {other:?}"),
     }
 
-    let invocation = commit_from_event(
+    let call =
+        ToolCall::new("tool-1", "read_file", json!({"path": "a.rs"})).expect("create tool call");
+    let recorded_call = commit_from_event(
         &mut store,
-        &RunEvent::ToolInvocationRecorded {
+        &RunEvent::ToolCallRecorded {
             turn: 1,
-            tool_use_id: "tool-1".into(),
-            name: "read_file".into(),
-            input: json!({"path": "a.rs"}),
+            call: call.clone(),
         },
     )
-    .expect("invocation");
-    match invocation {
-        SessionItem::ToolInvocation {
-            tool_use_id,
-            name,
-            input,
-            ..
+    .expect("tool call");
+    match recorded_call {
+        SessionItem::ToolCall {
+            call: stored_call, ..
         } => {
-            assert_eq!(tool_use_id, "tool-1");
-            assert_eq!(name, "read_file");
-            assert_eq!(input, &json!({"path": "a.rs"}));
+            assert_eq!(stored_call, &call);
         }
-        other => panic!("expected tool invocation, got {other:?}"),
+        other => panic!("expected tool call, got {other:?}"),
     }
 
-    let outcome = commit_from_event(
+    let result = ToolResult::succeeded(&call, ToolContent::Text("ok".into()));
+    let recorded_result = commit_from_event(
         &mut store,
-        &RunEvent::ToolOutcomeRecorded {
+        &RunEvent::ToolResultRecorded {
             turn: 1,
-            tool_use_id: "tool-1".into(),
-            name: "read_file".into(),
-            content: ToolResultContent::Text("ok".into()),
+            result: result.clone(),
         },
     )
-    .expect("outcome");
-    match outcome {
-        SessionItem::ToolOutcome {
-            tool_use_id,
-            name,
-            content,
+    .expect("tool result");
+    match recorded_result {
+        SessionItem::ToolResult {
+            result: stored_result,
             ..
         } => {
-            assert_eq!(tool_use_id, "tool-1");
-            assert_eq!(name, "read_file");
-            assert_eq!(content, &ToolResultContent::Text("ok".into()));
+            assert_eq!(stored_result, &result);
         }
-        other => panic!("expected tool outcome, got {other:?}"),
+        other => panic!("expected tool result, got {other:?}"),
     }
 
     let compaction = commit_from_event(

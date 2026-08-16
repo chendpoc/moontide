@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::session` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R3 已实现（store · fork/compaction · `commit_from_event` / `SessionCommitHandler`）。
+> **状态：** R1–R3 与 v2 tool payload 迁移已实现（store · fork/compaction · typed commit）。
 > **关联：** [`../event/README.md`](../event/README.md) · [`docs/spec/context-composer.md`](../../../../docs/spec/context-composer.md)
 
 ---
@@ -35,7 +35,7 @@
 - **唯一写盘：** `SessionStore::commit_item`（生产路径经 `event` commit 阶段调用）
 - **resume：** `load` → `items()` → `context::materialize`
 - **不进 log：** `TurnStart`、流式 delta、trace（归 Agent Event Log）
-- **tool：** `ToolInvocation` / `ToolOutcome` 分行存储；assistant 条目不嵌 tool 块
+- **tool：** `ToolCall` / `ToolResult` 分行存储并直接包装 tools 契约；assistant 条目不嵌 tool 块
 
 ---
 
@@ -73,9 +73,9 @@ impl SessionCommitHandler {
 
 **Draft 规则：** 只填 `turn` + 载荷；**不要**自填 `id` / `seq` / `at`。
 
-**条目类型（R1）：** `UserMessage` · `AssistantMessage` · `ToolInvocation` · `ToolOutcome`
+**条目类型：** `UserMessage` · `AssistantMessage` · `ToolCall` · `ToolResult` · `Compaction` · `CheckpointCreated`
 
-**tools R4 接缝（待实现）：** `ToolOutcome` 将增加 `tools::ToolResultStatus` typed 字段，用于恢复 `Denied`、`Cancelled`、`OutcomeUnknown` 等结果；Session 只持久化该契约值，不决定状态。executor 基础设施错误也必须由 loop 先提交一个 `OutcomeUnknown` outcome，再向 run 边界传播，禁止留下无 outcome 的 invocation。该变更把 Session header 从 v1 升为 v2；读取 v1 时缺失 status 的旧条目映射为 `OutcomeUnknown`，不得默认成功。当前 R1–R3 实现尚未接入该字段。
+当前写入 schema 是 v2：`SessionItem::ToolCall` flatten `tools::ToolCall`，`SessionItem::ToolResult` flatten `tools::ToolResult`，完整保留 typed status。读取 v1 时兼容旧 kind，缺失 status 的历史结果映射为 `OutcomeUnknown`，不得默认成功；未知 header version 直接拒绝。
 
 ---
 
@@ -155,5 +155,6 @@ let child = store.fork(".moontide/sessions", &boundary_item_id)?;
 | [`event`](../event/README.md) | Committable 事件 → `commit_from_event` |
 | `context` | 只读 `items()` → materialize |
 | `llm::protocol` | `ContentBlock` 等类型复用 |
+| `tools` | 直接持久化 `ToolCall` / `ToolResult` 契约 |
 
 实现分期、类型字段、不变量全文见 [`DESIGN.md`](DESIGN.md)。

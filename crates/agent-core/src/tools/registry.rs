@@ -3,7 +3,10 @@ use std::{path::Path, sync::Arc};
 use anyhow::{bail, Context, Result};
 use jsonschema::Validator;
 
-use super::{validate::compile_input_validator, ToolCall, ToolExecutor, ToolResult, ToolSpec};
+use super::{
+    validate::compile_input_validator, ToolCall, ToolExecutor, ToolResult, ToolResultStatus,
+    ToolSpec,
+};
 
 /// Runtime binding between one model-visible declaration and its executor.
 pub struct Tool {
@@ -29,8 +32,28 @@ impl Tool {
         reason = "the loop implementation will call this internal boundary in a later review batch"
     )]
     pub(crate) async fn execute(&self, call: &ToolCall, working_dir: &Path) -> Result<ToolResult> {
-        let output = self.executor.execute(call, working_dir).await?;
-        Ok(ToolResult::from_output(call, output))
+        let result = self.executor.execute(call, working_dir).await?;
+        if result.tool_use_id() != call.tool_use_id() || result.name() != call.name() {
+            bail!(
+                "tool executor result identity mismatch: expected {}/{}, got {}/{}",
+                call.name(),
+                call.tool_use_id(),
+                result.name(),
+                result.tool_use_id()
+            );
+        }
+        if !matches!(
+            result.status(),
+            ToolResultStatus::Succeeded
+                | ToolResultStatus::Failed { .. }
+                | ToolResultStatus::OutcomeUnknown
+        ) {
+            bail!(
+                "tool executor returned pipeline-owned status: {:?}",
+                result.status()
+            );
+        }
+        Ok(result)
     }
 }
 

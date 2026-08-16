@@ -4,21 +4,11 @@ use serde_json::Value;
 use super::ToolCall;
 
 /// Provider-neutral content returned by a tool executor.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum ToolContent {
     Text(String),
     Json(Value),
-}
-
-/// Executor-level outcome before it is attached to a concrete tool call.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ToolOutput {
-    Succeeded(ToolContent),
-    Failed {
-        content: ToolContent,
-        retryable: bool,
-    },
-    OutcomeUnknown(ToolContent),
 }
 
 /// Stable cancellation reasons recorded in session and agent event logs.
@@ -44,8 +34,8 @@ pub enum ToolResultStatus {
     OutcomeUnknown,
 }
 
-/// Tool outcome attached to the provider-issued call identity.
-#[derive(Debug, Clone, PartialEq)]
+/// Tool result attached to the provider-issued call identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolResult {
     tool_use_id: String,
     name: String,
@@ -70,32 +60,32 @@ impl ToolResult {
         &self.content
     }
 
+    pub fn succeeded(call: &ToolCall, content: ToolContent) -> Self {
+        Self::with_status(call, ToolResultStatus::Succeeded, content)
+    }
+
+    pub fn failed(call: &ToolCall, content: ToolContent, retryable: bool) -> Self {
+        Self::with_status(call, ToolResultStatus::Failed { retryable }, content)
+    }
+
+    pub fn outcome_unknown(call: &ToolCall, content: ToolContent) -> Self {
+        Self::with_status(call, ToolResultStatus::OutcomeUnknown, content)
+    }
+
     #[allow(
         dead_code,
-        reason = "the loop implementation will construct non-executor outcomes in a later review batch"
+        reason = "the loop implementation will construct non-executor results in a later review batch"
     )]
-    pub(crate) fn new(call: &ToolCall, status: ToolResultStatus, content: ToolContent) -> Self {
+    pub(crate) fn with_status(
+        call: &ToolCall,
+        status: ToolResultStatus,
+        content: ToolContent,
+    ) -> Self {
         Self {
             tool_use_id: call.tool_use_id().to_owned(),
             name: call.name().to_owned(),
             status,
             content,
         }
-    }
-
-    #[allow(
-        dead_code,
-        reason = "Tool::execute is intentionally crate-internal until loop integration"
-    )]
-    pub(crate) fn from_output(call: &ToolCall, output: ToolOutput) -> Self {
-        let (status, content) = match output {
-            ToolOutput::Succeeded(content) => (ToolResultStatus::Succeeded, content),
-            ToolOutput::Failed { content, retryable } => {
-                (ToolResultStatus::Failed { retryable }, content)
-            }
-            ToolOutput::OutcomeUnknown(content) => (ToolResultStatus::OutcomeUnknown, content),
-        };
-
-        Self::new(call, status, content)
     }
 }
