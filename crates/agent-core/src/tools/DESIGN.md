@@ -384,6 +384,29 @@ Session Item Log 是事实源；Agent Event Log 只是 RunEvent derive 的观测
 
 ## 9. 单测方向
 
+### 9.1 测试注释要求
+
+每个 `#[test]` / `#[tokio::test]` 必须在测试函数前写清楚注释，不能只依赖测试函数名表达意图。注释至少说明三件事：
+
+1. **场景**：输入、registry/admission 状态或故障条件；
+2. **预期**：返回值、状态或错误边界；
+3. **不变量 / 副作用**：例如 executor 不得被调用、调用身份必须保持、不得写 Session。
+
+统一使用下面的短格式，复杂场景可补充执行顺序：
+
+```rust
+// 场景：registry 中不存在模型请求的工具名。
+// 预期：返回 UnknownTool；executor 不被调用，调用身份保持可配对。
+#[test]
+fn unknown_tool_returns_unknown_tool_without_execution() {
+    // ...
+}
+```
+
+测试注释描述的是被守门的架构契约，不要写成“调用某函数并断言某值”的实现流水账。测试行为改变时，必须同步更新注释；代码审查将把缺少场景/预期/不变量说明视为测试不完整。
+
+### 9.2 覆盖方向
+
 - 空名称、重复名称、非法 schema 被拒绝；
 - registry 冻结后不能改变，顺序稳定；
 - prompt 暴露的 spec 与 dispatch 使用同一 registration；
