@@ -16,9 +16,9 @@ Rust 内核架构以 [`docs/notes/runtime/agent-kernel-architecture.md`](docs/no
 MVP 四 crate（详见架构笔记 §6–§8、§10）：
 
 ```text
-cli（纯壳，只消费 AgentEvent）
-  → agent-core（引擎：8 个内部 mod，不拆 crate）
-  ← agent-tools（第一方 catalog/builtins）；→ agent（组合根）
+cli（纯壳，只消费 AgentEvent）→ agent（组合根）
+                                  ├──► agent-core（引擎：8 个内部 mod，不拆 crate）
+                                  └──► agent-tools（第一方 catalog/builtins）──► agent-core
 ```
 
 `agent-tools` 单向依赖 `agent-core`；`agent` 同时依赖二者，`agent-core` 不反向依赖 `cli` / `agent` / `agent-tools`。`protocol` 先作 core 内类型，跨进程落地后再拆 crate。trait 按真实边界使用：`LLMProvider` / `ToolExecutor` 是核心能力端口，event pipeline 等独立实现边界也可使用窄 trait；禁止为未来可能性提前抽象。

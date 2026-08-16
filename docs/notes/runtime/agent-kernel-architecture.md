@@ -193,9 +193,9 @@ agent-core/
 **第一版（四 crate，证明架构成立）**：
 
 ```text
-cli（纯壳，只消费 AgentEvent）
-  → agent-core（loop/context/prompt/session/tools/event/llm 云端 provider）
-  ← agent-tools（声明 catalog/builtins）；→ agent（组合根）
+cli（纯壳，只消费 AgentEvent）→ agent（组合根）
+                                  ├──► agent-core（loop/context/prompt/session/tools/event/llm 云端 provider）
+                                  └──► agent-tools（声明 catalog/builtins）──► agent-core
 ```
 
 **后置（架构已验证后再上）**：
@@ -230,17 +230,17 @@ cli（纯壳，只消费 AgentEvent）
 ### 10.1 依赖方向总图
 
 ```text
-                    agent-core（引擎，含 tools runtime contract）
-                    ↑        ↑            ↑
-              cli（纯壳） agent-tools（builtins） agent（组合根，全依赖）
-                                  ↑
-                          （后置）runtime：daemon(Rust) / sidecar(语言未定)
-                          （后置）protocol 独立 crate（跨进程契约）
+cli（纯壳）──► agent（组合根，全依赖）
+                 ├──► agent-core（引擎，含 tools runtime contract）
+                 ├──► agent-tools（builtins）──► agent-core
+                 └──►（后置）runtime client
+
+（后置）runtime / sidecar ──► protocol 独立 crate ◄── agent-core
 ```
 
 依赖铁律四条：
 
-1. **agent-core 不依赖 cli / agent / runtime**——它们依赖 agent-core，永不反向。
+1. **agent-core 不依赖 cli / agent / agent-tools / runtime**——它们直接或间接依赖 agent-core，永不反向。
 2. **agent-tools 单向依赖 agent-core**——只提供第一方 `ToolDefinition` catalog 与具体 executor；agent-core 不反向依赖 builtins。
 3. **agent 是唯一全依赖的组合根**——同时依赖 agent-core + agent-tools + preset 配置 +（后置的）runtime client。
 4. **runtime 与 agent-core 对等**——只通过（后置的）protocol 契约通信，互不 import。
