@@ -75,7 +75,7 @@ EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 
 类型：`RunEvent`、`TraceContext`、`HookHandler`、`CommitHandler`、`ObserveHandler` — 见 [`DESIGN.md`](DESIGN.md) §7。
 
-R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventWriter`、`FileAgentEventWriter`（`{runs_dir}/{run_id}.active.jsonl`）。writer 创建时扫描已有 active 文件，校验 `runId` 并恢复 `seq` 与最后 `turn`，追加后保持 `seq` 单调；作为路由键的紧凑 `run_id` 超过 20 bytes 时拒绝创建。
+R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventWriter`、`FileAgentEventWriter`（`{runs_dir}/{run_id}.active.jsonl`）。writer 创建时扫描已有 active 文件，校验 `runId` 并恢复 `seq` 与最后 `turn`，追加后保持 `seq` 单调；ID 长度由上游生成契约负责，writer 不改写 identity 字段。
 
 ---
 

@@ -9,7 +9,7 @@ use crate::event::{
     derive_agent_event, truncate_record, AgentChannel, AgentEventRecord, AgentEventWriter,
     AgentPhase, CommitHandler, DeriveObserveHandler, EventDispatcher, FileAgentEventWriter,
     HookHandler, HookOutcome, ObserveHandler, PipelineRegistry, RunEvent, TraceContext,
-    MAX_AGENT_EVENT_BYTES, MAX_AGENT_EVENT_RUN_ID_BYTES,
+    MAX_AGENT_EVENT_BYTES,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
@@ -388,8 +388,8 @@ fn truncate_record_enforces_64kib_limit() {
     assert!(bytes.len() <= MAX_AGENT_EVENT_BYTES);
 }
 
-// 场景：事件的 payload、preview、id 和 run_id 同时异常膨胀。
-// 预期：writer 写出的最终 JSONL 行（含换行）不超过 64 KiB；不变量：持久化边界不能被字段组合绕过。
+// 场景：事件的 payload 和 preview 异常膨胀，但 identity 字段遵循上游生成契约。
+// 预期：writer 写出的最终 JSONL 行（含换行）不超过 64 KiB；不变量：identity 字段不被持久化层改写。
 #[test]
 fn file_writer_enforces_final_line_limit() {
     let root = TempDir::new().expect("tempdir");
@@ -397,7 +397,7 @@ fn file_writer_enforces_final_line_limit() {
     let writer = FileAgentEventWriter::new(&runs_dir, "run-limit").expect("writer");
     writer
         .write(AgentEventRecord {
-            id: "i".repeat(MAX_AGENT_EVENT_BYTES),
+            id: "event-limit".into(),
             seq: None,
             run_id: "run-limit".into(),
             turn: 0,
@@ -415,22 +415,6 @@ fn file_writer_enforces_final_line_limit() {
     let raw = std::fs::read_to_string(writer.path()).expect("read event log");
     let line = raw.lines().next().expect("event line");
     assert!(line.len() < MAX_AGENT_EVENT_BYTES);
-}
-
-// 场景：调用方传入超过路由键上限的 run_id。
-// 预期：writer 在创建阶段拒绝该 run；不变量：持久化后 runId 必须可由同一路由键恢复。
-#[test]
-fn file_writer_rejects_oversized_run_id() {
-    let root = TempDir::new().expect("tempdir");
-    let runs_dir = root.path().join("runs");
-    let oversized_run_id = "r".repeat(MAX_AGENT_EVENT_RUN_ID_BYTES + 1);
-
-    let result = FileAgentEventWriter::new(&runs_dir, &oversized_run_id);
-    let err = match result {
-        Err(err) => err,
-        Ok(_) => panic!("expected oversized run_id error"),
-    };
-    assert!(err.to_string().contains("run_id exceeds"));
 }
 
 // 场景：writer 在同一 active JSONL 文件被关闭后重新打开并继续写入。

@@ -7,9 +7,6 @@ use anyhow::{Context, Result};
 
 use super::derive::{truncate_record, AgentEventRecord, AgentEventWriter, MAX_AGENT_EVENT_BYTES};
 
-/// Maximum byte length for a compact run identifier used as the active-file routing key.
-pub const MAX_AGENT_EVENT_RUN_ID_BYTES: usize = 20;
-
 /// Appends derived Agent Event records to `{runs_dir}/{run_id}.active.jsonl`.
 pub struct FileAgentEventWriter {
     path: PathBuf,
@@ -25,9 +22,6 @@ struct WriterState {
 
 impl FileAgentEventWriter {
     pub fn new(runs_dir: impl AsRef<Path>, run_id: &str) -> Result<Self> {
-        if run_id.len() > MAX_AGENT_EVENT_RUN_ID_BYTES {
-            anyhow::bail!("run_id exceeds {} bytes", MAX_AGENT_EVENT_RUN_ID_BYTES);
-        }
         let runs_dir = runs_dir.as_ref();
         std::fs::create_dir_all(runs_dir)
             .with_context(|| format!("create runs dir {}", runs_dir.display()))?;
@@ -61,10 +55,7 @@ impl AgentEventWriter for FileAgentEventWriter {
         }
         let mut state = lock_state(&self.state)?;
         record.seq = Some(state.next_seq);
-        let run_id = record.run_id.clone();
-        let mut record = truncate_record(record);
-        // run_id is the active-file routing key; the constructor bound makes it safe to restore verbatim.
-        record.run_id = run_id;
+        let record = truncate_record(record);
 
         let line = serde_json::to_string(&record).context("serialize agent event")?;
         if line.len().saturating_add(1) > MAX_AGENT_EVENT_BYTES {

@@ -371,12 +371,12 @@ fn truncate_preview(text: &str, max_chars: usize) -> String {
     format!("{truncated}…")
 }
 
-/// Applies the 64 KiB persistence limit, truncating large fields when needed.
+/// Applies the 64 KiB persistence limit, truncating payload and preview fields when needed.
 ///
 /// The writer appends one newline byte, so this function keeps the serialized
-/// record plus that byte within the limit. It is intentionally deterministic:
-/// an oversized record always retains its identity fields when possible and
-/// falls back to a small marker record only for pathological input sizes.
+/// record plus that byte within the limit for records whose identity fields
+/// follow the bounded ID generation contract. Identity fields are never changed;
+/// the writer returns an error if an invalid record still exceeds the limit.
 pub fn truncate_record(mut record: AgentEventRecord) -> AgentEventRecord {
     let Ok(mut bytes) = serde_json::to_vec(&record) else {
         return record;
@@ -402,26 +402,6 @@ pub fn truncate_record(mut record: AgentEventRecord) -> AgentEventRecord {
 
     if !fits_persisted_line(bytes.len()) {
         record.preview = None;
-        if let Ok(without_preview) = serde_json::to_vec(&record) {
-            bytes = without_preview;
-        }
-    }
-
-    if !fits_persisted_line(bytes.len()) {
-        truncate_string(&mut record.id, 128);
-        truncate_string(&mut record.run_id, 128);
-        truncate_string(&mut record.kind, 128);
-        if let Ok(with_short_ids) = serde_json::to_vec(&record) {
-            bytes = with_short_ids;
-        }
-    }
-
-    if !fits_persisted_line(bytes.len()) {
-        record.id = "truncated".to_string();
-        record.run_id = "truncated".to_string();
-        record.kind = "truncated".to_string();
-        record.payload = json!({ "truncated": true });
-        record.preview = None;
     }
 
     record
@@ -429,17 +409,6 @@ pub fn truncate_record(mut record: AgentEventRecord) -> AgentEventRecord {
 
 fn fits_persisted_line(serialized_bytes: usize) -> bool {
     serialized_bytes.saturating_add(1) <= MAX_AGENT_EVENT_BYTES
-}
-
-fn truncate_string(value: &mut String, max_bytes: usize) {
-    if value.len() <= max_bytes {
-        return;
-    }
-    let mut end = max_bytes.min(value.len());
-    while end > 0 && !value.is_char_boundary(end) {
-        end -= 1;
-    }
-    value.truncate(end);
 }
 
 fn truncate_value_strings(value: &mut Value, max_string_bytes: usize) {

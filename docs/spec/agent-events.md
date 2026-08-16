@@ -98,7 +98,7 @@ Persisted events also include `summary` and `displayHint`.
   "phase": "running",
   "model": "deepseek-v4-pro",
   "workdir": "~/code/...",
-  "runId": "a1b2c3d4e5f6g7h8i9j0",
+  "runId": "4d621728-500d-4db7-89ac-ff5a8e24c44b",
   "turn": 2,
   "contextPct": 12.3
 }

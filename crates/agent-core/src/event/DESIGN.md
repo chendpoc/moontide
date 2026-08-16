@@ -206,7 +206,7 @@ Registry 在 run 开始前由 `agent` 装配，run 内不可换表。
 pub fn derive_agent_event(ctx: &TraceContext, event: &RunEvent) -> Option<AgentEventRecord>;
 ```
 
-映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)；落盘 64KiB 截断。`FileAgentEventWriter` 创建时扫描已有 active 文件，校验 `runId`，恢复下一个 `seq` 与最后 `turn`；路由键 `run_id` 超过 20 bytes 时拒绝创建。
+映射 [`agent-events.md`](../../../../docs/spec/agent-events.md)；落盘 64KiB 截断。`FileAgentEventWriter` 创建时扫描已有 active 文件，校验 `runId`，恢复下一个 `seq` 与最后 `turn`；ID 长度由上游生成契约负责，writer 不改写 identity 字段。
 
 ---
 
