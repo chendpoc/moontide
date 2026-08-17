@@ -9,8 +9,8 @@
 | 2 | `session` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + v2 call/result payload |
 | 3 | `tools` | 契约 | 无 | ☑ | ☑ | ☑ | RB1–RB2 + agent-tools R1；loop 集成归 loop 模块 |
 | 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
-| 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成，等待 Review；compile 唯一出口 |
-| 6 | `context` | 装配 | session | ☐ | ☐ | ☐ | materialize + compaction |
+| 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
+| 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成；compaction 后置；等待本批 Review |
 | 7 | `loop` | 编排 | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
 | 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
 
@@ -18,10 +18,15 @@
 
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
-- 当前推进：模块 5 `model_input` **R1 Review**；实现、测试与 workspace 门禁已通过，等待用户 Review 后 commit。
+- 当前推进：模块 6 `context` **R1 实现批 Review**；`materialize` 已完成，Review 通过并 commit 后进入模块 7 `loop` 架构对齐。
 
 ## 变更记录
 
+- 2026-08-17：`context` R1 `materialize` 实现与测试完成；覆盖普通消息、tool round 聚合、checkpoint 透明处理、call/result 配对校验与 R1 compaction 显式错误；workspace fmt/clippy/test 通过，等待 Review。
+
+- 2026-08-17：`context` R1 Review 收紧：状态改为 Review 中；明确一个 ToolCall round 可由 loop 并行 fan-out，但必须以每 call deadline 和全量 result join 闭合；Checkpoint 对 call/result 聚合透明；同步 context → tools 依赖与结构守门要求。
+- 2026-08-17：确认 `Message` 是 MoonTide canonical provider-neutral model-input record；`context` 只负责 `SessionItem → Message`，`llm::adapter` 负责完整 `ModelRequest → provider wire request`，不在 `Message` 上公开通用 transform trait。
+- 2026-08-17：`model_input` R1 已完成 commit/push；确认 `context` R1 契约：只读 `materialize(SessionItem)`，聚合连续 tool call/result，`Compaction` 在 R1 显式报错，不提前引入 manifest、预算或压缩内部结构；README/DESIGN 已落盘。
 - 2026-08-16：`model_input` R1 完成：`SystemPrompt`、`ModelRequestConfig`、crate-private `compile`、ToolSchema 精确映射与 3 个结构测试；crate 112 tests、workspace clippy/test 通过。
 - 2026-08-16：`model_input` 实现前 Review 收窄 `compile` 为 `pub(crate)`，补齐 invalid request pass-through 测试 case并修正 tool 校验 owner；TypeScript `docs/spec` 正文归档，当前 Rust Agent Core 系统设计迁入 `crates/docs/agent-core.md`。
 - 2026-08-16：模块 5 从 `prompt` 收敛为 `model_input`；确认 `SystemPrompt` 每 user turn 解析一次、`compile` 每 model step 纯组装 `ModelRequest`，messages shaping 与未来 manifest 归 `context`；README/DESIGN 落地。

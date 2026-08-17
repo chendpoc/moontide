@@ -163,25 +163,13 @@ user turn
 
 R1 的 `messages: Vec<Message>` 是有意保持的小接口。`model_input` 假设 messages 已经是 model-visible 结果，不执行 materialize、compaction 或语义改写。
 
-未来 context 可将返回值扩展为：
-
-```rust
-pub struct MaterializedContext {
-    messages: Vec<Message>,
-    manifest: ContextManifest,
-}
-```
-
-调用流仍然是：
+未来 context 是否产生诊断或选择元数据、以及其具体载体，均不在当前设计中确定；若出现真实消费者，必须回到 context 架构对齐。loop 在 R1 仍只取得 messages 并调用：
 
 ```text
 context::materialize → loop 取得 messages → model_input::compile
-                                  └─────── manifest → diagnostics/event
 ```
 
-因此 manifest 不需要成为 `compile` 参数。它描述 context 如何选择内容，不是 `ModelRequest` 的协议字段。
-
-context 的 token budget 后续必须扣除 system 与 tools 的 pinned 成本，才能决定 messages 可用预算。该约束属于 context 模块设计；R1 不为此预设 `BudgetContext` 或 token counter trait。
+context 的 token budget 后续必须扣除 system 与 tools 的 pinned 成本，才能决定 messages 可用预算。该约束属于 context 模块设计；R1 不预设预算返回结构、manifest 类型或 token counter trait。
 
 ---
 

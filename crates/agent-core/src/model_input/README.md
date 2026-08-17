@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::model_input` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1 Rust 实现与测试完成；等待 Review。
+> **状态：** R1 Rust 实现与测试完成；已通过 Review 并 commit/push。
 
 ---
 
@@ -105,18 +105,9 @@ resolve turn context
 
 ## context 的后续扩展接缝
 
-R1 直接消费 `Vec<Message>`，不提前引入 manifest 或预算对象。未来 `context` 可以返回：
+R1 直接消费 `Vec<Message>`，不提前引入 manifest、预算对象或其他 context 返回结构。未来若 context 产生诊断或选择元数据，具体载体必须先经过 context 架构对齐；loop 仍只把模型可见 messages 交给 `compile`。
 
-```rust
-pub struct MaterializedContext {
-    messages: Vec<Message>,
-    manifest: ContextManifest,
-}
-```
-
-由 `loop` 取出 `messages` 交给 `compile`；`manifest` 留给诊断、预算解释和事件记录。compaction、tail window、artifact、retrieval 与 working set 仍全部属于 `context`。
-
-`context` 后续计算 message budget 时必须考虑 system 与 tools 的 pinned token 成本，但这不改变 `compile` 的 R1 参数，也不把 context policy 搬进本模块。
+compaction、tail window、artifact、retrieval、working set 与 token budget 仍全部属于 `context`。其预算计算必须考虑 system 与 tools 的 pinned token 成本，但这不改变 `compile` 的 R1 参数，也不把 context policy 搬进本模块。
 
 ---
 
