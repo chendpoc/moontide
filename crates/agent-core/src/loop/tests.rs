@@ -1464,6 +1464,45 @@ async fn cancelled_before_user_commit_does_not_append() {
     assert!(stored.items().is_empty());
 }
 
+// 场景：检查 loop 生产源码的依赖与事实写入边界。
+// 预期：loop 只能依赖已确认的下层契约，不能 import 上层组合根/adapter/scheduler 或绕过 event 写 Session；不变量：编排层保持单向依赖。
+#[test]
+fn loop_import_and_write_boundaries_stay_conformant() {
+    let sources = [
+        ("mod.rs", include_str!("mod.rs")),
+        ("agent_loop.rs", include_str!("agent_loop.rs")),
+        ("response.rs", include_str!("response.rs")),
+        ("tool_runtime.rs", include_str!("tool_runtime.rs")),
+        ("turn.rs", include_str!("turn.rs")),
+        ("cancellation.rs", include_str!("cancellation.rs")),
+        ("retry.rs", include_str!("retry.rs")),
+    ];
+
+    for (file, source) in sources {
+        for forbidden in [
+            "crate::agent",
+            "crate::cli",
+            "agent_tools",
+            "agent-tools",
+            "llm::adapter",
+            "scheduler",
+            "commit_item",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "loop source {file} must not mention forbidden boundary {forbidden}"
+            );
+        }
+    }
+
+    let agent_loop_source = include_str!("agent_loop.rs");
+    assert!(agent_loop_source.contains("context::materialize"));
+    assert!(agent_loop_source.contains("model_input"));
+    assert!(agent_loop_source.contains("EventDispatcher"));
+    assert!(agent_loop_source.contains("SessionStore"));
+    assert!(agent_loop_source.contains("run_model_call_with_updates"));
+}
+
 // 场景：TurnInput 的 user text 为空。
 // 预期：turn 入口立即返回错误且不产生 TurnStarted/UserMessage；不变量：空输入不消费 turn number。
 #[tokio::test]

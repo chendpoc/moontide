@@ -1,7 +1,7 @@
 # loop — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** R1/R2/R3 已提交；TASK-loop-06 conformance 收尾尚未完成。
+> **状态：** R1–R3 与 TASK-loop-06 已提交并通过测试；Loop 模块完成。
 > **关联：** [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../tools/DESIGN.md`](../tools/DESIGN.md) · [`../llm/DESIGN.md`](../llm/DESIGN.md)
 
 ---

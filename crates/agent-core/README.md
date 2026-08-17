@@ -1,7 +1,7 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；模块 1–6 已实现；`loop` R1 架构与 README/DESIGN 已确认，待实现
+> **状态：** 顶层设计已定；模块 1–7 已实现并通过测试；下一模块为 `scheduler` 架构对齐
 > **关联：** [`crates/docs/agent-core.md`](../docs/agent-core.md)（Rust 系统设计，本文是模块进度落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
@@ -72,7 +72,7 @@ agent create/load/fork SessionStore
 | 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
 | 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
 | 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 1–6 全部 | ☑ | ◐ | ☐ | R1/R2/R3 已提交；TASK-loop-06 收尾待做 |
+| 7 | `loop` | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；下一模块 scheduler |
 | 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 后置 |
 
 ## 5. 每个模块的推进模板
@@ -94,7 +94,7 @@ agent create/load/fork SessionStore
 - 模块 3 `tools`：设计 ☑ · 实现 ☑ · 测试 ☑（RB1–RB2 + `agent-tools` R1；loop 集成归后续模块）
 - 模块 5 `model_input`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 已 commit/push
 - 模块 6 `context`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 `materialize` 已完成并通过 Review
-- 模块 7 `loop`：设计 ☑ · 实现 ☐ · 测试 ☐；README/DESIGN 已落盘，下一步按 batch-implement 生成 TASKS 并先改 event/session 接缝
+- 模块 7 `loop`：设计 ☑ · 实现 ☑ · 测试 ☑；R1–R3 + TASK-loop-06 完成
 
 ### 文档与集成入口
 

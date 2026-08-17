@@ -42,7 +42,7 @@ cli（纯壳）→ agent（组合根）
 | `event` | TurnEvent、dispatcher、derive、Agent Event recorder | llm/tools 契约 | 当前分期已实现；完整 bus 后置 |
 | `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | R1 已实现并完成测试 |
 | `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol + tools | R1 已实现、测试并通过 Review |
-| `loop` | AgentLoop ownership、Turn/Step/tool round、permission/approval、LLM retry 与 Turn cancellation | 模块 1–6 | R1 设计已确认，待实现 |
+| `loop` | AgentLoop ownership、Turn/Step/tool round、permission/approval、LLM retry 与 Turn cancellation | 模块 1–6 | R1–R3 + conformance 已实现 |
 | `scheduler` | 后置的资源排队、并发、tool retry、delegate/offload | llm + tools | 后置 |
 
 模块依赖必须保持单向：
@@ -161,7 +161,7 @@ ToolRegistry（spec + executor + validator）
 
 ---
 
-## 7. Loop R1 边界
+## 7. Loop 边界
 
 执行领域模型只有：
 
@@ -263,4 +263,4 @@ REPL turn 的可恢复错误由 turn 边界打印后继续；配置类致命错�
 | Context | [`../agent-core/src/context/README.md`](../agent-core/src/context/README.md) · [`../agent-core/src/context/DESIGN.md`](../agent-core/src/context/DESIGN.md) |
 | Loop | [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) |
 
-`loop` R1 已完成架构对齐与 README/DESIGN，尚未进入实现；`scheduler` 仍在架构对齐前不建立实现级当前文档。
+`loop` R1–R3 与 TASK-loop-06 已完成；`scheduler` 仍在架构对齐前不建立实现级当前文档。
