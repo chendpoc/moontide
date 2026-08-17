@@ -30,9 +30,11 @@ impl EventDispatcher {
             self.trace.session_item_id = item_id;
         }
 
-        for hook in self.registry.hooks() {
+        for (hook_index, hook) in self.registry.hooks().iter().enumerate() {
             if let Err(error) = hook.on_event(&self.trace, &event) {
-                eprintln!("event hook failed: {error:#}");
+                eprintln!(
+                    "event hook failed: index={hook_index}, event={event:?}, error={error:#}"
+                );
             }
         }
 

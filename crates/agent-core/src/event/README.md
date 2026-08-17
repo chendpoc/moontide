@@ -88,7 +88,7 @@ PipelineRegistry::builder()
 EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 ```
 
-当前实现仍是 `hook → commit → observe` 且 registry 拥有 commit。Loop 实现前必须先完成此接缝迁移：删除 `HookOutcome::Block` 和独立 `ObserveHandler`，把 observer 适配成 post-commit Hook；迁移不得删除 AgentEvent、schema、recorder、storage 或 file writer。
+当前实现是 `commit → post-commit Hook`；`EventDispatcher` 每次 emit 借用 mutable commit target，`PipelineRegistry` 只冻结 Hook。旧的 `HookOutcome::Block` 与独立 `ObserveHandler` 已删除；AgentEvent、schema、recorder、storage 和 file writer 保持不变。
 
 Agent Event 能力保留并改由 `DeriveAgentEventHook`（目标名）接线：
 

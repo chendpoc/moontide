@@ -37,9 +37,7 @@ pub trait ToolApprovalHandler: Send + Sync {
 
 pub struct ToolRuntime {
     pub(crate) registry: ToolRegistry,
-    #[allow(dead_code, reason = "R2 will consume permission decisions")]
     pub(crate) permissions: ToolPermissionMap,
-    #[allow(dead_code, reason = "R2 will consume approval decisions")]
     pub(crate) approval: Option<Arc<dyn ToolApprovalHandler>>,
 }
 

@@ -63,6 +63,7 @@ impl AgentLoop {
 
         self.events
             .emit(&mut self.session, TurnEvent::TurnStarted { turn })?;
+        ensure_not_cancelled(&cancellation)?;
         self.events.emit(
             &mut self.session,
             TurnEvent::UserPromptCommitted {
@@ -214,29 +215,67 @@ impl AgentLoop {
                     Some(error.unwrap_or_else(|| anyhow::anyhow!("tool call cancelled"))),
                 ),
             };
-            self.events.emit(
+            let result_commit = self.events.emit(
                 &mut self.session,
                 TurnEvent::ToolResultRecorded { turn, result },
-            )?;
+            );
+
+            if let Err(commit_error) = result_commit {
+                let cleanup_errors = self.commit_parent_results(turn, calls, index + 1);
+                let mut details = vec![format!("tool result commit failed: {commit_error:#}")];
+                details.extend(
+                    cleanup_errors
+                        .iter()
+                        .map(|error| format!("cleanup commit failed: {error:#}")),
+                );
+                let combined = anyhow::anyhow!(details.join("; "));
+                return Ok(Some(match error {
+                    Some(error) => error.context(combined.to_string()),
+                    None => combined,
+                }));
+            }
 
             if let Some(error) = error {
-                for remaining in calls.iter().skip(index + 1) {
-                    let result = crate::tools::ToolResult::with_status(
-                        remaining,
-                        crate::tools::ToolResultStatus::Cancelled {
-                            reason: crate::tools::ToolCancellationReason::Parent,
-                        },
-                        crate::tools::ToolContent::Text("parent tool call was cancelled".into()),
-                    );
-                    self.events.emit(
-                        &mut self.session,
-                        TurnEvent::ToolResultRecorded { turn, result },
-                    )?;
+                let cleanup_errors = self.commit_parent_results(turn, calls, index + 1);
+                if cleanup_errors.is_empty() {
+                    return Ok(Some(error));
                 }
-                return Ok(Some(error));
+                let details = cleanup_errors
+                    .iter()
+                    .map(|error| format!("cleanup commit failed: {error:#}"))
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                return Ok(Some(
+                    error.context(format!("tool round cleanup failed: {details}")),
+                ));
             }
         }
         Ok(None)
+    }
+
+    fn commit_parent_results(
+        &mut self,
+        turn: u64,
+        calls: &[crate::tools::ToolCall],
+        start: usize,
+    ) -> Vec<anyhow::Error> {
+        let mut errors = Vec::new();
+        for remaining in calls.iter().skip(start) {
+            let result = crate::tools::ToolResult::with_status(
+                remaining,
+                crate::tools::ToolResultStatus::Cancelled {
+                    reason: crate::tools::ToolCancellationReason::Parent,
+                },
+                crate::tools::ToolContent::Text("parent tool call was cancelled".into()),
+            );
+            if let Err(error) = self.events.emit(
+                &mut self.session,
+                TurnEvent::ToolResultRecorded { turn, result },
+            ) {
+                errors.push(error);
+            }
+        }
+        errors
     }
 }
 

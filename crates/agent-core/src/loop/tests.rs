@@ -40,6 +40,11 @@ struct QueuedProvider {
     scripts: Arc<Mutex<VecDeque<Script>>>,
 }
 
+struct RecordingQueuedProvider {
+    scripts: Arc<Mutex<VecDeque<Script>>>,
+    requests: Arc<Mutex<Vec<crate::llm::protocol::ModelRequest>>>,
+}
+
 struct PendingProvider;
 
 impl LLMProvider for PendingProvider {
@@ -56,6 +61,25 @@ impl LLMProvider for QueuedProvider {
         &self,
         _request: crate::llm::protocol::ModelRequest,
     ) -> Pin<Box<dyn futures::Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>> {
+        let events = self
+            .scripts
+            .lock()
+            .expect("provider scripts lock")
+            .pop_front()
+            .expect("queued provider script");
+        Box::pin(stream::iter(events))
+    }
+}
+
+impl LLMProvider for RecordingQueuedProvider {
+    fn stream(
+        &self,
+        request: crate::llm::protocol::ModelRequest,
+    ) -> Pin<Box<dyn futures::Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>> {
+        self.requests
+            .lock()
+            .expect("provider request lock")
+            .push(request);
         let events = self
             .scripts
             .lock()
@@ -176,6 +200,25 @@ struct CancelOnEventHook {
     token: tokio_util::sync::CancellationToken,
     cancel_on_tool_call: bool,
     cancel_on_assistant: bool,
+}
+
+struct LlmAttemptHook {
+    attempts: Arc<Mutex<Vec<(u32, String)>>>,
+}
+
+impl HookHandler for LlmAttemptHook {
+    fn on_event(&self, _ctx: &TraceContext, event: &TurnEvent) -> anyhow::Result<()> {
+        if let TurnEvent::LlmCallStarted {
+            step, llm_call_id, ..
+        } = event
+        {
+            self.attempts
+                .lock()
+                .expect("attempts lock")
+                .push((*step, llm_call_id.clone()));
+        }
+        Ok(())
+    }
 }
 
 impl HookHandler for CancelOnEventHook {
@@ -412,6 +455,62 @@ fn terminal_response_shape_is_validated() {
         model: None,
     };
     assert!(terminal_assistant_blocks(&tool_result_response).is_err());
+}
+
+// 场景：同一个 ToolUse response 含两个相同 tool_use_id 的调用。
+// 预期：response 在任何 ToolCall commit 或 executor 副作用前被拒绝；不变量：Session 只保留已提交的 UserMessage。
+#[tokio::test]
+async fn duplicate_tool_identity_is_rejected_before_side_effects() {
+    let dir = tempdir().expect("tempdir");
+    let executed = Arc::new(Mutex::new(Vec::new()));
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![vec![
+        Ok(ModelStreamEvent::ToolUseStarted {
+            id: "duplicate-id".into(),
+            name: "known".into(),
+        }),
+        Ok(ModelStreamEvent::ToolUseFinished {
+            id: "duplicate-id".into(),
+            name: "known".into(),
+            input: serde_json::json!({}),
+        }),
+        Ok(ModelStreamEvent::ToolUseStarted {
+            id: "duplicate-id".into(),
+            name: "known".into(),
+        }),
+        Ok(ModelStreamEvent::ToolUseFinished {
+            id: "duplicate-id".into(),
+            name: "known".into(),
+            input: serde_json::json!({}),
+        }),
+        Ok(ModelStreamEvent::Finished {
+            stop_reason: StopReason::ToolUse,
+            usage: None,
+        }),
+    ]])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider { scripts });
+    let mut permissions = ToolPermissionMap::new();
+    permissions.insert("known".into(), ToolPermission::Allow);
+    let (mut agent_loop, session_id) = build_loop(
+        &dir,
+        provider,
+        vec![tool_with_executor(
+            "known",
+            serde_json::json!({"type": "object"}),
+            Arc::clone(&executed),
+            false,
+        )],
+        permissions,
+        None,
+    );
+
+    let error = agent_loop
+        .turn(terminal_input(), tokio_util::sync::CancellationToken::new())
+        .await
+        .expect_err("duplicate tool identity should fail");
+    assert!(error.to_string().contains("duplicate ToolUse id"));
+    assert!(executed.lock().expect("executed lock").is_empty());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert_eq!(stored.items().len(), 1);
 }
 
 // 场景：一个 ToolUse response 含两个允许的 calls，provider 下一次返回 terminal response。
@@ -1015,6 +1114,53 @@ async fn recoverable_llm_failure_retries_within_same_step() {
     assert_eq!(stored.items().len(), 2);
 }
 
+// 场景：第一个 LLM attempt 可恢复失败，第二个 attempt 返回 terminal response。
+// 预期：两个 attempt 使用同一 Step 和等价 ModelRequest，但拥有不同 llm_call_id；不变量：retry 不重新 compile 或增加 Step。
+#[tokio::test]
+async fn recoverable_retry_preserves_step_and_request_identity() {
+    let dir = tempdir().expect("tempdir");
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![
+        vec![Err(LlmError::RequestFailed {
+            kind: crate::llm::protocol::RequestFailureKind::Recoverable,
+            message: "temporary".into(),
+        })],
+        terminal_script("retried with stable request"),
+    ])));
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let attempts = Arc::new(Mutex::new(Vec::new()));
+    let provider: Arc<dyn LLMProvider> = Arc::new(RecordingQueuedProvider {
+        scripts,
+        requests: Arc::clone(&requests),
+    });
+    let (mut agent_loop, _session_id) = build_loop_with_hooks(
+        &dir,
+        provider,
+        Vec::new(),
+        ToolPermissionMap::new(),
+        None,
+        vec![Arc::new(LlmAttemptHook {
+            attempts: Arc::clone(&attempts),
+        })],
+    );
+
+    agent_loop
+        .turn(terminal_input(), tokio_util::sync::CancellationToken::new())
+        .await
+        .expect("recoverable failure should retry");
+
+    let recorded_requests = requests.lock().expect("requests lock");
+    assert_eq!(recorded_requests.len(), 2);
+    assert_eq!(
+        serde_json::to_value(&recorded_requests[0]).expect("serialize first request"),
+        serde_json::to_value(&recorded_requests[1]).expect("serialize second request")
+    );
+    let recorded_attempts = attempts.lock().expect("attempts lock");
+    assert_eq!(recorded_attempts.len(), 2);
+    assert_eq!(recorded_attempts[0].0, 0);
+    assert_eq!(recorded_attempts[1].0, 0);
+    assert_ne!(recorded_attempts[0].1, recorded_attempts[1].1);
+}
+
 // 场景：LLM attempt 返回 Unrecoverable，队列中仍有后续 script。
 // 预期：不重试并传播错误；不变量：不可恢复错误不消耗后续 attempt。
 #[tokio::test]
@@ -1501,6 +1647,29 @@ fn loop_import_and_write_boundaries_stay_conformant() {
     assert!(agent_loop_source.contains("EventDispatcher"));
     assert!(agent_loop_source.contains("SessionStore"));
     assert!(agent_loop_source.contains("run_model_call_with_updates"));
+
+    let lower_sources = [
+        ("event/mod.rs", include_str!("../event/mod.rs")),
+        ("event/pipeline.rs", include_str!("../event/pipeline.rs")),
+        ("event/registry.rs", include_str!("../event/registry.rs")),
+        ("session/mod.rs", include_str!("../session/mod.rs")),
+        ("session/store.rs", include_str!("../session/store.rs")),
+    ];
+    for (file, source) in lower_sources {
+        for forbidden in ["crate::loop", "crate::agent", "crate::cli", "scheduler"] {
+            assert!(
+                !source.contains(forbidden),
+                "lower-level source {file} must not mention forbidden dependency {forbidden}"
+            );
+        }
+    }
+
+    let event_registry_source = include_str!("../event/registry.rs");
+    assert!(event_registry_source.contains("HookHandler"));
+    assert!(!event_registry_source.contains("HookOutcome::Block"));
+    assert!(!event_registry_source.contains("SessionStore"));
+    assert!(agent_loop_source.contains("session: SessionStore"));
+    assert!(!agent_loop_source.contains("Arc<Mutex<SessionStore>>"));
 }
 
 // 场景：TurnInput 的 user text 为空。

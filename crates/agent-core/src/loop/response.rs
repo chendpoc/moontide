@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use anyhow::{bail, Result};
 
 use crate::{
@@ -18,6 +20,7 @@ pub(crate) enum ResponseAction {
 pub(crate) fn classify_response(response: &ModelResponse) -> Result<ResponseAction> {
     let mut assistant_blocks = Vec::new();
     let mut calls = Vec::new();
+    let mut call_ids = BTreeSet::new();
 
     for block in &response.content {
         match block {
@@ -25,7 +28,14 @@ pub(crate) fn classify_response(response: &ModelResponse) -> Result<ResponseActi
                 assistant_blocks.push(block.clone());
             }
             ContentBlock::ToolUse { id, name, input } => {
-                calls.push(ToolCall::new(id.clone(), name.clone(), input.clone())?);
+                let call = ToolCall::new(id.clone(), name.clone(), input.clone())?;
+                if !call_ids.insert(call.tool_use_id().to_owned()) {
+                    bail!(
+                        "model response contains duplicate ToolUse id: {}",
+                        call.tool_use_id()
+                    );
+                }
+                calls.push(call);
             }
             ContentBlock::ToolResult { .. } => {
                 bail!("model response must not contain ToolResult blocks");
