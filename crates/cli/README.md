@@ -1,7 +1,7 @@
 # cli
 
 > **性质：** MoonTide 用户入口的纯壳。
-> **状态：** CLI R1（crate scaffold、配置解析、one-shot）已实现并通过测试；R2/R3 待实现。
+> **状态：** CLI R1/R2 与 R3 Settings Preflight 已实现并通过测试，等待 Review。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
 > **关联：** [`../agent/README.md`](../agent/README.md) · [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md)
 
@@ -14,7 +14,9 @@
 ```text
 CLI args + env
       ↓
-resolve AgentConfig
+interactive Settings Preflight（REPL）/ non-interactive validation（one-shot）
+      ↓
+RuntimeSettings → AgentConfig
       ↓
 Agent::create/resume
       ↓
@@ -56,8 +58,13 @@ cargo run -p cli -- --session <session_id> --prompt "继续刚才的任务"
 | `--runs-dir <path>` | `<cwd>/.moontide/runs` | Agent Event 目录 |
 | `--model <name>` | `deepseek-chat` | model name |
 | `--base-url <url>` | `https://api.deepseek.com` | OpenAI-compatible endpoint root |
+| `--approval-policy <default\|always\|always-allow>` | `always` | one-shot approval policy；interactive REPL 可在 Settings 中调整 |
 
 API key 初版从 `DEEPSEEK_API_KEY` 读取。CLI 解析后传入 `AgentConfig`，agent 不读取环境变量。
+
+interactive REPL 启动时先进入 Settings Preflight：环境中存在 `DEEPSEEK_API_KEY` 时跳过输入，不存在时使用隐藏输入；用户确认 Settings 后才 create/resume Agent。输入的 key 只存在当前进程内存，不写 Session 或 Agent Event。
+
+`always` 会把所有启用工具映射为 `Ask`；`default` 保持 coding preset 的 read/find/grep Allow 与 write/edit/bash Ask；`always-allow` 把所有启用工具映射为 `Allow` 并跳过 approval。interactive Settings 对 `always-allow` 要求输入 `ALLOW` 确认。one-shot 不进入 Settings 页面，缺失 API key 直接失败。
 
 ---
 
@@ -95,3 +102,4 @@ parse → resolve config → create/resume Agent → turn → render
 ```
 
 CLI 不直接 import `agent-core::session`、`event`、`tools`、`loop` 或 `agent-tools`。
+Settings、REPL 与 approval 共享一个 InputOwner；approval handler 不直接读取 stdin。

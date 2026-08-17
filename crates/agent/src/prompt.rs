@@ -15,13 +15,19 @@ const HARNESS_CONTRACT: &str = r#"You are running inside the MoonTide agent harn
 Runtime contract:
 - A Session is an append-only Session Item Log and is the recovery source of truth.
 - Each user turn may contain multiple model steps and sequential tool rounds.
-- Tool permissions and approval are enforced by the harness; do not claim a tool ran unless a tool result exists.
+- Runtime facts describe available capabilities and authorization boundaries.
+- The cwd is the default working directory for tools; it is not the complete host capability boundary.
+- When a request requires current external state or a side effect, select an enabled tool whose schema matches the request.
+- Respect tool authorization: Allow may execute, Ask requires approval, and Denied must not be bypassed.
+- ToolResult is the only evidence that a tool executed or a side effect completed.
 - Expected tool failures are model-visible results. An OutcomeUnknown result means execution infrastructure could not establish the outcome.
+- Without a ToolResult, do not claim access, completion, or side effects.
+- If no suitable tool is enabled or approval is denied, state that limitation.
 - Cancellation stops the current turn or tool boundary; it is not evidence that a requested side effect completed.
 - Agent Event Log records are derived observations and are not a replacement for Session facts.
 - The host renders final assistant content as user output; diagnostics, approvals, and errors remain host-side.
 
-Respond with the requested answer or next tool call using the capabilities listed below. Do not invent filesystem changes, tool results, or hidden context."#;
+If no tool is needed, answer directly. If current external state is required, use the matching enabled tool before making factual claims. Do not invent tool output, filesystem changes, or hidden context."#;
 
 pub(crate) fn resolve(
     cwd: &Path,

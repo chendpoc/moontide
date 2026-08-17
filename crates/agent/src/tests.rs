@@ -181,6 +181,9 @@ fn harness_prompt_contains_runtime_facts_without_user_text() {
     let content = prompt.content();
 
     assert!(content.contains("MoonTide agent harness"));
+    assert!(content.contains("available capabilities"));
+    assert!(content.contains("ToolResult is the only evidence"));
+    assert!(content.contains("If no suitable tool is enabled"));
     assert!(content.contains(&format!("cwd: {}", temp.path().display())));
     assert!(content.contains("session_id: session-42"));
     assert!(content.contains("read: allow"));

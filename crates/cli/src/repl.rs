@@ -1,8 +1,11 @@
-use agent::Agent;
+use std::{future::Future, io};
+
+use agent::{Agent, ModelResponse};
 use anyhow::{Context, Result};
-use rustyline::{error::ReadlineError, DefaultEditor};
+use rustyline::error::ReadlineError;
 use tokio_util::sync::CancellationToken;
 
+use crate::input::InputOwner;
 use crate::render::{write_assistant_stdout, write_diagnostic_stderr};
 
 const PROMPT: &str = "moontide> ";
@@ -16,6 +19,11 @@ pub(crate) enum ReplCommand {
     Turn(String),
 }
 
+pub(crate) enum TurnOutcome {
+    Completed(Result<ModelResponse>),
+    Cancelled,
+}
+
 pub(crate) fn parse_command(line: String) -> ReplCommand {
     match line.trim() {
         "/exit" => ReplCommand::Exit,
@@ -25,13 +33,12 @@ pub(crate) fn parse_command(line: String) -> ReplCommand {
     }
 }
 
-pub(crate) async fn run(agent: &mut Agent) -> Result<()> {
-    let mut editor = DefaultEditor::new().map_err(anyhow::Error::new)?;
+pub(crate) async fn run(agent: &mut Agent, input_owner: InputOwner) -> Result<()> {
     loop {
-        match editor.readline(PROMPT) {
+        match input_owner.readline(PROMPT) {
             Ok(line) => {
                 if !line.trim().is_empty() {
-                    editor
+                    input_owner
                         .add_history_entry(line.as_str())
                         .map_err(anyhow::Error::new)?;
                 }
@@ -46,14 +53,24 @@ pub(crate) async fn run(agent: &mut Agent) -> Result<()> {
                     }
                     ReplCommand::Turn(text) => {
                         let cancellation = CancellationToken::new();
-                        match agent.turn(text, cancellation).await {
-                            Ok(response) => {
+                        let outcome = await_turn_with_ctrl_c(
+                            agent.turn(text, cancellation.clone()),
+                            cancellation,
+                            tokio::signal::ctrl_c(),
+                        )
+                        .await?;
+                        match outcome {
+                            TurnOutcome::Completed(Ok(response)) => {
                                 write_assistant_stdout(&response, std::io::stdout().lock())
                                     .context("write REPL assistant output")?;
                             }
-                            Err(error) => {
+                            TurnOutcome::Completed(Err(error)) => {
                                 write_diagnostic_stderr(&format!("ERROR: {error:#}"))
                                     .context("write REPL turn error")?;
+                            }
+                            TurnOutcome::Cancelled => {
+                                write_diagnostic_stderr("cancelled")
+                                    .context("write REPL cancellation")?;
                             }
                         }
                     }
@@ -65,5 +82,34 @@ pub(crate) async fn run(agent: &mut Agent) -> Result<()> {
             Err(ReadlineError::Eof) => return Ok(()),
             Err(error) => return Err(anyhow::Error::new(error).context("read REPL input")),
         }
+    }
+}
+
+pub(crate) async fn await_turn_with_ctrl_c<Turn, Signal>(
+    turn: Turn,
+    cancellation: CancellationToken,
+    ctrl_c: Signal,
+) -> Result<TurnOutcome>
+where
+    Turn: Future<Output = Result<ModelResponse>>,
+    Signal: Future<Output = io::Result<()>>,
+{
+    tokio::pin!(turn);
+    tokio::pin!(ctrl_c);
+    tokio::select! {
+        biased;
+        result = &mut turn => Ok(TurnOutcome::Completed(result)),
+        signal = &mut ctrl_c => match signal {
+            Ok(()) => {
+                cancellation.cancel();
+                let _ = turn.await;
+                Ok(TurnOutcome::Cancelled)
+            }
+            Err(error) => {
+                cancellation.cancel();
+                let _ = turn.await;
+                Err(anyhow::Error::new(error).context("wait for Ctrl-C signal"))
+            }
+        },
     }
 }

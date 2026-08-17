@@ -1,13 +1,21 @@
-use std::path::PathBuf;
+use std::{
+    future, io,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use agent::{Agent, ContentBlock, ModelResponse, StopReason};
 
 use crate::{
     approval::{parse_response, truncate_preview},
-    args::{CliArgs, LaunchMode},
+    args::{ApprovalPolicyArg, CliArgs, LaunchMode},
     config::{resolve_agent_config_with, session_mode, validate_prompt},
     render::{assistant_text, write_assistant_stdout},
-    repl::{parse_command, ReplCommand},
+    repl::{await_turn_with_ctrl_c, parse_command, ReplCommand, TurnOutcome},
+    settings::{ApprovalPolicy, RuntimeSettings},
 };
 
 // Scenario: clap parses one-shot and explicit path/model flags.
@@ -29,6 +37,7 @@ fn args_select_one_shot_without_side_effects() {
     assert_eq!(args.prompt.as_deref(), Some("inspect project"));
     assert_eq!(args.cwd, Some(PathBuf::from("workspace")));
     assert_eq!(args.model, "custom-model");
+    assert_eq!(args.approval_policy, ApprovalPolicyArg::Always);
 }
 
 // Scenario: no --prompt is supplied for either a new or resumed Session.
@@ -52,8 +61,13 @@ fn create_and_resume_dispatch_to_repl_seam() {
 fn config_resolution_uses_explicit_inputs() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
     let cwd = PathBuf::from("project");
-    let config = resolve_agent_config_with(&args, cwd.clone(), Some("secret".into()))
-        .expect("explicit config should resolve");
+    let config = resolve_agent_config_with(
+        &args,
+        cwd.clone(),
+        Some("secret".into()),
+        &runtime_settings("secret", ApprovalPolicy::Default),
+    )
+    .expect("explicit config should resolve");
 
     assert_eq!(config.cwd, cwd.clone());
     assert_eq!(config.provider.api_key, "secret");
@@ -64,14 +78,62 @@ fn config_resolution_uses_explicit_inputs() {
     assert_eq!(config.max_tokens, super::config::DEFAULT_MAX_TOKENS);
 }
 
+// Scenario: runtime Settings selects the Always approval policy.
+// Expected: every coding-preset tool is represented as Ask in AgentConfig.
+// Invariant: policy materialization happens in the CLI and does not add a Loop policy type.
+#[test]
+fn always_approval_policy_maps_all_tools_to_ask() {
+    let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
+    let config = resolve_agent_config_with(
+        &args,
+        PathBuf::from("project"),
+        Some("secret".into()),
+        &runtime_settings("secret", ApprovalPolicy::Always),
+    )
+    .expect("always approval config should resolve");
+
+    assert!(config
+        .permissions
+        .values()
+        .all(|permission| matches!(permission, agent::ToolPermission::Ask)));
+}
+
+// Scenario: runtime Settings selects the AlwaysAllow approval policy.
+// Expected: every coding-preset tool is Allow and no approval handler is installed.
+// Invariant: always-allow is an explicit CLI mode, not an implicit Loop behavior.
+#[test]
+fn always_allow_policy_maps_all_tools_to_allow() {
+    let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
+    let config = resolve_agent_config_with(
+        &args,
+        PathBuf::from("project"),
+        Some("secret".into()),
+        &runtime_settings("secret", ApprovalPolicy::AlwaysAllow),
+    )
+    .expect("always-allow config should resolve");
+
+    assert!(config
+        .permissions
+        .values()
+        .all(|permission| matches!(permission, agent::ToolPermission::Allow)));
+    assert!(config.approval.is_none());
+}
+
 // Scenario: API key is absent or whitespace-only.
 // Expected: config resolution fails before provider/session construction.
 // Invariant: credentials never become an empty provider config.
 #[test]
 fn missing_api_key_is_rejected() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
-    assert!(resolve_agent_config_with(&args, PathBuf::from("project"), None).is_err());
-    assert!(resolve_agent_config_with(&args, PathBuf::from("project"), Some("  ".into())).is_err());
+    let settings = runtime_settings("secret", ApprovalPolicy::Default);
+    assert!(resolve_agent_config_with(&args, PathBuf::from("project"), None, &settings).is_err());
+    assert!(resolve_agent_config_with(
+        &args,
+        PathBuf::from("project"),
+        Some("  ".into()),
+        &settings,
+    )
+    .is_err());
 }
 
 // Scenario: resolved CLI config points at a missing working directory.
@@ -84,10 +146,19 @@ fn invalid_working_directory_is_rejected_by_agent_boundary() {
         &args,
         PathBuf::from("missing-working-directory"),
         Some("secret".into()),
+        &runtime_settings("secret", ApprovalPolicy::Default),
     )
     .expect("CLI config should resolve before Agent path validation");
 
     assert!(Agent::create(config).is_err());
+}
+
+fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSettings {
+    RuntimeSettings {
+        api_key: api_key.into(),
+        approval_policy,
+        input_owner: None,
+    }
 }
 
 // Scenario: one-shot prompt is absent or empty.
@@ -169,4 +240,66 @@ fn approval_responses_and_preview_are_bounded() {
     let preview = truncate_preview(&"x".repeat(600));
     assert!(preview.chars().count() <= 513);
     assert!(preview.ends_with('…'));
+}
+
+// Scenario: Ctrl-C wins while a Turn future is still pending.
+// Expected: the cancellation token is set and the Turn future is awaited for cleanup.
+// Invariant: cancellation never detaches an in-flight Agent turn from the REPL owner.
+#[tokio::test]
+async fn ctrl_c_cancels_and_awaits_turn_cleanup() {
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let cleaned_up = Arc::new(AtomicBool::new(false));
+    let cleanup_flag = Arc::clone(&cleaned_up);
+    let (signal_tx, signal_rx) = tokio::sync::oneshot::channel();
+    let turn = async move {
+        signal_rx.await.expect("signal should release turn cleanup");
+        cleanup_flag.store(true, Ordering::SeqCst);
+        Ok(ModelResponse {
+            content: vec![ContentBlock::Text {
+                text: "ignored".into(),
+            }],
+            stop_reason: StopReason::EndTurn,
+            usage: None,
+            model: None,
+        })
+    };
+    let outcome = await_turn_with_ctrl_c(turn, cancellation.clone(), async move {
+        signal_tx
+            .send(())
+            .map_err(|_| io::Error::other("turn cleanup receiver dropped"))?;
+        Ok::<(), io::Error>(())
+    })
+    .await
+    .expect("Ctrl-C signal should resolve");
+
+    assert!(cancellation.is_cancelled());
+    assert!(cleaned_up.load(Ordering::SeqCst));
+    assert!(matches!(outcome, TurnOutcome::Cancelled));
+}
+
+// Scenario: a Turn completes while the Ctrl-C future remains pending.
+// Expected: the final response wins and the cancellation token remains active.
+// Invariant: a late Ctrl-C cannot discard a response that already completed.
+#[tokio::test]
+async fn completed_turn_wins_pending_ctrl_c() {
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let outcome = await_turn_with_ctrl_c(
+        async {
+            Ok::<_, anyhow::Error>(ModelResponse {
+                content: vec![ContentBlock::Text {
+                    text: "answer".into(),
+                }],
+                stop_reason: StopReason::EndTurn,
+                usage: None,
+                model: None,
+            })
+        },
+        cancellation.clone(),
+        future::pending::<io::Result<()>>(),
+    )
+    .await
+    .expect("completed turn should resolve");
+
+    assert!(!cancellation.is_cancelled());
+    assert!(matches!(outcome, TurnOutcome::Completed(Ok(_))));
 }

@@ -1,8 +1,10 @@
 mod approval;
 mod args;
 mod config;
+mod input;
 mod render;
 mod repl;
+mod settings;
 
 use std::process::ExitCode;
 
@@ -11,8 +13,10 @@ use anyhow::{bail, Result};
 use args::{CliArgs, LaunchMode};
 use clap::Parser;
 use config::{resolve_agent_config, session_mode, validate_prompt};
+use input::InputOwner;
 use render::write_assistant_stdout;
-use repl::run as run_repl;
+use repl::{await_turn_with_ctrl_c, run as run_repl, TurnOutcome};
+use settings::{resolve_interactive, resolve_one_shot};
 use tokio_util::sync::CancellationToken;
 
 #[cfg(test)]
@@ -35,7 +39,15 @@ async fn run() -> Result<()> {
         LaunchMode::OneShot => Some(validate_prompt(&args)?.to_owned()),
         LaunchMode::Repl => None,
     };
-    let config = resolve_agent_config(&args)?;
+    let (settings, input_owner) = match args.launch_mode() {
+        LaunchMode::OneShot => (resolve_one_shot(&args)?, None),
+        LaunchMode::Repl => {
+            let input_owner = InputOwner::new()?;
+            let settings = resolve_interactive(&args, input_owner.clone())?;
+            (settings, Some(input_owner))
+        }
+    };
+    let config = resolve_agent_config(&args, &settings)?;
     let mut agent = match args.session.as_deref() {
         Some(session_id) => Agent::resume(config, session_id)?,
         None => Agent::create(config)?,
@@ -48,11 +60,29 @@ async fn run() -> Result<()> {
 
     match (args.launch_mode(), prompt) {
         (LaunchMode::OneShot, Some(prompt)) => {
-            let response = agent.turn(prompt, CancellationToken::new()).await?;
-            write_assistant_stdout(&response, std::io::stdout().lock())?;
-            Ok(())
+            let cancellation = CancellationToken::new();
+            match await_turn_with_ctrl_c(
+                agent.turn(prompt, cancellation.clone()),
+                cancellation,
+                tokio::signal::ctrl_c(),
+            )
+            .await?
+            {
+                TurnOutcome::Completed(result) => {
+                    let response = result?;
+                    write_assistant_stdout(&response, std::io::stdout().lock())?;
+                    Ok(())
+                }
+                TurnOutcome::Cancelled => bail!("cancelled"),
+            }
         }
-        (LaunchMode::Repl, None) => run_repl(&mut agent).await,
+        (LaunchMode::Repl, None) => {
+            run_repl(
+                &mut agent,
+                input_owner.ok_or_else(|| anyhow::anyhow!("interactive input owner missing"))?,
+            )
+            .await
+        }
         _ => bail!("invalid CLI launch state"),
     }
 }

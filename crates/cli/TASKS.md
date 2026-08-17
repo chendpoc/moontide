@@ -7,7 +7,7 @@
 | 批 | TASK | 主题 | 预估 diff | 状态 |
 |----|------|------|-----------|------|
 | **R1** | 01 | crate scaffold、args/config、one-shot | ~550 行 | ☑ |
-| **R2** | 02–03 | REPL、approval、render、Ctrl-C 与测试 | ~850 行 | ☐ |
+| **R2** | 02–03 | REPL、approval、render、Ctrl-C 与测试 | ~850 行 | ☑ |
 
 ## TASK 明细
 
@@ -36,7 +36,7 @@
 - **范围：** `crates/cli/src/main.rs`、`repl.rs`、`tests.rs`、`PROGRESS.md`、顶层 checklist
 - **预估 diff：** ~300 行
 - **完成标准：** workspace fmt/clippy/test；Ctrl-C cancellation 与后续 turn、stdout/stderr 和 CLI → agent 依赖守门通过。
-- **状态：** ☐
+- **状态：** ☑
 
 ## 实现约束
 

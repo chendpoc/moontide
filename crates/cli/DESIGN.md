@@ -1,7 +1,7 @@
 # cli — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** CLI R1 已实现；REPL、interactive approval 与 Ctrl-C 属于后续 R2/R3。
+> **状态：** CLI R1/R2 与 R3 Settings Preflight、InputOwner、Ctrl-C 已实现，等待 Review。
 > **关联：** [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md)
 
 ---
@@ -46,7 +46,9 @@ CLI 不创建第二套 domain model；`CliArgs`、REPL command 与 render DTO �
 ```text
 main
   → CliArgs::parse
-  → resolve_cli_config
+  → if interactive: InputOwner + Settings Preflight
+  → if one-shot: env/config validation
+  → resolve RuntimeSettings → AgentConfig
   → Agent::create | Agent::resume
   → print session id to stderr
   → if prompt: run one-shot
@@ -75,6 +77,7 @@ struct CliArgs {
     runs_dir: Option<PathBuf>,
     model: String,
     base_url: String,
+    approval_policy: ApprovalPolicyArg,
 }
 
 fn resolve_agent_config(args: &CliArgs) -> anyhow::Result<AgentConfig>;
@@ -92,13 +95,21 @@ fn resolve_agent_config(args: &CliArgs) -> anyhow::Result<AgentConfig>;
 8. approval handler 注入交互式 stdin/stderr 实现；
 9. `AgentConfig.system_prompt` 不由 CLI 拼接，agent 内部解析 Harness + Project Instructions。
 
+interactive Settings Preflight 在 Agent create/resume 之前运行。`DEEPSEEK_API_KEY` 已存在时跳过 key 输入；缺失时隐藏输入。one-shot 不进入 Settings，缺失 key 直接返回配置错误。
+
+`ApprovalPolicy::Always` 将所有启用工具映射为 `Ask`；`Default` 使用 coding preset；`AlwaysAllow` 将所有启用工具映射为 `Allow` 且不注入 approval handler。`AlwaysAllow` 只在 Settings 输入 `ALLOW` 后生效。策略只属于 CLI runtime settings，不新增 agent-core policy 模块。
+
 ---
 
 ## 5. REPL
 
 ```text
+settings = preflight()          # interactive only; no Agent/Session load before confirm
+agent = create_or_resume(settings)
+input_owner = settings.input_owner
+
 loop:
-  line = rustyline.readline(" > ")
+  line = input_owner.readline(" > ")
   if line == /exit: break
   if line == /id: print Agent::session_id to stderr; continue
   if line == /help: print commands; continue
@@ -116,7 +127,7 @@ REPL 不把 Ctrl-C 转换为新的 SessionItem；Loop 负责 cleanup 与事实�
 
 ## 6. Approval
 
-CLI 的 approval handler 是 agent-core `ToolApprovalHandler` 的一个壳实现：
+CLI 的 approval handler 是 agent-core `ToolApprovalHandler` 的一个壳实现，并通过唯一 InputOwner 读取终端：
 
 ```rust
 struct StdinApproval;
@@ -136,6 +147,7 @@ impl ToolApprovalHandler for StdinApproval {
 - `y` → Approved；`n`/空输入 → Denied；EOF/输入错误 → Cancelled 或 Err；
 - 不修改 AgentConfig permission map；
 - 不通过 Hook 参与决策。
+- Settings、REPL、approval 不允许出现第二个 stdin reader。
 
 ---
 
@@ -190,4 +202,5 @@ cli ↛ scheduler
 - approval y/n/empty/EOF 映射；
 - stdout 只含 final assistant text，approval/diagnostics 在 stderr；
 - Ctrl-C 调用 token.cancel 并等待 Agent turn future cleanup；
+- interactive Settings 在 create/resume 前完成 API key 与 approval policy 解析；
 - Turn error 在 REPL 后续输入仍可执行。

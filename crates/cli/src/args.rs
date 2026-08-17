@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 /// Command-line values before environment and path defaults are resolved.
 #[derive(Debug, Clone, Parser)]
@@ -33,6 +33,17 @@ pub(crate) struct CliArgs {
     /// OpenAI-compatible endpoint root.
     #[arg(long, default_value = "https://api.deepseek.com")]
     pub(crate) base_url: String,
+
+    /// Approval policy for non-interactive one-shot mode and the Settings default.
+    #[arg(long, value_enum, default_value_t = ApprovalPolicyArg::Always)]
+    pub(crate) approval_policy: ApprovalPolicyArg,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum ApprovalPolicyArg {
+    Default,
+    Always,
+    AlwaysAllow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
