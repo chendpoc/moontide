@@ -103,6 +103,23 @@ preset "openrouter" × OpenAiChatCompletions → https://openrouter.ai/api/v1
     → loop 经 run_model_call*；RunEvent 转发 snapshot
 ```
 
+### 5.1 出站转换 owner
+
+`Message` 是 MoonTide provider-neutral 的 canonical model-input record。它表达 role、content block、tool use/result 等内部语义，不表达 OpenAI、Anthropic 或 DeepSeek 的 wire JSON。
+
+完整出站转换的 owner 是 `llm::adapter`：
+
+```text
+ModelRequest
+  ├── system / messages / tools / request config
+  └── adapter::{family}::encode_request
+          └── provider wire request
+```
+
+`context` 只负责 `SessionItem → Message`，不得 import provider adapter；`llm::adapter` 可以在内部拆出 message、tool schema 和 request config 的转换 helper。R1 不在 `Message` 上公开通用 `Transform<Target>` trait，因为 provider-specific output/error types 不应反向污染 `protocol`。
+
+若某个 adapter 确实需要方法语法，可定义 adapter 私有 extension trait 并为 `Message` 实现；这不形成 MoonTide protocol 的公共扩展点。
+
 ---
 
 ## 6. 类型（`protocol/`）
@@ -306,6 +323,7 @@ struct Preset {
 5. 对外 trait 仅 `LLMProvider`
 6. 流式：`ModelStreamEvent` + Builder；loop 经 `run_model_call*`
 7. 旧名废弃：`StreamDelta` / `MessageEnd` → `ModelStreamEvent` / `Finished`
+8. `Message` canonical record 与 provider wire payload 分离；完整转换由 adapter 持有，不由 context 或 protocol 类型持有
 
 ---
 

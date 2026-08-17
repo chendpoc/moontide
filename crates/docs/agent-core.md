@@ -40,8 +40,8 @@ cli（纯壳）→ agent（组合根）
 | `session` | Session Item Log 的 create/load/commit/fork 与恢复不变量 | llm/tools 契约 | 已实现 |
 | `tools` | ToolSpec、Tool、冻结 registry、input validation、单次执行 | 基础库 | 已实现 |
 | `event` | RunEvent、dispatcher、derive、Agent Event recorder | llm/tools 契约 | 当前分期已实现；完整 bus 后置 |
-| `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | 设计确认，待实现 |
-| `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol | 待设计 |
+| `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | R1 已实现并完成测试 |
+| `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol + tools | R1 已实现、测试并通过 Review |
 | `loop` | turn/step 时序、tool permission 查表和调用编排 | 模块 1–6 | 待设计 |
 | `scheduler` | 后置的资源排队、并发、取消、delegate/offload | llm + tools | 后置 |
 
@@ -75,6 +75,7 @@ Session Item Log ──materialize──► messages ──compile──► Mode
 - **Agent Event Log** 是 run 级观测记录，由 `RunEvent` derive，不反向覆盖 session；
 - **ModelRequest** 是单次模型调用产物，不是事实源，不持久化替代 session；
 - provider adapter 只编码请求，不修改 session/context 语义。
+- `Message` / `ModelRequest` 是 MoonTide 的 canonical provider-neutral 数据格式；`llm::adapter` 负责转换为目标 provider wire request，`context` 不参与该转换。
 
 ---
 
@@ -113,11 +114,19 @@ pub(crate) fn compile(
 
 ## 5. Context 边界
 
-当前只确认 `context` 的输入输出边界，不提前确定其内部类型：
+`context` R1 已将输入输出边界落在模块 README/DESIGN，实现与测试已通过 Review：
 
 ```text
 Session Item Log ──context::materialize──► model-visible Vec<Message>
 ```
+
+```rust
+pub(crate) fn materialize(
+    items: &[SessionItem],
+) -> anyhow::Result<Vec<Message>>;
+```
+
+R1 直接映射普通 user/assistant items，聚合连续 tool call/result，忽略 checkpoint metadata；遇到 `Compaction`、未配对的 tool call/result 或身份不一致时返回错误。一个连续 ToolCall 段是一次 round；所有 call 都有配对的 ToolResult 后才能进入下一 model step。context 只验证这一闭合条件，不预设并发、deadline、join、timeout 或状态映射；这些执行政策留到 `loop` / `scheduler` 架构对齐。该函数只读，不写回 session，也不拥有 compaction、prune、retrieval 或预算策略。
 
 以下策略属于未来 context 设计：
 
@@ -190,5 +199,6 @@ REPL turn 的可恢复错误由 run 边界打印后继续；配置类致命错�
 | Tools | [`../agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md) |
 | Event | [`../agent-core/src/event/DESIGN.md`](../agent-core/src/event/DESIGN.md) |
 | Model input | [`../agent-core/src/model_input/DESIGN.md`](../agent-core/src/model_input/DESIGN.md) |
+| Context | [`../agent-core/src/context/README.md`](../agent-core/src/context/README.md) · [`../agent-core/src/context/DESIGN.md`](../agent-core/src/context/DESIGN.md) |
 
-`context`、`loop`、`scheduler` 在各自架构对齐完成前不建立实现级当前文档。
+`context` 当前已有 R1 架构/实现设计文档；`loop`、`scheduler` 仍在各自架构对齐完成前不建立实现级当前文档。

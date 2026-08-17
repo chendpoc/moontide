@@ -79,7 +79,7 @@ session ───────────► llm protocol + tools result status
 tools ──────────────► std + serde + anyhow
 event ──────────────► protocol / RunEvent + tools result status
 model_input ────────► tools + llm protocol
-context ────────────► session + llm protocol
+context ────────────► session + llm protocol + tools
 loop ───────────────► llm + session + tools + event + model_input + context
 scheduler ──────────► llm + tools
 ```
@@ -207,6 +207,10 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 ### 5.2 Agent Event Log
 
 Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断、sidecar 和指标。它不是恢复事实源，也不能反向修改 Session Item Log。
+
+### 5.3 Tool-call round closure
+
+一次模型响应中的连续 `ToolCall` 是一个 round。下一次 model step 前，Session Item Log 中每个 call 都必须存在配对的 `ToolResult`；`context` 只验证这一闭合条件。并发、deadline、join、timeout 以及状态映射属于尚未对齐的 `loop` / `scheduler` 执行政策，本文不提前规定。
 
 术语固定为：
 

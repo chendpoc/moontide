@@ -17,6 +17,8 @@
 
 HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `build_provider(...)`。
 
+`Message` / `ModelRequest` 是 MoonTide 的 canonical provider-neutral 数据格式；完整的 `ModelRequest → provider wire request` 转换由 `llm::adapter` 持有，`context` 不参与 provider 转换。若 adapter 需要方法语法，只能使用其内部私有 extension trait，不向 `Message` 增加公共通用 transform trait。
+
 ---
 
 ## 设计原理（brief）
