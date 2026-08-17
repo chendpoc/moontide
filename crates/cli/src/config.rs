@@ -1,11 +1,9 @@
-use std::{collections::BTreeMap, env, future::Future, path::PathBuf, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
 
-use agent::{
-    AdapterFamily, AgentConfig, ToolApproval, ToolApprovalHandler, ToolCall, ToolPermission,
-    ToolPermissionMap,
-};
+use agent::{AdapterFamily, AgentConfig, ToolPermission, ToolPermissionMap};
 use anyhow::{bail, Context, Result};
 
+use crate::approval::InteractiveApproval;
 use crate::args::CliArgs;
 
 pub(crate) const DEFAULT_MAX_TOKENS: u32 = 4_096;
@@ -56,8 +54,7 @@ pub(crate) fn resolve_agent_config_with(
         max_steps: DEFAULT_MAX_STEPS,
         tool_names,
         permissions,
-        // R1 has no interactive REPL yet; Ask tools fail closed until R2 approval exists.
-        approval: Some(Arc::new(NonInteractiveApproval)),
+        approval: Some(Arc::new(InteractiveApproval)),
     })
 }
 
@@ -77,24 +74,6 @@ fn coding_preset() -> (Vec<String>, ToolPermissionMap) {
         permissions.insert(name.to_owned(), ToolPermission::Ask);
     }
     (tool_names, permissions)
-}
-
-struct NonInteractiveApproval;
-
-impl ToolApprovalHandler for NonInteractiveApproval {
-    fn request<'a>(
-        &'a self,
-        call: &'a ToolCall,
-    ) -> Pin<Box<dyn Future<Output = Result<ToolApproval>> + Send + 'a>> {
-        Box::pin(async move {
-            Ok(ToolApproval::Denied {
-                reason: format!(
-                    "interactive approval is unavailable in one-shot mode for tool {}",
-                    call.name()
-                ),
-            })
-        })
-    }
 }
 
 pub(crate) fn session_mode(args: &CliArgs) -> &'static str {

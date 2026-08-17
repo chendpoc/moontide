@@ -1,6 +1,8 @@
+mod approval;
 mod args;
 mod config;
 mod render;
+mod repl;
 
 use std::process::ExitCode;
 
@@ -10,6 +12,7 @@ use args::{CliArgs, LaunchMode};
 use clap::Parser;
 use config::{resolve_agent_config, session_mode, validate_prompt};
 use render::write_assistant_stdout;
+use repl::run as run_repl;
 use tokio_util::sync::CancellationToken;
 
 #[cfg(test)]
@@ -49,9 +52,7 @@ async fn run() -> Result<()> {
             write_assistant_stdout(&response, std::io::stdout().lock())?;
             Ok(())
         }
-        (LaunchMode::Repl, None) => {
-            bail!("REPL is not implemented in CLI R1; pass --prompt for one-shot mode")
-        }
+        (LaunchMode::Repl, None) => run_repl(&mut agent).await,
         _ => bail!("invalid CLI launch state"),
     }
 }

@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use agent::{Agent, ContentBlock, ModelResponse, StopReason};
 
 use crate::{
+    approval::{parse_response, truncate_preview},
     args::{CliArgs, LaunchMode},
     config::{resolve_agent_config_with, session_mode, validate_prompt},
     render::{assistant_text, write_assistant_stdout},
+    repl::{parse_command, ReplCommand},
 };
 
 // Scenario: clap parses one-shot and explicit path/model flags.
@@ -130,4 +132,41 @@ fn renderer_keeps_stdout_to_final_assistant_text() {
         String::from_utf8(output).expect("renderer output is UTF-8"),
         "answer\n"
     );
+}
+
+// Scenario: REPL command lines contain supported slash commands or ordinary user text.
+// Expected: commands are classified without entering Agent::turn; other lines preserve text.
+// Invariant: command dispatch remains a CLI-shell concern and does not mutate Session facts.
+#[test]
+fn repl_commands_are_classified_without_agent_access() {
+    assert_eq!(parse_command("/id".into()), ReplCommand::SessionId);
+    assert_eq!(parse_command("/help".into()), ReplCommand::Help);
+    assert_eq!(parse_command("/exit".into()), ReplCommand::Exit);
+    assert_eq!(
+        parse_command("continue the task".into()),
+        ReplCommand::Turn("continue the task".into())
+    );
+}
+
+// Scenario: terminal approval receives y/n/empty/unknown responses and a long JSON input.
+// Expected: y approves, n/empty/unknown deny, and the preview is bounded.
+// Invariant: approval prompt rendering never exposes unbounded tool input to stderr.
+#[test]
+fn approval_responses_and_preview_are_bounded() {
+    assert_eq!(parse_response("y\n"), agent::ToolApproval::Approved);
+    assert!(matches!(
+        parse_response("n\n"),
+        agent::ToolApproval::Denied { .. }
+    ));
+    assert!(matches!(
+        parse_response("\n"),
+        agent::ToolApproval::Denied { .. }
+    ));
+    assert!(matches!(
+        parse_response("maybe\n"),
+        agent::ToolApproval::Denied { .. }
+    ));
+    let preview = truncate_preview(&"x".repeat(600));
+    assert!(preview.chars().count() <= 513);
+    assert!(preview.ends_with('…'));
 }
