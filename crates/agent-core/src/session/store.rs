@@ -129,6 +129,17 @@ impl SessionStore {
     pub fn header(&self) -> &SessionHeader {
         &self.header
     }
+
+    pub(crate) fn next_turn(&self) -> Result<u64> {
+        match self.items.last() {
+            None => Ok(0),
+            Some(item) => item
+                .base()
+                .turn
+                .checked_add(1)
+                .ok_or_else(|| anyhow::anyhow!("session turn number overflow")),
+        }
+    }
 }
 
 fn validate_fork_boundary(items: &[SessionItem], boundary_idx: usize) -> Result<()> {

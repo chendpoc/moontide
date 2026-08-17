@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::loop` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** R1 公开契约已确认，尚未实现。
+> **状态：** R1（TASK-loop-01–03）已实现，等待 Review；R2/R3 尚未实现。
 > **关联：** [`../session/README.md`](../session/README.md) · [`../event/README.md`](../event/README.md) · [`../tools/README.md`](../tools/README.md) · [`../llm/README.md`](../llm/README.md)
 
 ---
@@ -112,7 +112,7 @@ impl AgentLoop {
 }
 ```
 
-`TurnPolicy::new(max_steps)` 拒绝 `max_steps == 0`，并把 `max_llm_retries` 默认设为 **3**。这里的 3 是初次请求后的重试次数，因此单个 Step 最多发起 4 次 LLM attempt。`turn()` 入口仍验证 policy，避免调用者用字段构造非法值。
+`TurnPolicy::new(max_steps)` 拒绝 `max_steps == 0`，并把 `max_llm_retries` 默认设为 **3**。这里的 3 是初次请求后的重试次数，因此单个 Step 最多发起 4 次 LLM attempt。R1 只允许 `max_llm_retries` 为 `0..=3`；`turn()` 入口仍验证 policy，避免调用者用字段构造非法值。
 
 R1 直接返回最终 `ModelResponse`，不增加 `RunResult` 或 `TurnOutcome`。错误和取消通过 `anyhow::Result` 到 Turn 边界。
 

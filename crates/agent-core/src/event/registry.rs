@@ -1,38 +1,24 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
 
-/// Outcome of a hook handler invocation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HookOutcome {
-    Continue,
-    Block { reason: String },
-}
-
-/// Pre-commit gate; may block session writes.
+/// Post-commit extension callback. Hook errors are contained by the dispatcher.
 pub trait HookHandler: Send + Sync {
-    fn on_event(&self, ctx: &TraceContext, event: &TurnEvent) -> Result<HookOutcome>;
+    fn on_event(&self, ctx: &TraceContext, event: &TurnEvent) -> Result<()>;
 }
 
-/// Persists committable events to the Session Item Log (injected by `agent`).
-pub trait CommitHandler: Send + Sync {
-    fn commit(&self, event: &TurnEvent) -> Result<Option<String>>;
+/// Persists committable events to the Session Item Log for one dispatch.
+pub trait CommitHandler {
+    fn commit(&mut self, event: &TurnEvent) -> Result<Option<String>>;
 }
 
-/// Observes events for Agent Event Log / UI / sidecar (fail-open at dispatch).
-pub trait ObserveHandler: Send + Sync {
-    fn observe(&self, ctx: &TraceContext, event: &TurnEvent) -> Result<()>;
-}
-
-/// Frozen handler table assembled before dispatch starts.
+/// Frozen post-commit hook table assembled before dispatch starts.
 #[derive(Clone)]
 pub struct PipelineRegistry {
     hooks: Vec<Arc<dyn HookHandler>>,
-    commit: Arc<dyn CommitHandler>,
-    observers: Vec<Arc<dyn ObserveHandler>>,
 }
 
 impl PipelineRegistry {
@@ -43,21 +29,11 @@ impl PipelineRegistry {
     pub(crate) fn hooks(&self) -> &[Arc<dyn HookHandler>] {
         &self.hooks
     }
-
-    pub(crate) fn commit(&self) -> &Arc<dyn CommitHandler> {
-        &self.commit
-    }
-
-    pub(crate) fn observers(&self) -> &[Arc<dyn ObserveHandler>] {
-        &self.observers
-    }
 }
 
 #[derive(Default)]
 pub struct PipelineRegistryBuilder {
     hooks: Vec<Arc<dyn HookHandler>>,
-    commit: Option<Arc<dyn CommitHandler>>,
-    observers: Vec<Arc<dyn ObserveHandler>>,
 }
 
 impl PipelineRegistryBuilder {
@@ -66,24 +42,7 @@ impl PipelineRegistryBuilder {
         self
     }
 
-    pub fn commit(mut self, handler: Arc<dyn CommitHandler>) -> Self {
-        self.commit = Some(handler);
-        self
-    }
-
-    pub fn observe(mut self, handler: Arc<dyn ObserveHandler>) -> Self {
-        self.observers.push(handler);
-        self
-    }
-
     pub fn build_frozen(self) -> Result<PipelineRegistry> {
-        let commit = self
-            .commit
-            .ok_or_else(|| anyhow!("PipelineRegistry requires a commit handler"))?;
-        Ok(PipelineRegistry {
-            hooks: self.hooks,
-            commit,
-            observers: self.observers,
-        })
+        Ok(PipelineRegistry { hooks: self.hooks })
     }
 }

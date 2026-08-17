@@ -97,6 +97,10 @@ Observational event 不借 commit handler 写入事实源。为了保持一个�
 
 ```text
 emit(commit, event):
+  clear TraceContext transient fields:
+    session_item_id = None
+    tool_use_id = None
+    llm_call_id = None
   update TraceContext correlation fields from event
 
   if event.is_committable():
@@ -112,7 +116,7 @@ emit(commit, event):
   return Ok
 ```
 
-同步 commit 是正确性路径；Hook 和 bus 都是观测扩展。Committable event 的 Hook 只在 commit 成功后看到事件，因此不能观测到“声称已提交但实际失败”的事实。
+同步 commit 是正确性路径；Hook 和 bus 都是观测扩展。Committable event 的 Hook 只在 commit 成功后看到事件，因此不能观测到“声称已提交但实际失败”的事实。Transient identity 只属于当前 emit；Hook 不从 TraceContext 读取上一事件的 `session_item_id`、`tool_use_id` 或 `llm_call_id`。
 
 Hook 调用顺序等于 frozen registry 的注册顺序；一个 Hook 失败不能跳过后续 Hook。诊断输出使用 logger/stderr，不递归 emit 新 TurnEvent。
 
@@ -207,6 +211,8 @@ pub struct TraceContext {
 ```
 
 `TraceContext.run_id` 是 legacy Agent Event 分区字段，不是领域 Run。Turn identity 仍是 `(session_id, turn)`；未来 OTel trace/span 接入另行设计，不在本批把 `TraceContext` 改名为 `EventContext`。
+
+`session_item_id`、`tool_use_id`、`llm_call_id` 是 event-local transient correlation fields。每次 `emit` 开始清理三者，再由当前 TurnEvent 填充；`run_id` 与 `session_id` 是稳定上下文，不清理。
 
 ### 7.3 Handler traits
 
@@ -314,14 +320,15 @@ cli → bus 或 tail runs/*.jsonl
 4. commit error 原样传播，Hook error fail-open；
 5. Hook 不能 Block、Approve、Cancel、Retry 或修改 event；
 6. Hook 顺序稳定，一个失败不跳过后续 Hook；
-7. EventDispatcher / PipelineRegistry 不拥有 SessionStore；
-8. derive 不写回 Session Item Log；
-9. bus 不参与 commit 完成条件；
-10. `TurnEvent` 增加字段时同步 dispatch、derive、commit 与结构测试；
-11. Agent Event / Session Item schema 的持久化变化另行版本化；
-12. tool event 直接包装 ToolCall / ToolResult，不复制领域字段；
-13. file recorder 与 FileWriter 职责保持分离；
-14. legacy `runId` 不引入 Run 执行实体。
+7. 每次 emit 清理 transient correlation fields，Hook 只能看到当前 event 的 identity；
+8. EventDispatcher / PipelineRegistry 不拥有 SessionStore；
+9. derive 不写回 Session Item Log；
+10. bus 不参与 commit 完成条件；
+11. `TurnEvent` 增加字段时同步 dispatch、derive、commit 与结构测试；
+12. Agent Event / Session Item schema 的持久化变化另行版本化；
+13. tool event 直接包装 ToolCall / ToolResult，不复制领域字段；
+14. file recorder 与 FileWriter 职责保持分离；
+15. legacy `runId` 不引入 Run 执行实体。
 
 ---
 
@@ -350,7 +357,8 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 8. AgentEvent、schema、recorder、storage、file writer 在接缝迁移中必须保留；
 9. tool event 直接携带 canonical ToolCall/ToolResult；
 10. 删除执行领域 Run；legacy `runId` / `runs/` 暂不迁移；
-11. OTel trace/span 与 EventContext 命名等 observability 接入时再设计。
+11. OTel trace/span 与 EventContext 命名等 observability 接入时再设计；
+12. TraceContext 的 transient identity 只服务当前 emit，避免跨事件残留关联。
 
 ---
 

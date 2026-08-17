@@ -9,11 +9,11 @@ use super::agent_recorder::{truncate_record, FileAgentEventRecorder, MAX_AGENT_E
 use super::file_writer::FileWriter;
 use crate::event::{
     derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
-    CommitHandler, DeriveObserveHandler, EventDispatcher, HookHandler, HookOutcome, ObserveHandler,
-    PipelineRegistry, TraceContext, TurnEvent,
+    CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, PipelineRegistry,
+    TraceContext, TurnEvent,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
-use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
+use crate::session::{SessionItem, SessionStore};
 use crate::tools::{ToolCall, ToolCancellationReason, ToolContent, ToolResult, ToolResultStatus};
 
 struct MockCommitHandler {
@@ -27,35 +27,25 @@ impl MockCommitHandler {
 }
 
 impl CommitHandler for MockCommitHandler {
-    fn commit(&self, _event: &TurnEvent) -> Result<Option<String>> {
+    fn commit(&mut self, _event: &TurnEvent) -> Result<Option<String>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(Some("item-1".to_string()))
     }
 }
 
-struct BlockingHook;
+struct FailingHook;
 
-impl HookHandler for BlockingHook {
-    fn on_event(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<HookOutcome> {
-        Ok(HookOutcome::Block {
-            reason: "denied".to_string(),
-        })
+impl HookHandler for FailingHook {
+    fn on_event(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<()> {
+        Err(anyhow!("hook failed"))
     }
 }
 
-struct FailingObserveHandler;
-
-impl ObserveHandler for FailingObserveHandler {
-    fn observe(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<()> {
-        Err(anyhow!("observe failed"))
-    }
-}
-
-struct RecordingObserveHandler {
+struct RecordingHook {
     events: Arc<Mutex<Vec<TurnEvent>>>,
 }
 
-impl RecordingObserveHandler {
+impl RecordingHook {
     fn new(events: Arc<Mutex<Vec<TurnEvent>>>) -> Self {
         Self { events }
     }
@@ -75,8 +65,8 @@ impl AgentEventRecorder for RecordingAgentEventRecorder {
     }
 }
 
-impl ObserveHandler for RecordingObserveHandler {
-    fn observe(&self, _ctx: &TraceContext, event: &TurnEvent) -> Result<()> {
+impl HookHandler for RecordingHook {
+    fn on_event(&self, _ctx: &TraceContext, event: &TurnEvent) -> Result<()> {
         self.events
             .lock()
             .map_err(|_| anyhow!("observe lock poisoned"))?
@@ -85,18 +75,10 @@ impl ObserveHandler for RecordingObserveHandler {
     }
 }
 
-fn test_dispatcher(
-    commit_calls: Arc<AtomicUsize>,
-    extra_hooks: Vec<Arc<dyn HookHandler>>,
-    extra_observers: Vec<Arc<dyn ObserveHandler>>,
-) -> EventDispatcher {
-    let mut builder = PipelineRegistry::builder()
-        .commit(Arc::new(MockCommitHandler::new(Arc::clone(&commit_calls))));
+fn test_dispatcher(extra_hooks: Vec<Arc<dyn HookHandler>>) -> EventDispatcher {
+    let mut builder = PipelineRegistry::builder();
     for hook in extra_hooks {
         builder = builder.hook(hook);
-    }
-    for observer in extra_observers {
-        builder = builder.observe(observer);
     }
     let registry = builder.build_frozen().expect("registry");
     EventDispatcher::new(registry, TraceContext::new("run-1", "session-1"))
@@ -107,13 +89,17 @@ fn test_dispatcher(
 #[test]
 fn committable_event_triggers_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
-    let mut dispatcher = test_dispatcher(Arc::clone(&commit_calls), vec![], vec![]);
+    let mut dispatcher = test_dispatcher(vec![]);
+    let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
 
     dispatcher
-        .emit(TurnEvent::UserPromptCommitted {
-            turn: 1,
-            text: "hello".to_string(),
-        })
+        .emit(
+            &mut commit,
+            TurnEvent::UserPromptCommitted {
+                turn: 1,
+                text: "hello".to_string(),
+            },
+        )
         .expect("emit");
 
     assert_eq!(commit_calls.load(Ordering::SeqCst), 1);
@@ -128,55 +114,87 @@ fn committable_event_triggers_commit() {
 #[test]
 fn observational_event_skips_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
-    let mut dispatcher = test_dispatcher(Arc::clone(&commit_calls), vec![], vec![]);
+    let mut dispatcher = test_dispatcher(vec![]);
+    let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
 
     dispatcher
-        .emit(TurnEvent::TurnStarted { turn: 1 })
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 1 })
         .expect("emit");
 
     assert_eq!(commit_calls.load(Ordering::SeqCst), 0);
     assert!(dispatcher.trace().session_item_id.is_none());
 }
 
-// 场景：hook 阻断可提交事件。
-// 预期：emit 成功返回但跳过 commit；不变量：被阻断事件不得写 Session。
+// 场景：一个 committable event 之后紧跟 observational event。
+// 预期：新的 event 不继承旧 session item/tool/llm identity；不变量：transient TraceContext 字段只属于当前 emit。
 #[test]
-fn hook_block_skips_commit() {
+fn transient_trace_identity_is_cleared_per_emit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
-    let mut dispatcher = test_dispatcher(
-        Arc::clone(&commit_calls),
-        vec![Arc::new(BlockingHook)],
-        vec![],
+    let mut dispatcher = test_dispatcher(vec![]);
+    let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
+
+    dispatcher
+        .emit(
+            &mut commit,
+            TurnEvent::ToolCallRecorded {
+                turn: 1,
+                call: ToolCall::new("tool-1", "grep", serde_json::json!({})).expect("tool call"),
+            },
+        )
+        .expect("tool event");
+    assert_eq!(dispatcher.trace().tool_use_id.as_deref(), Some("tool-1"));
+    assert_eq!(
+        dispatcher.trace().session_item_id.as_deref(),
+        Some("item-1")
     );
 
     dispatcher
-        .emit(TurnEvent::UserPromptCommitted {
-            turn: 1,
-            text: "blocked".to_string(),
-        })
-        .expect("emit");
-
-    assert_eq!(commit_calls.load(Ordering::SeqCst), 0);
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 2 })
+        .expect("turn started");
     assert!(dispatcher.trace().session_item_id.is_none());
+    assert!(dispatcher.trace().tool_use_id.is_none());
+    assert!(dispatcher.trace().llm_call_id.is_none());
 }
 
-// 场景：第一个 observer 返回错误，后续 observer 仍可运行。
-// 预期：observe fail-open；不变量：观测错误不阻断 dispatcher。
+// 场景：post-commit hook 返回错误。
+// 预期：commit 仍执行且 emit 成功；不变量：Hook 不能阻断事实提交或改变 dispatch 结果。
 #[test]
-fn observe_fail_open_continues_dispatch() {
+fn hook_failure_does_not_skip_commit() {
+    let commit_calls = Arc::new(AtomicUsize::new(0));
+    let mut dispatcher = test_dispatcher(vec![Arc::new(FailingHook)]);
+    let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
+
+    dispatcher
+        .emit(
+            &mut commit,
+            TurnEvent::UserPromptCommitted {
+                turn: 1,
+                text: "blocked".to_string(),
+            },
+        )
+        .expect("emit");
+
+    assert_eq!(commit_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        dispatcher.trace().session_item_id.as_deref(),
+        Some("item-1")
+    );
+}
+
+// 场景：第一个 Hook 返回错误，后续 Hook 仍可运行。
+// 预期：Hook fail-open；不变量：观测错误不阻断 dispatcher。
+#[test]
+fn hook_fail_open_continues_dispatch() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
     let observed = Arc::new(Mutex::new(Vec::new()));
-    let mut dispatcher = test_dispatcher(
-        Arc::clone(&commit_calls),
-        vec![],
-        vec![
-            Arc::new(FailingObserveHandler),
-            Arc::new(RecordingObserveHandler::new(Arc::clone(&observed))),
-        ],
-    );
+    let mut dispatcher = test_dispatcher(vec![
+        Arc::new(FailingHook),
+        Arc::new(RecordingHook::new(Arc::clone(&observed))),
+    ]);
+    let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
 
     dispatcher
-        .emit(TurnEvent::TurnStarted { turn: 2 })
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 2 })
         .expect("emit");
 
     let events = observed.lock().expect("lock");
@@ -184,27 +202,25 @@ fn observe_fail_open_continues_dispatch() {
     assert!(matches!(events[0], TurnEvent::TurnStarted { turn: 2 }));
 }
 
-// 场景：可提交事件同时配置 commit 和 observer。
-// 预期：observer 在 commit 之后收到事件；不变量：commit 顺序稳定。
+// 场景：可提交事件同时配置 commit 和 post-commit Hook。
+// 预期：Hook 在 commit 之后收到事件；不变量：commit 顺序稳定。
 #[test]
-fn committable_runs_observe_after_commit() {
+fn committable_runs_hook_after_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
     let observed = Arc::new(Mutex::new(Vec::new()));
-    let mut dispatcher = test_dispatcher(
-        Arc::clone(&commit_calls),
-        vec![],
-        vec![Arc::new(RecordingObserveHandler::new(Arc::clone(
-            &observed,
-        )))],
-    );
+    let mut dispatcher = test_dispatcher(vec![Arc::new(RecordingHook::new(Arc::clone(&observed)))]);
+    let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
 
     dispatcher
-        .emit(TurnEvent::AssistantFinalized {
-            turn: 1,
-            blocks: vec![ContentBlock::Text {
-                text: "done".to_string(),
-            }],
-        })
+        .emit(
+            &mut commit,
+            TurnEvent::AssistantFinalized {
+                turn: 1,
+                blocks: vec![ContentBlock::Text {
+                    text: "done".to_string(),
+                }],
+            },
+        )
         .expect("emit");
 
     assert_eq!(commit_calls.load(Ordering::SeqCst), 1);
@@ -511,18 +527,18 @@ fn derive_tool_call_reuses_canonical_call_payload() {
     );
 }
 
-// 场景：observe handler 将一个大 payload 的语义事件交给 recorder。
-// 预期：handler 原样转交 derive 结果，不提前执行文件 JSONL 截断；文件策略只由文件 recorder 负责。
+// 场景：post-commit Agent Event hook 将一个大 payload 的语义事件交给 recorder。
+// 预期：hook 原样转交 derive 结果，不提前执行文件 JSONL 截断；文件策略只由文件 recorder 负责。
 #[test]
-fn derive_observe_handler_forwards_record_without_file_truncation() {
+fn derive_agent_event_hook_forwards_record_without_file_truncation() {
     let records = Arc::new(Mutex::new(Vec::new()));
-    let handler = DeriveObserveHandler::new(RecordingAgentEventRecorder {
+    let handler = DeriveAgentEventHook::new(RecordingAgentEventRecorder {
         records: Arc::clone(&records),
     });
     let text = "x".repeat(70_000);
 
     handler
-        .observe(
+        .on_event(
             &test_ctx(),
             &TurnEvent::UserPromptCommitted {
                 turn: 1,
@@ -688,16 +704,18 @@ fn integration_dispatcher(
     session_id: &str,
     store: SessionStore,
     extra_hooks: Vec<Arc<dyn HookHandler>>,
-) -> EventDispatcher {
+) -> (EventDispatcher, SessionStore) {
     let recorder = FileAgentEventRecorder::new(runs_dir, run_id).expect("recorder");
-    let mut builder = PipelineRegistry::builder()
-        .commit(Arc::new(SessionCommitHandler::new(store)))
-        .observe(Arc::new(DeriveObserveHandler::new(recorder)));
+    let mut builder =
+        PipelineRegistry::builder().hook(Arc::new(DeriveAgentEventHook::new(recorder)));
     for hook in extra_hooks {
         builder = builder.hook(hook);
     }
     let registry = builder.build_frozen().expect("registry");
-    EventDispatcher::new(registry, TraceContext::new(run_id, session_id))
+    (
+        EventDispatcher::new(registry, TraceContext::new(run_id, session_id)),
+        store,
+    )
 }
 
 fn read_agent_event_lines(path: &Path) -> Vec<serde_json::Value> {
@@ -718,13 +736,17 @@ fn integration_user_prompt_commits_session_and_writes_agent_event() {
     let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
     let session_id = store.header().session_id.clone();
 
-    let mut dispatcher = integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
+    let (mut dispatcher, mut store) =
+        integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
 
     dispatcher
-        .emit(TurnEvent::UserPromptCommitted {
-            turn: 0,
-            text: "hello integration".into(),
-        })
+        .emit(
+            &mut store,
+            TurnEvent::UserPromptCommitted {
+                turn: 0,
+                text: "hello integration".into(),
+            },
+        )
         .expect("emit");
 
     let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
@@ -754,15 +776,19 @@ fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
     let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
     let session_id = store.header().session_id.clone();
 
-    let mut dispatcher = integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
+    let (mut dispatcher, mut store) =
+        integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
 
     dispatcher
-        .emit(TurnEvent::AssistantFinalized {
-            turn: 1,
-            blocks: vec![ContentBlock::Text {
-                text: "final answer".into(),
-            }],
-        })
+        .emit(
+            &mut store,
+            TurnEvent::AssistantFinalized {
+                turn: 1,
+                blocks: vec![ContentBlock::Text {
+                    text: "final answer".into(),
+                }],
+            },
+        )
         .expect("emit");
 
     let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
@@ -819,13 +845,17 @@ fn integration_tool_result_preserves_status_and_content_across_both_logs() {
             status,
             ToolContent::Json(serde_json::json!("工具结果")),
         );
-        let mut dispatcher = integration_dispatcher(&runs_dir, &run_id, &session_id, store, vec![]);
+        let (mut dispatcher, mut store) =
+            integration_dispatcher(&runs_dir, &run_id, &session_id, store, vec![]);
 
         dispatcher
-            .emit(TurnEvent::ToolResultRecorded {
-                turn: 1,
-                result: result.clone(),
-            })
+            .emit(
+                &mut store,
+                TurnEvent::ToolResultRecorded {
+                    turn: 1,
+                    result: result.clone(),
+                },
+            )
             .expect("emit tool result");
 
         let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
@@ -857,37 +887,37 @@ fn integration_tool_result_preserves_status_and_content_across_both_logs() {
     }
 }
 
-// 场景：生产 hook 阻断用户输入事件。
-// 预期：Session 与 Agent Event Log 都不写入；不变量：阻断不产生副作用。
+// 场景：生产 post-commit hook 返回错误。
+// 预期：Session 与 Agent Event Log 仍写入；不变量：观测扩展不能阻断事实提交。
 #[test]
-fn integration_hook_block_skips_commit_and_agent_event_write() {
+fn integration_hook_failure_does_not_skip_commit_or_agent_event_write() {
     let root = TempDir::new().expect("tempdir");
     let (sessions_dir, runs_dir) = integration_dirs(&root);
     let run_id = "run-blocked";
     let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
     let session_id = store.header().session_id.clone();
 
-    let mut dispatcher = integration_dispatcher(
+    let (mut dispatcher, mut store) = integration_dispatcher(
         &runs_dir,
         run_id,
         &session_id,
         store,
-        vec![Arc::new(BlockingHook)],
+        vec![Arc::new(FailingHook)],
     );
 
     dispatcher
-        .emit(TurnEvent::UserPromptCommitted {
-            turn: 0,
-            text: "blocked".into(),
-        })
+        .emit(
+            &mut store,
+            TurnEvent::UserPromptCommitted {
+                turn: 0,
+                text: "blocked".into(),
+            },
+        )
         .expect("emit");
 
     let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
-    assert!(loaded.items().is_empty());
+    assert_eq!(loaded.items().len(), 1);
 
     let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
-    assert!(
-        !event_path.exists(),
-        "agent event log should not be created when hook blocks"
-    );
+    assert!(event_path.exists(), "agent event log should be written");
 }

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 
-use crate::event::TurnEvent;
+use crate::event::{CommitHandler, TurnEvent};
 
 use super::store::SessionStore;
 use super::types::{CompactionKind, SessionItem, SessionItemDraft};
@@ -80,5 +80,12 @@ impl From<crate::event::TurnCompactionKind> for CompactionKind {
             crate::event::TurnCompactionKind::TailWindow => CompactionKind::TailWindow,
             crate::event::TurnCompactionKind::Summary => CompactionKind::Summary,
         }
+    }
+}
+
+impl CommitHandler for SessionStore {
+    fn commit(&mut self, event: &TurnEvent) -> Result<Option<String>> {
+        let item = commit_from_event(self, event)?;
+        Ok(Some(item.base().id.clone()))
     }
 }

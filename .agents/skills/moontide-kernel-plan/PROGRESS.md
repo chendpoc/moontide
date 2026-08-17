@@ -11,16 +11,18 @@
 | 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
 | 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
 | 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 编排 | 1–6 全部 | ☑ | ☐ | ☐ | R1 README/DESIGN 已确认；待 batch-implement 拆 TASKS |
+| 7 | `loop` | 编排 | 1–6 全部 | ☑ | ◐ | ☐ | R1 TASK-loop-01–03 已实现，等待 Review；R2/R3 待做 |
 | 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
 
 ## 当前目标
 
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
-- 当前推进：模块 7 `loop` 设计文档 Review；通过后按 `batch-implement` 生成 TASKS，先做 event/session ownership 接缝，再实现 AgentLoop 状态机。
+- 当前推进：模块 7 `loop` Review 批 R1（TASK-loop-01–03）已实现，等待用户 review；通过并 commit 后再进入 R2 Tool round。
 
 ## 变更记录
+
+- 2026-08-17：Loop R1 Review 批实现完成：新增 `agent-core::loop` scaffold、ToolRuntime/TurnPolicy、AgentLoop terminal path；EventDispatcher 改为 borrowed mutable commit + post-commit fail-open Hook；SessionStore 直接实现 CommitHandler 并提供 `next_turn`；workspace 139 tests、fmt/clippy 通过，等待 Review。R1 尚未 commit。
 
 - 2026-08-17：`loop` R1 架构对齐完成并落 README/DESIGN：执行层级固定 Session → Turn → Step → Tool round；AgentLoop 独占 SessionStore；AgentLoopInit 一次性转移 provider/tools/events；Turn 直接返回 ModelResponse；默认 LLM retry 3 次且同 Step；CancellationToken 负责 Turn 取消；Tool round 先记录全部 calls、R1 顺序执行并全量配对；Hook 收敛为 post-commit fail-open callback。同步 event/session/tools/llm 与系统文档，尚未实现。
 

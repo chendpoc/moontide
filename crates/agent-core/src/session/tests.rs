@@ -821,3 +821,34 @@ fn commit_from_event_rejects_non_committable() {
     assert!(err.to_string().contains("not committable"));
     assert!(err.to_string().contains("TurnStarted"));
 }
+
+// 场景：空 Session、已有 Turn 的 Session，以及最后一条 turn 为 u64::MAX 的 Session 查询 next_turn。
+// 预期：分别得到 0、最后 turn 加一和 overflow 错误；不变量：查询只读，不追加 SessionItem。
+#[test]
+fn next_turn_is_read_only_and_checked() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut empty = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    assert_eq!(empty.next_turn().expect("empty next turn"), 0);
+    assert!(empty.items().is_empty());
+
+    empty
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 4,
+            text: "hello".into(),
+        })
+        .expect("commit user");
+    assert_eq!(empty.next_turn().expect("next turn"), 5);
+    assert_eq!(empty.items().len(), 1);
+
+    let overflow_root = TempDir::new().expect("overflow tempdir");
+    let mut overflow = SessionStore::create(sessions_dir(&overflow_root), PathBuf::from("/tmp"))
+        .expect("create overflow session");
+    overflow
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: u64::MAX,
+            text: "last".into(),
+        })
+        .expect("commit max turn");
+    assert!(overflow.next_turn().is_err());
+}

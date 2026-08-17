@@ -1,10 +1,10 @@
 use anyhow::Result;
 
-use super::registry::{HookOutcome, PipelineRegistry};
+use super::registry::{CommitHandler, PipelineRegistry};
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
 
-/// Dispatches `TurnEvent` through hook → commit → observe.
+/// Dispatches `TurnEvent` through commit → post-commit hooks.
 pub struct EventDispatcher {
     registry: PipelineRegistry,
     trace: TraceContext,
@@ -19,23 +19,21 @@ impl EventDispatcher {
         &self.trace
     }
 
-    pub fn emit(&mut self, event: TurnEvent) -> Result<()> {
+    pub fn emit(&mut self, commit: &mut dyn CommitHandler, event: TurnEvent) -> Result<()> {
+        self.trace.session_item_id = None;
+        self.trace.tool_use_id = None;
+        self.trace.llm_call_id = None;
         apply_event_to_trace(&mut self.trace, &event);
 
         if event.is_committable() {
-            for hook in self.registry.hooks() {
-                match hook.on_event(&self.trace, &event)? {
-                    HookOutcome::Continue => {}
-                    HookOutcome::Block { .. } => return Ok(()),
-                }
-            }
-
-            let item_id = self.registry.commit().commit(&event)?;
+            let item_id = commit.commit(&event)?;
             self.trace.session_item_id = item_id;
         }
 
-        for observer in self.registry.observers() {
-            let _ = observer.observe(&self.trace, &event);
+        for hook in self.registry.hooks() {
+            if let Err(error) = hook.on_event(&self.trace, &event) {
+                eprintln!("event hook failed: {error:#}");
+            }
         }
 
         Ok(())

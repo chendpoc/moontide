@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 use super::derive::{derive_agent_event, AgentEventRecord};
 use super::file_writer::FileWriter;
-use super::registry::ObserveHandler;
+use super::registry::HookHandler;
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
 
@@ -18,12 +18,12 @@ pub trait AgentEventRecorder: Send + Sync {
     fn append(&self, record: AgentEventRecord) -> anyhow::Result<()>;
 }
 
-/// Observe adapter that derives Agent Event records and appends them.
-pub struct DeriveObserveHandler<W> {
+/// Post-commit hook that derives Agent Event records and appends them.
+pub struct DeriveAgentEventHook<W> {
     recorder: W,
 }
 
-impl<W> DeriveObserveHandler<W>
+impl<W> DeriveAgentEventHook<W>
 where
     W: AgentEventRecorder,
 {
@@ -32,11 +32,11 @@ where
     }
 }
 
-impl<W> ObserveHandler for DeriveObserveHandler<W>
+impl<W> HookHandler for DeriveAgentEventHook<W>
 where
     W: AgentEventRecorder,
 {
-    fn observe(&self, ctx: &TraceContext, event: &TurnEvent) -> anyhow::Result<()> {
+    fn on_event(&self, ctx: &TraceContext, event: &TurnEvent) -> anyhow::Result<()> {
         if let Some(record) = derive_agent_event(ctx, event)? {
             self.recorder.append(record)?;
         }

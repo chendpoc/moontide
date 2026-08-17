@@ -1,7 +1,7 @@
 # loop — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** R1 技术设计已确认，尚未实现。
+> **状态：** R1（TASK-loop-01–03）已实现，等待 Review；R2/R3 尚未实现。
 > **关联：** [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../tools/DESIGN.md`](../tools/DESIGN.md) · [`../llm/DESIGN.md`](../llm/DESIGN.md)
 
 ---
@@ -121,7 +121,7 @@ const LLM_RETRY_BACKOFFS: [std::time::Duration; 3] = [
 ];
 ```
 
-R1 只保证默认 retry 值对应上述三段 backoff。若调用者把 `max_llm_retries` 设为大于 3，实现继续使用最后一段 2 s；R1 不为此增加可配置 delay 对象。`turn()` 必须再次拒绝 `max_steps == 0`，因为字段公开供组合根配置。
+R1 只允许 `max_llm_retries` 在 `0..=3` 范围内；默认值为 3。超过 3 在 `TurnPolicy::new` 或 `turn()` 入口拒绝，不为更大的 retry 次数扩展 backoff 配置。`turn()` 必须再次拒绝 `max_steps == 0`，因为字段公开供组合根配置。
 
 ### 3.3 Permission / approval / `ToolRuntime`
 
@@ -458,6 +458,7 @@ Observational: hook*（全部 fail-open）→ optional bus
 - 原 `HookOutcome::Block` 删除；Hook 不能改变 loop 决策；
 - Agent Event derive/recorder 由 `DeriveAgentEventHook` 保留；
 - hook 错误被诊断并继续调用后续 hook，`emit` 只传播 commit 正确性错误。
+- 每次 emit 开始清理 `session_item_id`、`tool_use_id`、`llm_call_id`，再从当前 event 填充 transient correlation fields。
 
 这部分是 loop 实现的前置 event 接缝批，不得把 AgentEvent schema、storage、file writer 一并删除或改名。
 
