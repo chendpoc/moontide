@@ -72,7 +72,7 @@ agent create/load/fork SessionStore
 | 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
 | 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
 | 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 1–6 全部 | ☑ | ◐ | ☐ | R1/R2 已提交；R3 retry/cancellation 待做 |
+| 7 | `loop` | 1–6 全部 | ☑ | ◐ | ☐ | R1/R2/R3 已提交；TASK-loop-06 收尾待做 |
 | 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 后置 |
 
 ## 5. 每个模块的推进模板

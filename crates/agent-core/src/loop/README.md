@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::loop` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** R1/R2 已提交；R3 retry/cancellation 尚未实现。
+> **状态：** R1/R2/R3 已提交；TASK-loop-06 conformance 收尾尚未完成。
 > **关联：** [`../session/README.md`](../session/README.md) · [`../event/README.md`](../event/README.md) · [`../tools/README.md`](../tools/README.md) · [`../llm/README.md`](../llm/README.md)
 
 ---

@@ -12,7 +12,7 @@
 |----|------|------|-----------|------|
 | **R1** | 01–03 | Loop scaffold、ownership 接缝、terminal Turn | ~1250 行 | ☑ |
 | **R2** | 04 | ToolRuntime、permission/approval、顺序 Tool round | ~1050 行 | ☑ |
-| **R3** | 05–06 | LLM retry、CancellationToken、cleanup 与 conformance | ~950 行 | ☐ |
+| **R3** | 05–06 | LLM retry、CancellationToken、cleanup 与 conformance | ~950 行 | ◐ |
 
 R1 的 event/session 接缝与 loop terminal path 是一个完整的“单次无工具 Turn”心智模型；R2 只处理 Tool round；R3 处理错误恢复与取消。每批实现后运行 `just check`，停等用户 review；未经用户说 `commit` 不提交或进入下一批。
 
@@ -63,7 +63,7 @@ R1 的 event/session 接缝与 loop terminal path 是一个完整的“单次无
 - **范围：** 根 `Cargo.toml` workspace dependency、`crates/agent-core/Cargo.toml`、`Cargo.lock`、`crates/agent-core/src/loop/retry.rs`、`cancellation.rs`、`turn.rs`、`tests.rs`
 - **预估 diff：** ~550 行
 - **完成标准：** `tokio-util = 0.7` 使用 `rt` feature；`max_llm_retries` 只接受 `0..=3`；retry 次数/Step/ModelRequest/llm_call_id、backoff cancellation、cleanup pairing、late cancel final commit wins 的行为测试通过。drop future 非正式取消作为文档契约，不伪造为可单测的 cleanup 保证。
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-loop-06: Loop 跨模块 conformance 与收尾
 
