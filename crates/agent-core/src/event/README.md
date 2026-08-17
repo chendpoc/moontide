@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** R1–R3 与 tools typed payload 已实现；为 Loop R1 确认的 post-commit Hook / borrowed commit 接缝待实现。
+> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed commit 接缝已实现；R4 bus 后置。
 > **关联：** [`../loop/README.md`](../loop/README.md) · [`../session/README.md`](../session/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---

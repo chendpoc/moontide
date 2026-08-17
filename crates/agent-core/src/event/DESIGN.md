@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R3 与 tools typed payload 已实现；Loop R1 所需的 post-commit Hook / borrowed mutable commit 重构已确认、待实现。
+> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；R4 bus 后置。
 > **关联：** [`../loop/DESIGN.md`](../loop/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -370,7 +370,7 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 | **R2** | derive + channel mapping | 已实现 |
 | **R3** | session commit + Agent Event recorder/file adapter | 已实现 |
 | **R3-F2** | ToolCall/ToolResult typed payload | 已实现 |
-| **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | Loop 前置，待实现 |
+| **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | 已实现于 Loop R1 |
 | **R4-B** | optional bus + sidecar bridge | 后置 |
 
 R4-A 应作为 loop `batch-implement` 的第一批接缝任务。它不授权删除任何已存在的观测能力。

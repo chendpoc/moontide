@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。
 > **对外集成：** [`README.md`](README.md)。
-> **状态：** RB1–RB2 已实现并完成 Review；`ToolCall` / `ToolResult` 与 typed 接缝已完成。Loop R1 的 ToolRuntime、permission/approval、顺序 round 与 cancellation 契约已确认、待实现。
+> **状态：** RB1–RB2 已实现并完成 Review；`ToolCall` / `ToolResult` 与 typed 接缝已完成；Loop R1 ToolRuntime、permission/approval、顺序 round 与 cancellation 契约已实现。
 > **关联：** [`../llm/DESIGN.md`](../llm/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../../../../docs/notes/runtime/agent-kernel-architecture.md`](../../../../docs/notes/runtime/agent-kernel-architecture.md)
 
 ---

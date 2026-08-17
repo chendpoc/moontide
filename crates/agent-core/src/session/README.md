@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::session` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** R1–R3 与 v2 tool payload 已实现；Loop R1 所需 `next_turn` / direct mutable commit seam 待实现。
+> **状态：** R1–R3、v2 tool payload 与 Loop R1 `next_turn` / direct mutable commit seam 已实现。
 > **关联：** [`../loop/README.md`](../loop/README.md) · [`../event/README.md`](../event/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---

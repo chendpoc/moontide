@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::tools` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** RB1–RB2 已实现并完成 Review；单次调用与 typed 接缝已完成。Loop R1 已确认 ToolRuntime、permission/approval、顺序 round 与 cancellation 语义，尚未实现。
+> **状态：** RB1–RB2 已实现并完成 Review；单次调用与 typed 接缝已完成；Loop R1 ToolRuntime、permission/approval、顺序 round 与 cancellation 语义已实现。
 > **关联：** [`../llm/README.md`](../llm/README.md) · [`../session/README.md`](../session/README.md) · [`../event/README.md`](../event/README.md)
 
 ---

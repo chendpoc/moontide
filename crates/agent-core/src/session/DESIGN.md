@@ -1,7 +1,7 @@
 # session — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R3 与 Session v2 tool payload 已实现；Loop R1 的 next-turn / mutable commit 接缝已确认、待实现。
+> **状态：** R1–R3、Session v2 tool payload 与 Loop R1 next-turn / mutable commit 接缝已实现。
 > **关联：** [`../loop/DESIGN.md`](../loop/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -368,7 +368,7 @@ Fork 返回新的 SessionStore 所有权；调用方决定把 source 或 child �
 | R2 | fork + compaction/checkpoint item | 已实现 |
 | R3 | commit_from_event + old SessionCommitHandler | 已实现 |
 | R3-F1 | v2 ToolCall/ToolResult + v1 migration | 已实现 |
-| Loop R1-B | next_turn + direct CommitHandler impl + remove Mutex wrapper | 待实现 |
+| Loop R1-B | next_turn + direct CommitHandler impl + remove Mutex wrapper | 已实现 |
 
 ---
 
