@@ -1,13 +1,16 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
+    path::Path,
     pin::Pin,
     sync::Arc,
 };
 
 use anyhow::{bail, Result};
 
-use crate::tools::{ToolCall, ToolRegistry};
+use crate::tools::{
+    ToolCall, ToolCancellationReason, ToolContent, ToolRegistry, ToolResult, ToolResultStatus,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolPermission {
@@ -37,6 +40,14 @@ pub struct ToolRuntime {
     pub(crate) permissions: ToolPermissionMap,
     #[allow(dead_code, reason = "R2 will consume approval decisions")]
     pub(crate) approval: Option<Arc<dyn ToolApprovalHandler>>,
+}
+
+pub(crate) enum ToolCallOutcome {
+    Result(ToolResult),
+    Abort {
+        result: ToolResult,
+        error: Option<anyhow::Error>,
+    },
 }
 
 impl ToolRuntime {
@@ -69,5 +80,90 @@ impl ToolRuntime {
             permissions,
             approval,
         })
+    }
+
+    pub(crate) async fn execute_call(
+        &self,
+        call: &ToolCall,
+        working_dir: &Path,
+    ) -> ToolCallOutcome {
+        let Some(tool) = self.registry.resolve(call.name()) else {
+            return ToolCallOutcome::Result(ToolResult::with_status(
+                call,
+                ToolResultStatus::UnknownTool,
+                ToolContent::Text(format!("unknown tool: {}", call.name())),
+            ));
+        };
+
+        if let Err(message) = self.registry.validate_input(tool, call) {
+            return ToolCallOutcome::Result(ToolResult::with_status(
+                call,
+                ToolResultStatus::InvalidArguments,
+                ToolContent::Text(message),
+            ));
+        }
+
+        let Some(permission) = self.permissions.get(call.name()) else {
+            return ToolCallOutcome::Result(ToolResult::with_status(
+                call,
+                ToolResultStatus::Denied,
+                ToolContent::Text("tool permission is not configured".into()),
+            ));
+        };
+
+        if matches!(permission, ToolPermission::Ask) {
+            let Some(approval) = self.approval.as_ref() else {
+                return ToolCallOutcome::Result(ToolResult::with_status(
+                    call,
+                    ToolResultStatus::Denied,
+                    ToolContent::Text("tool approval is unavailable".into()),
+                ));
+            };
+            match approval.request(call).await {
+                Ok(ToolApproval::Approved) => {}
+                Ok(ToolApproval::Denied { reason }) => {
+                    return ToolCallOutcome::Result(ToolResult::with_status(
+                        call,
+                        ToolResultStatus::Denied,
+                        ToolContent::Text(reason),
+                    ));
+                }
+                Ok(ToolApproval::Cancelled) => {
+                    return ToolCallOutcome::Abort {
+                        result: ToolResult::with_status(
+                            call,
+                            ToolResultStatus::Cancelled {
+                                reason: ToolCancellationReason::User,
+                            },
+                            ToolContent::Text("tool approval cancelled".into()),
+                        ),
+                        error: None,
+                    };
+                }
+                Err(error) => {
+                    return ToolCallOutcome::Abort {
+                        result: ToolResult::with_status(
+                            call,
+                            ToolResultStatus::Cancelled {
+                                reason: ToolCancellationReason::Disposed,
+                            },
+                            ToolContent::Text("tool approval handler failed".into()),
+                        ),
+                        error: Some(error),
+                    };
+                }
+            }
+        }
+
+        match tool.execute(call, working_dir).await {
+            Ok(result) => ToolCallOutcome::Result(result),
+            Err(error) => ToolCallOutcome::Abort {
+                result: ToolResult::outcome_unknown(
+                    call,
+                    ToolContent::Text("tool execution outcome is unknown".into()),
+                ),
+                error: Some(error),
+            },
+        }
     }
 }

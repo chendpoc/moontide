@@ -11,7 +11,7 @@
 | 批 | TASK | 主题 | 预估 diff | 状态 |
 |----|------|------|-----------|------|
 | **R1** | 01–03 | Loop scaffold、ownership 接缝、terminal Turn | ~1250 行 | ☑ |
-| **R2** | 04 | ToolRuntime、permission/approval、顺序 Tool round | ~650 行 | ☐ |
+| **R2** | 04 | ToolRuntime、permission/approval、顺序 Tool round | ~1050 行 | ☐ |
 | **R3** | 05–06 | LLM retry、CancellationToken、cleanup 与 conformance | ~950 行 | ☐ |
 
 R1 的 event/session 接缝与 loop terminal path 是一个完整的“单次无工具 Turn”心智模型；R2 只处理 Tool round；R3 处理错误恢复与取消。每批实现后运行 `just check`，停等用户 review；未经用户说 `commit` 不提交或进入下一批。
