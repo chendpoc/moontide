@@ -1,7 +1,9 @@
 //! Turn orchestration for the agent kernel.
 
 mod agent_loop;
+mod cancellation;
 mod response;
+mod retry;
 mod tool_runtime;
 mod turn;
 

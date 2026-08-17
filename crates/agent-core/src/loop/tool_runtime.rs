@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
+use tokio_util::sync::CancellationToken;
 
 use crate::tools::{
     ToolCall, ToolCancellationReason, ToolContent, ToolRegistry, ToolResult, ToolResultStatus,
@@ -86,7 +87,20 @@ impl ToolRuntime {
         &self,
         call: &ToolCall,
         working_dir: &Path,
+        cancellation: &CancellationToken,
     ) -> ToolCallOutcome {
+        if cancellation.is_cancelled() {
+            return ToolCallOutcome::Abort {
+                result: ToolResult::with_status(
+                    call,
+                    ToolResultStatus::Cancelled {
+                        reason: ToolCancellationReason::User,
+                    },
+                    ToolContent::Text("tool call cancelled before execution".into()),
+                ),
+                error: None,
+            };
+        }
         let Some(tool) = self.registry.resolve(call.name()) else {
             return ToolCallOutcome::Result(ToolResult::with_status(
                 call,
@@ -119,7 +133,24 @@ impl ToolRuntime {
                     ToolContent::Text("tool approval is unavailable".into()),
                 ));
             };
-            match approval.request(call).await {
+            let approval_result = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => None,
+                result = approval.request(call) => Some(result),
+            };
+            let Some(approval_result) = approval_result else {
+                return ToolCallOutcome::Abort {
+                    result: ToolResult::with_status(
+                        call,
+                        ToolResultStatus::Cancelled {
+                            reason: ToolCancellationReason::User,
+                        },
+                        ToolContent::Text("tool approval cancelled".into()),
+                    ),
+                    error: None,
+                };
+            };
+            match approval_result {
                 Ok(ToolApproval::Approved) => {}
                 Ok(ToolApproval::Denied { reason }) => {
                     return ToolCallOutcome::Result(ToolResult::with_status(
@@ -155,9 +186,33 @@ impl ToolRuntime {
             }
         }
 
-        match tool.execute(call, working_dir).await {
-            Ok(result) => ToolCallOutcome::Result(result),
-            Err(error) => ToolCallOutcome::Abort {
+        if cancellation.is_cancelled() {
+            return ToolCallOutcome::Abort {
+                result: ToolResult::with_status(
+                    call,
+                    ToolResultStatus::Cancelled {
+                        reason: ToolCancellationReason::User,
+                    },
+                    ToolContent::Text("tool call cancelled before execution".into()),
+                ),
+                error: None,
+            };
+        }
+        let execution = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => None,
+            result = tool.execute(call, working_dir) => Some(result),
+        };
+        match execution {
+            None => ToolCallOutcome::Abort {
+                result: ToolResult::outcome_unknown(
+                    call,
+                    ToolContent::Text("tool execution outcome is unknown".into()),
+                ),
+                error: None,
+            },
+            Some(Ok(result)) => ToolCallOutcome::Result(result),
+            Some(Err(error)) => ToolCallOutcome::Abort {
                 result: ToolResult::outcome_unknown(
                     call,
                     ToolContent::Text("tool execution outcome is unknown".into()),

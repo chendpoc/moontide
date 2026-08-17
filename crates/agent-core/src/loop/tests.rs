@@ -3,13 +3,14 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use futures::stream;
 use tempfile::tempdir;
 
 use crate::{
-    event::{EventDispatcher, PipelineRegistry, TraceContext},
+    event::{EventDispatcher, HookHandler, PipelineRegistry, TraceContext, TurnEvent},
     llm::{
         protocol::{ContentBlock, LlmError, ModelResponse, ModelStreamEvent, StopReason},
         LLMProvider,
@@ -37,6 +38,17 @@ type Script = Vec<StreamResult>;
 
 struct QueuedProvider {
     scripts: Arc<Mutex<VecDeque<Script>>>,
+}
+
+struct PendingProvider;
+
+impl LLMProvider for PendingProvider {
+    fn stream(
+        &self,
+        _request: crate::llm::protocol::ModelRequest,
+    ) -> Pin<Box<dyn futures::Stream<Item = Result<ModelStreamEvent, LlmError>> + Send + '_>> {
+        Box::pin(futures::stream::pending())
+    }
 }
 
 impl LLMProvider for QueuedProvider {
@@ -148,6 +160,35 @@ impl ToolExecutor for UnknownOutcomeExecutor {
     }
 }
 
+struct PendingExecutor;
+
+impl ToolExecutor for PendingExecutor {
+    fn execute<'a>(
+        &'a self,
+        _call: &'a ToolCall,
+        _working_dir: &'a std::path::Path,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<ToolResult>> + Send + 'a>> {
+        Box::pin(async { std::future::pending().await })
+    }
+}
+
+struct CancelOnEventHook {
+    token: tokio_util::sync::CancellationToken,
+    cancel_on_tool_call: bool,
+    cancel_on_assistant: bool,
+}
+
+impl HookHandler for CancelOnEventHook {
+    fn on_event(&self, _ctx: &TraceContext, event: &TurnEvent) -> anyhow::Result<()> {
+        if (self.cancel_on_tool_call && matches!(event, TurnEvent::ToolCallRecorded { .. }))
+            || (self.cancel_on_assistant && matches!(event, TurnEvent::AssistantFinalized { .. }))
+        {
+            self.token.cancel();
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 struct FixedApproval {
     outcome: ToolApproval,
@@ -171,6 +212,17 @@ impl super::ToolApprovalHandler for FailingApproval {
         _call: &'a ToolCall,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<super::ToolApproval>> + Send + 'a>> {
         Box::pin(async { anyhow::bail!("approval unavailable") })
+    }
+}
+
+struct PendingApproval;
+
+impl super::ToolApprovalHandler for PendingApproval {
+    fn request<'a>(
+        &'a self,
+        _call: &'a ToolCall,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<super::ToolApproval>> + Send + 'a>> {
+        Box::pin(async { std::future::pending().await })
     }
 }
 
@@ -216,6 +268,17 @@ fn build_loop(
     permissions: ToolPermissionMap,
     approval: Option<Arc<dyn super::ToolApprovalHandler>>,
 ) -> (AgentLoop, String) {
+    build_loop_with_hooks(dir, provider, tools, permissions, approval, Vec::new())
+}
+
+fn build_loop_with_hooks(
+    dir: &tempfile::TempDir,
+    provider: Arc<dyn LLMProvider>,
+    tools: Vec<Tool>,
+    permissions: ToolPermissionMap,
+    approval: Option<Arc<dyn super::ToolApprovalHandler>>,
+    hooks: Vec<Arc<dyn HookHandler>>,
+) -> (AgentLoop, String) {
     let session =
         SessionStore::create(dir.path(), std::env::current_dir().expect("cwd")).expect("session");
     let session_id = session.header().session_id.clone();
@@ -225,10 +288,12 @@ fn build_loop(
         approval,
     )
     .expect("tool runtime");
+    let mut builder = PipelineRegistry::builder();
+    for hook in hooks {
+        builder = builder.hook(hook);
+    }
     let events = EventDispatcher::new(
-        PipelineRegistry::builder()
-            .build_frozen()
-            .expect("pipeline"),
+        builder.build_frozen().expect("pipeline"),
         TraceContext::new("legacy-run", &session_id),
     );
     (
@@ -921,6 +986,294 @@ async fn executor_error_records_unknown_and_parent_cleanup() {
             reason: crate::tools::ToolCancellationReason::Parent
         }
     )));
+}
+
+// 场景：第一个 LLM attempt 返回 Recoverable，第二个 attempt 返回 terminal response。
+// 预期：同一 Step 内重试并成功；不变量：只消费两个 attempt，不产生额外 SessionItem。
+#[tokio::test]
+async fn recoverable_llm_failure_retries_within_same_step() {
+    let dir = tempdir().expect("tempdir");
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![
+        vec![Err(LlmError::RequestFailed {
+            kind: crate::llm::protocol::RequestFailureKind::Recoverable,
+            message: "temporary".into(),
+        })],
+        terminal_script("retried"),
+    ])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider {
+        scripts: Arc::clone(&scripts),
+    });
+    let (mut agent_loop, session_id) =
+        build_loop(&dir, provider, Vec::new(), ToolPermissionMap::new(), None);
+
+    agent_loop
+        .turn(terminal_input(), tokio_util::sync::CancellationToken::new())
+        .await
+        .expect("recoverable failure should retry");
+    assert!(scripts.lock().expect("scripts lock").is_empty());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert_eq!(stored.items().len(), 2);
+}
+
+// 场景：LLM attempt 返回 Unrecoverable，队列中仍有后续 script。
+// 预期：不重试并传播错误；不变量：不可恢复错误不消耗后续 attempt。
+#[tokio::test]
+async fn unrecoverable_llm_failure_does_not_retry() {
+    let dir = tempdir().expect("tempdir");
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![
+        vec![Err(LlmError::RequestFailed {
+            kind: crate::llm::protocol::RequestFailureKind::Unrecoverable,
+            message: "permanent".into(),
+        })],
+        terminal_script("must not run"),
+    ])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider {
+        scripts: Arc::clone(&scripts),
+    });
+    let (mut agent_loop, _session_id) =
+        build_loop(&dir, provider, Vec::new(), ToolPermissionMap::new(), None);
+
+    assert!(agent_loop
+        .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
+        .await
+        .is_err());
+    assert_eq!(scripts.lock().expect("scripts lock").len(), 1);
+}
+
+// 场景：LLM stream 持续等待，调用方在 attempt 内取消 token。
+// 预期：turn 返回取消错误且 UserMessage 保留；不变量：未完成的 assistant response 不写入 Session。
+#[tokio::test]
+async fn cancellation_interrupts_llm_attempt() {
+    let dir = tempdir().expect("tempdir");
+    let provider: Arc<dyn LLMProvider> = Arc::new(PendingProvider);
+    let (mut agent_loop, session_id) =
+        build_loop(&dir, provider, Vec::new(), ToolPermissionMap::new(), None);
+    let token = tokio_util::sync::CancellationToken::new();
+    let turn = agent_loop.turn(terminal_input(), token.clone());
+    tokio::pin!(turn);
+    tokio::select! {
+        result = &mut turn => panic!("pending LLM unexpectedly completed: {result:?}"),
+        _ = async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            token.cancel();
+        } => {}
+    }
+    assert!(turn.await.is_err());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert_eq!(stored.items().len(), 1);
+}
+
+// 场景：Recoverable attempt 进入固定 backoff，调用方在 backoff 内取消 token。
+// 预期：不消费后续 attempt 且返回取消错误；不变量：backoff 是 cancellation-aware。
+#[tokio::test]
+async fn cancellation_interrupts_retry_backoff() {
+    let dir = tempdir().expect("tempdir");
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![
+        vec![Err(LlmError::RequestFailed {
+            kind: crate::llm::protocol::RequestFailureKind::Recoverable,
+            message: "temporary".into(),
+        })],
+        terminal_script("must not run"),
+    ])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider {
+        scripts: Arc::clone(&scripts),
+    });
+    let (mut agent_loop, _session_id) =
+        build_loop(&dir, provider, Vec::new(), ToolPermissionMap::new(), None);
+    let token = tokio_util::sync::CancellationToken::new();
+    let turn = agent_loop.turn(terminal_input(), token.clone());
+    tokio::pin!(turn);
+    tokio::select! {
+        result = &mut turn => panic!("retry unexpectedly completed: {result:?}"),
+        _ = async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            token.cancel();
+        } => {}
+    }
+    assert!(turn.await.is_err());
+    assert_eq!(scripts.lock().expect("scripts lock").len(), 1);
+}
+
+// 场景：ToolCallRecorded 的 post-commit Hook 触发 token 取消，executor 尚未开始。
+// 预期：当前 call 为 Cancelled(User)，未开始 sibling 为 Parent；不变量：执行前取消不报告未知副作用。
+#[tokio::test]
+async fn cancellation_before_tool_execution_uses_user_status() {
+    let dir = tempdir().expect("tempdir");
+    let executed = Arc::new(Mutex::new(Vec::new()));
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![tool_use_script(&[(
+        "only",
+        serde_json::json!({}),
+    )])])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider { scripts });
+    let token = tokio_util::sync::CancellationToken::new();
+    let mut permissions = ToolPermissionMap::new();
+    permissions.insert("only".into(), ToolPermission::Allow);
+    let (mut agent_loop, session_id) = build_loop_with_hooks(
+        &dir,
+        provider,
+        vec![tool_with_executor(
+            "only",
+            serde_json::json!({"type": "object"}),
+            Arc::clone(&executed),
+            false,
+        )],
+        permissions,
+        None,
+        vec![Arc::new(CancelOnEventHook {
+            token: token.clone(),
+            cancel_on_tool_call: true,
+            cancel_on_assistant: false,
+        })],
+    );
+
+    assert!(agent_loop.turn(terminal_input(), token).await.is_err());
+    assert!(executed.lock().expect("executed lock").is_empty());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert!(stored.items().iter().any(|item| matches!(
+        item,
+        crate::session::SessionItem::ToolResult {
+            result,
+            ..
+        } if result.status() == &ToolResultStatus::Cancelled {
+            reason: crate::tools::ToolCancellationReason::User
+        }
+    )));
+}
+
+// 场景：Ask approval future 持续等待，调用方在 approval 等待期间取消 token。
+// 预期：当前 call 为 Cancelled(User)，Turn 返回取消错误；不变量：approval 未完成前不启动 executor。
+#[tokio::test]
+async fn cancellation_interrupts_approval_wait() {
+    let dir = tempdir().expect("tempdir");
+    let executed = Arc::new(Mutex::new(Vec::new()));
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![tool_use_script(&[(
+        "ask",
+        serde_json::json!({}),
+    )])])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider { scripts });
+    let token = tokio_util::sync::CancellationToken::new();
+    let mut permissions = ToolPermissionMap::new();
+    permissions.insert("ask".into(), ToolPermission::Ask);
+    let (mut agent_loop, session_id) = build_loop(
+        &dir,
+        provider,
+        vec![tool_with_executor(
+            "ask",
+            serde_json::json!({"type": "object"}),
+            Arc::clone(&executed),
+            false,
+        )],
+        permissions,
+        Some(Arc::new(PendingApproval)),
+    );
+    let turn = agent_loop.turn(terminal_input(), token.clone());
+    tokio::pin!(turn);
+    tokio::select! {
+        result = &mut turn => panic!("pending approval unexpectedly completed: {result:?}"),
+        _ = async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            token.cancel();
+        } => {}
+    }
+    assert!(turn.await.is_err());
+    assert!(executed.lock().expect("executed lock").is_empty());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert!(stored.items().iter().any(|item| matches!(
+        item,
+        crate::session::SessionItem::ToolResult {
+            result,
+            ..
+        } if result.status() == &ToolResultStatus::Cancelled {
+            reason: crate::tools::ToolCancellationReason::User
+        }
+    )));
+}
+
+// 场景：executor future 已开始等待，调用方在执行中取消 token。
+// 预期：当前 call 为 OutcomeUnknown；不变量：开始执行后不能伪造确定失败。
+#[tokio::test]
+async fn cancellation_during_tool_execution_uses_unknown_status() {
+    let dir = tempdir().expect("tempdir");
+    let scripts = Arc::new(Mutex::new(VecDeque::from(vec![tool_use_script(&[(
+        "pending",
+        serde_json::json!({}),
+    )])])));
+    let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider { scripts });
+    let token = tokio_util::sync::CancellationToken::new();
+    let mut permissions = ToolPermissionMap::new();
+    permissions.insert("pending".into(), ToolPermission::Allow);
+    let session =
+        SessionStore::create(dir.path(), std::env::current_dir().expect("cwd")).expect("session");
+    let session_id = session.header().session_id.clone();
+    let spec = ToolSpec::new("pending", "pending", serde_json::json!({"type": "object"}))
+        .expect("tool spec");
+    let runtime = ToolRuntime::new(
+        ToolRegistry::new(vec![Tool::new(spec, Arc::new(PendingExecutor))]).expect("tool registry"),
+        permissions,
+        None,
+    )
+    .expect("tool runtime");
+    let events = EventDispatcher::new(
+        PipelineRegistry::builder()
+            .build_frozen()
+            .expect("pipeline"),
+        TraceContext::new("legacy-run", &session_id),
+    );
+    let mut agent_loop = AgentLoop::new(AgentLoopInit {
+        session,
+        provider,
+        tools: runtime,
+        events,
+    });
+    let turn = agent_loop.turn(terminal_input(), token.clone());
+    tokio::pin!(turn);
+    tokio::select! {
+        result = &mut turn => panic!("pending tool unexpectedly completed: {result:?}"),
+        _ = async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            token.cancel();
+        } => {}
+    }
+    assert!(turn.await.is_err());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert!(stored.items().iter().any(|item| matches!(
+        item,
+        crate::session::SessionItem::ToolResult {
+            result,
+            ..
+        } if result.status() == &ToolResultStatus::OutcomeUnknown
+    )));
+}
+
+// 场景：post-commit AssistantFinalized Hook 在最终事实提交后取消 token。
+// 预期：terminal response 仍成功返回；不变量：final assistant commit 赢过晚到的 cancellation。
+#[tokio::test]
+async fn final_assistant_commit_wins_late_cancellation() {
+    let dir = tempdir().expect("tempdir");
+    let token = tokio_util::sync::CancellationToken::new();
+    let provider: Arc<dyn LLMProvider> = Arc::new(MockProvider {
+        events: terminal_script("final"),
+    });
+    let (mut agent_loop, session_id) = build_loop_with_hooks(
+        &dir,
+        provider,
+        Vec::new(),
+        ToolPermissionMap::new(),
+        None,
+        vec![Arc::new(CancelOnEventHook {
+            token: token.clone(),
+            cancel_on_tool_call: false,
+            cancel_on_assistant: true,
+        })],
+    );
+
+    agent_loop
+        .turn(terminal_input(), token.clone())
+        .await
+        .expect("late cancellation must not override final commit");
+    assert!(token.is_cancelled());
+    let stored = SessionStore::load(&dir, &session_id).expect("load session");
+    assert_eq!(stored.items().len(), 2);
 }
 
 // 场景：干净 Session 执行一个 EndTurn；provider 只返回文本和 Finished。

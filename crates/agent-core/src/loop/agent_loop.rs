@@ -7,13 +7,18 @@ use uuid::Uuid;
 use crate::{
     context,
     event::{EventDispatcher, TurnEvent},
-    llm::{protocol::ModelResponse, run_model_call_with_updates, LLMProvider},
+    llm::{
+        protocol::{LlmError, ModelResponse, RequestFailureKind},
+        run_model_call_with_updates, LLMProvider,
+    },
     model_input::compile,
     session::SessionStore,
 };
 
 use super::{
+    cancellation::wait_for_retry,
     response::{classify_response, ResponseAction},
+    retry::retry_delay,
     tool_runtime::{ToolCallOutcome, ToolRuntime},
     turn::TurnInput,
 };
@@ -76,42 +81,65 @@ impl AgentLoop {
                 messages,
                 &self.tools.registry,
             );
-            let llm_call_id = Uuid::new_v4().to_string();
-
-            self.events.emit(
-                &mut self.session,
-                TurnEvent::LlmCallStarted {
-                    turn,
-                    step,
-                    llm_call_id: llm_call_id.clone(),
-                },
-            )?;
-
-            let provider = Arc::clone(&self.provider);
-            let response = run_model_call_with_updates(provider.as_ref(), request, |snapshot| {
-                let _ = self.events.emit(
+            let mut response = None;
+            for attempt in 0..=input.policy.max_llm_retries {
+                ensure_not_cancelled(&cancellation)?;
+                let llm_call_id = Uuid::new_v4().to_string();
+                self.events.emit(
                     &mut self.session,
-                    TurnEvent::MessageUpdate {
+                    TurnEvent::LlmCallStarted {
                         turn,
                         step,
                         llm_call_id: llm_call_id.clone(),
-                        snapshot,
                     },
-                );
-            })
-            .await
-            .map_err(|error| anyhow::anyhow!(error))?;
+                )?;
 
-            self.events.emit(
-                &mut self.session,
-                TurnEvent::LlmCallEnded {
-                    turn,
-                    step,
-                    llm_call_id,
-                    stop_reason: response.stop_reason.clone(),
-                    usage: response.usage,
-                },
-            )?;
+                let provider = Arc::clone(&self.provider);
+                let attempt_result = tokio::select! {
+                    biased;
+                    result = run_model_call_with_updates(provider.as_ref(), request.clone(), |snapshot| {
+                        let _ = self.events.emit(
+                            &mut self.session,
+                            TurnEvent::MessageUpdate {
+                                turn,
+                                step,
+                                llm_call_id: llm_call_id.clone(),
+                                snapshot,
+                            },
+                        );
+                    }) => result,
+                    _ = cancellation.cancelled() => {
+                        return Err(anyhow::anyhow!("turn cancelled during llm call"));
+                    }
+                };
+
+                match attempt_result {
+                    Ok(result) => {
+                        self.events.emit(
+                            &mut self.session,
+                            TurnEvent::LlmCallEnded {
+                                turn,
+                                step,
+                                llm_call_id,
+                                stop_reason: result.stop_reason.clone(),
+                                usage: result.usage,
+                            },
+                        )?;
+                        response = Some(result);
+                        break;
+                    }
+                    Err(LlmError::RequestFailed {
+                        kind: RequestFailureKind::Recoverable,
+                        ..
+                    }) if attempt < input.policy.max_llm_retries => {
+                        wait_for_retry(&cancellation, retry_delay(attempt)).await?;
+                    }
+                    Err(error) => return Err(anyhow::Error::new(error)),
+                }
+            }
+
+            let response =
+                response.ok_or_else(|| anyhow::anyhow!("LLM step produced no response"))?;
 
             match classify_response(&response)? {
                 ResponseAction::Terminal { assistant_blocks } => {
@@ -149,7 +177,9 @@ impl AgentLoop {
                         )?;
                     }
 
-                    if let Some(error) = self.process_tool_round(turn, &calls, &working_dir).await?
+                    if let Some(error) = self
+                        .process_tool_round(turn, &calls, &working_dir, &cancellation)
+                        .await?
                     {
                         return Err(error);
                     }
@@ -170,9 +200,13 @@ impl AgentLoop {
         turn: u64,
         calls: &[crate::tools::ToolCall],
         working_dir: &std::path::Path,
+        cancellation: &CancellationToken,
     ) -> Result<Option<anyhow::Error>> {
         for (index, call) in calls.iter().enumerate() {
-            let outcome = self.tools.execute_call(call, working_dir).await;
+            let outcome = self
+                .tools
+                .execute_call(call, working_dir, cancellation)
+                .await;
             let (result, error) = match outcome {
                 ToolCallOutcome::Result(result) => (result, None),
                 ToolCallOutcome::Abort { result, error } => (
