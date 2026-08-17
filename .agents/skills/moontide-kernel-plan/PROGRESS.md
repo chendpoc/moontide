@@ -19,9 +19,11 @@
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent` R1/R2 已实现并通过测试；进入 `cli` R1（crate scaffold、配置解析与 one-shot）。
+- 当前推进：`agent` R1/R2 已实现并通过测试；`cli` R1 已实现，等待 Review；下一批为 R2 REPL/approval。
 
 ## 变更记录
+
+- 2026-08-17：`cli` R1 完成：加入 `moontide` binary、clap/config/env 解析、create/resume dispatch、one-shot stdout/stderr 边界与 fail-closed Ask handler；workspace 197 tests、fmt/clippy 通过，等待 Review。
 
 - 2026-08-17：`agent` R1/R2 完成：`0d08da8` 落组合根 bootstrap，`379f0e3` 落 Harness + Project SystemPrompt 按 Turn 解析；workspace 190 tests、fmt/clippy 通过。下一批进入 `cli` R1。
 

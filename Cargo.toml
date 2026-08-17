@@ -4,6 +4,7 @@ members = [
     "crates/agent-core",
     "crates/agent-tools",
     "crates/agent",
+    "crates/cli",
 ]
 
 [workspace.package]
@@ -35,3 +36,4 @@ owo-colors = "4.3"
 agent-core = { path = "crates/agent-core" }
 agent-tools = { path = "crates/agent-tools" }
 agent = { path = "crates/agent" }
+cli = { path = "crates/cli" }

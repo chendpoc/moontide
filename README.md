@@ -9,7 +9,7 @@ Rust 内核架构以 [`crates/docs/agent-core.md`](crates/docs/agent-core.md) �
 
 正在重建内核 crate [`crates/agent-core`](crates/agent-core/README.md)，按依赖顺序逐模块推进。
 
-**当前阶段：`agent + cli` 初步可用版** — `agent` 组合根 R1/R2 已完成，scheduler 暂缓；下一步实现 CLI R1 one-shot 垂直切片。`llm`、`session`、`tools`、`event`、`model_input`、`context` 与 `agent-tools` 当前分期已完成；初版 draft crate 已删除，不 import、不复用。
+**当前阶段：`agent + cli` 初步可用版** — `agent` 组合根与 CLI R1 one-shot 已完成，等待 Review；scheduler 暂缓，下一批实现 CLI R2 REPL/approval。`llm`、`session`、`tools`、`event`、`model_input`、`context` 与 `agent-tools` 当前分期已完成；初版 draft crate 已删除，不 import、不复用。
 
 ## 目标架构（Rust）
 
