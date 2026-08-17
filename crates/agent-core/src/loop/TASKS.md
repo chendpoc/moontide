@@ -10,7 +10,7 @@
 
 | 批 | TASK | 主题 | 预估 diff | 状态 |
 |----|------|------|-----------|------|
-| **R1** | 01–03 | Loop scaffold、ownership 接缝、terminal Turn | ~1250 行 | ☐ |
+| **R1** | 01–03 | Loop scaffold、ownership 接缝、terminal Turn | ~1250 行 | ☑ |
 | **R2** | 04 | ToolRuntime、permission/approval、顺序 Tool round | ~650 行 | ☐ |
 | **R3** | 05–06 | LLM retry、CancellationToken、cleanup 与 conformance | ~950 行 | ☐ |
 
@@ -27,7 +27,7 @@ R1 的 event/session 接缝与 loop terminal path 是一个完整的“单次无
 - **范围：** `crates/agent-core/src/loop/`、`crates/agent-core/src/lib.rs`、根 `Cargo.toml` workspace dependency、`crates/agent-core/Cargo.toml`、`Cargo.lock`
 - **预估 diff：** ~350 行
 - **完成标准：** `cargo test -p agent-core`；模块可被同 crate 引用，公开签名与 README/DESIGN 一致；ToolRuntime key-set 完全匹配与 Ask-without-handler 拒绝测试通过。当前 workspace 尚无 `agent` crate，组合根接入不作为本批验收。
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-loop-02: Event/Session ownership 接缝
 
@@ -36,7 +36,7 @@ R1 的 event/session 接缝与 loop terminal path 是一个完整的“单次无
 - **范围：** `crates/agent-core/src/event/pipeline.rs`、`registry.rs`、`agent_recorder.rs`、`mod.rs`、`tests.rs`；`crates/agent-core/src/session/commit.rs`、`commit_handler.rs`、`store.rs`、`mod.rs`、`tests.rs`
 - **预估 diff：** ~400 行
 - **完成标准：** `cargo test -p agent-core`；committable 先 commit 后 Hook，observational 不 commit；Hook 错误不改变 dispatch；每次 emit 清理 transient TraceContext identity；next_turn empty/resume/overflow 通过；AgentEvent schema/recorder/storage/file writer 行为不变。
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-loop-03: Terminal Turn 状态机
 
@@ -45,7 +45,7 @@ R1 的 event/session 接缝与 loop terminal path 是一个完整的“单次无
 - **范围：** `crates/agent-core/src/loop/agent_loop.rs`、`turn.rs`、`response.rs`、`mod.rs`、`tests.rs`
 - **预估 diff：** ~500 行
 - **完成标准：** terminal EndTurn/MaxTokens/Other 矩阵、preflight 不写入、UserMessage commit 后失败不回滚、AgentLoop 可运行下一 Turn 的测试通过。
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-loop-04: ToolRuntime 与顺序 Tool round
 

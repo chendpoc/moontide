@@ -11,16 +11,18 @@
 | 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
 | 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
 | 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 编排 | 1–6 全部 | ☑ | ◐ | ☐ | R1 TASK-loop-01–03 已实现，等待 Review；R2/R3 待做 |
+| 7 | `loop` | 编排 | 1–6 全部 | ☑ | ◐ | ☐ | R1 TASK-loop-01–03 已提交；R2/R3 待做 |
 | 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
 
 ## 当前目标
 
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
-- 当前推进：模块 7 `loop` Review 批 R1（TASK-loop-01–03）已实现，等待用户 review；通过并 commit 后再进入 R2 Tool round。
+- 当前推进：模块 7 `loop` R1（TASK-loop-01–03）已提交；下一步进入 R2 Tool round，仍按 batch-implement 先 review 后实现。
 
 ## 变更记录
+
+- 2026-08-17：Loop R1（TASK-loop-01–03）提交为 `b9530a0`；workspace 140 tests + 18 tests、fmt/clippy 通过。R2 ToolRuntime/Tool round 与 R3 retry/cancellation 仍未实现。
 
 - 2026-08-17：Loop R1 Review 批实现完成：新增 `agent-core::loop` scaffold、ToolRuntime/TurnPolicy、AgentLoop terminal path；EventDispatcher 改为 borrowed mutable commit + post-commit fail-open Hook；SessionStore 直接实现 CommitHandler 并提供 `next_turn`；workspace 139 tests、fmt/clippy 通过，等待 Review。R1 尚未 commit。
 
