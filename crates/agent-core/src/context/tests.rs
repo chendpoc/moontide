@@ -66,6 +66,7 @@ fn materialize_maps_plain_messages() {
             }],
         ),
     ];
+    let before = items.clone();
 
     let messages = materialize(&items).expect("plain messages should materialize");
 
@@ -84,9 +85,80 @@ fn materialize_maps_plain_messages() {
             },
         ]
     );
+    assert_eq!(items, before);
 }
 
-// 场景：一个并行 round 包含两个连续 ToolCall，随后按 call 顺序返回两个 ToolResult。
+// 场景：Session Item Log 包含连续的同 role 普通消息。
+// 预期：每个 item 保持独立且顺序不变；不变量/副作用：canonical Message 层允许连续同 role，context 不替 adapter 合并。
+#[test]
+fn materialize_preserves_consecutive_same_role_messages() {
+    let items = vec![
+        user(0, "first"),
+        user(1, "second"),
+        assistant(2, vec![ContentBlock::Text { text: "a".into() }]),
+        assistant(3, vec![ContentBlock::Text { text: "b".into() }]),
+    ];
+
+    let messages = materialize(&items).expect("same-role messages should remain canonical");
+
+    assert_eq!(
+        messages,
+        vec![
+            Message {
+                role: Role::User,
+                content: MessageContent::Text("first".into()),
+            },
+            Message {
+                role: Role::User,
+                content: MessageContent::Text("second".into()),
+            },
+            Message {
+                role: Role::Assistant,
+                content: MessageContent::Blocks(vec![ContentBlock::Text { text: "a".into() }]),
+            },
+            Message {
+                role: Role::Assistant,
+                content: MessageContent::Blocks(vec![ContentBlock::Text { text: "b".into() }]),
+            },
+        ]
+    );
+}
+
+// 场景：checkpoint 位于普通 user/assistant item 之间。
+// 预期：只产生两条普通消息且顺序不变；不变量/副作用：checkpoint metadata 不进入模型输入。
+#[test]
+fn materialize_keeps_checkpoint_transparent_between_plain_messages() {
+    let items = vec![
+        user(0, "before"),
+        checkpoint(1),
+        assistant(
+            2,
+            vec![ContentBlock::Text {
+                text: "after".into(),
+            }],
+        ),
+    ];
+
+    let messages = materialize(&items).expect("checkpoint should be transparent");
+
+    assert_eq!(
+        messages,
+        vec![
+            Message {
+                role: Role::User,
+                content: MessageContent::Text("before".into()),
+            },
+            Message {
+                role: Role::Assistant,
+                content: MessageContent::Blocks(vec![ContentBlock::Text {
+                    text: "after".into(),
+                }]),
+            },
+        ]
+    );
+}
+
+// 场景：一个 multi-call round 包含两个连续 ToolCall，随后按 call 顺序返回两个 ToolResult。
 // 预期：materialize 生成一个 assistant tool-use message 和一个 user tool-result message；不变量：每个 call 恰好闭合一次。
 #[test]
 fn materialize_aggregates_call_and_result_rounds() {
@@ -265,6 +337,9 @@ fn materialize_rejects_new_call_before_results_close() {
     assert!(error
         .to_string()
         .contains("previous tool result round closed"));
+    assert!(error.to_string().contains("call-c"));
+    assert!(error.to_string().contains("write_file"));
+    assert!(error.to_string().contains("call-b/grep"));
 }
 
 // 场景：ToolCall round 结束时仍有未返回的 call。
@@ -279,7 +354,7 @@ fn materialize_rejects_dangling_call() {
 }
 
 // 场景：同一 round 有两个 call，但 EOF 前只收到其中一个 result。
-// 预期：返回 dangling call 错误并指出缺失 identity；不变量：round barrier 必须等待全部 call 闭合。
+// 预期：返回 dangling call 错误并指出缺失 identity；不变量：round closure 必须等待全部 call 闭合。
 #[test]
 fn materialize_rejects_partially_closed_result_round() {
     let items = vec![
@@ -328,6 +403,7 @@ fn materialize_rejects_plain_message_inside_round() {
 
     let error = materialize(&items).expect_err("interleaved user message must fail");
     assert!(error.to_string().contains("user message appeared"));
+    assert!(error.to_string().contains("call-a/read_file"));
 }
 
 // 场景：R1 遇到 Compaction session item。

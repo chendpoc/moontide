@@ -208,9 +208,9 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 
 Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断、sidecar 和指标。它不是恢复事实源，也不能反向修改 Session Item Log。
 
-### 5.3 Tool-call round barrier
+### 5.3 Tool-call round closure
 
-一次模型响应中的连续 `ToolCall` 是一个 round。`loop` 可以对 round 内的 call 做 parallel fan-out，但下一次 model step 必须等待每个 call 产生 `ToolResult`；每个 call 都有独立 deadline，单个挂起调用不能永久阻塞整轮。join、timeout 以及 timeout 状态映射由 `loop` / `scheduler` 负责，`context` 只验证 Session Item Log 中的 call/result round 是否闭合。
+一次模型响应中的连续 `ToolCall` 是一个 round。下一次 model step 前，Session Item Log 中每个 call 都必须存在配对的 `ToolResult`；`context` 只验证这一闭合条件。并发、deadline、join、timeout 以及状态映射属于尚未对齐的 `loop` / `scheduler` 执行政策，本文不提前规定。
 
 术语固定为：
 

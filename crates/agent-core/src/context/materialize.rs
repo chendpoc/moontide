@@ -71,11 +71,14 @@ enum Phase {
 }
 
 fn ensure_idle(phase: &Phase, item_kind: &str) -> Result<()> {
-    if matches!(phase, Phase::Idle) {
-        return Ok(());
-    }
-
-    anyhow::bail!("{item_kind} appeared before the current tool round closed")
+    let pending = match phase {
+        Phase::Calls { pending, .. } | Phase::Results { pending, .. } => pending,
+        Phase::Idle => return Ok(()),
+    };
+    anyhow::bail!(
+        "{item_kind} appeared before the current tool round closed; pending calls: {}",
+        pending_call_summary(pending)
+    )
 }
 
 fn append_call(phase: Phase, call: &ToolCall) -> Result<Phase> {
@@ -96,9 +99,12 @@ fn append_call(phase: Phase, call: &ToolCall) -> Result<Phase> {
             blocks.push(tool_use_block(call));
             Ok(Phase::Calls { blocks, pending })
         }
-        Phase::Results { .. } => {
-            anyhow::bail!("tool call appeared before the previous tool result round closed")
-        }
+        Phase::Results { pending, .. } => anyhow::bail!(
+            "tool call appeared before the previous tool result round closed: id={}, name={}; pending calls: {}",
+            call.tool_use_id(),
+            call.name(),
+            pending_call_summary(&pending)
+        ),
     }
 }
 
@@ -190,13 +196,18 @@ fn validate_pending_result(pending: &BTreeMap<String, String>, result: &ToolResu
 }
 
 fn dangling_call_error(pending: &BTreeMap<String, String>) -> anyhow::Error {
-    let pending = pending
+    anyhow::anyhow!(
+        "dangling tool call round at end of Session Item Log; pending calls: {}",
+        pending_call_summary(pending)
+    )
+}
+
+fn pending_call_summary(pending: &BTreeMap<String, String>) -> String {
+    pending
         .iter()
         .map(|(tool_use_id, name)| format!("{tool_use_id}/{name}"))
         .collect::<Vec<_>>()
-        .join(", ");
-
-    anyhow::anyhow!("dangling tool call round at end of Session Item Log; pending calls: {pending}")
+        .join(", ")
 }
 
 fn tool_use_block(call: &ToolCall) -> ContentBlock {

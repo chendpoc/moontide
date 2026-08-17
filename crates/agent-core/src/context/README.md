@@ -2,7 +2,7 @@
 
 > **对内使用说明** — `loop` 在 crate 内调用 `context::materialize` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1 `materialize` 实现与测试完成；等待本批 Review。
+> **状态：** R1 `materialize` 已实现、测试并通过 Review。
 
 ## 这是什么
 
@@ -89,9 +89,9 @@ User([ToolResult(call-a), ToolResult(call-b)])
 
 这些能力若要加入，必须先回到 context 架构对齐，不通过修改 R1 helper 偷渡。
 
-## Tool-call round barrier
+## Tool-call round closure
 
-一个连续 `ToolCall` 段是一次 tool-call round，可以由 `loop` 并行 fan-out；下一次 model step 之前，round 内每个 call 都必须产生 `ToolResult`，包括正常完成或 deadline 结束的结果。context 只校验 result group 是否闭合 pending call，不负责并发、join 或 timeout；这些属于 `loop` / `scheduler`。
+一个连续 `ToolCall` 段是一次 tool-call round。下一次 model step 之前，round 内每个 call 都必须存在配对的 `ToolResult`。context 只校验 result group 是否闭合 pending call；并发、deadline、join、timeout 等执行政策留到 `loop` / `scheduler` 架构对齐。
 
 R1 保留 provider-neutral message 的语义边界，因此连续同 role message 合法；是否需要合并为 provider wire 所需的交替角色，由 `llm` adapter 处理。
 

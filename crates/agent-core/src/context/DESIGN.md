@@ -1,6 +1,6 @@
 # context — 内部设计
 
-> **状态：** R1 设计已确认并实现；本文与实现保持一致，等待本批 Review。
+> **状态：** R1 设计已确认，实现与测试已通过 Review。
 > **公开用法：** [`README.md`](README.md)
 
 ## 1. 职责与边界
@@ -25,6 +25,7 @@ R1 只兑现以下能力：
 context/
 ├── README.md
 ├── DESIGN.md
+├── TASKS.md
 ├── mod.rs
 ├── materialize.rs
 └── tests.rs
@@ -33,6 +34,7 @@ context/
 - `mod.rs`：导出 crate 内部的 `materialize` 入口；
 - `materialize.rs`：顺序遍历、分组、协议映射和配对校验；
 - `tests.rs`：只验证 R1 语义和不变量。
+- `TASKS.md`：记录 Review 批范围与完成状态。
 
 不为 manifest、预算、compaction policy 或通用 message builder 预留文件。
 
@@ -63,7 +65,7 @@ pub(crate) fn materialize(
 
 1. `UserMessage`：若不存在未完成 tool call，产生一个 `Role::User` 文本消息；若有未完成 call，返回顺序错误。
 2. `AssistantMessage`：若不存在未完成 tool call，产生一个 `Role::Assistant` 并复制原始 blocks；若有未完成 call，返回顺序错误。
-3. 连续 `ToolCall`：在 `idle` 或 `collecting calls` phase 中合并为同一个 `Role::Assistant` 消息，每个 item 生成一个 `ContentBlock::ToolUse` 并登记 pending identity；处于 `collecting results` phase 时出现新的 `ToolCall`，返回顺序错误。这样同一 parallel round 内可以有多个 call，但不会开启第二个未闭合 round。
+3. 连续 `ToolCall`：在 `idle` 或 `collecting calls` phase 中合并为同一个 `Role::Assistant` 消息，每个 item 生成一个 `ContentBlock::ToolUse` 并登记 pending identity；处于 `collecting results` phase 时出现新的 `ToolCall`，返回顺序错误。这样同一 multi-call round 内可以有多个 call，但不会开启第二个未闭合 round。
 4. 连续 `ToolResult`：从 `collecting calls` 切换到 `collecting results`，之后合并为同一个 `Role::User` 消息；每个 result 必须消费一个此前 pending 的 identity。同一 round 内可以按实际完成顺序到达，但一个 result 段必须耗尽上一段 call 的全部 pending entries，否则返回错误；pending 清空后回到 `idle`，下一段 ToolCall 才能开启新 round。
 5. `CheckpointCreated`：忽略其 metadata，不生成 message，也不刷新当前 call/result 聚合缓冲；它对模型消息分组透明。
 6. `Compaction`：R1 立即返回错误，不猜测 excluded ids、summary 或 token 字段的模型语义。
@@ -130,7 +132,7 @@ context ──X──► session store write APIs
 context ──X──► provider adapter / HTTP / IPC
 ```
 
-`loop` 是上层调用者；它负责调用顺序、权限、tool 执行、parallel tool-call round 的 fan-out/join 和 per-call deadline，并把 materialize 结果交给 `model_input::compile`。`model_input` 不反向 import context。
+`loop` 是上层调用者；它负责调用顺序、权限和 tool 执行，并把 materialize 结果交给 `model_input::compile`。context 只要求下一次 model step 前当前 round 的 call/result 已全部配对；并发、deadline、join、timeout 等执行政策留到 `loop` / `scheduler` 架构对齐。`model_input` 不反向 import context。
 
 ## 6. 不变量
 

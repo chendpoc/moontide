@@ -1,7 +1,7 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；`llm` / `session` / `tools` / `event` 完成；`model_input` R1 实现与测试完成；`context` R1 实现与测试完成，等待 Review
+> **状态：** 顶层设计已定；`llm` / `session` / `tools` / `event` 完成；`model_input` 与 `context` R1 已完成
 > **关联：** [`crates/docs/agent-core.md`](../docs/agent-core.md)（Rust 系统设计，本文是模块进度落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
@@ -70,7 +70,7 @@ session.load()
 | 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2；loop 接缝归后续 loop；验收 / offload 归 scheduler |
 | 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
 | 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
-| 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成；compaction 后置；等待本批 Review |
+| 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成并通过 Review；compaction 后置 |
 | 7 | `loop` | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
 | 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 后置 |
 
@@ -92,8 +92,8 @@ session.load()
 - 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3 + typed call/result 接缝）
 - 模块 3 `tools`：设计 ☑ · 实现 ☑ · 测试 ☑（RB1–RB2 + `agent-tools` R1；loop 集成归后续模块）
 - 模块 5 `model_input`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 已 commit/push
-- 模块 6 `context`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 `materialize` 已完成，等待本批 Review
-- 当前推进：`context` R1 实现批 Review 中；通过并 commit 后进入模块 7 `loop` 架构对齐，不提前扩展 compaction 内部结构
+- 模块 6 `context`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 `materialize` 已完成并通过 Review
+- 当前推进：进入模块 7 `loop` 架构对齐；不提前扩展 compaction 内部结构或落 loop 实现
 
 ### 文档与集成入口
 

@@ -15,7 +15,7 @@
 - **范围：** `crates/agent-core/src/context/mod.rs`、`crates/agent-core/src/context/materialize.rs`
 - **预估 diff：** ~220 行
 - **完成标准：** 通过普通消息、连续 call/result、checkpoint 与 JSON tool content 的行为测试
-- **状态：** ☐（实现完成，待 Review/commit）
+- **状态：** ☑
 
 ### CONTEXT-02: 配对校验与边界测试
 
@@ -24,4 +24,4 @@
 - **范围：** `crates/agent-core/src/context/tests.rs`
 - **预估 diff：** ~380 行
 - **完成标准：** `cargo test -p agent-core` 通过，且测试覆盖 DESIGN.md §4–§7 的 R1 边界
-- **状态：** ☐（实现完成，待 Review/commit）
+- **状态：** ☑

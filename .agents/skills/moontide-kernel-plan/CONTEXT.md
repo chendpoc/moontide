@@ -36,7 +36,7 @@
 
 > context R1 契约（2026-08-17）：`pub(crate) fn materialize(items: &[SessionItem]) -> anyhow::Result<Vec<Message>>` 是 Session Item Log 到 model-visible messages 的唯一出口。`UserMessage` / `AssistantMessage` 直接映射；连续 `ToolCall` 聚合为一个 assistant tool-use message；连续 `ToolResult` 聚合为一个 user tool-result message；`CheckpointCreated` 只作 metadata 忽略且不打断聚合；`Compaction` 在 R1 显式返回错误。materialize 只读，不写 session、不执行 compaction/prune/retrieval、不引入 manifest、预算对象或 token counter trait；tool call/result 必须按 `tool_use_id`（及对应 name）成对，否则返回错误。一个 call 段未闭合前不得开启下一 call 段。`ToolResultStatus` 保留在 session/loop 控制语义中，不改写为 provider message 字段。
 
-> tool-call round barrier（2026-08-17）：一个连续 `ToolCall` 段是一次 round，可由 `loop` 并行 fan-out；下一次 model step 前，round 内每个 call 都必须产生 `ToolResult`，包括正常完成或 deadline 结束的结果。每个 call 独立受 deadline 限制，避免单个挂起调用阻塞整轮；并发、join、timeout 及 timeout 状态映射属于 `loop` / `scheduler`，不进入 context。
+> tool-call round closure（2026-08-17）：一个连续 `ToolCall` 段是一次 round；下一次 model step 前，round 内每个 call 都必须存在配对的 `ToolResult`。context 只验证 Session Item Log 中的 round 是否闭合，不预设并发、deadline、join、timeout 或状态映射；这些执行政策留到 `loop` / `scheduler` 架构对齐。
 
 > Message transform ownership（2026-08-17）：`Message` 是 MoonTide provider-neutral 的 canonical model-input record，不是 provider wire payload，也不是持久化 SessionItem。`context` 只负责 `SessionItem → Message`；`llm::adapter` 负责完整 `ModelRequest → provider wire request`，其中包含 Message、system、tools 与 request config 的转换。R1 不在 `Message` 上公开通用 `Transform<Target>` trait；如某 adapter 需要方法语法，只能在 adapter 内使用私有 extension trait。
 
