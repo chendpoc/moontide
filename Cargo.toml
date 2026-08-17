@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/agent-core",
     "crates/agent-tools",
+    "crates/agent",
 ]
 
 [workspace.package]
@@ -33,3 +34,4 @@ owo-colors = "4.3"
 
 agent-core = { path = "crates/agent-core" }
 agent-tools = { path = "crates/agent-tools" }
+agent = { path = "crates/agent" }
