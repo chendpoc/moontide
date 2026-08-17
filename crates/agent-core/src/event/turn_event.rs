@@ -8,22 +8,15 @@ use crate::{
 /// Compaction mode carried on `CompactionApplied` (maps to session `CompactionKind`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RunCompactionKind {
+pub enum TurnCompactionKind {
     Prune,
     TailWindow,
     Summary,
 }
 
-/// Run-level semantic event emitted by `loop`.
+/// Turn-level semantic event emitted by `loop`.
 #[derive(Debug, Clone, PartialEq)]
-pub enum RunEvent {
-    RunStarted {
-        run_id: String,
-        session_id: String,
-    },
-    RunEnded {
-        run_id: String,
-    },
+pub enum TurnEvent {
     TurnStarted {
         turn: u64,
     },
@@ -70,7 +63,7 @@ pub enum RunEvent {
     // R2+
     CompactionApplied {
         turn: u64,
-        compaction_kind: RunCompactionKind,
+        compaction_kind: TurnCompactionKind,
         compaction_save_id: Option<String>,
         excluded_item_ids: Vec<String>,
         before_tokens: Option<u64>,
@@ -87,16 +80,16 @@ pub enum RunEvent {
     },
 }
 
-impl RunEvent {
+impl TurnEvent {
     /// Whether this event triggers the commit phase of the dispatch pipeline.
     pub fn is_committable(&self) -> bool {
         matches!(
             self,
-            RunEvent::UserPromptCommitted { .. }
-                | RunEvent::AssistantFinalized { .. }
-                | RunEvent::ToolCallRecorded { .. }
-                | RunEvent::ToolResultRecorded { .. }
-                | RunEvent::CompactionApplied { .. }
+            TurnEvent::UserPromptCommitted { .. }
+                | TurnEvent::AssistantFinalized { .. }
+                | TurnEvent::ToolCallRecorded { .. }
+                | TurnEvent::ToolResultRecorded { .. }
+                | TurnEvent::CompactionApplied { .. }
         )
     }
 }

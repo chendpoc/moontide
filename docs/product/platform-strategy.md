@@ -1,7 +1,7 @@
 
 > **文档性质：** product（方向与发布策略，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名与保留产品名见 [`vision.md`](vision.md)  
-> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context/context-analysis.md)；Hook 工程落地见 [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md) §11+；插件加载与 MCP 集成见 [`plugin-host.md`](../notes/runtime/plugin-host.md)
+> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context/context-analysis.md)；历史 Hook 候选见 [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md) §11+；插件加载与 MCP 集成见 [`plugin-host.md`](../notes/runtime/plugin-host.md)
 
 ---
 
@@ -175,7 +175,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 
 **TS 仓库角色：** R0 之前与并行期 — 参考实现、测试金标准、sidecar 宿主；release 二进制以 Rust 为准。
 
-**Hook 内核：** 见 [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md)（HookDispatcher + phase · sidecar-first）。
+**Hook 内核候选：** 见归档 [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md)；当前 Rust 以 event README/DESIGN 为准。
 
 ---
 
@@ -189,9 +189,9 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | [`context-analysis.md`](../notes/context/context-analysis.md) | 竞品 context 深度对比 |
 | [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) | Desktop IPC、20MB 分发、sidecar 监管 |
 | [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md) | Go daemon / sidecar 参考 |
-| [`agent-run-hooks.md`](../notes/runtime/agent-run-hooks.md) | Hook 生命周期与 loop 工程落地 |
+| [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md) | 历史 Hook 候选 |
 | [`plugin-host.md`](../notes/runtime/plugin-host.md) | Plugin host、MCP attach、tool registry |
-| [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md) | 当前 Rust Run 级观测边界 |
+| [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md) | 当前 Rust Turn 级事件与 legacy Agent Event 边界 |
 
 ---
 

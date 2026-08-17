@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::llm` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R6 已完成；48 tests。
+> **状态：** R1–R6 已完成；48 tests。Loop R1 已确认 retry/cancellation 的上层接缝，LLMProvider API 不变。
 > **系统边界：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
@@ -48,7 +48,7 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
-| **`loop`** | `protocol` 类型、`run_model_call*` | `match ModelStreamEvent`、自写 fold、`adapter` |
+| **`loop`** | `protocol` 类型、`run_model_call*`；在外层处理同 Step retry 与 CancellationToken | `match ModelStreamEvent`、自写 fold、在 provider 内硬编码 retry policy |
 | **`session`** | `protocol` 类型（`ContentBlock` 等） | `LLMProvider`、`stream` |
 | **`context`** | `Message` | `ModelRequest` 构造、HTTP、adapter |
 | **`model_input`** | `ModelRequest` / `Message` / `ToolSchema` | HTTP、adapter、请求 preflight |
@@ -124,11 +124,13 @@ let response = run_model_call(provider.as_ref(), request).await?;
 // response.stop_reason → EndTurn | ToolUse | …
 ```
 
+Loop 对该入口的 R1 约束：一个 Step 只 `compile` 一次；仅 `RequestFailureKind::Recoverable` 重试，默认初次后再试 3 次；同一 Step/ModelRequest、每次 attempt 使用新的 `llm_call_id`。retry/backoff 不进入 LLMProvider。
+
 ### loop + 流式 UI + event
 
 ```rust
 run_model_call_with_updates(provider.as_ref(), request, |snapshot| {
-    dispatcher.emit(RunEvent::MessageUpdate { snapshot, .. })?;
+    dispatcher.emit(TurnEvent::MessageUpdate { snapshot, .. })?;
 }).await?;
 // 结束后 loop emit LlmCallEnded、AssistantFinalized（见 event README）
 ```
@@ -179,8 +181,11 @@ if let Some(PendingBlock::ToolUse { name, .. }) = &snapshot.pending {
 
 | `LlmError` | 含义 | loop 建议 |
 |------------|------|-----------|
-| `Cancelled { reason }` | 用户/父任务取消 | 正常结束 turn |
-| `RequestFailed { kind, message }` | HTTP / 协议错误 | 打印 ERROR，REPL 继续 |
+| `Cancelled { reason }` | provider/低层调用取消 | loop 不重试，传播到 Turn 边界 |
+| `RequestFailed { Recoverable, .. }` | 临时 HTTP / 协议故障 | loop 在同一 Step 内按 policy 重试 |
+| `RequestFailed { Unrecoverable, .. }` | 不可恢复请求错误 | 不重试，传播到 Turn 边界 |
+
+Turn 的主动取消直接使用 `tokio_util::sync::CancellationToken` 包裹 `run_model_call*` future；不修改 `LLMProvider::stream` 签名，也不新增 `TurnCancellation`。固定 backoff 为 500 ms、1 s、2 s，等待可被同一 token 打断。失败 attempt 的 partial snapshot 只进入 Agent Event，不写 Session。
 
 ---
 

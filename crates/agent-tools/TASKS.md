@@ -32,7 +32,7 @@
 
 ### TASK-agent-tools-02: 实现内建 `grep`
 
-- **做什么：** 物理分离 `grep` 的 Draft 2020-12 spec 与文件 executor；支持 pattern、相对 target 和 max_results，在 canonical working directory 内用 `ignore` + `regex` 完成稳定、有界、只读搜索。blocking IO 经 `spawn_blocking`，executor 直接返回受控构造的 `ToolResult`，不实现 permission 或 RunEvent。
+- **做什么：** 物理分离 `grep` 的 Draft 2020-12 spec 与文件 executor；支持 pattern、相对 target 和 max_results，在 canonical working directory 内用 `ignore` + `regex` 完成稳定、有界、只读搜索。blocking IO 经 `spawn_blocking`，executor 直接返回受控构造的 `ToolResult`，不实现 permission 或 TurnEvent。
 - **依赖：** TASK-agent-tools-01
 - **范围：** `src/grep/mod.rs`、`src/grep/spec.rs`、`src/grep/executor.rs`
 - **预估 diff：** ~420 行

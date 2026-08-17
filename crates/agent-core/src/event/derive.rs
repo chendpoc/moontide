@@ -9,8 +9,8 @@ use crate::{
     tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus},
 };
 
-use super::run_event::RunEvent;
 use super::trace_context::TraceContext;
+use super::turn_event::TurnEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,31 +85,15 @@ struct ToolResultTracePayload<'a> {
 
 type EventMapping = (u64, AgentPhase, AgentChannel, String, Value, Option<String>);
 
-/// Maps a `RunEvent` to an Agent Event Log record, or `None` when the event
+/// Maps a `TurnEvent` to an Agent Event Log record, or `None` when the event
 /// produces no persisted observation. Serialization failures are returned to
 /// the observe boundary instead of being replaced with fabricated payloads.
 pub fn derive_agent_event(
     ctx: &TraceContext,
-    event: &RunEvent,
+    event: &TurnEvent,
 ) -> Result<Option<AgentEventRecord>> {
     let (turn, phase, channel, kind, payload, preview) = match event {
-        RunEvent::RunStarted { run_id, session_id } => (
-            ctx.turn,
-            AgentPhase::PreLlm,
-            AgentChannel::Trace,
-            "run_started".to_string(),
-            json!({ "runId": run_id, "sessionId": session_id }),
-            None,
-        ),
-        RunEvent::RunEnded { run_id } => (
-            ctx.turn,
-            AgentPhase::Stop,
-            AgentChannel::Trace,
-            "run_ended".to_string(),
-            json!({ "runId": run_id }),
-            None,
-        ),
-        RunEvent::TurnStarted { turn } => (
+        TurnEvent::TurnStarted { turn } => (
             *turn,
             AgentPhase::PreLlm,
             AgentChannel::Trace,
@@ -117,7 +101,7 @@ pub fn derive_agent_event(
             json!({ "turn": turn }),
             None,
         ),
-        RunEvent::TurnEnded { turn } => (
+        TurnEvent::TurnEnded { turn } => (
             *turn,
             AgentPhase::Stop,
             AgentChannel::Trace,
@@ -125,7 +109,7 @@ pub fn derive_agent_event(
             json!({ "turn": turn }),
             None,
         ),
-        RunEvent::UserPromptCommitted { turn, text } => (
+        TurnEvent::UserPromptCommitted { turn, text } => (
             *turn,
             AgentPhase::PreLlm,
             AgentChannel::Conversation,
@@ -133,7 +117,7 @@ pub fn derive_agent_event(
             json!({ "text": text }),
             Some(truncate_preview(text, 120)),
         ),
-        RunEvent::AssistantFinalized { turn, blocks } => {
+        TurnEvent::AssistantFinalized { turn, blocks } => {
             let text = blocks_text(blocks);
             (
                 *turn,
@@ -144,7 +128,7 @@ pub fn derive_agent_event(
                 Some(truncate_preview(&text, 120)),
             )
         }
-        RunEvent::ToolCallRecorded { turn, call } => {
+        TurnEvent::ToolCallRecorded { turn, call } => {
             let payload = tool_call_trace_payload(call)?;
             (
                 *turn,
@@ -155,7 +139,7 @@ pub fn derive_agent_event(
                 Some(call.name().to_owned()),
             )
         }
-        RunEvent::ToolResultRecorded { turn, result } => {
+        TurnEvent::ToolResultRecorded { turn, result } => {
             let (payload, body) = tool_result_trace_payload(result)?;
             (
                 *turn,
@@ -166,7 +150,7 @@ pub fn derive_agent_event(
                 Some(truncate_preview(&body, 120)),
             )
         }
-        RunEvent::LlmCallStarted {
+        TurnEvent::LlmCallStarted {
             turn,
             step,
             llm_call_id,
@@ -182,7 +166,7 @@ pub fn derive_agent_event(
             }),
             None,
         ),
-        RunEvent::LlmCallEnded {
+        TurnEvent::LlmCallEnded {
             turn,
             step,
             llm_call_id,
@@ -202,7 +186,7 @@ pub fn derive_agent_event(
             }),
             None,
         ),
-        RunEvent::MessageUpdate {
+        TurnEvent::MessageUpdate {
             turn,
             step,
             llm_call_id,
@@ -211,7 +195,7 @@ pub fn derive_agent_event(
             Some(mapping) => mapping,
             None => return Ok(None),
         },
-        RunEvent::CompactionApplied {
+        TurnEvent::CompactionApplied {
             turn,
             compaction_kind,
             compaction_save_id,
@@ -234,7 +218,7 @@ pub fn derive_agent_event(
             }),
             None,
         ),
-        RunEvent::CompactionRecommended { turn } => (
+        TurnEvent::CompactionRecommended { turn } => (
             *turn,
             AgentPhase::PostLlm,
             AgentChannel::Context,
@@ -242,7 +226,7 @@ pub fn derive_agent_event(
             json!({ "turn": turn, "recommended": true }),
             None,
         ),
-        RunEvent::ContextPreflightEnded { turn } => (
+        TurnEvent::ContextPreflightEnded { turn } => (
             *turn,
             AgentPhase::PreLlm,
             AgentChannel::Context,
@@ -250,7 +234,7 @@ pub fn derive_agent_event(
             json!({ "report": {} }),
             None,
         ),
-        RunEvent::ContextPostflightEnded { turn } => (
+        TurnEvent::ContextPostflightEnded { turn } => (
             *turn,
             AgentPhase::PostLlm,
             AgentChannel::Context,

@@ -1,10 +1,10 @@
 use anyhow::Result;
 
 use super::registry::{HookOutcome, PipelineRegistry};
-use super::run_event::RunEvent;
 use super::trace_context::TraceContext;
+use super::turn_event::TurnEvent;
 
-/// Dispatches `RunEvent` through hook → commit → observe.
+/// Dispatches `TurnEvent` through hook → commit → observe.
 pub struct EventDispatcher {
     registry: PipelineRegistry,
     trace: TraceContext,
@@ -19,7 +19,7 @@ impl EventDispatcher {
         &self.trace
     }
 
-    pub fn emit(&mut self, event: RunEvent) -> Result<()> {
+    pub fn emit(&mut self, event: TurnEvent) -> Result<()> {
         apply_event_to_trace(&mut self.trace, &event);
 
         if event.is_committable() {
@@ -42,39 +42,39 @@ impl EventDispatcher {
     }
 }
 
-fn apply_event_to_trace(trace: &mut TraceContext, event: &RunEvent) {
+fn apply_event_to_trace(trace: &mut TraceContext, event: &TurnEvent) {
     match event {
-        RunEvent::TurnStarted { turn } | RunEvent::TurnEnded { turn } => {
+        TurnEvent::TurnStarted { turn } | TurnEvent::TurnEnded { turn } => {
             trace.turn = *turn;
         }
-        RunEvent::UserPromptCommitted { turn, .. }
-        | RunEvent::AssistantFinalized { turn, .. }
-        | RunEvent::CompactionApplied { turn, .. }
-        | RunEvent::CompactionRecommended { turn }
-        | RunEvent::ContextPreflightEnded { turn }
-        | RunEvent::ContextPostflightEnded { turn } => {
+        TurnEvent::UserPromptCommitted { turn, .. }
+        | TurnEvent::AssistantFinalized { turn, .. }
+        | TurnEvent::CompactionApplied { turn, .. }
+        | TurnEvent::CompactionRecommended { turn }
+        | TurnEvent::ContextPreflightEnded { turn }
+        | TurnEvent::ContextPostflightEnded { turn } => {
             trace.turn = *turn;
         }
-        RunEvent::ToolCallRecorded { turn, call } => {
+        TurnEvent::ToolCallRecorded { turn, call } => {
             trace.turn = *turn;
             trace.tool_use_id = Some(call.tool_use_id().to_owned());
         }
-        RunEvent::ToolResultRecorded { turn, result } => {
+        TurnEvent::ToolResultRecorded { turn, result } => {
             trace.turn = *turn;
             trace.tool_use_id = Some(result.tool_use_id().to_owned());
         }
-        RunEvent::LlmCallStarted {
+        TurnEvent::LlmCallStarted {
             turn,
             step,
             llm_call_id,
         }
-        | RunEvent::LlmCallEnded {
+        | TurnEvent::LlmCallEnded {
             turn,
             step,
             llm_call_id,
             ..
         }
-        | RunEvent::MessageUpdate {
+        | TurnEvent::MessageUpdate {
             turn,
             step,
             llm_call_id,
@@ -84,6 +84,5 @@ fn apply_event_to_trace(trace: &mut TraceContext, event: &RunEvent) {
             trace.step = *step;
             trace.llm_call_id = Some(llm_call_id.clone());
         }
-        RunEvent::RunStarted { .. } | RunEvent::RunEnded { .. } => {}
     }
 }

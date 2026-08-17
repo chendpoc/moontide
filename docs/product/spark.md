@@ -26,7 +26,7 @@ Spark 的路径是 **移动端专用 capture 层 + 桌面 MoonTide 深度协同*
 | 移动端职责 | 尽量全覆盖 | **只做好 capture 与日常陪练** |
 | AI 深度 | 云端全能订阅 | **L1 本地 + L2 按需 DeepSeek + L3 桌面 Agent** |
 | 定价 | 全能笔记订阅 | **Spark 低价 / freemium；深度用量可控** |
-| 终点 | 在手机里「做完」 | **spark sync → 桌面 Buoy → Agent run** |
+| 终点 | 在手机里「做完」 | **spark sync → 桌面 Buoy → Agent Turn** |
 
 **非目标：** 把 MoonTide coding agent loop 搬进手机；与 Hynote 打「全能笔记」正面战。
 
@@ -89,7 +89,7 @@ flowchart LR
 
 - **Spark** — 独立 App（不同交互、可不同定价）；共享 Session / spark sync 协议  
 - **Buoy** — MoonTide 内 **组件代号**（非独立产品）：桌面 pending sparks 收件箱  
-- **MoonTide** — spark 的下游：深度 run、Project、tool use
+- **MoonTide** — spark 的下游：深度任务、Project、tool use
 
 **Slogan 候选：**
 
@@ -106,7 +106,7 @@ flowchart LR
 |------|------|------|------|
 | **L1** | Spark 设备端 | Edge **Qwen3.5-0.8B**（可领域微调） | **贴身小助手**：tag、摘要、出题、复习提醒、掌握度估计 — **解放重复人工** |
 | **L2** | Spark / 轻量会话 | **DeepSeek API**（如 V4 Flash） | **深度陪练**：讲透一题、mock、错题剖析、周复盘 — **用户点「深聊」或 path 关卡触发** |
-| **L3** | MoonTide 桌面 | Agent + 云 frontier | **跃迁与落地**：项目练习、长文、代码、research run |
+| **L3** | MoonTide 桌面 | Agent + 云 frontier | **跃迁与落地**：项目练习、长文、代码、research Turn |
 
 **原则：**
 

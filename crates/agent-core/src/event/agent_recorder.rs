@@ -7,8 +7,8 @@ use serde_json::{json, Value};
 use super::derive::{derive_agent_event, AgentEventRecord};
 use super::file_writer::FileWriter;
 use super::registry::ObserveHandler;
-use super::run_event::RunEvent;
 use super::trace_context::TraceContext;
+use super::turn_event::TurnEvent;
 
 /// Maximum serialized size of a persisted Agent Event JSONL line.
 pub(crate) const MAX_AGENT_EVENT_BYTES: usize = 64 * 1024;
@@ -36,7 +36,7 @@ impl<W> ObserveHandler for DeriveObserveHandler<W>
 where
     W: AgentEventRecorder,
 {
-    fn observe(&self, ctx: &TraceContext, event: &RunEvent) -> anyhow::Result<()> {
+    fn observe(&self, ctx: &TraceContext, event: &TurnEvent) -> anyhow::Result<()> {
         if let Some(record) = derive_agent_event(ctx, event)? {
             self.recorder.append(record)?;
         }

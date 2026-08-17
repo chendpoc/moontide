@@ -28,14 +28,14 @@ agent-core/
   llm/          # LLMProvider + protocol + adapter/normalize
   session/      # item log 唯一写者
   tools/        # ToolSpec + 单次调用边界
-  event/        # RunEvent bus
+  event/        # TurnEvent bus
   model_input/  # ModelRequest 的 compile 唯一出口
   context/      # materialize + compaction
-  loop/         # turn 状态机 + ToolPermissionMap 查表
+  loop/         # AgentLoop ownership + Turn/Step/Tool round + retry/cancel/permission
   scheduler/    # 后置：分诊 / fan-out / delegate
 ```
 
-Permission 当前不是独立模块：`agent` 组合根声明 `tool_name → Allow | Ask` map，`loop` 查表并处理 `Ask`，缺失项安全拒绝。
+Permission 当前不是独立模块：`agent` 组合根声明 `tool_name → Allow | Ask` map 与 approval handler，`loop::ToolRuntime` 校验并处理 `Ask`，缺失项安全拒绝。Hook 只作 post-commit、fail-open 扩展 callback，不参与 permission 或 loop 决策。
 
 推进顺序与 checklist：[`crates/agent-core/README.md`](crates/agent-core/README.md)。
 

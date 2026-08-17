@@ -75,9 +75,9 @@ cli（纯壳）→ agent（组合根）
 
 ```text
 llm ───────────────► provider / protocol
-session ───────────► llm protocol + tools result status
+session ───────────► llm protocol + tools result status + event commit seam
 tools ──────────────► std + serde + anyhow
-event ──────────────► protocol / RunEvent + tools result status
+event ──────────────► protocol / TurnEvent + tools result status
 model_input ────────► tools + llm protocol
 context ────────────► session + llm protocol + tools
 loop ───────────────► llm + session + tools + event + model_input + context
@@ -89,8 +89,8 @@ scheduler ──────────► llm + tools
 - `session` 不依赖 `loop` 或 `agent`；
 - `tools` 不依赖 `loop`、`scheduler`、`session`、`event` 或 `llm` 的实现；
 - `session` / `event` 如需持久化 tool status，只依赖 `tools` 的稳定结果契约，不依赖 tools 的 executor/registry 实现；
-- `event` 不拥有 Session Store；commit handler 由组合根装配；
-- `loop` 只经 `event::EventDispatcher::emit` 发送事件，不直接写 Session；
+- `event` 不拥有 SessionStore；AgentLoop 每次 emit 短借它独占持有的 mutable commit target；
+- `loop` 持有 SessionStore，但运行时只经 `event::EventDispatcher::emit` 提交事实，不直接 `commit_item`；
 - 模块内部项不加 `pub`；crate 内共享使用 `pub(crate)`；跨 crate 才公开；
 - 不用 trait 表达单实现或未来可能扩展的结构。
 
@@ -109,11 +109,10 @@ Trait 的约束是“是否形成清晰的实现边界”，不是数量上限�
 |-------|------|----------|
 | `LLMProvider` | 流式模型调用边界 | 云端 provider / 本地 daemon |
 | `ToolExecutor` | 单个工具真实副作用边界 | 内置工具 / sidecar adapter |
-| `HookHandler` | event 提交前的阻断 callback | run / lifecycle guard |
-| `CommitHandler` | 将 committable RunEvent 写入事实源 | session adapter |
-| `ObserveHandler` | 派生 Agent Event Log 或观测输出 | event observer / sidecar |
+| `HookHandler` | post-commit、fail-open 的扩展 callback | Agent Event / UI / sidecar / metrics |
+| `CommitHandler` | 将 committable TurnEvent 写入事实源的短期 mutable seam | SessionStore |
 
-这些 trait 属于不同的窄边界，不互相替代，也不应合并成一个通用 service trait。新增 trait 需要说明实现 owner、生命周期、替换理由和测试 seam。
+Hook 不返回 Block/approval/cancel/retry 决策；原 ObserveHandler 合并为 Hook。CommitHandler 不放进 registry，也不通过 Arc/Mutex 长期持有。新增 trait 需要说明实现 owner、生命周期、替换理由和测试 seam。
 
 ---
 
@@ -158,7 +157,7 @@ ModelRequest.tools 中由 ToolSpec 映射的 schema
 
 动态工具或 MCP 工具的增删在下一 step 的新 snapshot 生效，不能让当前 `ModelRequest.tools` 与实际执行器漂移。
 
-`agent` 组合根声明 `ToolPermissionMap`，`loop` 只负责按 tool name 查表并处理 `Ask`；当前不为这一次查询设独立 permission 模块。scheduler 负责“何时执行、如何并行、如何取消”；tools 只负责单次调用。模型 offload、验收、retry、failover 不属于 tools。
+`agent` 组合根声明 ToolPermissionMap 与 approval handler，`loop::ToolRuntime` 校验其 key 集并处理 `Ask`；当前不设独立 permission 模块。Loop R1 顺序执行 calls 并负责 Turn cancellation；scheduler 后置负责资源并发、tool retry 与 offload/failover。tools 只负责单次调用。
 
 `ToolCall` 与 `ToolResult` 是单次调用生命周期仅有的两个结构体建模。executor 直接返回 `ToolResult`；event/session 只包装它们，不复制 id/name/input/status/content 字段组。`ToolResultStatus` 是 host 侧规范状态，`Failed { retryable }` 不得丢失；LLM `ContentBlock::ToolResult` 仍只承载模型可见 content，控制流不得从 content 反推 status。结构化结果统一使用 `ToolContent::Json`，不重复维护 host-only 载荷。`ToolContent` 的持久化必须带显式 `type` tag，不能用会混淆 Text 与 JSON string 的 untagged 表示。
 
@@ -170,10 +169,11 @@ canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定�
 
 ## 5. Runtime 数据流与事实边界
 
-一次 run 的核心数据流：
+一次 Turn 的核心数据流：
 
 ```text
 Session Item Log
+    │ preflight materialize + next_turn + commit UserMessage
     │ materialize
     ▼
 Context / messages
@@ -184,12 +184,13 @@ ModelRequest
     ▼
 ModelResponse / ToolUse
     │
-    ├─ ToolCall → input validation → loop permission-map check → ToolExecutor
+    ├─ ToolUse response → commit all ToolCall before side effects
+    │       → input validation → permission/approval → ToolExecutor
     │                                                               │
     │                                                               ▼
     │                                                           ToolResult
     │
-    ├─ loop emit RunEvent
+    ├─ loop emit TurnEvent
     └─ event commit / derive
 ```
 
@@ -206,11 +207,17 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 
 ### 5.2 Agent Event Log
 
-Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断、sidecar 和指标。它不是恢复事实源，也不能反向修改 Session Item Log。
+Agent Event Log 是由 TurnEvent derive 的观测记录，服务于 UI、诊断、sidecar 和指标。它不是恢复事实源，也不能反向修改 Session Item Log。
 
 ### 5.3 Tool-call round closure
 
-一次模型响应中的连续 `ToolCall` 是一个 round。下一次 model step 前，Session Item Log 中每个 call 都必须存在配对的 `ToolResult`；`context` 只验证这一闭合条件。并发、deadline、join、timeout 以及状态映射属于尚未对齐的 `loop` / `scheduler` 执行政策，本文不提前规定。
+一次 ToolUse 响应中的全部 `ToolCall` 是一个 round。Loop R1 在任何副作用前按模型顺序提交全部 calls，再顺序执行并提交每个 result；下一 Step 前 round 必须全量闭合。`context` 只验证已有 Session Item Log 的闭合条件。executor Err/执行中取消的当前 result 是 OutcomeUnknown，未开始 sibling 是 Cancelled(Parent)。并发、资源 claim、deadline 与 tool retry 留给 scheduler 设计。
+
+### 5.4 Turn / Step
+
+执行层级固定为 Session → Turn → Step → Tool round，不使用领域 Run。AgentLoop 独占 non-Clone SessionStore，`turn(&mut self)` 串行化同实例；R1 不提供跨实例 Session lease。
+
+一个 Step 是一次逻辑 LLM 调用。Recoverable retry 使用同一 ModelRequest/Step 和新的 llm_call_id；默认初次后重试 3 次，固定 cancellation-aware backoff 500 ms、1 s、2 s。Turn 主动取消直接使用 CancellationToken，不增加 TurnCancellation wrapper。
 
 术语固定为：
 
@@ -218,7 +225,7 @@ Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断�
 |------|----------|
 | Session Item Log → messages | `materialize` |
 | SystemPrompt + messages + tools → ModelRequest | `compile` |
-| RunEvent → Agent Event | `derive` |
+| TurnEvent → Agent Event | `derive` |
 
 ---
 
@@ -229,37 +236,37 @@ Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断�
 | 类型 | 表达 | 处理 |
 |------|------|------|
 | 工具预期失败 | 模型可见的 tool result | 返回错误文本/结构化结果，通常继续 turn |
-| 工具基础设施故障 | `anyhow::Result` | loop 先提交 `OutcomeUnknown` 配对结果，再向 run 边界传播原始错误 |
-| LLM 基础设施故障 | `anyhow::Result` | 向 run 边界传播，统一处理 |
+| 工具基础设施故障 | `anyhow::Result` | loop 先提交 `OutcomeUnknown` 配对结果，再向 turn 边界传播原始错误 |
+| LLM 基础设施故障 | `anyhow::Result` | 向 turn 边界传播，统一处理 |
 
 预期失败不得 panic；基础设施错误不得在中途吞掉。库代码不用 `unwrap()`、`expect()` 或 panic 处理外部输入。
 
 ### 6.2 取消与结果未知
 
-取消原因和请求失败是两个正交维度。至少区分：
+取消原因和请求失败是两个正交维度。R1 至少区分：
 
 - 用户取消；
 - 父任务取消；
-- hook 阻断；
 - runtime disposed；
 - 工具尚未开始；
 - 工具已经开始但副作用结果未知。
 
-工具已开始且无法确认写入结果时，使用 `OutcomeUnknown`，不能为了让对话继续而伪造 `Succeeded` 或 `Failed`。
+Hook 不能阻断或取消。工具已开始且无法确认写入结果时使用 OutcomeUnknown；剩余未开始 sibling calls 使用 Cancelled(Parent)。loop 先提交全部配对结果，再传播取消/原错误。
 
-### 6.3 RunEvent 与 Session 顺序
+### 6.3 TurnEvent 与 Session 顺序
 
 对于 tool 调用，推荐并由 event/session 契约守门的顺序是：
 
 ```text
 AssistantFinalized
-  → ToolCallRecorded { call }
-  → input validation / loop permission-map check
-  → ToolExecutor
-  → ToolResultRecorded { result }
+  → ToolCallRecorded { call 0..N }   # 全部 call 先记录
+  → for each call in model order:
+      input validation / permission / approval
+      → ToolExecutor
+      → ToolResultRecorded { result }
 ```
 
-执行副作用前必须使 `ToolCall` 事实可恢复；结果完成后再提交 `ToolResult` 事实。executor 返回基础设施错误时，loop 也必须先提交一个 `OutcomeUnknown` result，再传播原始错误，不能留下已记录但无结果的 call。scheduler 后续作为多调用外层编排接入，不是当前单次调用的第三道门禁。
+执行副作用前必须使整个 round 的 ToolCall 事实可恢复；结果完成后逐条提交 ToolResult。executor 返回基础设施错误时，loop 先提交当前 OutcomeUnknown 和剩余 Parent-cancelled results，再传播原始错误。最后允许 Step 返回 ToolUse 时也必须闭合 round，再返回 step-limit error。
 
 ---
 
@@ -284,12 +291,15 @@ AssistantFinalized
 - handler 不定义模型 schema；
 - `session` 不 import `loop` / `agent`；
 - `tools` 不 import 高层运行时实现；
-- loop 不直接写 Session；
-- Committable RunEvent 才能进入 commit 阶段；
+- loop 不直接 `commit_item`；EventDispatcher/registry 不拥有 SessionStore；
+- Committable TurnEvent 才能进入 commit 阶段；
+- Committable event 的 Hook 只在 commit 成功后运行；Hook 全部 fail-open 且没有 Block/approval/cancel 返回值；
 - ToolResult 状态与 content 独立；
 - 单次工具生命周期只用 ToolCall / ToolResult 建模，event/session 直接包装，不复制字段；
 - `OutcomeUnknown` 不得归一成成功；
-- executor `Err` 必须先产生一次配对的 `OutcomeUnknown`，再向 run 边界传播。
+- executor `Err` 必须先产生一次配对的 `OutcomeUnknown`，再向 turn 边界传播。
+- 一个 Tool round 的全部 calls 必须在任何 executor 前提交，并在 cancel/error 后全量配对；
+- LLM retry 保持同一 Step/ModelRequest，每个 attempt 使用新 llm_call_id。
 
 Conformance 测试验证不变量；热路径不增加 runtime assert 来替代测试。
 
@@ -329,17 +339,18 @@ just check
 |------|----------|
 | 整场 session 的 append-only 事实源 | **Session Item Log** |
 | log 中的一条记录 | **SessionItem** |
-| 单次 run 的观测日志 | **Agent Event Log** |
-| 运行事件广播 | **RunEvent bus** |
-| run 配置解析 | `resolveRunConfig` |
+| 现有 `runId` 分区的观测日志 | **Agent Event Log**（legacy 字段，不是 Run 实体） |
+| 运行事件广播 | **TurnEvent bus** |
+| turn 配置解析 | `resolveTurnConfig` |
 | turn 上下文解析 | `resolveTurnContext` |
+| 执行层级 | Session → Turn → Step → Tool round（无领域 Run） |
 
 ### 9.2 禁用替代词
 
 - 不用 `Session Event Log`、`SessionLog`、`Item Log` 代替 Session Item Log；
 - 不用 `derive_messages`、`projection`、`restore` 代替 `materialize`；
 - 不用 `compose` 代替 `compile`；
-- 不用 `sink` 指 RunEvent bus；
+- 不用 `sink` 指 TurnEvent bus；
 - 不用“工具验收网关”描述 tools 的核心职责；模型 offload 验收属于 scheduler。
 
 命名的目标是一词一义，并能对应具体模块、边界或不变量。

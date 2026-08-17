@@ -4,27 +4,31 @@
 
 **TASK** = 实现跟踪（细）。**Review 批** = 你 `git diff` 的单位（合并 TASK，目标 ~300–1500 行，上限 2000）。
 
+R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeline 契约，目标以当前 README/DESIGN 为准。
+
 ---
 
 ## Review 批
 
 | 批 | TASK | 主题 | 状态 |
 |----|------|------|------|
-| **R1** | 01–04 | RunEvent + TraceContext + PipelineRegistry + EventDispatcher + dispatch 单测 | ☑ |
+| **R1** | 01–04 | TurnEvent + TraceContext + PipelineRegistry + EventDispatcher + dispatch 单测 | ☑ |
 | **R2** | 05–07 | derive + channel/kind 映射 + 64KiB 截断 + 映射单测 | ☑ |
 | **R3** | 08–09 | session commit_from_event + agent-core observer 落盘接线 | ☑ |
 | **R3-F1** | 12–13 | AgentEventRecorder 边界 + 文件持久化策略解耦 | ☑ |
 | **R3-F2** | 14 | ToolCall / ToolResult typed payload 接缝 | ☑ |
+| **R3-F3** | 15 | 删除领域 Run，保留 legacy Agent Event 契约 | ☑ |
+| **R4-A** | 16–17 | borrowed mutable commit + post-commit Hook，保留 AgentEvent 栈 | ☐ |
 | **R4** | 10–11 | EventBus + sidecar bridge | ☐ |
 
 ---
 
 ## R1：dispatch 骨架
 
-### TASK-event-01: RunEvent + TraceContext
+### TASK-event-01: TurnEvent + TraceContext
 
-- **做什么：** `RunEvent` 枚举、`is_committable`、`TraceContext`。
-- **范围：** `run_event.rs`、`trace_context.rs`。
+- **做什么：** `TurnEvent` 枚举、`is_committable`、`TraceContext`。
+- **范围：** `turn_event.rs`、`trace_context.rs`。
 - **完成标准：** Committable / Observational 分类与 DESIGN §4 一致。
 - **状态：** ☑
 
@@ -53,7 +57,7 @@
 
 ### TASK-event-05: AgentEventRecord + derive_agent_event
 
-- **做什么：** `AgentEventRecord`、`AgentPhase`、`AgentChannel`；`derive_agent_event(ctx, event) -> Result<Option<AgentEventRecord>>`；RunEvent → channel/kind 映射（DESIGN §4.3 · agent-events.md）。
+- **做什么：** `AgentEventRecord`、`AgentPhase`、`AgentChannel`；`derive_agent_event(ctx, event) -> Result<Option<AgentEventRecord>>`；TurnEvent → channel/kind 映射（DESIGN §4.3 · agent-events.md）。
 - **范围：** `derive.rs`、`mod.rs` re-export。
 - **完成标准：** conversation / trace / context 映射表覆盖 Committable 与 Observational 事件。
 - **状态：** ☑
@@ -77,7 +81,7 @@
 
 ### TASK-event-08: commit_from_event（session）
 
-- **做什么：** Committable `RunEvent` → `SessionItemDraft`（见 session TASK-session-09）。
+- **做什么：** Committable `TurnEvent` → `SessionItemDraft`（见 session TASK-session-09）。
 - **范围：** `session/commit.rs`（跨模块）。
 - **状态：** ☑
 
@@ -115,11 +119,41 @@
 
 ### TASK-event-14: 直接复用 ToolCall / ToolResult
 
-- **做什么：** 将 tool RunEvent 收敛为 `ToolCallRecorded { call }` / `ToolResultRecorded { result }`；trace 与 Agent Event derive 只读 canonical payload，并保留 typed status。
+- **做什么：** 将 tool TurnEvent 收敛为 `ToolCallRecorded { call }` / `ToolResultRecorded { result }`；trace 与 Agent Event derive 只读 canonical payload，并保留 typed status。
 - **依赖：** agent-core tools RB2
-- **范围：** `run_event.rs`、`pipeline.rs`、`derive.rs`、`tests.rs`
+- **范围：** `turn_event.rs`、`pipeline.rs`、`derive.rs`、`tests.rs`
 - **完成标准：** event 不再声明重复字段组；call/result identity、input、status 与 content 映射测试通过。
 - **状态：** ☑
+
+---
+
+## R3-F3：领域 Run 删除
+
+### TASK-event-15: Run → Turn 语义收敛
+
+- **做什么：** 将内核语义协议收敛为 `TurnEvent`，删除 `RunStarted` / `RunEnded`；保留 Hook、Agent Event、schema、recorder、storage、file writer 及 legacy `runId/run_id/runs/` 契约。
+- **依赖：** TASK-event-14
+- **范围：** `event/`、session/event 接缝、当前 Rust 架构与术语文档
+- **完成标准：** 非归档当前契约不存在领域 Run；Agent Event wire/storage diff 不包含 identity 或路径迁移；workspace 门禁全绿。
+- **状态：** ☑
+
+---
+
+## R4-A：Loop ownership 接缝
+
+### TASK-event-16: borrowed mutable commit
+
+- **做什么：** 将 CommitHandler 改为 mutable seam；从 PipelineRegistry 移除 commit；EventDispatcher::emit 每次借入 `&mut dyn CommitHandler`。
+- **范围：** `registry.rs`、`pipeline.rs`、`mod.rs`、`tests.rs`
+- **完成标准：** registry/dispatcher 不拥有 SessionStore；committable 同步提交，observational 不调用 commit。
+- **状态：** ☐
+
+### TASK-event-17: post-commit Hook 合并 observe
+
+- **做什么：** 删除 `HookOutcome::Block` 与 ObserveHandler；HookHandler 改为 `Result<()>` 且全部 fail-open；DeriveObserveHandler 迁移为 DeriveAgentEventHook。
+- **范围：** `registry.rs`、`pipeline.rs`、`derive.rs`、`mod.rs`、`tests.rs`
+- **完成标准：** commit 先于 Hook；一个 Hook Err 不跳过后续 Hook且不改变 dispatch 结果；AgentEvent schema/recorder/storage/file writer 行为不变。
+- **状态：** ☐
 
 ---
 
@@ -127,7 +161,7 @@
 
 ### TASK-event-10: EventBus
 
-- **做什么：** tokio broadcast；observe 之后 publish；失败忽略。
+- **做什么：** tokio broadcast；Hook 之后 publish；失败忽略。
 - **范围：** `bus.rs`。
 - **状态：** ☐
 

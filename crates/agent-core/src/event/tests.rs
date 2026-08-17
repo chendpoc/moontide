@@ -10,7 +10,7 @@ use super::file_writer::FileWriter;
 use crate::event::{
     derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
     CommitHandler, DeriveObserveHandler, EventDispatcher, HookHandler, HookOutcome, ObserveHandler,
-    PipelineRegistry, RunEvent, TraceContext,
+    PipelineRegistry, TraceContext, TurnEvent,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionCommitHandler, SessionItem, SessionStore};
@@ -27,7 +27,7 @@ impl MockCommitHandler {
 }
 
 impl CommitHandler for MockCommitHandler {
-    fn commit(&self, _event: &RunEvent) -> Result<Option<String>> {
+    fn commit(&self, _event: &TurnEvent) -> Result<Option<String>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(Some("item-1".to_string()))
     }
@@ -36,7 +36,7 @@ impl CommitHandler for MockCommitHandler {
 struct BlockingHook;
 
 impl HookHandler for BlockingHook {
-    fn on_event(&self, _ctx: &TraceContext, _event: &RunEvent) -> Result<HookOutcome> {
+    fn on_event(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<HookOutcome> {
         Ok(HookOutcome::Block {
             reason: "denied".to_string(),
         })
@@ -46,17 +46,17 @@ impl HookHandler for BlockingHook {
 struct FailingObserveHandler;
 
 impl ObserveHandler for FailingObserveHandler {
-    fn observe(&self, _ctx: &TraceContext, _event: &RunEvent) -> Result<()> {
+    fn observe(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<()> {
         Err(anyhow!("observe failed"))
     }
 }
 
 struct RecordingObserveHandler {
-    events: Arc<Mutex<Vec<RunEvent>>>,
+    events: Arc<Mutex<Vec<TurnEvent>>>,
 }
 
 impl RecordingObserveHandler {
-    fn new(events: Arc<Mutex<Vec<RunEvent>>>) -> Self {
+    fn new(events: Arc<Mutex<Vec<TurnEvent>>>) -> Self {
         Self { events }
     }
 }
@@ -76,7 +76,7 @@ impl AgentEventRecorder for RecordingAgentEventRecorder {
 }
 
 impl ObserveHandler for RecordingObserveHandler {
-    fn observe(&self, _ctx: &TraceContext, event: &RunEvent) -> Result<()> {
+    fn observe(&self, _ctx: &TraceContext, event: &TurnEvent) -> Result<()> {
         self.events
             .lock()
             .map_err(|_| anyhow!("observe lock poisoned"))?
@@ -102,7 +102,7 @@ fn test_dispatcher(
     EventDispatcher::new(registry, TraceContext::new("run-1", "session-1"))
 }
 
-// 场景：可提交的 RunEvent 进入 dispatcher。
+// 场景：可提交的 TurnEvent 进入 dispatcher。
 // 预期：commit handler 执行一次并回填 session item id；不变量：先 commit 再 observe。
 #[test]
 fn committable_event_triggers_commit() {
@@ -110,7 +110,7 @@ fn committable_event_triggers_commit() {
     let mut dispatcher = test_dispatcher(Arc::clone(&commit_calls), vec![], vec![]);
 
     dispatcher
-        .emit(RunEvent::UserPromptCommitted {
+        .emit(TurnEvent::UserPromptCommitted {
             turn: 1,
             text: "hello".to_string(),
         })
@@ -123,7 +123,7 @@ fn committable_event_triggers_commit() {
     );
 }
 
-// 场景：观测类 RunEvent 进入 dispatcher。
+// 场景：观测类 TurnEvent 进入 dispatcher。
 // 预期：不会调用 commit handler，也不会产生 session item id。
 #[test]
 fn observational_event_skips_commit() {
@@ -131,7 +131,7 @@ fn observational_event_skips_commit() {
     let mut dispatcher = test_dispatcher(Arc::clone(&commit_calls), vec![], vec![]);
 
     dispatcher
-        .emit(RunEvent::TurnStarted { turn: 1 })
+        .emit(TurnEvent::TurnStarted { turn: 1 })
         .expect("emit");
 
     assert_eq!(commit_calls.load(Ordering::SeqCst), 0);
@@ -150,7 +150,7 @@ fn hook_block_skips_commit() {
     );
 
     dispatcher
-        .emit(RunEvent::UserPromptCommitted {
+        .emit(TurnEvent::UserPromptCommitted {
             turn: 1,
             text: "blocked".to_string(),
         })
@@ -176,12 +176,12 @@ fn observe_fail_open_continues_dispatch() {
     );
 
     dispatcher
-        .emit(RunEvent::TurnStarted { turn: 2 })
+        .emit(TurnEvent::TurnStarted { turn: 2 })
         .expect("emit");
 
     let events = observed.lock().expect("lock");
     assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], RunEvent::TurnStarted { turn: 2 }));
+    assert!(matches!(events[0], TurnEvent::TurnStarted { turn: 2 }));
 }
 
 // 场景：可提交事件同时配置 commit 和 observer。
@@ -199,7 +199,7 @@ fn committable_runs_observe_after_commit() {
     );
 
     dispatcher
-        .emit(RunEvent::AssistantFinalized {
+        .emit(TurnEvent::AssistantFinalized {
             turn: 1,
             blocks: vec![ContentBlock::Text {
                 text: "done".to_string(),
@@ -210,14 +210,14 @@ fn committable_runs_observe_after_commit() {
     assert_eq!(commit_calls.load(Ordering::SeqCst), 1);
     let events = observed.lock().expect("lock");
     assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], RunEvent::AssistantFinalized { .. }));
+    assert!(matches!(events[0], TurnEvent::AssistantFinalized { .. }));
 }
 
 fn test_ctx() -> TraceContext {
     TraceContext::new("run-derive", "session-derive")
 }
 
-fn derive_record(ctx: &TraceContext, event: &RunEvent) -> AgentEventRecord {
+fn derive_record(ctx: &TraceContext, event: &TurnEvent) -> AgentEventRecord {
     derive_agent_event(ctx, event)
         .expect("derive agent event")
         .expect("event should produce a persisted observation")
@@ -230,7 +230,7 @@ fn derive_user_prompt_committed_maps_conversation() {
     let ctx = test_ctx();
     let record = derive_record(
         &ctx,
-        &RunEvent::UserPromptCommitted {
+        &TurnEvent::UserPromptCommitted {
             turn: 1,
             text: "hello world".to_string(),
         },
@@ -251,13 +251,13 @@ fn derive_user_prompt_committed_maps_conversation() {
 fn derive_turn_lifecycle_maps_trace() {
     let ctx = test_ctx();
 
-    let started = derive_record(&ctx, &RunEvent::TurnStarted { turn: 3 });
+    let started = derive_record(&ctx, &TurnEvent::TurnStarted { turn: 3 });
     assert_eq!(started.channel, AgentChannel::Trace);
     assert_eq!(started.kind, "turn_started");
     assert_eq!(started.phase, AgentPhase::PreLlm);
     assert_eq!(started.turn, 3);
 
-    let ended = derive_record(&ctx, &RunEvent::TurnEnded { turn: 3 });
+    let ended = derive_record(&ctx, &TurnEvent::TurnEnded { turn: 3 });
     assert_eq!(ended.channel, AgentChannel::Trace);
     assert_eq!(ended.kind, "turn_ended");
     assert_eq!(ended.phase, AgentPhase::Stop);
@@ -271,7 +271,7 @@ fn derive_llm_call_started_and_ended_maps_trace() {
 
     let started = derive_record(
         &ctx,
-        &RunEvent::LlmCallStarted {
+        &TurnEvent::LlmCallStarted {
             turn: 2,
             step: 1,
             llm_call_id: "call-1".to_string(),
@@ -284,7 +284,7 @@ fn derive_llm_call_started_and_ended_maps_trace() {
 
     let ended = derive_record(
         &ctx,
-        &RunEvent::LlmCallEnded {
+        &TurnEvent::LlmCallEnded {
             turn: 2,
             step: 1,
             llm_call_id: "call-1".to_string(),
@@ -308,7 +308,7 @@ fn derive_message_update_pending_text_maps_assistant_text() {
     let ctx = test_ctx();
     let record = derive_record(
         &ctx,
-        &RunEvent::MessageUpdate {
+        &TurnEvent::MessageUpdate {
             turn: 1,
             step: 0,
             llm_call_id: "call-2".to_string(),
@@ -339,7 +339,7 @@ fn derive_message_update_separates_partial_tool_use_from_committed_call() {
         serde_json::to_string(&expected_input).expect("serialize persisted input");
     let record = derive_record(
         &test_ctx(),
-        &RunEvent::MessageUpdate {
+        &TurnEvent::MessageUpdate {
             turn: 1,
             step: 2,
             llm_call_id: "llm-call-1".to_owned(),
@@ -378,7 +378,7 @@ fn derive_message_update_counts_persisted_invalid_partial_input() {
     let persisted_input = serde_json::to_string(input_json).expect("serialize persisted input");
     let record = derive_record(
         &test_ctx(),
-        &RunEvent::MessageUpdate {
+        &TurnEvent::MessageUpdate {
             turn: 1,
             step: 2,
             llm_call_id: "llm-call-invalid".to_owned(),
@@ -408,7 +408,7 @@ fn derive_message_update_completed_tool_block_remains_update() {
     let input_json = serde_json::to_string(&input).expect("serialize expected input");
     let record = derive_record(
         &test_ctx(),
-        &RunEvent::MessageUpdate {
+        &TurnEvent::MessageUpdate {
             turn: 1,
             step: 3,
             llm_call_id: "llm-call-2".to_owned(),
@@ -440,7 +440,7 @@ fn derive_assistant_finalized_maps_conversation_final() {
     let ctx = test_ctx();
     let record = derive_record(
         &ctx,
-        &RunEvent::AssistantFinalized {
+        &TurnEvent::AssistantFinalized {
             turn: 1,
             blocks: vec![
                 ContentBlock::Text {
@@ -465,7 +465,7 @@ fn derive_tool_result_includes_identity_status_and_content() {
         .expect("create tool call");
     let record = derive_record(
         &test_ctx(),
-        &RunEvent::ToolResultRecorded {
+        &TurnEvent::ToolResultRecorded {
             turn: 1,
             result: ToolResult::succeeded(&call, ToolContent::Text("ok".into())),
         },
@@ -493,7 +493,7 @@ fn derive_tool_call_reuses_canonical_call_payload() {
 
     let record = derive_record(
         &test_ctx(),
-        &RunEvent::ToolCallRecorded {
+        &TurnEvent::ToolCallRecorded {
             turn: 2,
             call: call.clone(),
         },
@@ -524,7 +524,7 @@ fn derive_observe_handler_forwards_record_without_file_truncation() {
     handler
         .observe(
             &test_ctx(),
-            &RunEvent::UserPromptCommitted {
+            &TurnEvent::UserPromptCommitted {
                 turn: 1,
                 text: text.clone(),
             },
@@ -613,8 +613,8 @@ fn agent_recorder_enforces_final_line_limit() {
     assert!(line.len() < MAX_AGENT_EVENT_BYTES);
 }
 
-// 场景：调用方把属于另一个 run 的记录交给当前文件 recorder。
-// 预期：append 立即失败且不创建 JSONL 行；不变量：Agent Event recorder 不能混写不同 run 的 identity。
+// 场景：调用方把属于另一个 legacy runId 分区的记录交给当前文件 recorder。
+// 预期：append 立即失败且不创建 JSONL 行；不变量：Agent Event recorder 不能混写不同分区 identity。
 #[test]
 fn agent_recorder_rejects_mismatched_run_id_without_writing() {
     let root = TempDir::new().expect("tempdir");
@@ -641,7 +641,7 @@ fn agent_recorder_rejects_mismatched_run_id_without_writing() {
 }
 
 // 场景：recorder 在同一 active JSONL 文件被关闭后重新打开并继续写入。
-// 预期：新 recorder 从已有最大 seq 和最后 turn 恢复后继续；不变量：同一 run 的 seq 单调不重复。
+// 预期：新 recorder 从已有最大 seq 和最后 turn 恢复后继续；不变量：同一 legacy runId 分区的 seq 单调不重复。
 #[test]
 fn agent_recorder_resumes_sequence_from_existing_file() {
     let root = TempDir::new().expect("tempdir");
@@ -721,7 +721,7 @@ fn integration_user_prompt_commits_session_and_writes_agent_event() {
     let mut dispatcher = integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
 
     dispatcher
-        .emit(RunEvent::UserPromptCommitted {
+        .emit(TurnEvent::UserPromptCommitted {
             turn: 0,
             text: "hello integration".into(),
         })
@@ -757,7 +757,7 @@ fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
     let mut dispatcher = integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
 
     dispatcher
-        .emit(RunEvent::AssistantFinalized {
+        .emit(TurnEvent::AssistantFinalized {
             turn: 1,
             blocks: vec![ContentBlock::Text {
                 text: "final answer".into(),
@@ -822,7 +822,7 @@ fn integration_tool_result_preserves_status_and_content_across_both_logs() {
         let mut dispatcher = integration_dispatcher(&runs_dir, &run_id, &session_id, store, vec![]);
 
         dispatcher
-            .emit(RunEvent::ToolResultRecorded {
+            .emit(TurnEvent::ToolResultRecorded {
                 turn: 1,
                 result: result.clone(),
             })
@@ -876,7 +876,7 @@ fn integration_hook_block_skips_commit_and_agent_event_write() {
     );
 
     dispatcher
-        .emit(RunEvent::UserPromptCommitted {
+        .emit(TurnEvent::UserPromptCommitted {
             turn: 0,
             text: "blocked".into(),
         })

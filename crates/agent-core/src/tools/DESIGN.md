@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。
 > **对外集成：** [`README.md`](README.md)。
-> **状态：** RB1–RB2 已实现并完成 Review；`ToolCall` / `ToolResult` 唯一建模及 session/event typed 接缝已完成。
+> **状态：** RB1–RB2 已实现并完成 Review；`ToolCall` / `ToolResult` 与 typed 接缝已完成。Loop R1 的 ToolRuntime、permission/approval、顺序 round 与 cancellation 契约已确认、待实现。
 > **关联：** [`../llm/DESIGN.md`](../llm/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`../event/DESIGN.md`](../event/DESIGN.md) · [`../../../../docs/notes/runtime/agent-kernel-architecture.md`](../../../../docs/notes/runtime/agent-kernel-architecture.md)
 
 ---
@@ -27,7 +27,8 @@
 |------|----------|
 | 允许 / 询问声明与交互 | `agent` 组合根提供 map，`loop` 查表并处理 `Ask` |
 | 多调用 fan-out、排队、并行、资源冲突 | `scheduler` |
-| 取消树、重试、模型 offload/failover 验收 | `scheduler` / `loop` |
+| Turn cancellation、LLM retry | `loop` |
+| tool retry、模型 offload/failover 验收 | 后置 `scheduler` |
 | Session Item Log 写入 | `event` commit → `session` |
 | Agent Event Log、UI、telemetry | `event` / `cli` |
 | ModelRequest 组装 | `model_input` |
@@ -44,7 +45,7 @@ agent-tools ──────────► tools（实现第一方 executor�
 tools ────────────────► serde / serde_json / anyhow / std
 ```
 
-`tools` 不反向 import `loop`、`scheduler`、`session`、`event`、`llm` 或 `agent-tools`。跨模块转换由上层完成：例如 `model_input` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `RunEvent`。`agent-tools` 是相邻的第一方实现库，不是内核 mod；其 `ToolDefinition` 只保存静态 name 与零参数 build function，`build()` 返回已绑定 spec/executor 的 `Tool`，不复制第二套 runtime registry。
+`tools` 不反向 import `loop`、`scheduler`、`session`、`event`、`llm` 或 `agent-tools`。跨模块转换由上层完成：例如 `model_input` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `TurnEvent`。`agent-tools` 是相邻的第一方实现库，不是内核 mod；其 `ToolDefinition` 只保存静态 name 与零参数 build function，`build()` 返回已绑定 spec/executor 的 `Tool`，不复制第二套 runtime registry。
 
 `ToolExecutor` 是 tools 的唯一真实副作用 trait。其他模块是否使用 trait 由边界需要决定：必须有独立实现、动态装配或测试替身时可以使用窄 trait；单实现逻辑和未来可能性不提前抽象。
 
@@ -215,14 +216,14 @@ R1 不定义通用 execution context。`working_dir` 是当前唯一有真实消
 
 `ToolCall` 以共享借用传入 executor。tools 保留调用事实所有权，因此执行完成后可用同一 call 生成 `ToolResult`，无需复制 identity；executor 也不能消费或替换调用身份。
 
-执行前取消由 loop 处理；执行中取消由未来的 scheduler/具体 executor 处理，无法确认副作用时返回 `OutcomeUnknown`。不定义 `ToolAdmission` 或阶段型 call wrapper；permission、取消、超时和 scheduler 计划由实际拥有决策的模块表达。
+执行前与执行中等待的 Turn cancellation 均由 loop 用 `CancellationToken` 处理。executor future 尚未开始时可安全生成 `Cancelled { User }`；future 已开始后取消时，副作用无法确认，loop 生成 `OutcomeUnknown`。tools 不接收 cancellation token，也不定义 `ToolAdmission` 或阶段型 call wrapper；具体 executor 可自行响应被 drop 的 future，但不能据此把未知副作用伪装成确定失败。
 
 约束：
 
 - executor 只接收已经由 loop 完成输入校验且 permission 允许的单个调用；
 - executor 不自行决定 permission；
 - executor 不生成/修改 `tool_use_id`；
-- executor 不写 Session 或 RunEvent；
+- executor 不写 Session 或 TurnEvent；
 - 预期业务失败返回 `Ok(ToolResult::failed(call, ...))`；
 - IO、进程、协议等基础设施错误返回 `Err(anyhow::Error)`；
 - 不使用 `unwrap`、`expect` 或 panic 处理外部输入。
@@ -311,7 +312,7 @@ loop:
      └─ Err(error)
           → ToolResult::outcome_unknown(&call, safe_error_summary)
           → emit ToolResultRecorded
-          → return Err(error) to run boundary
+          → return Err(error) to turn boundary
 
 Tool::execute:
   6. result = tool.executor.execute(&call, working_dir).await?
@@ -321,22 +322,22 @@ Tool::execute:
 
 输入校验和执行边界由 tools 提供，permission map lookup 与总体顺序由 loop 编排。这里不为阶段顺序创建 `ValidatedToolCall` 或 `ToolAdmission`；顺序不变量由 loop 测试守门。`ToolResultStatus::Failed { retryable }` 必须保留 retryable；`OutcomeUnknown` 不得降级为成功。
 
-多调用算法不属于这里。scheduler 后置负责调用顺序、并行窗口、资源冲突、取消后哪些调用尚未开始，以及模型 offload 的验收；它不进入当前 MVP 的单调用执行前门禁。
+多调用算法不属于 tools。Loop R1 已确认：一个 ToolUse response 的全部 ToolCall 先 commit，再按模型顺序逐个执行并 commit ToolResult；fatal error/cancel 后，剩余未开始 siblings 由 loop 记录 `Cancelled { Parent }`。后置 scheduler 只在此闭合不变量外接管并发窗口、资源冲突、tool retry 与模型 offload，不进入单调用 tools 边界。
 
 ---
 
 ## 5. 错误边界
 
-| 场景 | tools 结果 | 是否继续 run |
+| 场景 | tools 结果 | 是否继续 turn |
 |------|------------|--------------|
 | registry 中存在非法 schema 文档 | `ToolRegistry::new` 返回 `anyhow::Error`，不产生 registry | 不启动该配置 |
 | 未知工具 | `UnknownTool`，模型可见 | 通常继续，让模型修正 |
 | 调用 input 不匹配 schema | `InvalidArguments` | 通常继续 |
 | permission 拒绝 | `Denied` | 由 loop/policy 决定 |
 | 工具业务失败 | `Failed { retryable }` + 文本/结构化原因 | 通常继续 |
-| 调用被取消且未开始 | `Cancelled { reason }` | 由 loop 结束/继续 |
-| 执行中断但副作用未知 | `OutcomeUnknown` | 禁止假装成功；由 scheduler 决定恢复 |
-| executor IO/协议基础设施故障 | loop 先记录 `OutcomeUnknown`，再把原始 `anyhow::Error` 传到 run 边界 | 不吞错，不留下未配对 invocation |
+| 调用被取消且未开始 | `Cancelled { User }`；未开始 sibling 为 `Parent` | loop 闭合 round 后结束 Turn |
+| 执行中断但副作用未知 | `OutcomeUnknown`；未开始 sibling 为 `Parent` | loop 闭合 round 后传播取消/错误 |
+| executor IO/协议基础设施故障 | loop 先记录 `OutcomeUnknown`，再把原始 `anyhow::Error` 传到 turn 边界 | 不吞错，不留下未配对 invocation |
 
 工具预期失败是模型输入的一部分；基础设施故障是运行边界错误。两者不能都编码成一段普通字符串。`Tool::execute` 不吞基础设施错误，也不自行 emit；loop 使用仍持有的 `ToolCall` 先记录一个 `OutcomeUnknown` 的配对结果，再传播原始错误。R1 不为基础设施故障复制 `InternalError` / `Unavailable` 状态，也不为尚无 scheduler/loop producer 的 timeout 预留 `TimedOut`；出现真实 producer 与恢复语义后再扩展。
 
@@ -366,13 +367,13 @@ ToolRegistry:      tool_name → Tool { spec, executor }
 ToolPermissionMap: tool_name → Allow | Ask
 ```
 
-二者必须满足 key 集完全一致：registry 中不能有未声明 permission 的工具，permission map 也不能引用未知工具。该不变量由组合根构造检查和 conformance 测试守门；运行时缺失项作为安全兜底映射为 `Denied`，绝不默认 allow。`Deny` 不作为声明值：禁用工具从 registry 移除，不再暴露给模型。
+二者必须满足 key 集完全一致：registry 中不能有未声明 permission 的工具，permission map 也不能引用未知工具。该不变量由 loop 的 `ToolRuntime::new(registry, permissions, approval)` 构造检查和 conformance 测试守门；存在 `Ask` 时必须注入 `ToolApprovalHandler`。运行时缺失项作为安全兜底映射为 `Denied`，绝不默认 allow。`Deny` 不作为声明值：禁用工具从 registry 移除，不再暴露给模型。
 
-`loop` 按 name 查询 map 并处理 `Ask`，不把规则解释下沉给 `ToolSpec`、registry 或 executor。sidecar 只能提供 executor，不能修改宿主 permission map。只有路径、命令前缀、session scope 或动态风险等真实规则出现后，才重新评审是否提取独立模块。
+`loop` 按 name 查询 map，并用显式 approval port 处理 `Ask`；Hook 不能授权、拒绝或取消调用。sidecar 只能提供 executor，不能修改宿主 permission map。只有路径、命令前缀、session scope 或动态风险等真实规则出现后，才重新评审是否提取独立模块。
 
 ### 6.3 与 `scheduler`
 
-tools R1 只提供单次调用与结果契约，不预设 scheduler 的资源模型。scheduler 仍要结合调用集合、调用参数、资源、取消和运行配置决定实际执行计划；出现明确模型后，再评审是否需要扩展 `ToolSpec`。
+tools R1 只提供单次调用与结果契约，不预设 scheduler 的资源模型。Loop R1 先固定顺序执行并负责 Turn cancellation；scheduler 后续结合调用集合、参数和资源决定并行计划与 tool retry。出现明确模型后，再评审是否需要扩展 `ToolSpec`。
 
 ```text
 calls + confirmed resource claims + cancellation
@@ -390,11 +391,11 @@ ToolCallRecorded   { call }   → session::ToolCall   { call }
 ToolResultRecorded { result } → session::ToolResult { result }
 ```
 
-Session Item Log 是事实源；Agent Event Log 只是 RunEvent derive 的观测记录。
+Session Item Log 是事实源；Agent Event Log 只是 TurnEvent derive 的观测记录。
 
 该接缝直接携带完整 `ToolResult`，因此 typed `ToolResultStatus` 不会丢失。这是高层对 tools **契约类型**的单向依赖，tools 不依赖高层实现。
 
-loop 集成仍必须覆盖 executor `Err` 路径：loop 先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded`，等待 commit 成功后再把原始 `anyhow::Error` 返回 run 边界。禁止只记录 call 后直接 `?` 返回；也禁止 event/session 层自行猜测或补写 result。
+loop 集成仍必须覆盖 executor `Err` 路径：loop 先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded`，等待 commit 成功后再把原始 `anyhow::Error` 返回 turn 边界。禁止只记录 call 后直接 `?` 返回；也禁止 event/session 层自行猜测或补写 result。
 
 Session Item Log 已升级到 v2，新写入使用 `tool_call` / `tool_result`。读取 v1 时通过 serde alias 接受旧 kind，对缺失 status 的历史结果映射为 `OutcomeUnknown`，禁止默认推断为 `Succeeded`。
 
@@ -433,8 +434,8 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 ### Integration
 
 18. tools 不写 Session Item Log；
-19. tools 不产生 RunEvent；
-20. 多调用并发、取消补偿、offload 验收归 scheduler；
+19. tools 不产生 TurnEvent；
+20. R1 多调用顺序与取消补偿归 loop；并发、资源调度、tool retry、offload 验收归 scheduler；
 21. 动态 registry 变化下一 step 才生效；
 22. session/event 直接包装 `ToolCall` / `ToolResult`，不得复制同义字段结构。
 
@@ -447,8 +448,8 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 | **R1** | `ToolSpec`、`ToolCall`、`ToolExecutor`、`ToolResult` |
 | **R2** | frozen registry、重复注册、稳定排序、input schema 守门 |
 | **R3** | 输入校验、executor 调用、错误/未知结果规范化 |
-| **RB2** | 删除重复结果模型；SessionItem/RunEvent 直接携带 `ToolCall` / `ToolResult`；Session v2 兼容读取 v1 |
-| **R4** | 与 model_input、loop 的完整调用顺序联调 |
+| **RB2** | 删除重复结果模型；SessionItem/TurnEvent 直接携带 `ToolCall` / `ToolResult`；Session v2 兼容读取 v1 |
+| **R4** | 与 model_input、loop 的 ToolRuntime、permission/approval、顺序 round、cancellation 联调 |
 | **后置** | scheduler 资源 claim、bounded pool、模型 offload/failover、artifact spill |
 
 每批实现前先更新本文件的类型和不变量，再由 `batch-implement` 按 review 批推进。实现阶段发现必须改变上述公开签名时，停止当前批次，先回架构对齐；不能在 TASKS 中以“必要时补充文档”代替确认。`tools` 设计不因后置 scheduler 的复杂度提前膨胀。
@@ -467,6 +468,9 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 - registry `resolve` 未命中返回 `None`，`ToolResult::with_status` 可表达 `UnknownTool`；完整映射顺序由 loop 集成测试守门；
 - 非法 input → `InvalidArguments`，且 executor 不被调用；
 - permission 的 allowed/denied 顺序与映射在 loop 集成批测试，不在 tools RB1 伪造 admission；
+- ToolRuntime 构造拒绝 registry/permission key 漂移；存在 Ask 时必须有 approval handler；
+- 一个 response 的全部 ToolCall 在任何 executor 前完成 commit，随后按模型顺序产生全部配对结果；
+- cancellation / approval Cancelled / approval Err / executor Err 的当前与剩余 sibling 状态由 loop 集成测试守门；
 - expected business failure → `Failed { retryable }` + 内容；
 - executor infrastructure error → tools 原样向上传播；loop 先提交一次 `OutcomeUnknown` 配对结果，再返回同一错误；
 - `OutcomeUnknown` 不会被归一成成功；
@@ -486,7 +490,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 4. `ToolExecutor` 是唯一工具 trait；
 5. tools 只负责单次调用，scheduler 负责多调用调度；
 6. ToolResult 状态与 content 分离；
-7. Session Item Log 记录事实，RunEvent 记录派生观测；
+7. Session Item Log 记录事实，TurnEvent 记录派生观测；
 8. 模型 offload、验收、retry、failover 不属于 tools；
 9. 当前 step 使用 frozen registry snapshot；
 10. 先完成稳定单调用契约，再引入资源调度和大结果 spill。
@@ -502,3 +506,6 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 20. executor `Err` 不转成新的基础设施状态；loop 先记录 `OutcomeUnknown` 配对结果，再传播原始错误。
 21. `agent-core::tools` 保留运行时契约；第一方实现归 `agent-tools`，其 `ToolDefinition` 表达 name + build 配方；依赖只能是 `agent-tools → agent-core`，`Tool` 仍是唯一进入 runtime registry 的绑定。
 22. canonical 工具名采用当前 provider 共同支持的 `^[A-Za-z0-9_-]{1,64}$`；`input_schema` 顶层必须是 JSON object，避免注册成功后在首次 provider 请求才失败。
+23. `ToolRuntime` 是 loop 的装配聚合，不属于 tools，也不复制 registry/executor。
+24. Loop R1 固定顺序 round：先记录全部 calls，再逐个执行并配对；scheduler 后置不改变“每 call 恰好一个 result”。
+25. Turn cancellation 由 loop 的 CancellationToken 负责；执行中取消映射 OutcomeUnknown，Hook 不生产取消。

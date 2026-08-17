@@ -37,13 +37,13 @@ cli（纯壳）→ agent（组合根）
 | 模块 | Owner | 直接依赖 | 当前阶段 |
 |------|-------|----------|----------|
 | `llm` | MoonTide 协议、provider port、adapter/normalize、request preflight | 基础库 | 已实现 |
-| `session` | Session Item Log 的 create/load/commit/fork 与恢复不变量 | llm/tools 契约 | 已实现 |
+| `session` | Session Item Log 的 create/load/commit/fork 与恢复不变量 | llm/tools 契约 + event commit seam | 已实现；Loop 接缝增量待做 |
 | `tools` | ToolSpec、Tool、冻结 registry、input validation、单次执行 | 基础库 | 已实现 |
-| `event` | RunEvent、dispatcher、derive、Agent Event recorder | llm/tools 契约 | 当前分期已实现；完整 bus 后置 |
+| `event` | TurnEvent、dispatcher、derive、Agent Event recorder | llm/tools 契约 | 当前分期已实现；完整 bus 后置 |
 | `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | R1 已实现并完成测试 |
 | `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol + tools | R1 已实现、测试并通过 Review |
-| `loop` | turn/step 时序、tool permission 查表和调用编排 | 模块 1–6 | 待设计 |
-| `scheduler` | 后置的资源排队、并发、取消、delegate/offload | llm + tools | 后置 |
+| `loop` | AgentLoop ownership、Turn/Step/tool round、permission/approval、LLM retry 与 Turn cancellation | 模块 1–6 | R1 设计已确认，待实现 |
+| `scheduler` | 后置的资源排队、并发、tool retry、delegate/offload | llm + tools | 后置 |
 
 模块依赖必须保持单向：
 
@@ -68,11 +68,11 @@ agent（组合根）
 ```text
 Session Item Log ──materialize──► messages ──compile──► ModelRequest
        │                                                       │
-       └────────────── RunEvent / derive ─────────────► Agent Event Log
+       └────────────── TurnEvent / derive ─────────────► Agent Event Log
 ```
 
 - **Session Item Log** 是可恢复事实源，`session` 是唯一写者；
-- **Agent Event Log** 是 run 级观测记录，由 `RunEvent` derive，不反向覆盖 session；
+- **Agent Event Log** 是由 `TurnEvent` derive 的观测记录，不反向覆盖 session；当前 `runId` 仅为 legacy 分区键，不构成 Run 实体；
 - **ModelRequest** 是单次模型调用产物，不是事实源，不持久化替代 session；
 - provider adapter 只编码请求，不修改 session/context 语义。
 - `Message` / `ModelRequest` 是 MoonTide 的 canonical provider-neutral 数据格式；`llm::adapter` 负责转换为目标 provider wire request，`context` 不参与该转换。
@@ -126,7 +126,7 @@ pub(crate) fn materialize(
 ) -> anyhow::Result<Vec<Message>>;
 ```
 
-R1 直接映射普通 user/assistant items，聚合连续 tool call/result，忽略 checkpoint metadata；遇到 `Compaction`、未配对的 tool call/result 或身份不一致时返回错误。一个连续 ToolCall 段是一次 round；所有 call 都有配对的 ToolResult 后才能进入下一 model step。context 只验证这一闭合条件，不预设并发、deadline、join、timeout 或状态映射；这些执行政策留到 `loop` / `scheduler` 架构对齐。该函数只读，不写回 session，也不拥有 compaction、prune、retrieval 或预算策略。
+R1 直接映射普通 user/assistant items，聚合连续 tool call/result，忽略 checkpoint metadata；遇到 `Compaction`、未配对的 tool call/result 或身份不一致时返回错误。一个连续 ToolCall 段是一次 round；所有 call 都有配对的 ToolResult 后才能进入下一 model Step。context 只验证这一闭合条件。Loop R1 已确认先记录全部 calls、顺序执行并全量配对；并发、资源 claim、deadline 与 tool retry 后置给 scheduler。该函数只读，不写回 session，也不拥有 compaction、prune、retrieval 或预算策略。
 
 以下策略属于未来 context 设计：
 
@@ -155,25 +155,82 @@ ToolRegistry（spec + executor + validator）
 - `model_input` 精确复制 canonical schema，不做 provider 关键词转换；
 - permission 是 `agent` 声明的 `tool_name → Allow | Ask` map，由 loop 查表；
 - 缺失 permission 安全拒绝；当前不建立独立 permission 模块；
-- 并发、资源 claim、retry 与 offload 属于 scheduler。
+- registry/map key 集由 `ToolRuntime::new` 校验；存在 Ask 时必须有显式 `ToolApprovalHandler`；
+- Hook 不参与 permission 或 approval；
+- R1 顺序执行 calls，Turn cancellation 归 loop；并发、资源 claim、tool retry 与 offload 属于 scheduler。
 
 ---
 
-## 7. 错误与恢复边界
+## 7. Loop R1 边界
+
+执行领域模型只有：
+
+```text
+Session → Turn → Step → Tool round
+```
+
+Run 已删除。Agent Event 中的 `runId` 是 legacy 观测分区字段，不参与执行、取消或返回值；OTel trace/span 后置独立设计。
+
+### 7.1 Ownership 与入口
+
+`agent` create/load/fork Session，并构造 provider、ToolRuntime 与 EventDispatcher，然后通过一次性 `AgentLoopInit` 转移所有权。AgentLoop 长期持有 non-Clone SessionStore，`turn(&mut self)` 串行化同实例 Turn。
+
+```rust
+pub struct AgentLoopInit {
+    pub session: SessionStore,
+    pub provider: Arc<dyn LLMProvider>,
+    pub tools: ToolRuntime,
+    pub events: EventDispatcher,
+}
+
+pub async fn turn(
+    &mut self,
+    input: TurnInput,
+    cancellation: tokio_util::sync::CancellationToken,
+) -> anyhow::Result<ModelResponse>;
+```
+
+R1 不增加 OS Session lease；两个独立 AgentLoop 同时 load 同一 session 属于不支持用法。EventDispatcher 不长期持有 commit target，每次 emit 短借 `&mut SessionStore`。
+
+### 7.2 Turn 与 Step
+
+- 新 UserMessage 前先 materialize 已有 facts；非法/dangling history 拒绝且不 append；
+- turn number 由 `SessionStore::next_turn` 计算，调用者不传；UserMessage commit 后永久消费；
+- Step 从 0 开始且受 `max_steps` 限制；
+- LLM retry 是同一 Step 的 attempt，不增加 Step，不重新 compile；默认 retry 3 次；
+- Terminal response 直接返回 ModelResponse，不增加 RunResult/TurnOutcome；
+- 最后允许 Step 返回 ToolUse 时，先闭合全部 call/result，再报 step exhaustion；
+- Turn 错误不回滚事实，只要后续 materialize 成功，AgentLoop 可继续下一 Turn。
+
+### 7.3 Tool round
+
+一个 ToolUse response 的全部 calls 在任何副作用前按模型顺序 commit，然后顺序执行 `resolve → validate → permission/approval → execute → result commit`。所有 calls 均有且仅有一个 result 后才能进入下一 Step。
+
+executor Err 或执行中取消：当前 call `OutcomeUnknown`，未开始 sibling calls `Cancelled(Parent)`，全部 commit 后传播原错误/取消。执行前取消：当前 `Cancelled(User)`，剩余 `Parent`。
+
+### 7.4 Hook
+
+Hook 是 post-commit、fail-open 的扩展 callback，只读 TurnEvent/TraceContext。原 ObserveHandler 合并为 Hook，原 HookOutcome::Block 删除；Agent Event derive/recorder/storage/file writer 保留。permission、cancel、retry、config 和 scheduler 使用显式 API，不通过 Hook 决策。
+
+---
+
+## 8. 错误与恢复边界
 
 | 失败 | Owner | 行为 |
 |------|-------|------|
-| request model/messages/max_tokens 非法 | `llm` preflight | `LlmError` 返回 run 边界 |
+| request model/messages/max_tokens 非法 | `llm` preflight | `LlmError` 返回 turn 边界 |
 | tool input 不匹配 schema | `tools` + `loop` | 产生可配对 `InvalidArguments` 结果，不调用 executor |
 | permission 未声明或拒绝 | `loop` | 产生明确拒绝结果 |
 | executor 基础设施错误 | `tools` 向上传播，`loop` 配对 | 先记录 `OutcomeUnknown`，再传播原错误 |
+| LLM Recoverable 请求错误 | `loop` | 同一 Step/ModelRequest 内默认重试 3 次，固定 cancellation-aware backoff |
+| Turn cancellation | `loop` | 用 CancellationToken 打断等待；先闭合已记录 tool round，再返回取消 |
 | session 文件/不变量损坏 | `session` | `anyhow::Result` 传播，不部分恢复 |
 
-REPL turn 的可恢复错误由 run 边界打印后继续；配置类致命错误可以终止启动。
+REPL turn 的可恢复错误由 turn 边界打印后继续；配置类致命错误可以终止启动。
 
 ---
 
-## 8. Conformance
+## 9. Conformance
 
 不能只靠文档声明的边界必须有测试守门：
 
@@ -183,12 +240,16 @@ REPL turn 的可恢复错误由 run 边界打印后继续；配置类致命错�
 4. Session Item Log 的 seq、身份和 call/result 配对可恢复；
 5. event derive 不写回 session；
 6. 未来 loop 集成测试证明 `SystemPrompt` 每 user turn 解析一次，并且 runtime 只经 `model_input::compile` 构造请求。
+7. AgentLoop 独占 SessionStore；EventDispatcher/registry 不拥有 commit target；
+8. Hook 在 commit 后运行、全部 fail-open，且不能返回 Block/approval/cancel；
+9. retry 保持 Step 与 ModelRequest，attempt 使用不同 llm_call_id；
+10. 一个 Tool round 的全部 calls 先于副作用记录，并在所有错误/取消路径全量配对。
 
 每个测试注释必须说明场景、预期结果和不变量/副作用约束。热路径不增加 runtime assert 替代结构测试。
 
 ---
 
-## 9. 文档地图
+## 10. 文档地图
 
 | 主题 | 当前文档 |
 |------|----------|
@@ -200,5 +261,6 @@ REPL turn 的可恢复错误由 run 边界打印后继续；配置类致命错�
 | Event | [`../agent-core/src/event/DESIGN.md`](../agent-core/src/event/DESIGN.md) |
 | Model input | [`../agent-core/src/model_input/DESIGN.md`](../agent-core/src/model_input/DESIGN.md) |
 | Context | [`../agent-core/src/context/README.md`](../agent-core/src/context/README.md) · [`../agent-core/src/context/DESIGN.md`](../agent-core/src/context/DESIGN.md) |
+| Loop | [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) |
 
-`context` 当前已有 R1 架构/实现设计文档；`loop`、`scheduler` 仍在各自架构对齐完成前不建立实现级当前文档。
+`loop` R1 已完成架构对齐与 README/DESIGN，尚未进入实现；`scheduler` 仍在架构对齐前不建立实现级当前文档。

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 
-use super::run_event::RunEvent;
 use super::trace_context::TraceContext;
+use super::turn_event::TurnEvent;
 
 /// Outcome of a hook handler invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,20 +14,20 @@ pub enum HookOutcome {
 
 /// Pre-commit gate; may block session writes.
 pub trait HookHandler: Send + Sync {
-    fn on_event(&self, ctx: &TraceContext, event: &RunEvent) -> Result<HookOutcome>;
+    fn on_event(&self, ctx: &TraceContext, event: &TurnEvent) -> Result<HookOutcome>;
 }
 
 /// Persists committable events to the Session Item Log (injected by `agent`).
 pub trait CommitHandler: Send + Sync {
-    fn commit(&self, event: &RunEvent) -> Result<Option<String>>;
+    fn commit(&self, event: &TurnEvent) -> Result<Option<String>>;
 }
 
 /// Observes events for Agent Event Log / UI / sidecar (fail-open at dispatch).
 pub trait ObserveHandler: Send + Sync {
-    fn observe(&self, ctx: &TraceContext, event: &RunEvent) -> Result<()>;
+    fn observe(&self, ctx: &TraceContext, event: &TurnEvent) -> Result<()>;
 }
 
-/// Frozen handler table assembled before a run starts.
+/// Frozen handler table assembled before dispatch starts.
 #[derive(Clone)]
 pub struct PipelineRegistry {
     hooks: Vec<Arc<dyn HookHandler>>,

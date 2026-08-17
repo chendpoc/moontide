@@ -47,7 +47,7 @@ docs/
 
 [`product/vision.md`](product/vision.md) → [`product/plan.md`](product/plan.md) → [`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → [`crates/agent-core/README.md`](../crates/agent-core/README.md)
 
-### 修改 Agent Core / RunEvent
+### 修改 Agent Core / TurnEvent
 
 [`crates/docs/engineering-handbook.md`](../crates/docs/engineering-handbook.md) → [`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → 对应模块 README/DESIGN
 

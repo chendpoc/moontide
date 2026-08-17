@@ -12,7 +12,7 @@
 
   - [x] **16.1** R0 主循环：Session Log → Composer → LLM → builtin tools（`moontide-agent` · `moontide-cli`）
   - [ ] **16.2** Agent Event JSONL + `status.json` 写入（`moontide-ui` 消费侧已就绪）
-  - [ ] **16.3** RunEvent bus 与 run 生命周期（abort / settlement）
+  - [ ] **16.3** TurnEvent bus 与 turn 生命周期（abort / settlement）
   - [ ] **16.4** `/status`、`/compact` 等 REPL 命令补齐
   - [ ] **16.5** 权限与 approval 的 crate 边界收敛
 
@@ -27,7 +27,7 @@
 
   - [ ] **18.1** `services/`（Go）—— 常驻监控 / 代理进程；`go.mod` 等首个 service 需求出现再建
   - [ ] **18.2** `node/`（Node）—— MCP server 与扩展包；pnpm workspace 同上后置
-  - [ ] **18.3** Rust benchmark 基线（loop / compose / tool pipeline）
+  - [ ] **18.3** Rust benchmark 基线（loop / materialize+compile / tool pipeline）
 
 - [ ] **19. 插件设计 Agent（用户扩展需求处理链路）**
 
@@ -149,7 +149,7 @@
 
 - [ ] **12. 多 Agent 进程监控（Fleet）**
   - 在 **MoonTide** 中实时查看多个 agent 的运行状态（进行中 / 等待 / 完成 / 失败）
-  - 统一展示：run id、provider、当前 tool、token / context 用量、最近事件
+  - 统一展示：legacy `runId` 分区、provider、当前 tool、token / context 用量、最近事件
   - 消费现有 AgentEvent JSONL + 各产品 status / session 文件
 
 - [ ] **13. Agent 迁移与 Zephyr（无痛换产品）**

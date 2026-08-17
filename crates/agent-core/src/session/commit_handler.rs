@@ -2,7 +2,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use anyhow::{anyhow, Result};
 
-use crate::event::{CommitHandler, RunEvent};
+use crate::event::{CommitHandler, TurnEvent};
 
 use super::commit::commit_from_event;
 use super::store::SessionStore;
@@ -21,7 +21,7 @@ impl SessionCommitHandler {
 }
 
 impl CommitHandler for SessionCommitHandler {
-    fn commit(&self, event: &RunEvent) -> Result<Option<String>> {
+    fn commit(&self, event: &TurnEvent) -> Result<Option<String>> {
         let mut store = lock_store(&self.store)?;
         let item = commit_from_event(&mut store, event)?;
         Ok(Some(item.base().id.clone()))

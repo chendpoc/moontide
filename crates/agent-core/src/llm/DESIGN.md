@@ -1,7 +1,7 @@
 # llm — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R6 已完成；48 tests。
+> **状态：** R1–R6 已完成；48 tests。Loop R1 的 retry/cancellation 接缝已确认，llm API 无需扩张。
 > **关联：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`../../README.md`](../../README.md)
 
 ---
@@ -62,7 +62,7 @@ llm::normalize/{family}
 | 层 | 知道什么 | 禁止 |
 |----|----------|------|
 | `protocol` | MoonTide 类型 | HTTP、SDK、base_url、preset |
-| `LLMProvider` | `stream` → `ModelStreamEvent` | 路由、重试、session 写入 |
+| `LLMProvider` | `stream` → `ModelStreamEvent` | 路由、重试、Turn cancellation policy、session 写入 |
 | `run_model_call` | `ModelResponse` | 直接消费 `ModelStreamEvent` |
 | `ModelResponseBuilder` | Snapshot / Response | 第二套 fold |
 | `normalize` | 跨 wire 语义等价 | HTTP、vendor 名 |
@@ -100,7 +100,7 @@ preset "openrouter" × OpenAiChatCompletions → https://openrouter.ai/api/v1
     → normalize StreamDecoder → ModelStreamEvent
     → ModelResponseBuilder::apply
     → ModelResponseSnapshot / ModelResponse
-    → loop 经 run_model_call*；RunEvent 转发 snapshot
+    → loop 经 run_model_call*；TurnEvent 转发 snapshot
 ```
 
 ### 5.1 出站转换 owner
@@ -175,7 +175,7 @@ enum ModelStreamEvent {
 ```
 
 - **`block_index`：** assistant 消息内块序号；变化时 Builder flush。
-- **不在此枚举：** `ResponseStarted`（loop / `RunEvent`）、全文 `ResponseCompleted`（`finish()`）。
+- **不在此枚举：** `ResponseStarted`（loop / `TurnEvent`）、全文 `ResponseCompleted`（`finish()`）。
 
 ### 6.4 Snapshot + Builder
 
@@ -228,7 +228,32 @@ where
     F: FnMut(ModelResponseSnapshot);
 ```
 
-**与 `RunEvent`：** loop 在 `on_update` 内 emit `MessageUpdate`；调用前 `LlmCallStarted`，结束后 `LlmCallEnded` + `AssistantFinalized`（event 模块）。
+**与 `TurnEvent`：** loop 在 `on_update` 内 emit `MessageUpdate`；调用前 `LlmCallStarted`，结束后 `LlmCallEnded` + `AssistantFinalized`（event 模块）。
+
+### Loop R1 retry / cancellation
+
+`llm` 只分类错误，不拥有重试政策。loop 对一个 Step 只 materialize/compile 一次，再以同一 `ModelRequest` 发起多个 attempt：
+
+```text
+attempt 0
+  └─ Recoverable → 500 ms
+attempt 1
+  └─ Recoverable → 1 s
+attempt 2
+  └─ Recoverable → 2 s
+attempt 3
+```
+
+- 默认 `max_llm_retries = 3`，总 attempt 上限 4；
+- 仅 `RequestFailed { Recoverable }` 重试；
+- 每个 attempt 使用新的 `llm_call_id`，但 Step 不变；
+- retry 不重新 compile，也不写 Session；
+- exhausted 返回最后一个原始 LlmError；
+- Turn cancellation 由 loop 用 `CancellationToken` select LLM future 与 backoff；
+- provider `Cancelled` 不重试；
+- final response commit 后晚到 cancellation 不覆盖成功。
+
+`CancellationToken` 不进入 `LLMProvider` trait，避免把 Turn owner 泄漏进 provider port；provider 仍可用现有 `LlmError::Cancelled` 表达自身取消。
 
 ### Snapshot 供给 vs 渲染
 
@@ -324,6 +349,8 @@ struct Preset {
 6. 流式：`ModelStreamEvent` + Builder；loop 经 `run_model_call*`
 7. 旧名废弃：`StreamDelta` / `MessageEnd` → `ModelStreamEvent` / `Finished`
 8. `Message` canonical record 与 provider wire payload 分离；完整转换由 adapter 持有，不由 context 或 protocol 类型持有
+9. LLM retry 属于 loop 的 Step policy；Provider 只返回可恢复/不可恢复分类
+10. Turn cancellation 直接在 loop select `CancellationToken`，不扩大 LLMProvider 签名
 
 ---
 

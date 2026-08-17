@@ -1,46 +1,46 @@
 # event
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
-> **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R3 与 tools typed payload 接缝已实现；R4（async bus）未开始。
-> **关联：** [`../session/README.md`](../session/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
+> **实现细节** — [`DESIGN.md`](DESIGN.md)。
+> **状态：** R1–R3 与 tools typed payload 已实现；为 Loop R1 确认的 post-commit Hook / borrowed commit 接缝待实现。
+> **关联：** [`../loop/README.md`](../loop/README.md) · [`../session/README.md`](../session/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
 
 ## 这是什么
 
-`event` 是 **run 级语义事件** 的入口：`loop` 通过 `emit` 描述「发生了什么」；模块负责分派到 hook、session 落盘、观测 derive。
+`event` 是 **Turn 级语义事件** 的分派入口：`loop` 通过 `emit` 描述「发生了什么」；event 同步提交恢复事实，再把不可变事件交给扩展 Hook。
 
 ```text
-loop.emit(RunEvent)
+loop.emit(TurnEvent, &mut SessionStore)
     → dispatch
-        hook    （可 block）
-        commit  （写 Session Item Log，经 session）
-        observe （写 Agent Event Log / UI / sidecar）
+        commit  （仅 Committable；写 Session Item Log）
+        hook*   （post-commit、fail-open；Agent Event / UI / sidecar / metrics）
+        bus     （后置观测加速）
 ```
 
-**一句话：** loop 只说话；**不写 session**、**不 derive 文件**（由注册 handler 完成）。
+**一句话：** loop 只 emit，不直接 `commit_item`；Hook 只观察已经发生的事实，不参与 permission、取消、retry 或 Turn 决策。
 
 ---
 
 ## 设计原理（brief）
 
 ```text
-  Session Item Log     LLMRequest          Agent Event Log
+  Session Item Log     ModelRequest          Agent Event Log
   （事实）              （编译）             （观测）
        ▲                                      ▲
-       │ commit 阶段                           │ observe 阶段
-       └──────────── RunEvent::dispatch ──────┘
+       │ mutable commit borrow                 │ Hook derive
+       └──────────── TurnEvent::dispatch ──────┘
                          ▲
                       loop emit
 ```
 
-| 事件类 | 写 Session？ | 示例 |
-|--------|-------------|------|
-| **Committable** | 是（commit 阶段） | `UserPromptCommitted`、`AssistantFinalized` |
-| **Observational** | 否 | `TurnStarted`、`MessageUpdate` |
+| 事件类 | 写 Session？ | Hook 时机 | 示例 |
+|--------|-------------|-----------|------|
+| **Committable** | 是 | commit 成功后 | `UserPromptCommitted`、`AssistantFinalized` |
+| **Observational** | 否 | 直接调用 | `TurnStarted`、`MessageUpdate` |
 
-扩展（run guard、trace、sidecar observer）挂在 **Pipeline 注册表**，不改 `loop` 源码。Tool permission 仍由 `loop` 查询组合根注入的 map，不借 event hook 隐式授权。
+`PipelineRegistry` 只冻结 Hook 注册表。CommitHandler 不放进 registry，也不由 EventDispatcher 长期拥有；AgentLoop 每次 emit 时借入它独占持有的 SessionStore。
 
 ---
 
@@ -48,34 +48,49 @@ loop.emit(RunEvent)
 
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
-| **`loop`** | `EventDispatcher::emit` | `SessionStore`、`commit_item`、直接写 jsonl |
-| **`agent`** | 装配 `PipelineRegistry`、`EventDispatcher::new` | 在 loop 内改 dispatch 逻辑 |
-| **`session`** | 作为 `CommitHandler` 被调用 | 直接 `emit` |
-| **`cli` / UI** | tail `.moontide/runs/*.jsonl` 或 `bus.subscribe` | `emit` |
-| **测试** | `EventDispatcher` + mock handlers | — |
+| **`loop`** | `EventDispatcher::emit(&mut commit, event)` | `commit_item`、直接写 Agent Event JSONL |
+| **`agent`** | 装配 `PipelineRegistry`、Agent Event Hook、`EventDispatcher` | 把 permission 或 control flow 放进 Hook |
+| **`session`** | 直接实现 mutable `CommitHandler` | `emit`、持有 dispatcher |
+| **`cli` / UI** | tail `.moontide/runs/*.jsonl` 或未来 bus | `emit` |
+| **Hook 作者** | 只读 `TraceContext` / `TurnEvent`，输出观测副作用 | Block、Approve、Cancel、Retry、修改 event |
+| **测试** | dispatcher + mock commit/hooks | 依赖 hook 返回值决定正确性 |
 
 ---
 
-## 公开 API（契约）
+## 公开 API（Loop R1 目标契约）
 
 ```rust
-impl EventDispatcher {
-    pub fn emit(&mut self, event: RunEvent) -> anyhow::Result<()>;
+pub trait CommitHandler {
+    fn commit(&mut self, event: &TurnEvent) -> anyhow::Result<Option<String>>;
 }
 
-// agent 装配（run 开始前冻结）
+pub trait HookHandler: Send + Sync {
+    fn on_event(
+        &self,
+        ctx: &TraceContext,
+        event: &TurnEvent,
+    ) -> anyhow::Result<()>;
+}
+
+impl EventDispatcher {
+    pub fn emit(
+        &mut self,
+        commit: &mut dyn CommitHandler,
+        event: TurnEvent,
+    ) -> anyhow::Result<()>;
+}
+
 PipelineRegistry::builder()
-    .commit(...)
     .hook(...)
-    .observe(...)
+    .hook(...)
     .build_frozen();
 
 EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 ```
 
-类型：`RunEvent`、`TraceContext`、`HookHandler`、`CommitHandler`、`ObserveHandler` — 见 [`DESIGN.md`](DESIGN.md) §7。
+当前实现仍是 `hook → commit → observe` 且 registry 拥有 commit。Loop 实现前必须先完成此接缝迁移：删除 `HookOutcome::Block` 和独立 `ObserveHandler`，把 observer 适配成 post-commit Hook；迁移不得删除 AgentEvent、schema、recorder、storage 或 file writer。
 
-R2/R3：`derive_agent_event`、`DeriveObserveHandler`、`AgentEventRecorder`、`FileAgentEventRecorder`（`{runs_dir}/{run_id}.active.jsonl`）。`DeriveObserveHandler` 只派生并转交 `AgentEventRecord`；派生内部以私有、借用型 DTO 固定 Agent Event wire schema，序列化失败返回 `Err`，不伪造 payload。Agent Event recorder 负责校验 `runId`、恢复 `seq` 与最后 `turn`、执行 64 KiB JSONL 行限制，再调用内部 `FileWriter` 完成文件 I/O。ID 长度由上游生成契约负责，recorder 不改写 identity 字段。
+Agent Event 能力保留并改由 `DeriveAgentEventHook`（目标名）接线：
 
 ```rust
 pub trait AgentEventRecorder: Send + Sync {
@@ -83,89 +98,92 @@ pub trait AgentEventRecorder: Send + Sync {
 }
 ```
 
+该 Hook 只调用 `derive_agent_event` 并转交 recorder。`FileAgentEventRecorder` 继续负责 `runId` 校验、`seq` / 最后 `turn` 恢复、64 KiB JSONL 行限制和文件追加。
+
+`runId` / `run_id` / `runs/` 是现有 Agent Event wire/storage 的 legacy 分区契约，不定义可 cancel、resume、await 的 Run 实体。等 observability 正式接入后，再设计 trace/span identity 与迁移。
+
 ---
 
 ## 典型用法
 
-### `loop` 作者
+### loop 作者
 
 ```rust
-fn run_turn(dispatcher: &mut EventDispatcher, turn: u64, text: &str) -> Result<()> {
-    dispatcher.emit(RunEvent::TurnStarted { turn })?;
-
-    dispatcher.emit(RunEvent::UserPromptCommitted {
-        turn,
-        text: text.to_string(),
-    })?;
-    // ↑ 同步：UserMessage 已 commit（未被 hook block 时）
-
-    dispatcher.emit(RunEvent::LlmCallStarted {
-        turn, step: 0, llm_call_id: new_id(),
-    })?;
-    // llm::run_model_call_with_updates → 闭包内 emit MessageUpdate
-    dispatcher.emit(RunEvent::AssistantFinalized { turn, blocks })?;
-
-    dispatcher.emit(RunEvent::TurnEnded { turn })?;
+fn emit_turn_start(
+    dispatcher: &mut EventDispatcher,
+    session: &mut SessionStore,
+    turn: u64,
+    text: String,
+) -> anyhow::Result<()> {
+    dispatcher.emit(session, TurnEvent::TurnStarted { turn })?;
+    dispatcher.emit(
+        session,
+        TurnEvent::UserPromptCommitted { turn, text },
+    )?;
     Ok(())
 }
 ```
 
-### `agent` 组合根
+对 `UserPromptCommitted`，`emit` 返回 `Ok` 表示 UserMessage 已 commit；Hook 的失败不改变这一事实。
+
+### agent 组合根
 
 ```rust
-use agent_core::event::{
-    DeriveObserveHandler, EventDispatcher, FileAgentEventRecorder, PipelineRegistry, TraceContext,
-};
-use agent_core::session::{SessionCommitHandler, SessionStore};
-
-let store = SessionStore::create(&sessions_dir, cwd)?;
-let session_id = store.header().session_id.clone();
+let session = SessionStore::create(&sessions_dir, cwd)?;
+let session_id = session.header().session_id.clone();
 let recorder = FileAgentEventRecorder::new(&runs_dir, &run_id)?;
 
 let registry = PipelineRegistry::builder()
-    .commit(Arc::new(SessionCommitHandler::new(store)))
-    // .hook(Arc::new(run_guard)) // 可选
-    .observe(Arc::new(DeriveObserveHandler::new(recorder)))
+    .hook(Arc::new(DeriveAgentEventHook::new(recorder)))
+    .hook(Arc::new(ui_hook))
     .build_frozen()?;
 
-let mut dispatcher = EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
-loop::run(&mut dispatcher, …)?;
+let events = EventDispatcher::new(
+    registry,
+    TraceContext::new(run_id, session_id),
+);
+
+let agent_loop = AgentLoop::new(AgentLoopInit {
+    session,
+    provider,
+    tools,
+    events,
+});
 ```
 
-### `cli`（无需 import dispatch）
+### cli（无需 import dispatch）
 
 ```text
 tail workdir/.moontide/runs/<runId>.active.jsonl
-字段：channel · kind · turn · phase · payload（见 agent-events spec）
+字段：channel · kind · turn · phase · payload
 ```
 
 ---
 
 ## 我该 emit 什么？
 
-| 场景 | `RunEvent` |
-|------|------------|
+| 场景 | `TurnEvent` |
+|------|-------------|
 | 用户输入落盘 | `UserPromptCommitted` |
-| 助手最终回复 | `AssistantFinalized` |
+| 助手最终 blocks | `AssistantFinalized` |
 | tool 调用 / 结果 | `ToolCallRecorded { call }` / `ToolResultRecorded { result }` |
-| turn / run 边界 | `TurnStarted` / `TurnEnded` / `RunStarted` / `RunEnded` |
+| turn 边界 | `TurnStarted` / `TurnEnded` |
 | 流式 UI | `MessageUpdate` |
-| 单次 LLM 往返 | `LlmCallStarted` / `LlmCallEnded` |
+| LLM attempt 开始 / 成功完成响应 | `LlmCallStarted` / `LlmCallEnded` |
 
-**不要**在 loop 里 `session.commit_item` — 由 commit handler 在 `dispatch` 内完成。
-
-tool 事件直接携带 `tools::ToolCall` / `tools::ToolResult`，event 不复制字段，也不解释 permission 或 scheduler 策略。executor 返回基础设施错误时，loop 必须先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded` 并等待 commit，再向 run 边界传播原始错误；event 不自行补写或推断。
+tool 事件直接携带 `tools::ToolCall` / `tools::ToolResult`。event 不复制字段，也不解释 permission、retry、cancellation 或 scheduler 策略。executor 基础设施错误时，loop 先 emit `OutcomeUnknown` result，剩余 sibling calls 由 loop 配对；event 不自行合成结果。
 
 ---
 
-## 错误与 block
+## 错误语义
 
 | 结果 | 行为 |
 |------|------|
-| hook `Block` | 不 commit |
-| commit 失败 | `emit` 返回 `Err` |
-| observe 失败 | 默认 log 后继续（fail-open） |
-| bus 发送失败 | 忽略 |
+| commit 失败 | `emit` 返回 `Err`；不运行该事件的 Hook |
+| 某 Hook 失败 | 记录诊断，继续后续 Hook，`emit` 仍按 commit 结果返回 |
+| bus 发送失败 | 忽略；bus 不参与正确性 |
+
+Hook 是架构扩展 callback，不是决策 handler。需要决定 permission、approval、cancel、retry、config 或调度时，使用对应的显式 API，不增加 Hook 返回枚举。
 
 ---
 
@@ -173,8 +191,9 @@ tool 事件直接携带 `tools::ToolCall` / `tools::ToolResult`，event 不复�
 
 | 模块 | 关系 |
 |------|------|
-| [`session`](../session/README.md) | commit 阶段 → `commit_from_event` |
+| [`session`](../session/README.md) | SessionStore 作为每次 emit 借入的 CommitHandler |
+| [`loop`](../loop/README.md) | 唯一生产 emit 调用方，拥有 commit target |
 | `llm` | `MessageUpdate` 携带 `ModelResponseSnapshot` |
-| `loop` | 唯一 `emit` 调用方 |
+| `agent` | 构造 Hook registry 与具体 recorder |
 
-Pipeline 算法、`RunEvent` 全表、derive 映射、实现分期见 [`DESIGN.md`](DESIGN.md)。
+Pipeline 算法、`TurnEvent` 全表、迁移分期与不变量见 [`DESIGN.md`](DESIGN.md)。

@@ -14,6 +14,7 @@
 | **R2** | 06–08 | fork + Compaction/Checkpoint item 类型 | ☑ |
 | **R3** | 09–10 | commit_from_event + agent/event 联调 | ☑ |
 | **R3-F1** | 11 | Session v2 ToolCall / ToolResult payload 迁移 | ☑ |
+| **R4** | 12–13 | next_turn + direct mutable CommitHandler | ☐ |
 
 ---
 
@@ -84,7 +85,7 @@
 
 ### TASK-session-09: commit_from_event
 
-- **做什么：** `commit.rs`；Committable `RunEvent` → `SessionItemDraft` → `commit_item`；非 Committable → `Err`。
+- **做什么：** `commit.rs`；Committable `TurnEvent` → `SessionItemDraft` → `commit_item`；非 Committable → `Err`。
 - **范围：** `commit.rs`、`mod.rs`。
 - **完成标准：** 映射表单测（UserPromptCommitted / AssistantFinalized / ToolCallRecorded / ToolResultRecorded）。
 - **状态：** ☑
@@ -107,3 +108,22 @@
 - **范围：** `types.rs`、`store.rs`、`commit.rs`、`tests.rs`
 - **完成标准：** 新写入不复制 tool 字段；v1 load、typed status、未知 header version 与 event commit 测试通过。
 - **状态：** ☑
+
+---
+
+## R4：Loop ownership 接缝
+
+### TASK-session-12: next_turn
+
+- **做什么：** 增加 crate-private `SessionStore::next_turn()`；empty→0，last turn checked +1，溢出 Err；只读且不预占编号。
+- **范围：** `store.rs`、`tests.rs`
+- **完成标准：** empty/resume/failed-turn cursor 与 u64::MAX 测试通过。
+- **状态：** ☐
+
+### TASK-session-13: direct mutable CommitHandler
+
+- **做什么：** SessionStore 直接实现 event::CommitHandler；移除 Mutex-based SessionCommitHandler 与公开 re-export。
+- **依赖：** TASK-event-16
+- **范围：** `commit.rs`、`commit_handler.rs`、`mod.rs`、`tests.rs`
+- **完成标准：** EventDispatcher 每次短借同一个 store；mapping/returned item id 不变；无 Arc/Mutex ownership。
+- **状态：** ☐

@@ -25,7 +25,8 @@
 | preset name 选择、未知 name 报错 | `agent` bootstrap |
 | `Allow` / `Ask` 声明 | `agent` preset |
 | 调用顺序、input validation、permission check | `agent-core::loop` |
-| 多调用并发、取消、resource claim | `scheduler` |
+| Turn cancellation 与顺序 round cleanup | `agent-core::loop` |
+| 多调用并发、tool retry、resource claim | `scheduler` |
 | MCP / sidecar 动态发现 | 后置 runtime / adapter |
 | 外部 manifest 与热加载 | 后置，出现真实消费者后再评审 |
 
@@ -158,7 +159,7 @@ grep::build()
 
 - `spec.rs` 不 import `std::fs`、`tokio` 或 `ignore`；
 - `executor.rs` 不创建 JSON Schema；
-- `executor.rs` 不查询 permission，不写 Session/RunEvent；
+- `executor.rs` 不查询 permission，不写 Session/TurnEvent；
 - `mod.rs` 只组合，不复制执行逻辑；
 - 公共 runtime 状态全部使用 `agent-core::tools` 类型，不定义平行 outcome/registry。
 
@@ -226,7 +227,7 @@ execute(&ToolCall, &Path)
   → search result: ToolResult
 ```
 
-R1 没有 cancellation token；`spawn_blocking` 开始后不能可靠取消。scheduler 的取消/预算模型确认前，不在 executor 私造全局线程池或取消 flag。搜索自身依靠 match/output 上限提前停止。
+executor 不接收 cancellation token；`spawn_blocking` 开始后不能可靠取消。Loop R1 可以停止等待 executor future，但已开始的 blocking 搜索无法确认完成时，调用结果按 `OutcomeUnknown` 配对。executor 不私造全局线程池或取消 flag；搜索自身依靠 match/output 上限提前停止。未来 scheduler 只负责资源并发与 tool retry，不改变这一单调用边界。
 
 ### 5.4 文本读取与匹配
 

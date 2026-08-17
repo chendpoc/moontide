@@ -11,16 +11,20 @@
 | 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
 | 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
 | 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 编排 | 1–6 全部 | ☐ | ☐ | ☐ | turn 状态机；查 ToolPermissionMap |
+| 7 | `loop` | 编排 | 1–6 全部 | ☑ | ☐ | ☐ | R1 README/DESIGN 已确认；待 batch-implement 拆 TASKS |
 | 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
 
 ## 当前目标
 
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
-- 当前推进：模块 6 `context` R1 已完成；下一步进入模块 7 `loop` 架构对齐，未确认前不落 README/DESIGN 或实现。
+- 当前推进：模块 7 `loop` 设计文档 Review；通过后按 `batch-implement` 生成 TASKS，先做 event/session ownership 接缝，再实现 AgentLoop 状态机。
 
 ## 变更记录
+
+- 2026-08-17：`loop` R1 架构对齐完成并落 README/DESIGN：执行层级固定 Session → Turn → Step → Tool round；AgentLoop 独占 SessionStore；AgentLoopInit 一次性转移 provider/tools/events；Turn 直接返回 ModelResponse；默认 LLM retry 3 次且同 Step；CancellationToken 负责 Turn 取消；Tool round 先记录全部 calls、R1 顺序执行并全量配对；Hook 收敛为 post-commit fail-open callback。同步 event/session/tools/llm 与系统文档，尚未实现。
+
+- 2026-08-17：loop 架构对齐删除领域 Run：`RunEvent` 改为 `TurnEvent`，移除 `RunStarted` / `RunEnded`；Hook、Agent Event、schema、recorder、storage 与 file writer 不变。现有 `runId` / `run_id` / `runs/` 仅作为 legacy 观测分区契约保留，等待 observability 接入时另行设计。
 
 - 2026-08-17：`context` R1 Review 通过；补齐错误 identity 诊断、输入只读断言、连续同 role 与普通消息间 checkpoint conformance，撤回未确认的 loop/scheduler 并发与 timeout 政策；agent-core 130 tests、workspace 148 tests、fmt/clippy 全部通过。
 
@@ -48,7 +52,7 @@
 - 2026-08-16：permission 边界收敛：删除独立模块；`ToolSpec` 不含 permission，组合根维护 `ToolPermissionMap<tool_name, Allow | Ask>` 并校验与 registry key 集一致，`loop` 私有查表且运行时缺失安全拒绝。
 - 2026-08-16：`ToolResult` 构造边界确认：字段跨 crate 只读；executor 使用受控成功/失败/未知构造器，loop 使用 crate 内 `with_status`，tools 统一组装并校验身份和状态 owner。
 - 2026-08-16：单次调用内部 API 收口：registry 以 crate 内部 `validate_input(tool, call) -> Result<(), String>` 使用缓存 validator；`Tool::execute` 隐藏 executor 并直接返回 `ToolResult`。
-- 2026-08-16：executor 基础设施错误配对规则确认：loop 先提交一次 `OutcomeUnknown` 的 `ToolResultRecorded`，再向 run 边界传播原始错误，禁止留下未配对的 `ToolCall`。
+- 2026-08-16：executor 基础设施错误配对规则确认：loop 先提交一次 `OutcomeUnknown` 的 `ToolResultRecorded`，再向 Turn 边界传播原始错误，禁止留下未配对的 `ToolCall`。
 - 2026-08-16：tools RB1 规格门禁：schema validator 采用 `jsonschema` 0.49 且关闭 default features，固定 Draft 2020-12 并禁用外部 resolver；TASKS 补齐 lib/Cargo/Cargo.lock 范围，并把完整拒绝顺序归回 loop 集成。
 - 2026-08-16：tools README / DESIGN / TASKS source-of-truth 对齐完成，规格门禁通过，进入 RB1 实现确认点。
 - 2026-08-16：tools RB1 完成契约类型、冻结 registry、Draft 2020-12 validator 缓存、单次调用规范化与结构测试；workspace fmt/clippy/test 通过并完成 Review；下一批转入 `agent-tools`。

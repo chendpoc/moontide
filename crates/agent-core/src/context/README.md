@@ -91,7 +91,7 @@ User([ToolResult(call-a), ToolResult(call-b)])
 
 ## Tool-call round closure
 
-一个连续 `ToolCall` 段是一次 tool-call round。下一次 model step 之前，round 内每个 call 都必须存在配对的 `ToolResult`。context 只校验 result group 是否闭合 pending call；并发、deadline、join、timeout 等执行政策留到 `loop` / `scheduler` 架构对齐。
+一个连续 `ToolCall` 段是一次 tool-call round。下一次 model Step 之前，round 内每个 call 都必须存在配对的 `ToolResult`。context 只校验已有事实是否闭合；Loop R1 已选择“先记录全部 calls、按模型顺序执行并全量配对”。并发、资源 claim、deadline 与 tool retry 仍留给 scheduler，不进入 context。
 
 R1 保留 provider-neutral message 的语义边界，因此连续同 role message 合法；是否需要合并为 provider wire 所需的交替角色，由 `llm` adapter 处理。
 

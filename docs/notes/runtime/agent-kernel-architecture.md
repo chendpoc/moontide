@@ -171,7 +171,7 @@ agent-core/
   session/       # item log 事实源 + 持久化 + load/resume
   tools/         # ToolSpec + frozen registry + 单次校验/执行/结果规范化
   scheduler/     # 分诊 + fan-out + delegate + 排队/升级（先模块后拆 crate）
-  event/         # RunEvent bus + commit/derive pipeline + Agent Event Log
+  event/         # TurnEvent bus + commit/derive pipeline + Agent Event Log
   llm/           # LLMProvider trait（多实现）
 ```
 
@@ -179,12 +179,12 @@ agent-core/
 
 - `agent` 声明 `ToolPermissionMap`，`loop` 查表并处理 `Ask`；缺失项安全拒绝，sidecar 不可修改宿主 map。只有路径、命令前缀、session scope 或动态风险等真实规则出现后，才重新评审独立 permission 模块。
 - `model_input/` ← `ModelRequest` 的「compile 唯一出口」；context 管 model-visible messages，agent 每 user turn 解析稳定 `SystemPrompt`，model_input 不拥有二者的生成策略。
-- `event/` ← RunEvent 的统一分发落点；Session Item Log 是恢复事实源，Agent Event Log 是派生观测记录。
+- `event/` ← TurnEvent 的统一分发落点；Session Item Log 是恢复事实源，Agent Event Log 是派生观测记录。
 
 **两个「完整内核该有、但 MVP 可后置」的诚实标注**：
 
 - 长时记忆（memory）：跨 session 记忆，第一版可不做，在 `session/` 旁留位。
-- config 解析（resolveRunConfig）：更偏装配层（agent crate）而非内核，归属 agent crate。
+- config 解析（resolveTurnConfig）：更偏装配层（agent crate）而非内核，归属 agent crate。
 
 ---
 
@@ -269,11 +269,11 @@ agent/
   bootstrap.rs   # 组合根：new AgentCore(store, ctx, tools, llm, ...) 注入
 ```
 
-`resolveRunConfig` / config 解析归属这里。bootstrap 按 preset name 从 `agent-tools::builtin_tool_definitions()` 选择、build 并冻结 `ToolRegistry`。独立成 crate 的理由是**依赖方向**——它同时依赖 agent-core + agent-tools + preset +（后置的）runtime，是唯一「全依赖」的 crate，desktop 复用。
+`resolveTurnConfig` / config 解析归属这里。bootstrap 按 preset name 从 `agent-tools::builtin_tool_definitions()` 选择、build 并冻结 `ToolRegistry`。独立成 crate 的理由是**依赖方向**——它同时依赖 agent-core + agent-tools + preset +（后置的）runtime，是唯一「全依赖」的 crate，desktop 复用。
 
 ### 10.4 protocol（后置，先 mod 后 crate）
 
-MVP 单进程，无跨进程通信，故不独立成 crate；类型定义（RunEvent、Message、ModelRequest…）先作 agent-core 内 `types/` mod。**拆独立 crate 的触发条件**：模型 daemon / 多 agent / 跨进程真正落地时——那时它才获得「跨二进制共享契约」的价值。
+MVP 单进程，无跨进程通信，故不独立成 crate；类型定义（TurnEvent、Message、ModelRequest…）先作 agent-core 内 `types/` mod。**拆独立 crate 的触发条件**：模型 daemon / 多 agent / 跨进程真正落地时——那时它才获得「跨二进制共享契约」的价值。
 
 **Transport 抽象已定（帧抽象），后置实现**：
 
@@ -314,7 +314,7 @@ pub trait Transport: Send + Sync {
 
 ### 11.2 不用继承层次（BasicAgent → MainAgent/SubAgent）
 
-main 和 sub 本质是**同一种东西——一个 Run**，差异全在 preset 配置，不在类型：
+main 和 sub 本质是**同一种 AgentLoop 组合**，差异全在 preset 配置，不在类型：
 
 | 差异维度 | 性质 | 表达 |
 |---|---|---|
@@ -401,25 +401,24 @@ impl Tool for DelegateTool {
 
 ```rust
 #[derive(Clone, Serialize, Deserialize)]
-pub enum RunEvent {
-    RunStarted { run_id: String },
-    TurnStarted { turn_id: u64 },
+pub enum TurnEvent {
+    TurnStarted { turn: u64 },
     LlmCallStarted { /* ... */ },
-    BeforeToolUse { tool: String, params: Value },
-    ToolFinished { tool: String, result: Value },
-    RunFinished { /* ... */ },
+    ToolCallRecorded { turn: u64, call: ToolCall },
+    ToolResultRecorded { turn: u64, result: ToolResult },
+    TurnEnded { turn: u64 },
 }
 
 pub struct EventBus {
-    tx: broadcast::Sender<Arc<RunEvent>>,   // Arc：多订阅者共享
+    tx: broadcast::Sender<Arc<TurnEvent>>,   // Arc：多订阅者共享
 }
 impl EventBus {
-    pub fn publish(&self, e: RunEvent) { let _ = self.tx.send(Arc::new(e)); }
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<RunEvent>> { self.tx.subscribe() }
+    pub fn publish(&self, e: TurnEvent) { let _ = self.tx.send(Arc::new(e)); }
+    pub fn subscribe(&self) -> broadcast::Receiver<Arc<TurnEvent>> { self.tx.subscribe() }
 }
 ```
 
-三个进程内订阅者：持久化（写 Run JSONL）、cli render（差分渲染 + 节流）、bridge（发 sidecar）。
+三个进程内订阅者：持久化（写 legacy `runId` 分区的 Agent Event JSONL）、cli render（差分渲染 + 节流）、bridge（发 sidecar）。
 
 ### 13.3 「插件」接入：bridge 是进程内到跨进程的桥梁
 
@@ -428,10 +427,10 @@ Rust 不能动态加载 JS 插件（Node 的 `import()` + jiti），所以 sidec
 ```rust
 struct Bridge { transport: Arc<dyn Transport> }
 impl Bridge {
-    async fn run(mut rx: broadcast::Receiver<Arc<RunEvent>>) {
+    async fn run(mut rx: broadcast::Receiver<Arc<TurnEvent>>) {
         while let Ok(e) = rx.recv().await {
             let json = serde_json::to_vec(&*e)?;
-            self.transport.send_event("run", &json).await;  // 单向推送，不等
+            self.transport.send_event("turn", &json).await;  // 单向推送，不等
         }
     }
 }
@@ -439,7 +438,7 @@ impl Bridge {
 
 ### 13.4 Hook：注册 + 折叠器 + 同步等决策
 
-sidecar 要**影响内核决策**，走 Hook（run 启动时注册、折叠一次、run 内不可增删）：
+sidecar 要**影响内核决策**，走 Hook（装配时注册并冻结，执行期间不可增删）：
 
 ```rust
 type Hook = Box<dyn Fn(HookInput) -> HookDecision + Send + Sync>;

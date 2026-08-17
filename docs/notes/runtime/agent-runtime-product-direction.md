@@ -34,7 +34,7 @@ Coding 是当前最适合作为验证场景的领域，因为文件变更、测�
 ```mermaid
 flowchart TB
   Model["基础模型：理解、推理、生成"]
-  Core["MoonTide Agent Core：Run、Turn、Tool、Policy、Context、Event、Recovery"]
+  Core["MoonTide Agent Core：Session、Turn、Tool、Policy、Context、Event、Recovery"]
   Preset["产品 Preset / Domain Pack：领域规则、工具、工作流、验收器"]
   Shell["产品 Shell：CLI、桌面 UI、移动端 UI、同步与商业化"]
 
@@ -45,10 +45,10 @@ flowchart TB
 
 ### 3.1 Agent Core 负责什么
 
-- 唯一的 Run / Turn 时序；
-- `RunConfig`、`resolveRunConfig` 和决策回调；
+- 唯一的 Turn / Step 时序；
+- `TurnConfig`、`resolveTurnConfig` 和决策回调；
 - `resolveTurnContext`、`StreamFn`、`ToolExecutor` 等窄端口；
-- `RunEvent` protocol 与 RunEvent bus；
+- `TurnEvent` protocol 与 TurnEvent bus；
 - abort、队列、settlement、错误边界和恢复语义；
 - 通过 Effect port 调用模型、工具和持久化能力；
 - 为 UI、CLI、RPC、持久化和评测提供稳定事件与结果。
@@ -81,9 +81,9 @@ CLI 是 Agent Runtime 的一个宿主和交互边界，不等于 Core 本身。�
 | 产品 | 主要职责 | 与 Agent Runtime 的关系 | 明确不做 |
 |---|---|---|---|
 | **MoonTide** | 桌面 Agent Shell；coding、project、research 等深度工作 | 完整 Agent Runtime 的主要宿主与验证场景 | 现阶段不把完整 coding 垂直切片作为近期验收目标 |
-| **Spark / 随形** | 移动端 capture、draft、轻量协同、同步 | 共享身份、同步、spark 原语和 Run 触发协议；按需把任务交给深度 runtime | 不做“手机版 MoonTide coding agent” |
+| **Spark / 随形** | 移动端 capture、draft、轻量协同、同步 | 共享身份、同步、spark 原语和 Turn 触发协议；按需把任务交给深度 runtime | 不做“手机版 MoonTide coding agent” |
 | **Lyra** | 远期独立 Agent Harness 产品线候选 | 可复用 runtime 和 Preset 体系，但必须有独立用户和工作流 | 只做 MoonTide 的换名或换皮 |
-| **Zephyr** | 跨 Agent 的会话、配置和产物迁移 | 依赖稳定的 Session、Artifact、RunEvent 和互操作协议 | 不先做成另一个垂直执行 Agent |
+| **Zephyr** | 跨 Agent 的会话、配置和产物迁移 | 依赖稳定的 Session、Artifact、TurnEvent 和互操作协议 | 不先做成另一个垂直执行 Agent |
 | **Bruma** | 远期以事实、历史和上下文为中心的产品线候选 | 依赖 Session Event Log、provenance 和 Context Composer | 在 MoonTide 内作为模块名替代正式技术术语 |
 
 Spark 当前应保持“capture + 轻 AI + sync 到桌面”的边界；深度任务由 MoonTide 或其他具备完整 runtime 的宿主承接。
@@ -94,7 +94,7 @@ Spark 当前应保持“capture + 轻 AI + sync 到桌面”的边界；深度�
 
 - 哪些工具可以调用，调用前是否需要授权；
 - 哪些状态是事实，哪些只是上下文编译产物；
-- 如何中断、恢复和重放一次 Run；
+- 如何中断一次 Turn，以及恢复和重放 Session 事实；
 - 如何判断任务已经完成；
 - 如何把结果和证据交给 UI、同步服务或下一个 Agent；
 - 如何在成本、隐私、延迟和可靠性之间做产品级取舍。
@@ -112,7 +112,7 @@ Spark 当前应保持“capture + 轻 AI + sync 到桌面”的边界；深度�
 - **执行结果：** 产物、测试、事实引用或用户目标是否达成；
 - **过程可靠性：** 工具调用、权限、错误恢复和中断是否符合协议；
 - **效率与成本：** token、工具次数、时延和人工介入是否可接受；
-- **可追溯性：** 是否能从 Session / Artifact / RunEvent 解释结果如何产生。
+- **可追溯性：** 是否能从 Session / Artifact / TurnEvent 解释结果如何产生。
 
 Coding 适合作为第一批验证任务，但评测目标应是上述通用闭环，不是把“coding 分数”误认为整个 Agent Runtime 的能力。
 
@@ -122,13 +122,13 @@ Coding 适合作为第一批验证任务，但评测目标应是上述通用闭�
 - 把 Agent Core 扩展成包含所有 Session、Composer、Provider 和 Plugin Host 的“大平台”；
 - 把“元 agent”实现成隐式的嵌套 agent 层；
 - 在 MoonTide CLI 尚未完成前，以某个完整垂直产品切片作为整体架构验收；
-- 因为产品愿景而提前改变现有 `Session Event Log`、`Context Composer`、`RunEvent` 等正式技术边界。
+- 因为产品愿景而提前改变现有 `Session Event Log`、`Context Composer`、`TurnEvent` 等正式技术边界。
 
 ## 8. 下一步
 
 下一步不是启动所有垂直产品，而是形成一份 **Agent Runtime Contract**，明确三份边界：
 
-1. Core 保证的 Run / Event / Effect 语义；
+1. Core 保证的 Turn / Event / Effect 语义；
 2. Preset / Domain Pack 可以装配和改变的策略；
 3. Shell 必须自己负责的 UI、同步、产品数据和商业边界。
 
