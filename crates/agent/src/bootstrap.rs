@@ -17,7 +17,7 @@ use agent_tools::builtin_tool_definitions;
 use anyhow::{Context, Result};
 use uuid::Uuid;
 
-use crate::{agent::AgentParts, config::AgentConfig};
+use crate::{agent::AgentParts, config::AgentConfig, prompt};
 
 pub(crate) fn create(config: &AgentConfig) -> Result<AgentParts> {
     build(config, None)
@@ -66,6 +66,8 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
             .context("create session")?,
     };
     let stable_session_id = session.header().session_id.clone();
+    let cwd = session.header().cwd.clone();
+    prompt::validate_project_instructions(&cwd).context("validate project instructions")?;
     let events = EventDispatcher::new(pipelines, TraceContext::new(run_id, &stable_session_id));
     let loop_ = AgentLoop::new(AgentLoopInit {
         session,
@@ -77,6 +79,7 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
     Ok(AgentParts {
         loop_,
         session_id: stable_session_id,
+        cwd,
     })
 }
 

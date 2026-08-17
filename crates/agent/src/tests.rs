@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use agent_core::{
     llm::{adapter::AdapterFamily, protocol::ThinkingLevel},
@@ -6,7 +6,7 @@ use agent_core::{
 };
 use tempfile::TempDir;
 
-use crate::{Agent, AgentConfig, ProviderConfig};
+use crate::{prompt, Agent, AgentConfig, ProviderConfig};
 
 fn config(temp: &TempDir) -> AgentConfig {
     AgentConfig {
@@ -131,4 +131,104 @@ fn invalid_config_values_are_rejected() {
     let mut agent_config = config(&temp);
     agent_config.cwd = PathBuf::from("missing-working-directory");
     assert!(Agent::create(agent_config).is_err());
+}
+
+// Scenario: nested project directories contain AGENTS.md files at multiple ancestors.
+// Expected: prompt instructions appear from the outermost directory to the cwd.
+// Invariant: project instructions remain separate from the harness contract and are not reordered.
+#[test]
+fn project_instructions_merge_from_root_to_cwd() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let nested = temp.path().join("nested");
+    fs::create_dir_all(&nested).expect("nested project directory should be created");
+    fs::write(temp.path().join("AGENTS.md"), "outer rule\n")
+        .expect("outer AGENTS.md should be written");
+    fs::write(nested.join("AGENTS.md"), "inner rule\n").expect("inner AGENTS.md should be written");
+
+    let prompt = prompt::resolve(&nested, "session-1", &[], &BTreeMap::new(), false)
+        .expect("project instructions should resolve");
+    let content = prompt.content();
+
+    assert!(
+        content.find("outer rule").expect("outer rule is present")
+            < content.find("inner rule").expect("inner rule is present")
+    );
+    assert!(
+        content.find("inner rule").expect("inner rule is present")
+            < content
+                .find("# MoonTide Harness Contract")
+                .expect("harness is present")
+    );
+}
+
+// Scenario: a harness prompt is resolved with runtime identity and tool permissions.
+// Expected: dynamic facts and the static contract are rendered into SystemPrompt.
+// Invariant: user message text is not accepted by or copied into the prompt resolver.
+#[test]
+fn harness_prompt_contains_runtime_facts_without_user_text() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let mut permissions = BTreeMap::new();
+    permissions.insert("read".into(), ToolPermission::Allow);
+    permissions.insert("write".into(), ToolPermission::Ask);
+    let prompt = prompt::resolve(
+        temp.path(),
+        "session-42",
+        &["write".into(), "read".into()],
+        &permissions,
+        true,
+    )
+    .expect("harness prompt should resolve");
+    let content = prompt.content();
+
+    assert!(content.contains("MoonTide agent harness"));
+    assert!(content.contains(&format!("cwd: {}", temp.path().display())));
+    assert!(content.contains("session_id: session-42"));
+    assert!(content.contains("read: allow"));
+    assert!(content.contains("write: ask"));
+    assert!(content.contains("approval handler: available"));
+    assert!(!content.contains("user message"));
+}
+
+// Scenario: project instructions change between two user turns.
+// Expected: each resolver call observes the latest AGENTS.md content.
+// Invariant: one resolved SystemPrompt remains immutable for the caller's current turn.
+#[test]
+fn project_instructions_reload_at_turn_resolution_boundary() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let path = temp.path().join("AGENTS.md");
+    fs::write(&path, "first rule\n").expect("initial AGENTS.md should be written");
+    let first = prompt::resolve(temp.path(), "session-1", &[], &BTreeMap::new(), false)
+        .expect("first prompt should resolve");
+
+    fs::write(&path, "second rule\n").expect("updated AGENTS.md should be written");
+    let second = prompt::resolve(temp.path(), "session-1", &[], &BTreeMap::new(), false)
+        .expect("second prompt should resolve");
+
+    assert!(first.content().contains("first rule"));
+    assert!(!first.content().contains("second rule"));
+    assert!(second.content().contains("second rule"));
+}
+
+// Scenario: AGENTS.md exists but is not valid UTF-8 instruction text.
+// Expected: resolving the prompt fails instead of silently dropping project policy.
+// Invariant: a present but unreadable instruction file is a bootstrap/turn error.
+#[test]
+fn unreadable_project_instructions_are_rejected() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    fs::write(temp.path().join("AGENTS.md"), [0xff, 0xfe])
+        .expect("invalid UTF-8 AGENTS.md should be written");
+
+    assert!(prompt::resolve(temp.path(), "session-1", &[], &BTreeMap::new(), false).is_err());
+}
+
+// Scenario: Agent bootstrap sees an unreadable project instruction file.
+// Expected: create fails before returning an Agent facade.
+// Invariant: project policy cannot silently disappear between bootstrap and the first turn.
+#[test]
+fn bootstrap_rejects_unreadable_project_instructions() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    fs::write(temp.path().join("AGENTS.md"), [0xff, 0xfe])
+        .expect("invalid UTF-8 AGENTS.md should be written");
+
+    assert!(Agent::create(config(&temp)).is_err());
 }

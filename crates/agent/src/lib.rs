@@ -3,6 +3,7 @@
 mod agent;
 mod bootstrap;
 mod config;
+mod prompt;
 
 pub use agent::Agent;
 pub use config::{AgentConfig, ProviderConfig};

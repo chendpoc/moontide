@@ -1,12 +1,14 @@
+use std::path::PathBuf;
+
 use agent_core::{
     llm::protocol::{ModelResponse, ThinkingLevel},
-    model_input::{ModelRequestConfig, SystemPrompt},
-    r#loop::{AgentLoop, TurnInput, TurnPolicy},
+    model_input::ModelRequestConfig,
+    r#loop::{AgentLoop, ToolPermissionMap, TurnInput, TurnPolicy},
 };
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use crate::{bootstrap, config::AgentConfig};
+use crate::{bootstrap, config::AgentConfig, prompt};
 
 /// Facade that owns one session's complete agent runtime.
 pub struct Agent {
@@ -16,12 +18,16 @@ pub struct Agent {
     max_tokens: u32,
     thinking_level: Option<ThinkingLevel>,
     max_steps: u32,
-    system_prompt: SystemPrompt,
+    cwd: PathBuf,
+    tool_names: Vec<String>,
+    permissions: ToolPermissionMap,
+    approval_configured: bool,
 }
 
 pub(crate) struct AgentParts {
     pub(crate) loop_: AgentLoop,
     pub(crate) session_id: String,
+    pub(crate) cwd: PathBuf,
 }
 
 impl Agent {
@@ -44,6 +50,13 @@ impl Agent {
         text: String,
         cancellation: CancellationToken,
     ) -> Result<ModelResponse> {
+        let system_prompt = prompt::resolve(
+            &self.cwd,
+            &self.session_id,
+            &self.tool_names,
+            &self.permissions,
+            self.approval_configured,
+        )?;
         let input = TurnInput {
             text,
             config: ModelRequestConfig {
@@ -52,8 +65,7 @@ impl Agent {
                 thinking_level: self.thinking_level,
                 session_id: Some(self.session_id.clone()),
             },
-            // R2 replaces this placeholder with Harness + Project Instructions.
-            system_prompt: self.system_prompt.clone(),
+            system_prompt,
             policy: TurnPolicy::new(self.max_steps)?,
         };
         self.loop_.turn(input, cancellation).await
@@ -67,7 +79,10 @@ impl Agent {
             max_tokens: config.max_tokens,
             thinking_level: config.thinking_level,
             max_steps: config.max_steps,
-            system_prompt: SystemPrompt::new(""),
+            cwd: parts.cwd,
+            tool_names: config.tool_names,
+            permissions: config.permissions,
+            approval_configured: config.approval.is_some(),
         })
     }
 }
