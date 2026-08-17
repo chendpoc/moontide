@@ -4,7 +4,7 @@
 > Doc Map：[`docs/README.md`](../README.md) · 任务清单：[`TODO.md`](../../TODO.md)
 
 本仓库交付的是 **MoonTide** — 最小可用的 coding agent CLI + Slint sidecar。
-**MoonTide** 以月潮为意象，未来承载运行观测能力；具体事件、trace/span 与存储协议尚未设计。
+**MoonTide** 以月潮为意象，承载 AgentEvent、trace、tool use log 等运行观测能力。
 
 对外文案、CLI 展示和产品文档统一使用 **MoonTide**。已有技术标识（`moontide-*` crate、`.moontide/`、`MOONTIDE_*`）保留，以避免破坏已有配置和工作区数据。
 

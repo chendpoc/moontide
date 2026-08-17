@@ -16,7 +16,7 @@ Rust 内核架构以 [`crates/docs/agent-core.md`](crates/docs/agent-core.md) �
 MVP 四 crate（详见架构笔记 §6–§8、§10）：
 
 ```text
-cli（纯壳）→ agent（组合根）
+cli（纯壳，只消费 AgentEvent）→ agent（组合根）
                                   ├──► agent-core（引擎：8 个内部 mod，不拆 crate）
                                   └──► agent-tools（第一方 catalog/builtins）──► agent-core
 ```
@@ -28,7 +28,7 @@ agent-core/
   llm/          # LLMProvider + protocol + adapter/normalize
   session/      # item log 唯一写者
   tools/        # ToolSpec + 单次调用边界
-  event/        # TurnEvent → Session commit
+  event/        # RunEvent bus
   model_input/  # ModelRequest 的 compile 唯一出口
   context/      # materialize + compaction
   loop/         # turn 状态机 + ToolPermissionMap 查表

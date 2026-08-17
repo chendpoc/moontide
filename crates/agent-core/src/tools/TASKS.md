@@ -2,7 +2,7 @@
 
 > 依据 [`README.md`](README.md) 对外契约与 [`DESIGN.md`](DESIGN.md) 技术方案拆分。
 > RB1 覆盖 tools 的单次调用基础能力；RB2 将生命周期收敛为 `ToolCall` / `ToolResult` 并让 event/session 直接复用。组合根声明的 `ToolPermissionMap` 与查表顺序仍由后续 loop 集成批验证，不引入独立 permission 模块或 scheduler 的多调用策略。
-> executor `Err` 的配对规则属于后续 loop 集成：tools 只验证 `Tool::execute` 原样传播错误；loop 必须先提交 `OutcomeUnknown`，再把同一错误返回 turn 边界。
+> executor `Err` 的配对规则属于后续 loop 集成：tools 只验证 `Tool::execute` 原样传播错误；loop 必须先提交 `OutcomeUnknown`，再把同一错误返回 run 边界。
 > provider schema 关键词兼容属于后续 LLM adapter 接缝；RB1 不实现通用转换层、capability 矩阵或 provider profile。
 > 公开签名已在 README/DESIGN 冻结；实现发现契约缺口时必须停批回到设计评审。
 
@@ -78,9 +78,9 @@
 
 ### TASK-tools-07: event/session 复用唯一 payload
 
-- **做什么：** `TurnEvent` 与 `SessionItem` 直接包装 `ToolCall` / `ToolResult`，删除 invocation/outcome 同义字段组；Session header 升到 v2，并保留 v1 读取时缺失 status → `OutcomeUnknown` 的迁移语义。
+- **做什么：** `RunEvent` 与 `SessionItem` 直接包装 `ToolCall` / `ToolResult`，删除 invocation/outcome 同义字段组；Session header 升到 v2，并保留 v1 读取时缺失 status → `OutcomeUnknown` 的迁移语义。
 - **依赖：** TASK-tools-05
-- **范围：** `event/{turn_event,derive,pipeline,tests}.rs`、`session/{types,commit,store,tests}.rs`
+- **范围：** `event/{run_event,derive,pipeline,tests}.rs`、`session/{types,commit,store,tests}.rs`
 - **预估 diff：** ~500 行
 - **完成标准：** event/session 映射、serde、v1 load/fork 测试通过
 - **状态：** ☑

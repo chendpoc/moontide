@@ -139,7 +139,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 仍属于 research frontier、暂不适合 MoonTide 第一版的包括：
 
 - Gemini CLI 当前默认关闭的 context graph pipeline。
-- Vector/semantic cross-session automatic memory。
+- Vector/semantic cross-run automatic memory。
 - 后台并行 compaction daemon。
 - 多级 seam manager/capacity controller。
 - ARC 一类 addressable context graph。

@@ -33,7 +33,7 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
          ▼
     ModelResponse / ModelResponseSnapshot
          │
-         └──► loop callback（当前不定义 UI / observability 协议）
+         └──► event::MessageUpdate（流式 UI）
 ```
 
 | 概念 | 含义 |
@@ -124,13 +124,13 @@ let response = run_model_call(provider.as_ref(), request).await?;
 // response.stop_reason → EndTurn | ToolUse | …
 ```
 
-### loop + 流式 callback
+### loop + 流式 UI + event
 
 ```rust
 run_model_call_with_updates(provider.as_ref(), request, |snapshot| {
-    consume_snapshot(snapshot);
+    dispatcher.emit(RunEvent::MessageUpdate { snapshot, .. })?;
 }).await?;
-// 完整响应确定后，loop emit AssistantFinalized 进入 Session Item Log
+// 结束后 loop emit LlmCallEnded、AssistantFinalized（见 event README）
 ```
 
 ### agent：注入 provider
@@ -168,9 +168,9 @@ if let Some(PendingBlock::ToolUse { name, .. }) = &snapshot.pending {
 
 | 时机 | 模块 |
 |------|------|
-| 调模型前 | `loop` 组装并发起 ModelRequest |
-| 流式中 | `on_update` callback；当前不定义跨模块观测事件 |
-| 模型返回后 | `event::AssistantFinalized` → session commit |
+| 调模型前 | `event`：`LlmCallStarted` |
+| 流式中 | `event`：`MessageUpdate { snapshot }` |
+| 模型返回后 | `event`：`LlmCallEnded` → `AssistantFinalized` → session commit |
 | session 存储 | 仅 `ModelResponse.content`（`ContentBlock`），无 `pending` |
 
 ---

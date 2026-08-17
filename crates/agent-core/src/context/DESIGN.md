@@ -112,7 +112,7 @@ pending identity 至少包含 `tool_use_id` 与 call name。以下情况必须�
 - pending call 未结束时出现普通 user/assistant message；
 - `Compaction` 出现在任何位置。
 
-错误应包含 item 类型和相关 id/name，便于 turn 边界诊断；不吞错、不自动补全、不写回 session。
+错误应包含 item 类型和相关 id/name，便于 run 边界诊断；不吞错、不自动补全、不写回 session。
 
 ## 5. import 边界
 

@@ -184,7 +184,7 @@ crates/agent-core/src/tools/registry.rs:47:    pub fn new(mut tools: Vec<Tool>) 
 
 - 不在本 crate 创建或缓存 `ToolRegistry`；
 - 不解析 preset，不实现 permission map；
-- 不保存 trace/session/turn 身份；
+- 不保存 run/session/turn 身份；
 - 不提供 scheduler resource claim；
 - 不把 `bash`、`web_fetch` 与 `grep` 塞进一个通用 executor；
 - 不用外部 `rg` 可执行文件作为首版运行时依赖；

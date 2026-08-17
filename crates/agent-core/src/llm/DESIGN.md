@@ -100,7 +100,7 @@ preset "openrouter" × OpenAiChatCompletions → https://openrouter.ai/api/v1
     → normalize StreamDecoder → ModelStreamEvent
     → ModelResponseBuilder::apply
     → ModelResponseSnapshot / ModelResponse
-    → loop 经 run_model_call*；TurnEvent 转发 snapshot
+    → loop 经 run_model_call*；RunEvent 转发 snapshot
 ```
 
 ### 5.1 出站转换 owner
@@ -175,7 +175,7 @@ enum ModelStreamEvent {
 ```
 
 - **`block_index`：** assistant 消息内块序号；变化时 Builder flush。
-- **不在此枚举：** `ResponseStarted`（loop / `TurnEvent`）、全文 `ResponseCompleted`（`finish()`）。
+- **不在此枚举：** `ResponseStarted`（loop / `RunEvent`）、全文 `ResponseCompleted`（`finish()`）。
 
 ### 6.4 Snapshot + Builder
 
@@ -228,7 +228,7 @@ where
     F: FnMut(ModelResponseSnapshot);
 ```
 
-**与 `TurnEvent`：** `on_update` 只把 snapshot 交还 loop；当前不定义跨模块流式观测事件。完整响应确定后，loop emit `AssistantFinalized` 进入 Session Item Log。
+**与 `RunEvent`：** loop 在 `on_update` 内 emit `MessageUpdate`；调用前 `LlmCallStarted`，结束后 `LlmCallEnded` + `AssistantFinalized`（event 模块）。
 
 ### Snapshot 供给 vs 渲染
 

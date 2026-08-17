@@ -158,7 +158,7 @@ grep::build()
 
 - `spec.rs` 不 import `std::fs`、`tokio` 或 `ignore`；
 - `executor.rs` 不创建 JSON Schema；
-- `executor.rs` 不查询 permission，不写 Session/TurnEvent；
+- `executor.rs` 不查询 permission，不写 Session/RunEvent；
 - `mod.rs` 只组合，不复制执行逻辑；
 - 公共 runtime 状态全部使用 `agent-core::tools` 类型，不定义平行 outcome/registry。
 

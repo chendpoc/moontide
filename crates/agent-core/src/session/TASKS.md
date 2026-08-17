@@ -84,7 +84,7 @@
 
 ### TASK-session-09: commit_from_event
 
-- **做什么：** `commit.rs`；Committable `TurnEvent` → `SessionItemDraft` → `commit_item`；非 Committable → `Err`。
+- **做什么：** `commit.rs`；Committable `RunEvent` → `SessionItemDraft` → `commit_item`；非 Committable → `Err`。
 - **范围：** `commit.rs`、`mod.rs`。
 - **完成标准：** 映射表单测（UserPromptCommitted / AssistantFinalized / ToolCallRecorded / ToolResultRecorded）。
 - **状态：** ☑

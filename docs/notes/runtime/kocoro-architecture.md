@@ -141,7 +141,7 @@ Client → Gateway (Go) → Orchestrator (Go) → Agent Core (Rust) → LLM Serv
 | 本地 LLM | Ollama 套壳 | 倾向 Rust direct GGUF（见 [edge-local-models.md](../llm/edge-local-models.md)） |
 | Memory | `tlm` sidecar + UDS + cloud bundle | Session Event Log spec；episodic backlog |
 | IPC | HTTP、WS、memory UDS、Desktop RPC | file watch；规划 NDJSON / UDS |
-| 观测 | daemon SSE / WS events | 后置，真实接入时设计 |
+| 观测 | daemon SSE / WS events | Agent Event Log JSONL |
 | Cloud | Shannon Cloud 深度绑定 | 多 vendor preset，无自建 cloud |
 | 沙箱 | Shannon WASI（企业） | QuickJS / WASM scratch（规划） |
 

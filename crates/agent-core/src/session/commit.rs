@@ -1,33 +1,35 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
-use crate::event::TurnEvent;
+use crate::event::RunEvent;
 
 use super::store::SessionStore;
 use super::types::{CompactionKind, SessionItem, SessionItemDraft};
 
-/// Maps a `TurnEvent` fact to a `SessionItem` and persists it.
+/// Maps a committable `RunEvent` to a `SessionItem` and persists it.
+///
+/// Non-committable events return an error with a clear message.
 pub fn commit_from_event<'a>(
     store: &'a mut SessionStore,
-    event: &TurnEvent,
+    event: &RunEvent,
 ) -> Result<&'a SessionItem> {
     let draft = match event {
-        TurnEvent::UserPromptCommitted { turn, text } => SessionItemDraft::UserMessage {
+        RunEvent::UserPromptCommitted { turn, text } => SessionItemDraft::UserMessage {
             turn: *turn,
             text: text.clone(),
         },
-        TurnEvent::AssistantFinalized { turn, blocks } => SessionItemDraft::AssistantMessage {
+        RunEvent::AssistantFinalized { turn, blocks } => SessionItemDraft::AssistantMessage {
             turn: *turn,
             blocks: blocks.clone(),
         },
-        TurnEvent::ToolCallRecorded { turn, call } => SessionItemDraft::ToolCall {
+        RunEvent::ToolCallRecorded { turn, call } => SessionItemDraft::ToolCall {
             turn: *turn,
             call: call.clone(),
         },
-        TurnEvent::ToolResultRecorded { turn, result } => SessionItemDraft::ToolResult {
+        RunEvent::ToolResultRecorded { turn, result } => SessionItemDraft::ToolResult {
             turn: *turn,
             result: result.clone(),
         },
-        TurnEvent::CompactionApplied {
+        RunEvent::CompactionApplied {
             turn,
             compaction_kind,
             compaction_save_id,
@@ -42,17 +44,43 @@ pub fn commit_from_event<'a>(
             before_tokens: *before_tokens,
             after_tokens: *after_tokens,
         },
+        other => {
+            return Err(anyhow!(
+                "run event is not committable: {}",
+                non_committable_label(other)
+            ));
+        }
     };
 
     store.commit_item(draft)
 }
 
-impl From<crate::event::TurnCompactionKind> for CompactionKind {
-    fn from(kind: crate::event::TurnCompactionKind) -> Self {
+fn non_committable_label(event: &RunEvent) -> &'static str {
+    match event {
+        RunEvent::RunStarted { .. } => "RunStarted",
+        RunEvent::RunEnded { .. } => "RunEnded",
+        RunEvent::TurnStarted { .. } => "TurnStarted",
+        RunEvent::TurnEnded { .. } => "TurnEnded",
+        RunEvent::LlmCallStarted { .. } => "LlmCallStarted",
+        RunEvent::LlmCallEnded { .. } => "LlmCallEnded",
+        RunEvent::MessageUpdate { .. } => "MessageUpdate",
+        RunEvent::CompactionRecommended { .. } => "CompactionRecommended",
+        RunEvent::ContextPreflightEnded { .. } => "ContextPreflightEnded",
+        RunEvent::ContextPostflightEnded { .. } => "ContextPostflightEnded",
+        RunEvent::UserPromptCommitted { .. }
+        | RunEvent::AssistantFinalized { .. }
+        | RunEvent::ToolCallRecorded { .. }
+        | RunEvent::ToolResultRecorded { .. }
+        | RunEvent::CompactionApplied { .. } => "committable",
+    }
+}
+
+impl From<crate::event::RunCompactionKind> for CompactionKind {
+    fn from(kind: crate::event::RunCompactionKind) -> Self {
         match kind {
-            crate::event::TurnCompactionKind::Prune => CompactionKind::Prune,
-            crate::event::TurnCompactionKind::TailWindow => CompactionKind::TailWindow,
-            crate::event::TurnCompactionKind::Summary => CompactionKind::Summary,
+            crate::event::RunCompactionKind::Prune => CompactionKind::Prune,
+            crate::event::RunCompactionKind::TailWindow => CompactionKind::TailWindow,
+            crate::event::RunCompactionKind::Summary => CompactionKind::Summary,
         }
     }
 }

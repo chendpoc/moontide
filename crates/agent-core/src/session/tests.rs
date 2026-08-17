@@ -693,11 +693,11 @@ fn compaction_and_checkpoint_commit_load() {
     }
 }
 
-// 场景：把全部当前 TurnEvent 事实映射到 SessionItem。
-// 预期：每类事件写入对应 item；不变量：event 协议不包含无法持久化的变体。
+// 场景：把全部 committable RunEvent 映射到 SessionItem。
+// 预期：每类事件写入对应 item；不变量：非 committable 事件不进入 commit。
 #[test]
-fn commit_from_event_maps_all_turn_events() {
-    use crate::event::{TurnCompactionKind, TurnEvent};
+fn commit_from_event_maps_committable_run_events() {
+    use crate::event::{RunCompactionKind, RunEvent};
     use crate::session::{commit_from_event, SessionItem};
 
     let root = TempDir::new().expect("tempdir");
@@ -706,7 +706,7 @@ fn commit_from_event_maps_all_turn_events() {
 
     let user = commit_from_event(
         &mut store,
-        &TurnEvent::UserPromptCommitted {
+        &RunEvent::UserPromptCommitted {
             turn: 0,
             text: "hello".into(),
         },
@@ -719,7 +719,7 @@ fn commit_from_event_maps_all_turn_events() {
 
     let assistant = commit_from_event(
         &mut store,
-        &TurnEvent::AssistantFinalized {
+        &RunEvent::AssistantFinalized {
             turn: 0,
             blocks: vec![ContentBlock::Text {
                 text: "reply".into(),
@@ -738,7 +738,7 @@ fn commit_from_event_maps_all_turn_events() {
         ToolCall::new("tool-1", "read_file", json!({"path": "a.rs"})).expect("create tool call");
     let recorded_call = commit_from_event(
         &mut store,
-        &TurnEvent::ToolCallRecorded {
+        &RunEvent::ToolCallRecorded {
             turn: 1,
             call: call.clone(),
         },
@@ -756,7 +756,7 @@ fn commit_from_event_maps_all_turn_events() {
     let result = ToolResult::succeeded(&call, ToolContent::Text("ok".into()));
     let recorded_result = commit_from_event(
         &mut store,
-        &TurnEvent::ToolResultRecorded {
+        &RunEvent::ToolResultRecorded {
             turn: 1,
             result: result.clone(),
         },
@@ -774,9 +774,9 @@ fn commit_from_event_maps_all_turn_events() {
 
     let compaction = commit_from_event(
         &mut store,
-        &TurnEvent::CompactionApplied {
+        &RunEvent::CompactionApplied {
             turn: 2,
-            compaction_kind: TurnCompactionKind::Summary,
+            compaction_kind: RunCompactionKind::Summary,
             compaction_save_id: Some("save-1".into()),
             excluded_item_ids: vec!["item-0".into()],
             before_tokens: Some(9_000),
@@ -803,4 +803,21 @@ fn commit_from_event_maps_all_turn_events() {
     }
 
     assert_eq!(store.items().len(), 5);
+}
+
+// 场景：向 commit_from_event 传入 observational RunEvent。
+// 预期：返回错误且不写 Session Item Log。
+#[test]
+fn commit_from_event_rejects_non_committable() {
+    use crate::event::RunEvent;
+    use crate::session::commit_from_event;
+
+    let root = TempDir::new().expect("tempdir");
+    let mut store =
+        SessionStore::create(sessions_dir(&root), PathBuf::from("/tmp")).expect("create");
+
+    let err = commit_from_event(&mut store, &RunEvent::TurnStarted { turn: 0 })
+        .expect_err("non-committable");
+    assert!(err.to_string().contains("not committable"));
+    assert!(err.to_string().contains("TurnStarted"));
 }

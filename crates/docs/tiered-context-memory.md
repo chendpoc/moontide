@@ -32,7 +32,7 @@ OpenViking（volcengine 开源的 context database for AI agents）把 memory / 
 
 ## 边界（关键）
 
-- **短期 session**（Session Item Log）：确定性、可重放、机械断言，是 source of truth。
+- **短期 session**（AgentEvent JSONL）：确定性、可重放、机械断言，是 source of truth。
 - **长期记忆检索**：概率性（向量打分）、辅助。
 - 二者边界画死：检索结果不得污染 Composer 的确定性投影。
 

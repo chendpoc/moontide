@@ -18,7 +18,7 @@
   1. llm         LLMProvider trait + ModelRequest/Response/Delta 类型
   2. session     Session Item Log 事实源（依赖 llm message 与 tools call/result 契约）
   3. tools       ToolSpec + 单次执行边界（相对独立；验收 / offload 归 scheduler）
-  4. event       TurnEvent → Session commit（直接包装 tools call/result）
+  4. event       RunEvent 类型 + bus（tool RunEvent 直接包装 tools call/result）
 
 装配层（依赖契约层）
   5. model_input 纯组装 ModelRequest（依赖 tools + llm protocol）
@@ -36,12 +36,12 @@
 - **核心能力 trait**（确定存在多实现）：
   - `LLMProvider`：`stream(ModelRequest) -> Stream<Delta>`，实现 = cloud / 本地 daemon
   - `ToolExecutor`：`execute(&ToolCall, working_dir) -> ToolResult`，实现 = 内置 / sidecar
-- **其他窄边界**：event 的 `CommitHandler` 隔离 loop 与 session 实现；观测与 hook 尚未形成真实边界，不预设 trait。
+- **其他窄边界**：event pipeline 的 `HookHandler` / `CommitHandler` / `ObserveHandler` 用于 callback 解耦；不把它们扩展成领域能力或全局 service trait。
 - **其余模块是内部 mod**：高层 mod 依赖低层 mod，**低层不反向依赖高层**。
 - **唯一写者**：`session` 是 Session Item Log 唯一写者；未来 compaction 策略由 `context` 计算、由 loop 转发给 session 执行，具体计划类型尚未确认。tool item 直接包装 tools 的 `ToolCall` / `ToolResult`，session 只持久化，不决定状态。
 - **唯一出口**：`model_input::compile()` 是 `ModelRequest` 的唯一运行时构造出口；`context::materialize()` 是 Session Item Log → model-visible messages 的唯一出口。
 
-## 3. 数据流（一次 Turn 的完整链路）
+## 3. 数据流（一次 Run 的完整链路）
 
 ```text
 session.load()
@@ -52,7 +52,7 @@ session.load()
   → tools.resolve + validate(tool_call)     # 名称与 input schema 守门
   → loop.check_permission(tool_call.name)  # 查组合根注入的 ToolPermissionMap
   → tools.execute_one(tool_call)           # 单次副作用
-  → event.emit(TurnEvent)                   # hook → commit → observe
+  → event.emit(RunEvent)                   # hook → commit → observe
   → session commit handler                 # 唯一写者落盘
   → loop 判定 continue / steer / stop
 ```
@@ -106,4 +106,4 @@ session.load()
 | `model_input` | [`src/model_input/README.md`](src/model_input/README.md) | [`src/model_input/DESIGN.md`](src/model_input/DESIGN.md) |
 | `context` | [`src/context/README.md`](src/context/README.md) | [`src/context/DESIGN.md`](src/context/DESIGN.md) |
 
-**原则：** `loop` 只 `emit`；`session` 只经 commit 阶段写盘；`agent` 注入 `CommitHandler`。CLI 与观测接缝后置。
+**原则：** `loop` 只 `emit`；`session` 只经 commit 阶段写盘；`agent` 装配 Registry；`cli` 只读观测。

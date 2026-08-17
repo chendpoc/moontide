@@ -77,7 +77,7 @@ cli（纯壳）→ agent（组合根）
 llm ───────────────► provider / protocol
 session ───────────► llm protocol + tools result status
 tools ──────────────► std + serde + anyhow
-event ──────────────► protocol / TurnEvent + tools result status
+event ──────────────► protocol / RunEvent + tools result status
 model_input ────────► tools + llm protocol
 context ────────────► session + llm protocol + tools
 loop ───────────────► llm + session + tools + event + model_input + context
@@ -109,7 +109,9 @@ Trait 的约束是“是否形成清晰的实现边界”，不是数量上限�
 |-------|------|----------|
 | `LLMProvider` | 流式模型调用边界 | 云端 provider / 本地 daemon |
 | `ToolExecutor` | 单个工具真实副作用边界 | 内置工具 / sidecar adapter |
-| `CommitHandler` | 将 TurnEvent 事实写入事实源 | session adapter |
+| `HookHandler` | event 提交前的阻断 callback | run / lifecycle guard |
+| `CommitHandler` | 将 committable RunEvent 写入事实源 | session adapter |
+| `ObserveHandler` | 派生 Agent Event Log 或观测输出 | event observer / sidecar |
 
 这些 trait 属于不同的窄边界，不互相替代，也不应合并成一个通用 service trait。新增 trait 需要说明实现 owner、生命周期、替换理由和测试 seam。
 
@@ -168,7 +170,7 @@ canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定�
 
 ## 5. Runtime 数据流与事实边界
 
-一次 turn 的核心数据流：
+一次 run 的核心数据流：
 
 ```text
 Session Item Log
@@ -187,7 +189,7 @@ ModelResponse / ToolUse
     │                                                               ▼
     │                                                           ToolResult
     │
-    ├─ loop emit TurnEvent
+    ├─ loop emit RunEvent
     └─ event commit / derive
 ```
 
@@ -202,9 +204,9 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 
 它可以被 resume、replay 和 `context.materialize` 消费。Session 是唯一写者；运行时模块不直接写 JSONL。
 
-### 5.2 Runtime observability（后置）
+### 5.2 Agent Event Log
 
-当前不定义 Agent Event Log、trace/span、bus、sidecar 或观测存储。`TurnEvent` 只表达必须同步写入 Session Item Log 的事实。真实 UI、诊断或 OTel 消费者接入后，重新对齐 identity、生命周期、失败隔离、schema、retention 与传输。
+Agent Event Log 是由 RunEvent derive 的观测记录，服务于 UI、诊断、sidecar 和指标。它不是恢复事实源，也不能反向修改 Session Item Log。
 
 ### 5.3 Tool-call round closure
 
@@ -216,6 +218,7 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 |------|----------|
 | Session Item Log → messages | `materialize` |
 | SystemPrompt + messages + tools → ModelRequest | `compile` |
+| RunEvent → Agent Event | `derive` |
 
 ---
 
@@ -226,8 +229,8 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 | 类型 | 表达 | 处理 |
 |------|------|------|
 | 工具预期失败 | 模型可见的 tool result | 返回错误文本/结构化结果，通常继续 turn |
-| 工具基础设施故障 | `anyhow::Result` | loop 先提交 `OutcomeUnknown` 配对结果，再向 turn 边界传播原始错误 |
-| LLM 基础设施故障 | `anyhow::Result` | 向 turn 边界传播，统一处理 |
+| 工具基础设施故障 | `anyhow::Result` | loop 先提交 `OutcomeUnknown` 配对结果，再向 run 边界传播原始错误 |
+| LLM 基础设施故障 | `anyhow::Result` | 向 run 边界传播，统一处理 |
 
 预期失败不得 panic；基础设施错误不得在中途吞掉。库代码不用 `unwrap()`、`expect()` 或 panic 处理外部输入。
 
@@ -244,7 +247,7 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 
 工具已开始且无法确认写入结果时，使用 `OutcomeUnknown`，不能为了让对话继续而伪造 `Succeeded` 或 `Failed`。
 
-### 6.3 TurnEvent 与 Session 顺序
+### 6.3 RunEvent 与 Session 顺序
 
 对于 tool 调用，推荐并由 event/session 契约守门的顺序是：
 
@@ -282,11 +285,11 @@ AssistantFinalized
 - `session` 不 import `loop` / `agent`；
 - `tools` 不 import 高层运行时实现；
 - loop 不直接写 Session；
-- Committable TurnEvent 才能进入 commit 阶段；
+- Committable RunEvent 才能进入 commit 阶段；
 - ToolResult 状态与 content 独立；
 - 单次工具生命周期只用 ToolCall / ToolResult 建模，event/session 直接包装，不复制字段；
 - `OutcomeUnknown` 不得归一成成功；
-- executor `Err` 必须先产生一次配对的 `OutcomeUnknown`，再向 turn 边界传播。
+- executor `Err` 必须先产生一次配对的 `OutcomeUnknown`，再向 run 边界传播。
 
 Conformance 测试验证不变量；热路径不增加 runtime assert 来替代测试。
 
@@ -326,7 +329,9 @@ just check
 |------|----------|
 | 整场 session 的 append-only 事实源 | **Session Item Log** |
 | log 中的一条记录 | **SessionItem** |
-| turn 配置解析 | `resolveTurnConfig` |
+| 单次 run 的观测日志 | **Agent Event Log** |
+| 运行事件广播 | **RunEvent bus** |
+| run 配置解析 | `resolveRunConfig` |
 | turn 上下文解析 | `resolveTurnContext` |
 
 ### 9.2 禁用替代词
@@ -334,6 +339,7 @@ just check
 - 不用 `Session Event Log`、`SessionLog`、`Item Log` 代替 Session Item Log；
 - 不用 `derive_messages`、`projection`、`restore` 代替 `materialize`；
 - 不用 `compose` 代替 `compile`；
+- 不用 `sink` 指 RunEvent bus；
 - 不用“工具验收网关”描述 tools 的核心职责；模型 offload 验收属于 scheduler。
 
 命名的目标是一词一义，并能对应具体模块、边界或不变量。

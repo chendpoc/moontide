@@ -61,7 +61,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 
 ## 工程原则（摘要）
 
-1. **分层** — MVP 四 crate：`agent-core`（引擎）、`agent-tools`（第一方 catalog/builtins）、`agent`（组合根）、`cli`（纯壳）。`agent-tools → agent-core`，`agent` 依赖二者，`agent-core` 不反向依赖任何上层 crate。内核 8 个内部 mod（`llm` / `session` / `tools` / `event` / `model_input` / `context` / `loop` / `scheduler`），不拆 crate。Session Item Log 为事实源；观测协议与存储后置。架构见 [`crates/docs/agent-core.md`](crates/docs/agent-core.md)。
+1. **分层** — MVP 四 crate：`agent-core`（引擎）、`agent-tools`（第一方 catalog/builtins）、`agent`（组合根）、`cli`（纯壳）。`agent-tools → agent-core`，`agent` 依赖二者，`agent-core` 不反向依赖任何上层 crate。内核 8 个内部 mod（`llm` / `session` / `tools` / `event` / `model_input` / `context` / `loop` / `scheduler`），不拆 crate。Session Log 为事实源，Agent Event 仅 derive。架构见 [`crates/docs/agent-core.md`](crates/docs/agent-core.md)。
 2. **高内聚低耦合** — `session` 不依赖 `loop` / `agent`；permission 是组合根随 tool 注册声明的 `tool_name → Allow | Ask` map，由 `loop` 查表，缺失项安全拒绝；当前不设独立 permission mod。
 3. **Spec / Impl 分离** — tool schema 与 handler 分开；handler 不定义 schema，schema 无 IO 副作用。
 4. **声明式注册表** — tool 注册用表驱动；新增 tool 改表不改长 match。
@@ -80,6 +80,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 |------|------|
 | Session Item Log → messages | **materialize**（不用 derive_messages / 投影 / 还原） |
 | SystemPrompt + messages + tools → ModelRequest | **compile**（不用 compose） |
+| RunEvent → Agent Event | **derive**（`event::derive` 已落地；完整 bus/sidecar 仍后置） |
 
 **实体：**
 
@@ -87,8 +88,9 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 |------|------|
 | 整场 session 的 append-only 事实源 | **Session Item Log**（不用 Session Event Log / SessionLog / Item Log） |
 | log 中的一条记录 | **SessionItem**（不用 SessionEvent / SessionLogEntry） |
+| 单次 run 的观测日志 | **Agent Event Log**（不用 RunEvent log / 观测流） |
 
-内核：**resolveTurnConfig** / **resolveTurnContext**（不用 fold 指 config）。观测、sidecar 与 bus 尚未设计，不预设术语或传输路径。
+内核：**RunEvent bus**（不用 sink）、**resolveRunConfig** / **resolveTurnContext**（不用 fold 指 config）。sidecar 只经文件消费，不走 IPC。
 
 完整术语表（canonical + 别名禁用 + 关系 + 冲突裁决）：[`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md)。
 
@@ -97,8 +99,8 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 ## 错误边界
 
 - Tool 预期失败：把错误文本作为 tool result 返回给模型，不 panic
-- tool / LLM 调用：错误经 `Result` 传到 turn 边界统一处理，不在中途吞掉
-- executor 基础设施错误：`loop` 先 emit `OutcomeUnknown` 的 `ToolResultRecorded`，再把原始 `Result::Err` 传到 turn 边界，禁止留下已记录但无 `ToolResult` 的 `ToolCall`
+- tool / LLM 调用：错误经 `Result` 传到 run 边界统一处理，不在中途吞掉
+- executor 基础设施错误：`loop` 先 emit `OutcomeUnknown` 的 `ToolResultRecorded`，再把原始 `Result::Err` 传到 run 边界，禁止留下已记录但无 `ToolResult` 的 `ToolCall`
 - REPL turn 失败：打印 ERROR 后 REPL 继续（配置类致命错误除外）
 - 排查：stderr ERROR → `/thinking on` → `.moontide/sessions/*.jsonl`
 

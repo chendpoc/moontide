@@ -464,11 +464,12 @@ capabilities
 {
   "type": "request",
   "id": "req-1",
-  "method": "agent.turn",
+  "method": "agent.run",
   "params": {
     "session_id": "session-1",
     "message": "分析这个项目"
   },
+  "trace_id": "trace-1",
   "deadline_ms": 60000
 }
 ```
@@ -522,7 +523,7 @@ Handshake 示例：
   "runtime": "node-agent",
   "runtime_version": "0.1.0",
   "capabilities": {
-    "agent.turn": 1,
+    "agent.run": 1,
     "mcp.connect": 1
   }
 }
@@ -738,7 +739,7 @@ Slint UI
 
 - Runtime Manager；
 - Handshake；
-- Agent Turn；
+- Agent Run；
 - Streaming；
 - Cancel；
 - Heartbeat；

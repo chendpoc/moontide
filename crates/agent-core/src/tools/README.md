@@ -37,7 +37,7 @@ ToolCall
     ▼
 ToolResult
     │
-    ├─ loop → TurnEvent::ToolResultRecorded
+    ├─ loop → RunEvent::ToolResultRecorded
     ├─ loop → llm ToolResult block
     └─ session 不由 tools 直接写入
 ```
@@ -53,7 +53,7 @@ AssistantFinalized
   → ToolResultRecorded
 ```
 
-Session Item Log 是恢复事实源；TurnEvent 是由运行过程 derive 的观测流。
+Session Item Log 是恢复事实源；RunEvent 是由运行过程 derive 的观测流。
 
 ---
 
@@ -63,9 +63,9 @@ Session Item Log 是恢复事实源；TurnEvent 是由运行过程 derive 的观
 |--------|------|------|
 | **`model_input`** | 读取冻结的 `ToolRegistry`，把 `ToolSpec` 转成 `llm::protocol::ToolSchema` | 调 executor、执行 IO |
 | **`scheduler`** | 读取调用与结果契约；未来结合已确认的资源声明决定排队、串并行、取消、offload、重试 | 修改工具 schema、绕过 registry |
-| **`loop`** | 解析模型 `ToolUse`，依次完成 tools 校验、查询 `ToolPermissionMap`、tools 执行，emit TurnEvent | 绕过输入校验或 permission map、直接写 session |
+| **`loop`** | 解析模型 `ToolUse`，依次完成 tools 校验、查询 `ToolPermissionMap`、tools 执行，emit RunEvent | 绕过输入校验或 permission map、直接写 session |
 | **`agent`** | 按 preset 从 `agent-tools` catalog 选择并构造 `Tool`，创建 registry 和独立 permission map | 在 loop 内临时修改注册表 |
-| **`session`** | 通过 `TurnEvent` commit `ToolCall` / `ToolResult` | 反向依赖 executor |
+| **`session`** | 通过 `RunEvent` commit `ToolCall` / `ToolResult` | 反向依赖 executor |
 | **测试** | 构造具体 `ToolExecutor`、验证 registry 与规范化结果 | 依赖真实 shell / 网络才能验证纯契约 |
 
 `ToolExecutor` 是 `agent-core` 内唯一的工具 trait。`ToolSpec`、`ToolRegistry` 和 permission map 使用具体类型，不为未来可能的扩展提前增加 trait。
@@ -224,7 +224,7 @@ registry 中每个工具必须恰好有一项 permission，map 不能包含未�
 
 `ToolSpec::new` 还要求名称匹配 `^[A-Za-z0-9_-]{1,64}$`。这是 OpenAI / Anthropic 等当前 provider 共同可表达的可移植身份契约，必须在 registry 和首次模型请求前失败；provider adapter 不负责重命名工具。
 
-R1 不定义通用 execution context。executor 唯一需要的宿主执行环境是调用时工作目录，因此显式接收 `working_dir`；它用于解析相对路径和设置子进程工作目录，不能通过修改进程全局 cwd 表达。tools 不负责验证目录存在性或改写路径。Session/Turn 身份和未来观测信息都不下沉给每个 executor。
+R1 不定义通用 execution context。executor 唯一需要的宿主执行环境是调用时工作目录，因此显式接收 `working_dir`；它用于解析相对路径和设置子进程工作目录，不能通过修改进程全局 cwd 表达。tools 不负责验证目录存在性或改写路径。`run_id`、`session_id`、`turn` 等运行身份仍由 loop/session/event 持有，不下沉给每个 executor。
 
 executor 只借用 `ToolCall`：调用事实始终由 tools 持有，执行器使用该 call 的受控构造器生成 `ToolResult`；`Tool::execute` 拒绝身份不匹配以及 `InvalidArguments` / `UnknownTool` / `Denied` / `Cancelled` 等 pipeline-owned 状态。
 
@@ -249,7 +249,7 @@ ToolResultStatus
 
 状态不能从 `content` 文本推断：`"permission denied"`、`"process cancelled"` 和 `"file not found"` 不是同一种失败。
 
-预期的工具失败作为模型可见的 tool result 返回；工具/LLM 基础设施错误通过 `anyhow::Result` 传到 turn 边界，不能在中途吞掉。R1 不把基础设施错误复制成 `ToolResultStatus`，也不为尚无 producer 的 timeout 预留状态。
+预期的工具失败作为模型可见的 tool result 返回；工具/LLM 基础设施错误通过 `anyhow::Result` 传到 run 边界，不能在中途吞掉。R1 不把基础设施错误复制成 `ToolResultStatus`，也不为尚无 producer 的 timeout 预留状态。
 
 `retryable` 是 `ToolResultStatus::Failed` 的一部分，供 scheduler 做重试判断。`content` 是模型可见载荷；结构化 JSON 使用 `ToolContent::Json`，由 loop 映射为稳定文本。不增加第三个 output/outcome 结构。
 
@@ -278,7 +278,7 @@ ToolResultStatus
 6. loop 按 tool name 查询 ToolPermissionMap；缺失 → Denied
 7. Allow，或 Ask 经用户确认后，tool.execute(&call, working_dir)
 8. Tool 内部执行 executor 并核验 ToolResult identity
-   └─ executor Err → loop 先组装 OutcomeUnknown ToolResult 并 emit，再向 turn 边界返回原错误
+   └─ executor Err → loop 先组装 OutcomeUnknown ToolResult 并 emit，再向 run 边界返回原错误
 9. loop emit ToolResultRecorded
 10. loop 将 ToolResult 转成下一条 llm ToolResult block
 ```
@@ -287,9 +287,9 @@ tools 只处理一次调用。当前 MVP 的执行前门禁只有输入校验与
 
 ### 与 Session / Event / LLM 的状态映射
 
-`ToolResultStatus` 是 host 侧单次调用的规范状态。`TurnEvent::ToolResultRecorded` 与 `SessionItem::ToolResult` 直接携带同一个 `ToolResult`，因此不会丢失 `Denied`、`Cancelled` 和 `OutcomeUnknown`。session/event 单向依赖 tools 契约，tools 不依赖其实现。
+`ToolResultStatus` 是 host 侧单次调用的规范状态。`RunEvent::ToolResultRecorded` 与 `SessionItem::ToolResult` 直接携带同一个 `ToolResult`，因此不会丢失 `Denied`、`Cancelled` 和 `OutcomeUnknown`。session/event 单向依赖 tools 契约，tools 不依赖其实现。
 
-如果 executor 返回基础设施 `Err`，`Tool::execute` 原样向上传播；loop 在返回 turn 边界前，必须使用同一 `ToolCall` 组装 `OutcomeUnknown` 并 emit `ToolResultRecorded`。已知、可描述的工具失败应由 executor 返回 `Ok(ToolResult::failed(...))`，不能滥用 `Err`。
+如果 executor 返回基础设施 `Err`，`Tool::execute` 原样向上传播；loop 在返回 run 边界前，必须使用同一 `ToolCall` 组装 `OutcomeUnknown` 并 emit `ToolResultRecorded`。已知、可描述的工具失败应由 executor 返回 `Ok(ToolResult::failed(...))`，不能滥用 `Err`。
 
 LLM 的 `ContentBlock::ToolResult` 继续承载模型可见 content，不强行暴露 host status。loop 在映射前依据 typed status 做控制流，并把 status 的说明编码到 content；不得从 content 反推 status。
 

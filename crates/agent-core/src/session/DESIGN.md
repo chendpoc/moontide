@@ -14,8 +14,8 @@
 |----|------|
 | `create` / `load` / `commit_item` / `fork` / `items()` | `materialize`（context） |
 | 不变量校验、`id`/`seq` 分配 | model-visible messages / request 组装（context / model_input） |
-| `commit_from_event`（R3） | TurnEvent Pipeline 引擎（event） |
-| | 运行时观测协议与存储（后置） |
+| `commit_from_event`（R3） | RunEvent Pipeline 引擎（event） |
+| | turn 生命周期观测（Agent Event Log） |
 
 **唯一写盘：** `SessionStore::commit_item` → `{session_id}.log.jsonl`。
 
@@ -128,11 +128,11 @@ impl SessionStore {
 ```rust
 pub fn commit_from_event(
     store: &mut SessionStore,
-    event: &TurnEvent,
+    event: &RunEvent,
 ) -> anyhow::Result<&SessionItem>;
 ```
 
-| `TurnEvent` | `SessionItem` |
+| `RunEvent` | `SessionItem` |
 |------------|---------------|
 | `UserPromptCommitted` | `UserMessage` |
 | `AssistantFinalized` | `AssistantMessage` |
@@ -244,8 +244,8 @@ Pi 式同文件树 fork 后置；R2 用新文件。
 | 1 | 一行 jsonl = 一个 `SessionItem`，无 Envelope |
 | 2 | tool 拆 `ToolCall` / `ToolResult` 两行；materialize 在 context |
 | 3 | `seq`（位置）+ `id`（身份）双字段 |
-| 4 | 非恢复所需的运行观测不进 Item Log |
-| 5 | loop 经 TurnEvent commit，不直接 append |
+| 4 | trace / turn 边界不进 Item Log |
+| 5 | loop 经 RunEvent commit，不直接 append |
 | 6 | R1 四类 item；Compaction 等 R2 |
 | 7 | v2 直接持久化 typed `ToolResult` 并为 `ToolContent` 写显式 tag；v1 缺失 status 按 `OutcomeUnknown`、历史 content 按 JSON 形状迁移 |
 | 8 | 文件名 `.meta.json` + `.log.jsonl` |
