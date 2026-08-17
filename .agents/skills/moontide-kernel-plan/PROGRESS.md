@@ -12,15 +12,22 @@
 | 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
 | 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成并通过 Review；compaction 后置 |
 | 7 | `loop` | 编排 | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；进入 scheduler 架构对齐 |
-| 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 分诊 + fan-out + delegate |
+| 8 | `scheduler` | 后置 | llm + tools | ☐ | ☐ | ☐ | 暂缓；由真实资源调度需求触发 |
 
 ## 当前目标
 
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
-- 当前推进：模块 7 `loop` 已完成；下一步进入模块 8 `scheduler` 架构对齐。
+- 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
+- 当前推进：`agent` R1/R2 已实现并通过测试；进入 `cli` R1（crate scaffold、配置解析与 one-shot）。
 
 ## 变更记录
+
+- 2026-08-17：`agent` R1/R2 完成：`0d08da8` 落组合根 bootstrap，`379f0e3` 落 Harness + Project SystemPrompt 按 Turn 解析；workspace 190 tests、fmt/clippy 通过。下一批进入 `cli` R1。
+
+- 2026-08-17：确认 Loop 后先构建初步可用 `agent + cli` 垂直切片。新增组合根与纯壳 README/DESIGN：AgentConfig 显式值、Agent create/resume/turn、Harness + Project SystemPrompt 合成、默认工具 permission 与 one-shot/REPL CLI；scheduler 继续暂缓。
+
+- 2026-08-17：确认暂不推进 scheduler。当前单 AgentLoop、顺序 Tool round、无资源声明/共享 daemon/多 Agent fairness，scheduler 不增加有效 owner；保留为后置架构槽位，待并发工具、资源冲突、共享 daemon、tool retry 或 offload/failover 出现真实消费者后重新对齐。
 
 - 2026-08-17：Loop TASK-loop-06 conformance 与收尾完成：新增 loop 生产源码 import/写入边界结构测试，补齐状态 checklist；Loop 模块 R1–R3 实现与测试完成，下一模块转入 scheduler 架构对齐。
 

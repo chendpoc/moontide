@@ -262,5 +262,7 @@ REPL turn 的可恢复错误由 turn 边界打印后继续；配置类致命错�
 | Model input | [`../agent-core/src/model_input/DESIGN.md`](../agent-core/src/model_input/DESIGN.md) |
 | Context | [`../agent-core/src/context/README.md`](../agent-core/src/context/README.md) · [`../agent-core/src/context/DESIGN.md`](../agent-core/src/context/DESIGN.md) |
 | Loop | [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) |
+| Agent composition root | [`../agent/README.md`](../agent/README.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) |
+| CLI shell | [`../cli/README.md`](../cli/README.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md) |
 
-`loop` R1–R3 与 TASK-loop-06 已完成；`scheduler` 仍在架构对齐前不建立实现级当前文档。
+`loop` R1–R3 与 TASK-loop-06 已完成；`agent` R1/R2 已实现并通过测试，当前进入 `cli` R1；`scheduler` 暂缓，不建立实现级当前文档。

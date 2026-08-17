@@ -9,7 +9,7 @@ Rust 内核架构以 [`crates/docs/agent-core.md`](crates/docs/agent-core.md) �
 
 正在重建内核 crate [`crates/agent-core`](crates/agent-core/README.md)，按依赖顺序逐模块推进。
 
-**当前模块：`model_input`** — 设计已确认，作为 `ModelRequest` 的纯组装与唯一运行时构造出口，Rust 实现待开始。`llm`、`session`、`tools`、`event` 与 `agent-tools` 当前分期已完成；初版 draft crate 已删除，不 import、不复用。
+**当前阶段：`agent + cli` 初步可用版** — `agent` 组合根 R1/R2 已完成，scheduler 暂缓；下一步实现 CLI R1 one-shot 垂直切片。`llm`、`session`、`tools`、`event`、`model_input`、`context` 与 `agent-tools` 当前分期已完成；初版 draft crate 已删除，不 import、不复用。
 
 ## 目标架构（Rust）
 
@@ -48,6 +48,8 @@ moontide/
 ├── crates/
 │   ├── agent-core/             # 内核运行时契约
 │   ├── agent-tools/            # 第一方 catalog 与 builtin
+│   ├── agent/                   # 组合根
+│   ├── cli/                     # 用户入口纯壳
 │   └── docs/                   # Rust 工程手册与系统设计
 ├── docs/
 │   ├── spec/                   # 候选系统规格与 draft
@@ -75,6 +77,8 @@ Agent 协作规则见 [`AGENTS.md`](AGENTS.md)。
 |------|------|------|
 | 架构 | [`docs/notes/runtime/agent-kernel-architecture.md`](docs/notes/runtime/agent-kernel-architecture.md) | Rust 内核收敛：crate 判据、8 模块、决策清单 |
 | 内核落地 | [`crates/agent-core/README.md`](crates/agent-core/README.md) | 模块依赖顺序与 checklist |
+| Agent 组合根 | [`crates/agent/README.md`](crates/agent/README.md) · [`crates/agent/DESIGN.md`](crates/agent/DESIGN.md) | provider/session/tools/prompt/loop 装配 |
+| CLI 纯壳 | [`crates/cli/README.md`](crates/cli/README.md) · [`crates/cli/DESIGN.md`](crates/cli/DESIGN.md) | one-shot/REPL/approval/render |
 | 索引 | [`docs/README.md`](docs/README.md) | Doc Map |
 | 方向 | [`docs/product/`](docs/product/) | vision / plan |
 | Spec | [`docs/spec/`](docs/spec/) | agent-core、agent-events、context-composer、llm-provider |
