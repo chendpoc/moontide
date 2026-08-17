@@ -265,4 +265,4 @@ REPL turn 的可恢复错误由 turn 边界打印后继续；配置类致命错�
 | Agent composition root | [`../agent/README.md`](../agent/README.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) |
 | CLI shell | [`../cli/README.md`](../cli/README.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md) |
 
-`loop` R1–R3 与 TASK-loop-06 已完成；`agent` R1/R2 与 `cli` R1/R2、R3 Settings Preflight 已实现并通过测试，当前等待 CLI Review；`scheduler` 暂缓，不建立实现级当前文档。
+`loop` R1–R3 与 TASK-loop-06 已完成；`agent` R1/R2 与 `cli` R1/R2、R3 Settings/trace 接缝已实现并通过测试，当前等待 CLI Review；OTel 与 `scheduler` 暂缓，不建立实现级当前文档。

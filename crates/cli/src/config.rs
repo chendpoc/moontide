@@ -6,7 +6,8 @@ use anyhow::{bail, Context, Result};
 use crate::args::CliArgs;
 use crate::{
     approval::{InteractiveApproval, NonInteractiveApproval},
-    settings::{ApprovalPolicy, RuntimeSettings},
+    settings::{ApprovalPolicy, RuntimeSettings, TraceMode},
+    trace::TraceObserver,
 };
 
 pub(crate) const DEFAULT_MAX_TOKENS: u32 = 4_096;
@@ -52,6 +53,13 @@ pub(crate) fn resolve_agent_config_with(
             None => Some(Arc::new(NonInteractiveApproval)),
         },
     };
+    let progress = match settings.trace_mode {
+        TraceMode::Off => None,
+        TraceMode::Events | TraceMode::EventsAndThinking => {
+            Some(Arc::new(TraceObserver::new(settings.trace_mode))
+                as Arc<dyn agent::ProgressObserver>)
+        }
+    };
     Ok(AgentConfig {
         cwd,
         sessions_dir,
@@ -68,6 +76,7 @@ pub(crate) fn resolve_agent_config_with(
         tool_names,
         permissions,
         approval,
+        progress,
     })
 }
 

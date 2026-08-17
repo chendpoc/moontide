@@ -72,6 +72,7 @@ pub struct AgentConfig {
     pub tool_names: Vec<String>,
     pub permissions: ToolPermissionMap,
     pub approval: Option<Arc<dyn ToolApprovalHandler>>,
+    pub progress: Option<Arc<dyn ProgressObserver>>,
 }
 
 pub struct Agent {
@@ -205,6 +206,8 @@ agent ↛ provider adapter concrete modules
 cli → agent
 agent-core ↛ agent / cli / agent-tools
 ```
+
+`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。
 
 ---
 

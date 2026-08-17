@@ -19,7 +19,7 @@
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent` R1/R2 与 CLI R1/R2、R3 Settings Preflight 已实现并通过测试，等待 Review；下一步完成文档收尾后再决定是否扩展输入 broker。
+- 当前推进：`agent` R1/R2 与 CLI R1/R2、R3 Settings/trace 接缝已实现并通过测试，等待 Review；OTel 与 scheduler 继续后置。
 
 ## 变更记录
 

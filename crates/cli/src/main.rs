@@ -5,6 +5,7 @@ mod input;
 mod render;
 mod repl;
 mod settings;
+mod trace;
 
 use std::process::ExitCode;
 

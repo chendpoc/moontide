@@ -15,7 +15,8 @@ use crate::{
     config::{resolve_agent_config_with, session_mode, validate_prompt},
     render::{assistant_text, write_assistant_stdout},
     repl::{await_turn_with_ctrl_c, parse_command, ReplCommand, TurnOutcome},
-    settings::{ApprovalPolicy, RuntimeSettings},
+    settings::{ApprovalPolicy, RuntimeSettings, TraceMode},
+    trace::format_progress_event,
 };
 
 // Scenario: clap parses one-shot and explicit path/model flags.
@@ -157,6 +158,7 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSe
     RuntimeSettings {
         api_key: api_key.into(),
         approval_policy,
+        trace_mode: TraceMode::Off,
         input_owner: None,
     }
 }
@@ -302,4 +304,32 @@ async fn completed_turn_wins_pending_ctrl_c() {
 
     assert!(!cancellation.is_cancelled());
     assert!(matches!(outcome, TurnOutcome::Completed(Ok(_))));
+}
+
+// Scenario: trace mode renders semantic progress events for CLI diagnostics.
+// Expected: tool/LLM lifecycle is visible, while thinking text remains opt-in.
+// Invariant: trace output is stderr-facing presentation and does not alter final assistant stdout.
+#[test]
+fn trace_mode_renders_events_and_opt_in_thinking() {
+    let tool = agent::ProgressEvent::ToolCall {
+        turn: 1,
+        name: "bash".into(),
+        tool_use_id: "tool-1".into(),
+        input: "{\"command\":\"pwd\"}".into(),
+    };
+    let thinking = agent::ProgressEvent::Thinking {
+        turn: 1,
+        step: 0,
+        text: "inspect workspace".into(),
+    };
+
+    assert!(format_progress_event(TraceMode::Events, &tool)
+        .expect("tool event should render")
+        .contains("tool=bash"));
+    assert!(format_progress_event(TraceMode::Events, &thinking).is_none());
+    assert!(
+        format_progress_event(TraceMode::EventsAndThinking, &thinking)
+            .expect("thinking event should render")
+            .contains("thinking: inspect workspace")
+    );
 }

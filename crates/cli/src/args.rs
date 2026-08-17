@@ -37,6 +37,10 @@ pub(crate) struct CliArgs {
     /// Approval policy for non-interactive one-shot mode and the Settings default.
     #[arg(long, value_enum, default_value_t = ApprovalPolicyArg::Always)]
     pub(crate) approval_policy: ApprovalPolicyArg,
+
+    /// Display live execution events on stderr.
+    #[arg(long, value_enum, default_value_t = TraceModeArg::Off)]
+    pub(crate) trace: TraceModeArg,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -44,6 +48,13 @@ pub(crate) enum ApprovalPolicyArg {
     Default,
     Always,
     AlwaysAllow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum TraceModeArg {
+    Off,
+    Events,
+    EventsThinking,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

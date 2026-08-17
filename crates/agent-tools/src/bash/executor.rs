@@ -50,6 +50,7 @@ fn run_command(call: &ToolCall, input: BashInput, working_dir: PathBuf) -> Resul
     let mut command = shell_command(&input.command);
     command
         .current_dir(&working_dir)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 

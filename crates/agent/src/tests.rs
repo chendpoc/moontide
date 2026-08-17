@@ -25,6 +25,7 @@ fn config(temp: &TempDir) -> AgentConfig {
         tool_names: Vec::new(),
         permissions: BTreeMap::new(),
         approval: None,
+        progress: None,
     }
 }
 

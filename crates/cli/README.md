@@ -59,12 +59,15 @@ cargo run -p cli -- --session <session_id> --prompt "继续刚才的任务"
 | `--model <name>` | `deepseek-chat` | model name |
 | `--base-url <url>` | `https://api.deepseek.com` | OpenAI-compatible endpoint root |
 | `--approval-policy <default\|always\|always-allow>` | `always` | one-shot approval policy；interactive REPL 可在 Settings 中调整 |
+| `--trace <off\|events\|events-thinking>` | `off` | 将实时 progress 事件输出到 stderr |
 
 API key 初版从 `DEEPSEEK_API_KEY` 读取。CLI 解析后传入 `AgentConfig`，agent 不读取环境变量。
 
 interactive REPL 启动时先进入 Settings Preflight：环境中存在 `DEEPSEEK_API_KEY` 时跳过输入，不存在时使用隐藏输入；用户确认 Settings 后才 create/resume Agent。输入的 key 只存在当前进程内存，不写 Session 或 Agent Event。
 
 `always` 会把所有启用工具映射为 `Ask`；`default` 保持 coding preset 的 read/find/grep Allow 与 write/edit/bash Ask；`always-allow` 把所有启用工具映射为 `Allow` 并跳过 approval。interactive Settings 对 `always-allow` 要求输入 `ALLOW` 确认。one-shot 不进入 Settings 页面，缺失 API key 直接失败。
+
+Trace 模式分层：`events` 展示 Turn/Step/LLM/Tool/Result 生命周期；`events-thinking` 额外展示 provider 实际返回的 Thinking block。trace 输出是 CLI 诊断，不进入 assistant stdout、Session Item Log 或 OTel。
 
 ---
 

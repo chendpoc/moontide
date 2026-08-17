@@ -99,6 +99,8 @@ interactive Settings Preflight 在 Agent create/resume 之前运行。`DEEPSEEK_
 
 `ApprovalPolicy::Always` 将所有启用工具映射为 `Ask`；`Default` 使用 coding preset；`AlwaysAllow` 将所有启用工具映射为 `Allow` 且不注入 approval handler。`AlwaysAllow` 只在 Settings 输入 `ALLOW` 后生效。策略只属于 CLI runtime settings，不新增 agent-core policy 模块。
 
+`--trace events` 使用 `AgentProgressObserver` 展示安全语义事件；`--trace events-thinking` 额外展示 provider 返回的 Thinking。两者均输出到 stderr，不引入 OTel 或 trace/span identity。
+
 ---
 
 ## 5. REPL

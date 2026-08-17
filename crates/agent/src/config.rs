@@ -6,6 +6,8 @@ use agent_core::{
 };
 use anyhow::{bail, Context, Result};
 
+use crate::progress::ProgressEvent;
+
 /// Provider settings resolved by the host application.
 #[derive(Debug, Clone)]
 pub struct ProviderConfig {
@@ -27,6 +29,12 @@ pub struct AgentConfig {
     pub tool_names: Vec<String>,
     pub permissions: ToolPermissionMap,
     pub approval: Option<Arc<dyn ToolApprovalHandler>>,
+    pub progress: Option<Arc<dyn ProgressObserver>>,
+}
+
+/// Receives safe semantic progress events without influencing agent decisions.
+pub trait ProgressObserver: Send + Sync {
+    fn on_progress(&self, event: &ProgressEvent) -> Result<()>;
 }
 
 impl AgentConfig {

@@ -62,6 +62,7 @@ pub struct AgentConfig {
     pub tool_names: Vec<String>,
     pub permissions: agent_core::r#loop::ToolPermissionMap,
     pub approval: Option<std::sync::Arc<dyn agent_core::r#loop::ToolApprovalHandler>>,
+    pub progress: Option<std::sync::Arc<dyn agent::ProgressObserver>>,
 }
 
 pub struct Agent {
@@ -87,6 +88,8 @@ impl Agent {
 ```
 
 `AgentConfig` 只接收已经解析好的显式值。`agent` 不读取环境变量；CLI 或其他宿主负责把环境变量、参数和默认值解析成该结构。
+
+`ProgressObserver` 接收由 TurnEvent 派生的安全 `ProgressEvent`，用于 CLI、Desktop 或 HTTP 展示；它是只读、fail-open 的观察接缝，不参与 Loop 决策，也不等同于 OTel trace/span。
 
 ---
 

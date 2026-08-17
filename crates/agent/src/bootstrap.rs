@@ -17,7 +17,7 @@ use agent_tools::builtin_tool_definitions;
 use anyhow::{Context, Result};
 use uuid::Uuid;
 
-use crate::{agent::AgentParts, config::AgentConfig, prompt};
+use crate::{agent::AgentParts, config::AgentConfig, progress::ProgressHook, prompt};
 
 pub(crate) fn create(config: &AgentConfig) -> Result<AgentParts> {
     build(config, None)
@@ -54,8 +54,11 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
     let recorder = FileAgentEventRecorder::new(&config.runs_dir, &run_id)
         .context("create Agent Event recorder")?;
     let hook = Arc::new(DeriveAgentEventHook::new(recorder));
-    let pipelines = PipelineRegistry::builder()
-        .hook(hook)
+    let mut pipeline_builder = PipelineRegistry::builder().hook(hook);
+    if let Some(observer) = config.progress.clone() {
+        pipeline_builder = pipeline_builder.hook(Arc::new(ProgressHook::new(observer)));
+    }
+    let pipelines = pipeline_builder
         .build_frozen()
         .context("freeze event hook registry")?;
 

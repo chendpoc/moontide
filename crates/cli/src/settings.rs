@@ -3,7 +3,7 @@ use std::env;
 use anyhow::{bail, Context, Result};
 
 use crate::{
-    args::{ApprovalPolicyArg, CliArgs},
+    args::{ApprovalPolicyArg, CliArgs, TraceModeArg},
     input::InputOwner,
     render::write_diagnostic_stderr,
 };
@@ -17,10 +17,18 @@ pub(crate) enum ApprovalPolicy {
     AlwaysAllow,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TraceMode {
+    Off,
+    Events,
+    EventsAndThinking,
+}
+
 #[derive(Clone)]
 pub(crate) struct RuntimeSettings {
     pub(crate) api_key: String,
     pub(crate) approval_policy: ApprovalPolicy,
+    pub(crate) trace_mode: TraceMode,
     pub(crate) input_owner: Option<InputOwner>,
 }
 
@@ -32,6 +40,7 @@ pub(crate) fn resolve_one_shot(args: &CliArgs) -> Result<RuntimeSettings> {
     Ok(RuntimeSettings {
         api_key,
         approval_policy: args.approval_policy.into(),
+        trace_mode: args.trace.into(),
         input_owner: None,
     })
 }
@@ -98,6 +107,7 @@ pub(crate) fn resolve_interactive(
     Ok(RuntimeSettings {
         api_key,
         approval_policy,
+        trace_mode: args.trace.into(),
         input_owner: Some(input_owner),
     })
 }
@@ -138,6 +148,16 @@ impl From<ApprovalPolicyArg> for ApprovalPolicy {
             ApprovalPolicyArg::Default => Self::Default,
             ApprovalPolicyArg::Always => Self::Always,
             ApprovalPolicyArg::AlwaysAllow => Self::AlwaysAllow,
+        }
+    }
+}
+
+impl From<TraceModeArg> for TraceMode {
+    fn from(value: TraceModeArg) -> Self {
+        match value {
+            TraceModeArg::Off => Self::Off,
+            TraceModeArg::Events => Self::Events,
+            TraceModeArg::EventsThinking => Self::EventsAndThinking,
         }
     }
 }
