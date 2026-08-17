@@ -39,7 +39,7 @@ cli（纯壳）→ agent（组合根）
 | `llm` | MoonTide 协议、provider port、adapter/normalize、request preflight | 基础库 | 已实现 |
 | `session` | Session Item Log 的 create/load/commit/fork 与恢复不变量 | llm/tools 契约 | 已实现 |
 | `tools` | ToolSpec、Tool、冻结 registry、input validation、单次执行 | 基础库 | 已实现 |
-| `event` | RunEvent、dispatcher、derive、Agent Event recorder | llm/tools 契约 | 当前分期已实现；完整 bus 后置 |
+| `event` | TurnEvent、CommitHandler、EventDispatcher | llm/tools 契约 | commit-only 已实现；observability 后置 |
 | `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | R1 已实现并完成测试 |
 | `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol + tools | R1 已实现、测试并通过 Review |
 | `loop` | turn/step 时序、tool permission 查表和调用编排 | 模块 1–6 | 待设计 |
@@ -63,16 +63,16 @@ agent（组合根）
 
 ---
 
-## 3. 三条事实与观测边界
+## 3. 事实与请求边界
 
 ```text
 Session Item Log ──materialize──► messages ──compile──► ModelRequest
-       │                                                       │
-       └────────────── RunEvent / derive ─────────────► Agent Event Log
+       ▲
+       └──────────── TurnEvent / commit ◄────────────── loop
 ```
 
 - **Session Item Log** 是可恢复事实源，`session` 是唯一写者；
-- **Agent Event Log** 是 run 级观测记录，由 `RunEvent` derive，不反向覆盖 session；
+- **TurnEvent** 只携带必须同步 commit 的 Session 事实；观测协议、identity、bus 与存储后置；
 - **ModelRequest** 是单次模型调用产物，不是事实源，不持久化替代 session；
 - provider adapter 只编码请求，不修改 session/context 语义。
 - `Message` / `ModelRequest` 是 MoonTide 的 canonical provider-neutral 数据格式；`llm::adapter` 负责转换为目标 provider wire request，`context` 不参与该转换。
@@ -163,13 +163,13 @@ ToolRegistry（spec + executor + validator）
 
 | 失败 | Owner | 行为 |
 |------|-------|------|
-| request model/messages/max_tokens 非法 | `llm` preflight | `LlmError` 返回 run 边界 |
+| request model/messages/max_tokens 非法 | `llm` preflight | `LlmError` 返回 turn 边界 |
 | tool input 不匹配 schema | `tools` + `loop` | 产生可配对 `InvalidArguments` 结果，不调用 executor |
 | permission 未声明或拒绝 | `loop` | 产生明确拒绝结果 |
 | executor 基础设施错误 | `tools` 向上传播，`loop` 配对 | 先记录 `OutcomeUnknown`，再传播原错误 |
 | session 文件/不变量损坏 | `session` | `anyhow::Result` 传播，不部分恢复 |
 
-REPL turn 的可恢复错误由 run 边界打印后继续；配置类致命错误可以终止启动。
+REPL turn 的可恢复错误由 turn 边界打印后继续；配置类致命错误可以终止启动。
 
 ---
 
@@ -181,7 +181,7 @@ REPL turn 的可恢复错误由 run 边界打印后继续；配置类致命错�
 2. invalid request config 仍可 compile，拒绝只发生在 llm preflight；
 3. frozen registry 的 schema 与 dispatch executor 来自同一 `Tool`；
 4. Session Item Log 的 seq、身份和 call/result 配对可恢复；
-5. event derive 不写回 session；
+5. event 只经 CommitHandler 写 session，不拥有第二持久化路径；
 6. 未来 loop 集成测试证明 `SystemPrompt` 每 user turn 解析一次，并且 runtime 只经 `model_input::compile` 构造请求。
 
 每个测试注释必须说明场景、预期结果和不变量/副作用约束。热路径不增加 runtime assert 替代结构测试。

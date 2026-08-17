@@ -1,36 +1,19 @@
+# MoonTide 产品实现计划
 
-> 完整 TODO：[`TODO.md`](../../TODO.md)（§15 后续四条轨）· Doc Map：[`docs/README.md`](../README.md)
+> 完整 TODO：[`TODO.md`](../../TODO.md) · Doc Map：[`docs/README.md`](../README.md)
 
-## 已确定设计
+## 当前主线
 
-```text
-<workspace>/.moontide/
-├── runs/
-│   ├── <runId>-0001.jsonl.gz
-│   └── <runId>.active.jsonl
-└── status.json
-```
+Rust Agent Core 先完成可恢复执行闭环：Session → Turn → Step → Tool round。Session Item Log 是当前唯一持久事实源；event 只负责把 Turn 事实同步提交给 session。
 
-- 每个 run 独立存储，不在落盘事件中复制此前 conversation context。
-- active JSONL 达到 5 MiB 前按完整行轮转。
-- sealed segment 使用 gzip level 2 无损压缩。
-- 单条落盘事件最多 64 KiB，并记录截断状态与原始大小。
-- run 完成时压缩最后一个 active segment。
-- 最多保留 20 个 completed runs，压缩历史总量不超过 20 MiB。
-- Rust UI 只 tail 当前 active segment，不读取 gzip 历史。
-- 旧日志保留但不再读取或继续写入。
+## Observability（后置）
 
-## 当前非目标
+当前不定义：
 
-- gzip 历史浏览器或 run replay。
-- 配置化阈值与保留规则。
-- 数据库、WAL、后台 compactor 或 cleanup daemon。
-- active segment 原地 compact。
-- privacy/redaction policy。
+- Agent Event Log 或观测 JSONL schema；
+- trace/span identity 与 OTel 映射；
+- 实时 UI event、bus、sidecar bridge；
+- 观测文件路径、轮转、压缩、retention、replay；
+- privacy、redaction 或 exporter。
 
-事件字段、恢复流程和 retention 规则见当前 Rust [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md)。
-
-## CLI 双轨
-
-- **TypeScript**（`pnpm dev`）：完整 REPL、Agent Event JSONL、Session Item Log + Index（`/save` · `/resume session`）、statusline、built-in plugins；observability 含 `/thinking`、`/verbose`、`/debug`。
-- **Rust R0**（`cargo run -p moontide-cli -- --workdir .`）：native loop + Session JSONL + builtins；observability 为 stderr trace（`/thinking`、`/verbose`），无 Agent Event pipeline。
+出现真实 UI、诊断或 OTel 接入方后，先重新完成架构对齐，再决定事件内容、失败隔离、存储和生命周期。不得把归档 TypeScript 方案当作当前 Rust 契约。

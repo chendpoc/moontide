@@ -11,8 +11,8 @@
   - Rust 系统设计：[`crates/docs/agent-core.md`](crates/docs/agent-core.md) · Event 模块：[`crates/agent-core/src/event/DESIGN.md`](crates/agent-core/src/event/DESIGN.md)
 
   - [x] **16.1** R0 主循环：Session Log → Composer → LLM → builtin tools（`moontide-agent` · `moontide-cli`）
-  - [ ] **16.2** Agent Event JSONL + `status.json` 写入（`moontide-ui` 消费侧已就绪）
-  - [ ] **16.3** RunEvent bus 与 run 生命周期（abort / settlement）
+  - [ ] **16.2** 真实 UI / 诊断接入时重新设计 observability（事件、OTel、存储、retention）
+  - [ ] **16.3** turn 生命周期（abort / settlement）；不预设观测 bus
   - [ ] **16.4** `/status`、`/compact` 等 REPL 命令补齐
   - [ ] **16.5** 权限与 approval 的 crate 边界收敛
 
@@ -20,7 +20,7 @@
 
   只有被两种以上语言消费的契约才落 `schema/`（见 [`schema/README.md`](schema/README.md)）。
 
-  - [ ] **17.1** Agent Event / session item 的 JSON Schema 与版本化规则
+  - [ ] **17.1** session item 的 JSON Schema 与版本化规则；观测 schema 后置
   - [ ] **17.2** Rust 侧类型与 schema 的一致性校验（生成或断言）
 
 - [ ] **18. 多语言边界（后置到真实需求）**
@@ -132,7 +132,7 @@
   - 多 UI 组件之一：可视化「今天做了什么 / 最近做了什么」
   - 数据源不限于 MoonTide app 内，覆盖电脑上的日常操作（窗口切换、应用使用、文件编辑、终端命令、浏览器等）
   - 作为独立 panel / widget 嵌入 **MoonTide**，持续监控并汇总 daily action
-  - 与 AgentEvent / trace 打通，区分「人做的」与「agent 做的」
+  - 与未来 observability 接缝打通，区分「人做的」与「agent 做的」
   - 远期：时间线视图、分类 Tag、与 Project Tree / Session（**Bruma**）关联
 
 - [ ] **10. 多 UI 窗口 — MoonTide（借鉴 Vibe Island）**
@@ -149,8 +149,8 @@
 
 - [ ] **12. 多 Agent 进程监控（Fleet）**
   - 在 **MoonTide** 中实时查看多个 agent 的运行状态（进行中 / 等待 / 完成 / 失败）
-  - 统一展示：run id、provider、当前 tool、token / context 用量、最近事件
-  - 消费现有 AgentEvent JSONL + 各产品 status / session 文件
+  - 统一展示：trace id、provider、当前 tool、token / context 用量、最近事件
+  - 未来消费统一观测接口 + 各产品 status / session 文件
 
 - [ ] **13. Agent 迁移与 Zephyr（无痛换产品）**
   - 作为后来者：降低从 Cursor / Claude Code / Codex / CodeWhale / Reasonix / Pi Agent 等迁移的摩擦

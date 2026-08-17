@@ -17,24 +17,21 @@
 └── {session_id}.log.jsonl      # 每行一条 SessionItem
 ```
 
-**一句话：** 只负责「记什么」；不负责「发给模型什么」（`context`）或「运行 trace」（`event`）。
+**一句话：** 只负责「记什么」；不负责「发给模型什么」（`context`）或运行时观测。
 
 ---
 
 ## 设计原理（brief）
 
 ```text
-  Session Item Log     ≠     Agent Event Log     ≠     LLMRequest
-  （事实 · 本模块）         （观测 · event）          （编译 · context）
-        │                         ▲
-        │    emit → commit 阶段    │
-        └─────────────────────────┘
+  TurnEvent ──commit──► Session Item Log ──materialize──► LLMRequest inputs
+                       （事实 · 本模块）          （context）
               loop 不直接写 session
 ```
 
 - **唯一写盘：** `SessionStore::commit_item`（生产路径经 `event` commit 阶段调用）
 - **resume：** `load` → `items()` → `context::materialize`
-- **不进 log：** `TurnStart`、流式 delta、trace（归 Agent Event Log）
+- **不进 log：** 流式 delta、运行诊断等非恢复事实；其观测协议与存储后置
 - **tool：** `ToolCall` / `ToolResult` 分行存储并直接包装 tools 契约；assistant 条目不嵌 tool 块
 
 ---
@@ -64,7 +61,7 @@ impl SessionStore {
     pub fn header(&self) -> &SessionHeader;
 }
 
-pub fn commit_from_event(store: &mut SessionStore, event: &RunEvent) -> Result<&SessionItem>; // R3
+pub fn commit_from_event(store: &mut SessionStore, event: &TurnEvent) -> Result<&SessionItem>; // R3
 
 impl SessionCommitHandler {
     pub fn new(store: SessionStore) -> Self; // R3：实现 event::CommitHandler
@@ -143,7 +140,7 @@ let child = store.fork(".moontide/sessions", &boundary_item_id)?;
 |------|------|
 | seq 断号 | log 损坏或并发写（禁止多写者） |
 | fork 失败 | boundary 不是 turn 末条 |
-| loop 里调 `commit_item` | 应 `emit` Committable `RunEvent` |
+| loop 里调 `commit_item` | 应 `emit` Committable `TurnEvent` |
 | 流式中途写 assistant | 应等 `AssistantFinalized` |
 
 ---

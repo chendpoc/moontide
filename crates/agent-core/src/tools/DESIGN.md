@@ -29,7 +29,7 @@
 | 多调用 fan-out、排队、并行、资源冲突 | `scheduler` |
 | 取消树、重试、模型 offload/failover 验收 | `scheduler` / `loop` |
 | Session Item Log 写入 | `event` commit → `session` |
-| Agent Event Log、UI、telemetry | `event` / `cli` |
+| UI、telemetry 与运行观测 | 后置，真实接入时设计 |
 | ModelRequest 组装 | `model_input` |
 | LLM wire 协议和 provider | `llm` |
 | sidecar IPC | `agent` / 后置 runtime |
@@ -44,7 +44,7 @@ agent-tools ──────────► tools（实现第一方 executor�
 tools ────────────────► serde / serde_json / anyhow / std
 ```
 
-`tools` 不反向 import `loop`、`scheduler`、`session`、`event`、`llm` 或 `agent-tools`。跨模块转换由上层完成：例如 `model_input` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `RunEvent`。`agent-tools` 是相邻的第一方实现库，不是内核 mod；其 `ToolDefinition` 只保存静态 name 与零参数 build function，`build()` 返回已绑定 spec/executor 的 `Tool`，不复制第二套 runtime registry。
+`tools` 不反向 import `loop`、`scheduler`、`session`、`event`、`llm` 或 `agent-tools`。跨模块转换由上层完成：例如 `model_input` 把 `ToolSpec` 映射为 `llm::protocol::ToolSchema`，`loop` 把 `ToolResult` 映射为 `llm::protocol::ContentBlock::ToolResult` 和 `TurnEvent`。`agent-tools` 是相邻的第一方实现库，不是内核 mod；其 `ToolDefinition` 只保存静态 name 与零参数 build function，`build()` 返回已绑定 spec/executor 的 `Tool`，不复制第二套 runtime registry。
 
 `ToolExecutor` 是 tools 的唯一真实副作用 trait。其他模块是否使用 trait 由边界需要决定：必须有独立实现、动态装配或测试替身时可以使用窄 trait；单实现逻辑和未来可能性不提前抽象。
 
@@ -211,7 +211,7 @@ pub trait ToolExecutor: Send + Sync {
 }
 ```
 
-R1 不定义通用 execution context。`working_dir` 是当前唯一有真实消费者的宿主执行环境，因此作为显式参数传入；它定义相对路径和子进程工作目录，不能通过修改进程全局 cwd 表达。tools 不验证目录存在性或替换路径。`run_id`、`session_id`、`turn`、cancellation token、SessionStore、EventDispatcher、permission engine、LLM provider 和 UI 等高层能力不下沉给 executor。出现新的真实执行参数后，再判断应继续显式传递还是建立窄领域结构。
+R1 不定义通用 execution context。`working_dir` 是当前唯一有真实消费者的宿主执行环境，因此作为显式参数传入；它定义相对路径和子进程工作目录，不能通过修改进程全局 cwd 表达。tools 不验证目录存在性或替换路径。Session/Turn 身份、cancellation token、SessionStore、EventDispatcher、permission engine、LLM provider、UI 和未来观测信息等高层能力不下沉给 executor。出现新的真实执行参数后，再判断应继续显式传递还是建立窄领域结构。
 
 `ToolCall` 以共享借用传入 executor。tools 保留调用事实所有权，因此执行完成后可用同一 call 生成 `ToolResult`，无需复制 identity；executor 也不能消费或替换调用身份。
 
@@ -222,7 +222,7 @@ R1 不定义通用 execution context。`working_dir` 是当前唯一有真实消
 - executor 只接收已经由 loop 完成输入校验且 permission 允许的单个调用；
 - executor 不自行决定 permission；
 - executor 不生成/修改 `tool_use_id`；
-- executor 不写 Session 或 RunEvent；
+- executor 不写 Session 或 TurnEvent；
 - 预期业务失败返回 `Ok(ToolResult::failed(call, ...))`；
 - IO、进程、协议等基础设施错误返回 `Err(anyhow::Error)`；
 - 不使用 `unwrap`、`expect` 或 panic 处理外部输入。
@@ -311,7 +311,7 @@ loop:
      └─ Err(error)
           → ToolResult::outcome_unknown(&call, safe_error_summary)
           → emit ToolResultRecorded
-          → return Err(error) to run boundary
+          → return Err(error) to turn boundary
 
 Tool::execute:
   6. result = tool.executor.execute(&call, working_dir).await?
@@ -327,7 +327,7 @@ Tool::execute:
 
 ## 5. 错误边界
 
-| 场景 | tools 结果 | 是否继续 run |
+| 场景 | tools 结果 | 是否继续 turn |
 |------|------------|--------------|
 | registry 中存在非法 schema 文档 | `ToolRegistry::new` 返回 `anyhow::Error`，不产生 registry | 不启动该配置 |
 | 未知工具 | `UnknownTool`，模型可见 | 通常继续，让模型修正 |
@@ -336,7 +336,7 @@ Tool::execute:
 | 工具业务失败 | `Failed { retryable }` + 文本/结构化原因 | 通常继续 |
 | 调用被取消且未开始 | `Cancelled { reason }` | 由 loop 结束/继续 |
 | 执行中断但副作用未知 | `OutcomeUnknown` | 禁止假装成功；由 scheduler 决定恢复 |
-| executor IO/协议基础设施故障 | loop 先记录 `OutcomeUnknown`，再把原始 `anyhow::Error` 传到 run 边界 | 不吞错，不留下未配对 invocation |
+| executor IO/协议基础设施故障 | loop 先记录 `OutcomeUnknown`，再把原始 `anyhow::Error` 传到 turn 边界 | 不吞错，不留下未配对 invocation |
 
 工具预期失败是模型输入的一部分；基础设施故障是运行边界错误。两者不能都编码成一段普通字符串。`Tool::execute` 不吞基础设施错误，也不自行 emit；loop 使用仍持有的 `ToolCall` 先记录一个 `OutcomeUnknown` 的配对结果，再传播原始错误。R1 不为基础设施故障复制 `InternalError` / `Unavailable` 状态，也不为尚无 scheduler/loop producer 的 timeout 预留 `TimedOut`；出现真实 producer 与恢复语义后再扩展。
 
@@ -390,11 +390,11 @@ ToolCallRecorded   { call }   → session::ToolCall   { call }
 ToolResultRecorded { result } → session::ToolResult { result }
 ```
 
-Session Item Log 是事实源；Agent Event Log 只是 RunEvent derive 的观测记录。
+Session Item Log 是当前唯一事实源；运行观测后置，不由 tools 预设。
 
 该接缝直接携带完整 `ToolResult`，因此 typed `ToolResultStatus` 不会丢失。这是高层对 tools **契约类型**的单向依赖，tools 不依赖高层实现。
 
-loop 集成仍必须覆盖 executor `Err` 路径：loop 先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded`，等待 commit 成功后再把原始 `anyhow::Error` 返回 run 边界。禁止只记录 call 后直接 `?` 返回；也禁止 event/session 层自行猜测或补写 result。
+loop 集成仍必须覆盖 executor `Err` 路径：loop 先 emit status 为 `OutcomeUnknown` 的 `ToolResultRecorded`，等待 commit 成功后再把原始 `anyhow::Error` 返回 turn 边界。禁止只记录 call 后直接 `?` 返回；也禁止 event/session 层自行猜测或补写 result。
 
 Session Item Log 已升级到 v2，新写入使用 `tool_call` / `tool_result`。读取 v1 时通过 serde alias 接受旧 kind，对缺失 status 的历史结果映射为 `OutcomeUnknown`，禁止默认推断为 `Succeeded`。
 
@@ -433,7 +433,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 ### Integration
 
 18. tools 不写 Session Item Log；
-19. tools 不产生 RunEvent；
+19. tools 不产生 TurnEvent；
 20. 多调用并发、取消补偿、offload 验收归 scheduler；
 21. 动态 registry 变化下一 step 才生效；
 22. session/event 直接包装 `ToolCall` / `ToolResult`，不得复制同义字段结构。
@@ -447,7 +447,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 | **R1** | `ToolSpec`、`ToolCall`、`ToolExecutor`、`ToolResult` |
 | **R2** | frozen registry、重复注册、稳定排序、input schema 守门 |
 | **R3** | 输入校验、executor 调用、错误/未知结果规范化 |
-| **RB2** | 删除重复结果模型；SessionItem/RunEvent 直接携带 `ToolCall` / `ToolResult`；Session v2 兼容读取 v1 |
+| **RB2** | 删除重复结果模型；SessionItem/TurnEvent 直接携带 `ToolCall` / `ToolResult`；Session v2 兼容读取 v1 |
 | **R4** | 与 model_input、loop 的完整调用顺序联调 |
 | **后置** | scheduler 资源 claim、bounded pool、模型 offload/failover、artifact spill |
 
@@ -486,7 +486,7 @@ LLM 的 `ContentBlock::ToolResult` 仍只承载模型可见 content。loop 先�
 4. `ToolExecutor` 是唯一工具 trait；
 5. tools 只负责单次调用，scheduler 负责多调用调度；
 6. ToolResult 状态与 content 分离；
-7. Session Item Log 记录事实，RunEvent 记录派生观测；
+7. Session Item Log 记录事实，TurnEvent 记录派生观测；
 8. 模型 offload、验收、retry、failover 不属于 tools；
 9. 当前 step 使用 frozen registry snapshot；
 10. 先完成稳定单调用契约，再引入资源调度和大结果 spill。

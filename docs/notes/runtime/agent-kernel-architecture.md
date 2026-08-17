@@ -33,7 +33,7 @@
 
 ### 1.2 教训（该学 / 该避）
 
-- **内核薄**：loop 只做 turn 状态机、tool 调度、emit 事件；UI 只消费 AgentEvent。
+- **内核薄**：loop 只做 turn 状态机、tool 调度和事实提交；UI 接缝等真实界面接入时设计。
 - **扩展不进进程**（sidecar）；**不 embed JS runtime**。
 - **单一 loop 真理源**，禁双实现（harness 与 coding-agent 两套 compaction 是反面教材）。
 - **防膨胀 = 文件组织纪律（目录规范 + 单文件行数克制 + lint 机器强制），不是 crate 拆分**——Pi 的教训是工程纪律缺失（单文件 3324 行无人限制），不是架构设计错误。
@@ -171,7 +171,7 @@ agent-core/
   session/       # item log 事实源 + 持久化 + load/resume
   tools/         # ToolSpec + frozen registry + 单次校验/执行/结果规范化
   scheduler/     # 分诊 + fan-out + delegate + 排队/升级（先模块后拆 crate）
-  event/         # RunEvent bus + commit/derive pipeline + Agent Event Log
+  event/         # TurnEvent → Session commit
   llm/           # LLMProvider trait（多实现）
 ```
 
@@ -179,12 +179,12 @@ agent-core/
 
 - `agent` 声明 `ToolPermissionMap`，`loop` 查表并处理 `Ask`；缺失项安全拒绝，sidecar 不可修改宿主 map。只有路径、命令前缀、session scope 或动态风险等真实规则出现后，才重新评审独立 permission 模块。
 - `model_input/` ← `ModelRequest` 的「compile 唯一出口」；context 管 model-visible messages，agent 每 user turn 解析稳定 `SystemPrompt`，model_input 不拥有二者的生成策略。
-- `event/` ← RunEvent 的统一分发落点；Session Item Log 是恢复事实源，Agent Event Log 是派生观测记录。
+- `event/` ← TurnEvent 的同步 commit 边界；Session Item Log 是当前唯一恢复事实源，观测整体后置。
 
 **两个「完整内核该有、但 MVP 可后置」的诚实标注**：
 
 - 长时记忆（memory）：跨 session 记忆，第一版可不做，在 `session/` 旁留位。
-- config 解析（resolveRunConfig）：更偏装配层（agent crate）而非内核，归属 agent crate。
+- config 解析（resolveTurnConfig）：更偏装配层（agent crate）而非内核，归属 agent crate。
 
 ---
 
@@ -193,7 +193,7 @@ agent-core/
 **第一版（四 crate，证明架构成立）**：
 
 ```text
-cli（纯壳，只消费 AgentEvent）→ agent（组合根）
+cli（纯壳）→ agent（组合根）
                                   ├──► agent-core（loop/context/model_input/session/tools/event/llm 云端 provider）
                                   └──► agent-tools（声明 catalog/builtins）──► agent-core
 ```
@@ -247,17 +247,17 @@ cli（纯壳）──► agent（组合根，全依赖）
 
 ### 10.2 cli
 
-纯壳，只消费 AgentEvent，**不含任何编排逻辑**（Pi 的 InteractiveMode 6036 行就是编排塞进 UI 的反面教材）：
+纯壳，**不含任何编排逻辑**（Pi 的 InteractiveMode 6036 行就是编排塞进 UI 的反面教材）。具体实时事件接缝尚未设计：
 
 ```text
 cli/
   args.rs        # clap 定义
   repl/          # REPL 循环、输入处理
-  render/        # ratatui：订阅 AgentEvent 差分渲染（节流 redraw）
-  emit.rs        # --emit jsonl：AgentEvent → stdout
+  render/        # ratatui；数据接缝后置
+  emit.rs        # 结构化输出；协议后置
 ```
 
-`desktop`（slint）与 cli 平行、结构相同、后置——两者都只订阅 AgentEvent，是「UI 是壳、内核不依赖 UI」的落地。
+`desktop`（slint）与 cli 平行、结构相同、后置；两者都必须保持「UI 是壳、内核不依赖 UI」，但当前不预设其事件协议。
 
 ### 10.3 agent（组合根）
 
@@ -269,11 +269,11 @@ agent/
   bootstrap.rs   # 组合根：new AgentCore(store, ctx, tools, llm, ...) 注入
 ```
 
-`resolveRunConfig` / config 解析归属这里。bootstrap 按 preset name 从 `agent-tools::builtin_tool_definitions()` 选择、build 并冻结 `ToolRegistry`。独立成 crate 的理由是**依赖方向**——它同时依赖 agent-core + agent-tools + preset +（后置的）runtime，是唯一「全依赖」的 crate，desktop 复用。
+`resolveTurnConfig` / config 解析归属这里。bootstrap 按 preset name 从 `agent-tools::builtin_tool_definitions()` 选择、build 并冻结 `ToolRegistry`。独立成 crate 的理由是**依赖方向**——它同时依赖 agent-core + agent-tools + preset +（后置的）runtime，是唯一「全依赖」的 crate，desktop 复用。
 
 ### 10.4 protocol（后置，先 mod 后 crate）
 
-MVP 单进程，无跨进程通信，故不独立成 crate；类型定义（RunEvent、Message、ModelRequest…）先作 agent-core 内 `types/` mod。**拆独立 crate 的触发条件**：模型 daemon / 多 agent / 跨进程真正落地时——那时它才获得「跨二进制共享契约」的价值。
+MVP 单进程，无跨进程通信，故不独立成 crate；类型定义（TurnEvent、Message、ModelRequest…）先作 agent-core 内 `types/` mod。**拆独立 crate 的触发条件**：模型 daemon / 多 agent / 跨进程真正落地时——那时它才获得「跨二进制共享契约」的价值。
 
 **Transport 抽象已定（帧抽象），后置实现**：
 
@@ -314,7 +314,7 @@ pub trait Transport: Send + Sync {
 
 ### 11.2 不用继承层次（BasicAgent → MainAgent/SubAgent）
 
-main 和 sub 本质是**同一种东西——一个 Run**，差异全在 preset 配置，不在类型：
+main 和 sub 本质是**同一个 Agent Core 的不同装配实例**，差异全在 preset 配置，不在类型：
 
 | 差异维度 | 性质 | 表达 |
 |---|---|---|
@@ -384,75 +384,19 @@ impl Tool for DelegateTool {
 
 ---
 
-## 13. event bus 设计（Rust 无动态加载插件）
+## 13. Observability 与扩展事件（后置）
 
-### 13.1 关键区分：Event（单向广播）≠ Hook（双向决策）
+当前 Rust 内核不定义 EventBus、Hook、Agent Event Log、trace/span、sidecar bridge 或 UI 实时事件协议。`event` 模块只负责 `TurnEvent → Session commit`。
 
-| | Event | Hook |
-|---|---|---|
-| 方向 | 内核 → 订阅者，单向 | 内核 ⇄ hook，双向 |
-| 内核是否等待 | 不等（fire-and-forget） | 等决策（blockable） |
-| 用途 | UI 渲染、持久化、遥测、sidecar 观察 | beforeToolUse、llmCall 拦截/改参 |
-| 语义 | 「发生了什么」 | 「该不该继续 / 怎么改」 |
+这些能力出现真实接入方后重新评审，至少先确认：
 
-归档的 `archive/spec/agent-core.md` 曾区分 Hook 与 Event；当前 Rust event bus 只负责 Event，Hook 机制仍待后续架构对齐。
+- 单向观测与双向决策是否需要不同边界；
+- 事件失败能否影响 Turn；
+- identity、生命周期与取消由谁拥有；
+- 是否需要跨进程传播、持久化、retention 或 replay；
+- 是否直接采用 OTel，而不是维护一套相似但不兼容的 trace 模型。
 
-### 13.2 Event bus：tokio broadcast
-
-```rust
-#[derive(Clone, Serialize, Deserialize)]
-pub enum RunEvent {
-    RunStarted { run_id: String },
-    TurnStarted { turn_id: u64 },
-    LlmCallStarted { /* ... */ },
-    BeforeToolUse { tool: String, params: Value },
-    ToolFinished { tool: String, result: Value },
-    RunFinished { /* ... */ },
-}
-
-pub struct EventBus {
-    tx: broadcast::Sender<Arc<RunEvent>>,   // Arc：多订阅者共享
-}
-impl EventBus {
-    pub fn publish(&self, e: RunEvent) { let _ = self.tx.send(Arc::new(e)); }
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<RunEvent>> { self.tx.subscribe() }
-}
-```
-
-三个进程内订阅者：持久化（写 Run JSONL）、cli render（差分渲染 + 节流）、bridge（发 sidecar）。
-
-### 13.3 「插件」接入：bridge 是进程内到跨进程的桥梁
-
-Rust 不能动态加载 JS 插件（Node 的 `import()` + jiti），所以 sidecar 插件通过一个 **bridge 订阅者** 接入——它是 event bus 的普通订阅者，把事件序列化后经 Transport 单向推给 sidecar：
-
-```rust
-struct Bridge { transport: Arc<dyn Transport> }
-impl Bridge {
-    async fn run(mut rx: broadcast::Receiver<Arc<RunEvent>>) {
-        while let Ok(e) = rx.recv().await {
-            let json = serde_json::to_vec(&*e)?;
-            self.transport.send_event("run", &json).await;  // 单向推送，不等
-        }
-    }
-}
-```
-
-### 13.4 Hook：注册 + 折叠器 + 同步等决策
-
-sidecar 要**影响内核决策**，走 Hook（run 启动时注册、折叠一次、run 内不可增删）：
-
-```rust
-type Hook = Box<dyn Fn(HookInput) -> HookDecision + Send + Sync>;
-struct HookRegistry { before_tool_use: Vec<Hook>, llm_call: Vec<Hook> }
-
-struct SidecarHook { transport: Arc<dyn Transport> }
-impl SidecarHook {
-    async fn invoke(&self, input: HookInput) -> HookDecision {
-        // 同步：发 request，等 sidecar 返回 decision（blockable）
-        self.transport.request("beforeToolUse", json!(input)).await
-    }
-}
-```
+在此之前不预设 tokio broadcast、observer trait、hook registry、JSONL schema 或 transport。
 
 差异一目了然：bridge 的 `send_event` 单向异步（Event 语义），SidecarHook 的 `request` 双向同步（Hook 语义）。分开实现，内核永握时序权威——sidecar 挂了，bridge 丢弃事件不阻塞内核，SidecarHook 超时走保守默认决策。
 
