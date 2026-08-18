@@ -1,7 +1,7 @@
 # agent
 
 > **性质：** MoonTide 组合根的对外契约。
-> **状态：** 初步可用版 Agent R1/R2 已实现并通过 workspace 检查，CLI 尚未实现。
+> **状态：** 初步可用版 Agent R1/R2 已实现并通过 workspace 检查；CLI 宿主基线已完成，Desktop v0.1 接入准备中。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
 > **关联：** [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-tools/README.md`](../agent-tools/README.md) · [`../cli/README.md`](../cli/README.md)
 

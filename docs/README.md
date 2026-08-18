@@ -10,12 +10,13 @@ docs/
 ├── product/               # 产品方向：为什么做、面向谁、产品边界
 ├── spec/                  # 候选系统规格与 draft，非当前契约
 ├── guides/                # 操作指南：如何执行一种开发或评测工作流
-├── archive/               # TypeScript 时代的讨论与实现文档，仅供追溯
+├── archive/               # 历史文档，仅供追溯；入口见 archive/README.md
 └── notes/                 # 分析、候选、研究与开发计划，非当前契约
     ├── runtime/           # 内核架构、多语言迁移与生态兼容
     ├── context/           # Context 架构对比
     ├── session/           # 跨 agent 会话与 artifact 交接
     ├── llm/               # Edge / local model 与路由候选
+    ├── roadmap/           # 从历史 TODO 提炼的工程候选路线
     └── tool-hints/        # 工具自动记录的人工审核候选；路径由代码使用
 ```
 
@@ -25,6 +26,7 @@ docs/
 | [`spec/`](spec/) | 哪些系统规格仍处于候选或 draft？ | [`spec/README.md`](spec/README.md) |
 | [`guides/`](guides/) | 如何执行一个具体工作流？ | [`guides/README.md`](guides/README.md) |
 | [`notes/`](notes/) | 哪些分析、计划或候选仍需验证？ | [`notes/README.md`](notes/README.md) |
+| [`archive/`](archive/) | 哪些内容只用于历史追溯？ | [`archive/README.md`](archive/README.md) |
 
 ## 2. 权威顺序
 
@@ -55,6 +57,10 @@ docs/
 
 [`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → [`notes/runtime/agent-kernel-architecture.md`](notes/runtime/agent-kernel-architecture.md) → [`notes/runtime/agent-runtime-product-direction.md`](notes/runtime/agent-runtime-product-direction.md)
 
+### 修改 Desktop Shell
+
+[`product/desktop-development-direction.md`](product/desktop-development-direction.md) → [`crates/agent/README.md`](../crates/agent/README.md) → Desktop 模块 README/DESIGN（实现前建立）
+
 ### 修改 Context / Session
 
 [`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → [`crates/agent-core/src/session/DESIGN.md`](../crates/agent-core/src/session/DESIGN.md) → [`notes/context/context-analysis.md`](notes/context/context-analysis.md)
@@ -82,7 +88,7 @@ docs/
 
 命名统一使用小写 kebab-case。目录已经表达领域时，文件名不重复目录名。每份 note 必须在开头说明文档性质、状态、是否为实现承诺，并链接对应 Spec 或执行入口。
 
-TS 时代的文档见 [`archive/`](archive/)：仅供追溯，不参与当前契约，也不出现在各目录索引中；`archive/` 内部的交叉链接可能已失效。
+历史文档见 [`archive/`](archive/)：仅供追溯，不参与当前契约；archive 内部的交叉链接可能已失效，具体规则见 [`archive/README.md`](archive/README.md)。
 
 ## 5. 模块级文档
 

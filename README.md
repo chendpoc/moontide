@@ -7,9 +7,9 @@ Rust 内核架构以 [`crates/docs/agent-core.md`](crates/docs/agent-core.md) �
 
 ## 当前焦点
 
-正在重建内核 crate [`crates/agent-core`](crates/agent-core/README.md)，按依赖顺序逐模块推进。
+`agent-core` 当前 R1 主干已基本完成，工程进入 Desktop Shell 宿主能力建设阶段。
 
-**当前阶段：`agent + cli` 初步可用版** — `agent` 组合根与 CLI R1/R2、R3 Settings/trace 接缝已完成，等待 Review；scheduler 暂缓。`llm`、`session`、`tools`、`event`、`model_input`、`context` 与 `agent-tools` 当前分期已完成；初版 draft crate 已删除，不 import、不复用。
+**当前阶段：Desktop Shell v0.1** — `agent-core` 模块 1–7 主干与 `agent`/CLI 宿主基线已完成；下一步实现单窗口、单活跃 Session、Turn 串行的 Desktop Shell，优先补齐流式 UI、宿主事件、approval、取消清理与 Session 恢复；scheduler、多 Session 并发和多 Agent 后置。
 
 ## 目标架构（Rust）
 
@@ -52,9 +52,11 @@ moontide/
 │   ├── cli/                     # 用户入口纯壳
 │   └── docs/                   # Rust 工程手册与系统设计
 ├── docs/
+│   ├── product/                # 产品方向与当前 Desktop 路线
 │   ├── spec/                   # 候选系统规格与 draft
+│   ├── guides/                 # 可重复执行的工作流
 │   ├── notes/                  # 调研与候选设计
-│   └── archive/                # TypeScript 历史文档
+│   └── archive/                # 历史文档，仅供追溯
 ├── Cargo.toml
 └── justfile
 ```
@@ -80,6 +82,6 @@ Agent 协作规则见 [`AGENTS.md`](AGENTS.md)。
 | Agent 组合根 | [`crates/agent/README.md`](crates/agent/README.md) · [`crates/agent/DESIGN.md`](crates/agent/DESIGN.md) | provider/session/tools/prompt/loop 装配 |
 | CLI 纯壳 | [`crates/cli/README.md`](crates/cli/README.md) · [`crates/cli/DESIGN.md`](crates/cli/DESIGN.md) | one-shot/REPL/approval/render |
 | 索引 | [`docs/README.md`](docs/README.md) | Doc Map |
-| 方向 | [`docs/product/`](docs/product/) | vision / plan |
+| 方向 | [`docs/product/`](docs/product/) | vision / plan / Desktop development direction |
 | Spec | [`docs/spec/`](docs/spec/) | agent-core、agent-events、context-composer、llm-provider |
 | Archive | [`docs/archive/`](docs/archive/) | TypeScript 时代文档 |

@@ -1,6 +1,6 @@
 # agent 实现子任务
 
-> [`README.md`](README.md) · [`DESIGN.md`](DESIGN.md) · [`batch-implement`](../../../../.agents/skills/moontide-kernel-plan/batch-implement/SKILL.md)
+> [`README.md`](README.md) · [`DESIGN.md`](DESIGN.md) · [`batch-implement`](../../.agents/skills/moontide-kernel-plan/batch-implement/SKILL.md)
 
 ## Review 批总览
 

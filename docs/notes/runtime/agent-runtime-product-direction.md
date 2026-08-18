@@ -2,7 +2,7 @@
 
 > **文档性质：** notes（方向记录，非实现 Spec、非近期交付承诺）  
 > **状态：** 2026-08 讨论稿  
-> **关联：** 当前 [`agent-core-design`](../../../crates/docs/agent-core.md) · [`agent-core-roadmap`](agent-core-roadmap.md) · [`platform-strategy`](../../product/platform-strategy.md) · [`spark`](../../product/spark.md) · [`vision`](../../product/vision.md)
+> **关联：** 当前 [`agent-core-design`](../../../crates/docs/agent-core.md) · 历史 [`agent-core-roadmap`](../../archive/notes/runtime/agent-core-roadmap.md) · [`platform-strategy`](../../product/platform-strategy.md) · [`spark`](../../product/spark.md) · [`vision`](../../product/vision.md)
 
 ## 1. 当前结论
 

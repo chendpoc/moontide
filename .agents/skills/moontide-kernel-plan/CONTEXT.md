@@ -51,6 +51,8 @@
 
 > loop R1 retry/cancel/hook（2026-08-17）：只重试 LlmError Recoverable，默认初次后 3 次，固定 cancellation-aware backoff 500ms/1s/2s；tool/session/hook 不自动 retry。Turn 直接使用 tokio_util CancellationToken，不建立 TurnCancellation/TurnHandle/interrupt 公共抽象；drop future 不是正式取消，调用方 cancel 后继续 await cleanup。Hook 的本质是 post-commit、fail-open 的扩展 callback，只读 TurnEvent/TraceContext，不能 Block/Approve/Cancel/Retry；原 ObserveHandler 合并为 Hook，Agent Event derive/recorder/storage/file writer 保留。follow-up/steering、多 Turn Run、scheduler 并发、tool retry、compaction、subagent、OTel 与 lease 后置。
 
+> Desktop v0.1 范围（2026-08-18，用户确认）：下一阶段采用单窗口、单活跃 Session、Turn 串行；Desktop 直接复用 `agent`，不复制 AgentLoop，不通过 CLI 子进程接入。P0 包含 assistant 流式 snapshot、宿主 UI 事件、approval、CancellationToken 清理、运行状态、Session 恢复、错误展示、配置与密钥管理；多 Session 并发、后台队列、scheduler、多 Agent、sidecar 和跨进程 daemon 后置。
+
 > loop TASK review（2026-08-17）：`TraceContext` 的 `session_item_id`、`tool_use_id`、`llm_call_id` 每次 `emit` 开始清理，再从当前 event 填充；`run_id` / `session_id` 保留为稳定上下文。`max_llm_retries` 收敛为 `0..=3`，默认 3，超过范围拒绝。
 
 > scheduler scope（2026-08-17）：当前不实现 scheduler，也不建立 scheduler README/DESIGN。Loop 已覆盖单 AgentLoop、顺序 Tool round、retry/cancel/cleanup；只有真实的并发 ToolCall、资源冲突、共享模型 daemon 队列、多 Agent fairness、tool retry 或 offload/failover 消费者出现后，才重新进行 scheduler 架构对齐。旧架构笔记中的模型分诊、fan-out、delegate、failover、fairness 先保留为候选方向，不作为当前契约。

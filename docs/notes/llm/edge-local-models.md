@@ -1,6 +1,6 @@
 
 > 产品讨论备忘：在用户设备部署量化小模型，处理简单任务以降低 cloud token 消耗、提升体验。  
-> **后续计划轨 8.3：** [`context-window-roadmap.md`](../context/context-window-roadmap.md) §8.3 · [`TODO.md`](../../../TODO.md) §15.3  
+> **历史计划轨 8.3：** [`context-window-roadmap.md`](../../archive/notes/context/context-window-roadmap.md) §8.3 · 当前路线见 [`TODO.md`](../../../TODO.md) 的后置能力触发条件。
 > **非实现承诺** — 与归档的 [`llm-provider.md`](../../archive/spec/llm-provider.md) Model Router 方案及 [`runtime-multilang.md`](../runtime/runtime-multilang.md) 对齐的演进候选。
 
 **已定产品原则（2026-08）：**
@@ -169,7 +169,7 @@ flowchart TB
 └─────────────────────────────────────────────────────────────┘
 ```
 
-与 [`runLLM.ts`](../../../packages/llm/src/pipeline/runLLM.ts) 衔接：`local-direct` 是 `LLMProvider` 的一种实现，loop 不改。
+与历史 TypeScript `packages/llm/src/pipeline/runLLM.ts` 的职责对应：`local-direct` 是 `LLMProvider` 的一种实现，loop 不改。
 
 ```typescript
 // 演进候选：local-direct preset（非 Ollama HTTP）
@@ -361,7 +361,7 @@ MOONTIDE_LOCAL_INFER=on          # ability 总开关
 | [`runtime-multilang.md`](../runtime/runtime-multilang.md) | Rust host、`moontide-infer` sidecar |
 | [`kocoro-architecture.md`](../runtime/kocoro-architecture.md) | bundle pull、sidecar supervise |
 | [`session-handoff.md`](../session/session-handoff.md) | memory 指针 |
-| [`context-backlog.md`](../context/context-backlog.md) | episodic memory |
+| 历史 [`context-backlog.md`](../../archive/notes/context/context-backlog.md) | episodic memory |
 
 ---
 

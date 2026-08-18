@@ -4,7 +4,7 @@
 
 ## Eval Impact
 
-Feature PRs that touch agent harness, tools, context, or prompts should complete the [Eval Impact Card](.github/eval-impact-card.md).
+Feature PRs that touch agent harness, tools, context, or prompts should complete the [Eval Impact Card](eval-impact-card.md).
 
 | Field | Value |
 |-------|-------|

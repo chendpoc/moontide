@@ -253,7 +253,7 @@ Multi-agent 工作流未成为主流前，friction 不足以驱动平台投入�
 |------|------|
 | [`context-composer.md`](../../archive/spec/context-composer.md) | TypeScript 历史 Session、Compaction、Checkpoint 与 Composer 方案 |
 | [`context-analysis.md`](../context/context-analysis.md) | 竞品 resume / compaction / subagent 对比 |
-| [`context-backlog.md`](../context/context-backlog.md) | 演进特性排期；handoff 可作为 Backlog 独立 feature |
+| 历史 [`context-backlog.md`](../../archive/notes/context/context-backlog.md) | 演进特性排期；handoff 可作为 Backlog 独立 feature |
 | [`vision.md`](../../product/vision.md) | Zephyr = 跨产品迁移远期方向 |
 | [`edge-local-models.md`](../llm/edge-local-models.md) | 情景 memory L2–L3 与 local extract / general 分工 |
 | [`kocoro-architecture.md`](../runtime/kocoro-architecture.md) | memory bundle pull 模式；sidecar 监管参考 |

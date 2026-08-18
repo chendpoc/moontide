@@ -232,7 +232,7 @@ flowchart LR
 | [`edge-local-models.md`](../notes/llm/edge-local-models.md) | L1 catalog、Local Fusion、Qwen3.5-0.8B |
 | [`context-composer.md`](../archive/spec/context-composer.md) | TypeScript 历史 spark Item 与 Session 方案 |
 | [`llm-provider.md`](../archive/spec/llm-provider.md) | TypeScript 历史 L2 DeepSeek API 方案 |
-| [`TODO.md`](../../TODO.md) | §2 Buoy · §15.3 Local Fusion |
+| [`TODO.md`](../../TODO.md) | 当前 Desktop 路线与后置能力触发条件 |
 
 ---
 

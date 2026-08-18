@@ -2,6 +2,8 @@
 
 `docs/spec/` 是候选系统规格与 draft 区域，不定义当前 Rust 架构，也不高于工程手册、`crates/docs` 当前设计或模块 README/DESIGN。
 
+文档状态分为：`Draft`、`Candidate`、`Confirmed for implementation`。只有确认后并同步到 `crates/docs/` 或源码模块 README/DESIGN 的内容，才进入当前实现契约。
+
 候选内容必须标明状态、未确认边界和验收条件。架构确认后：
 
 - Rust 系统级设计写入 [`../../crates/docs/`](../../crates/docs/)；

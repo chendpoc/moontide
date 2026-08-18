@@ -1,7 +1,7 @@
 # agent-core 顶层设计与开发 checklist
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
-> **状态：** 顶层设计已定；模块 1–7 已实现并通过测试；`scheduler` 暂缓，当前推进上层 `agent`/`cli` 初步可用版
+> **状态：** 顶层设计已定；模块 1–7 已实现并通过测试；`scheduler` 暂缓，当前转入 Desktop Shell 宿主能力建设
 > **关联：** [`crates/docs/agent-core.md`](../docs/agent-core.md)（Rust 系统设计，本文是模块进度落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
 
 ## 0. 原则
@@ -69,10 +69,10 @@ agent create/load/fork SessionStore
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
 | 2 | `session` | llm + tools + event seam | ☑ | ☑ | ☑ | R1–R3；v2 call/result payload；Loop 接缝增量待实现 |
 | 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2；loop 接缝归后续 loop；验收 / offload 归 scheduler |
-| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3；typed call/result payload；[`src/event/README.md`](src/event/README.md) |
+| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + R4-A；typed call/result payload；bus 后置；[`src/event/README.md`](src/event/README.md) |
 | 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
 | 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；下一模块 scheduler |
+| 7 | `loop` | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；scheduler 暂缓，转 Desktop Shell |
 | 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 暂缓；由真实资源调度需求触发 |
 
 ## 5. 每个模块的推进模板

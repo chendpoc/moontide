@@ -1,6 +1,6 @@
 
 > 进程边界、Sidecar 监管与 IPC 设计备忘。  
-> **非实现承诺** — 本地推理见 [`edge-local-models.md`](../llm/edge-local-models.md)；参考架构见 [`kocoro-architecture.md`](kocoro-architecture.md)；产品级 Release 与竞争定位见 [`platform-strategy.md`](../../product/platform-strategy.md)；Plugin host 与 MCP attach 见 [`plugin-host.md`](plugin-host.md)。
+> **非实现承诺** — 本地推理见 [`edge-local-models.md`](../llm/edge-local-models.md)；参考架构见 [`kocoro-architecture.md`](kocoro-architecture.md)；产品级 Release 与竞争定位见 [`platform-strategy.md`](../../product/platform-strategy.md)；历史 Plugin host 与 MCP attach 见 [`plugin-host.md`](../../archive/notes/runtime/plugin-host.md)。
 
 ---
 
@@ -402,7 +402,7 @@ Node Sidecar 启动后可在应用会话期间常驻。
 | **Train** | MoonTide Cloud / CI；用户 **只 pull**，不 local train |
 | **IPC** | UDS + NDJSON（与 Node Agent / Rust Host 同族消息） |
 | **监管** | Rust Host：懒启动、Ready/Busy、Cancel、崩溃重启 |
-| **Loop 接缝** | [`runLLM.ts`](../../../packages/llm/src/pipeline/runLLM.ts) → `LLMProvider` preset `local-direct` |
+| **Loop 接缝** | 历史 `packages/llm/src/pipeline/runLLM.ts` → 当前 Rust `LLMProvider` |
 
 **与 cloud SDK 的分工：** Node 仍持有 MCP、Composer、tool loop；infer sidecar 只做 **stateless chat completion**（+ 远期 embedding）。Model Router 在 loop 内决定 tier；local tier 走 IPC，cloud tier 走现有 HTTP adapter。
 

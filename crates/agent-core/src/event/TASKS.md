@@ -18,7 +18,7 @@ R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeli
 | **R3-F1** | 12–13 | AgentEventRecorder 边界 + 文件持久化策略解耦 | ☑ |
 | **R3-F2** | 14 | ToolCall / ToolResult typed payload 接缝 | ☑ |
 | **R3-F3** | 15 | 删除领域 Run，保留 legacy Agent Event 契约 | ☑ |
-| **R4-A** | 16–17 | borrowed mutable commit + post-commit Hook，保留 AgentEvent 栈 | ☐ |
+| **R4-A** | 16–17 | borrowed mutable commit + post-commit Hook，保留 AgentEvent 栈 | ☑ |
 | **R4** | 10–11 | EventBus + sidecar bridge | ☐ |
 
 ---
@@ -146,14 +146,14 @@ R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeli
 - **做什么：** 将 CommitHandler 改为 mutable seam；从 PipelineRegistry 移除 commit；EventDispatcher::emit 每次借入 `&mut dyn CommitHandler`。
 - **范围：** `registry.rs`、`pipeline.rs`、`mod.rs`、`tests.rs`
 - **完成标准：** registry/dispatcher 不拥有 SessionStore；committable 同步提交，observational 不调用 commit。
-- **状态：** ☐
+- **状态：** ☑
 
 ### TASK-event-17: post-commit Hook 合并 observe
 
 - **做什么：** 删除 `HookOutcome::Block` 与 ObserveHandler；HookHandler 改为 `Result<()>` 且全部 fail-open；DeriveObserveHandler 迁移为 DeriveAgentEventHook。
 - **范围：** `registry.rs`、`pipeline.rs`、`derive.rs`、`mod.rs`、`tests.rs`
 - **完成标准：** commit 先于 Hook；一个 Hook Err 不跳过后续 Hook且不改变 dispatch 结果；AgentEvent schema/recorder/storage/file writer 行为不变。
-- **状态：** ☐
+- **状态：** ☑
 
 ---
 

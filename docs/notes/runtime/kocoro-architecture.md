@@ -135,8 +135,8 @@ Client → Gateway (Go) → Orchestrator (Go) → Agent Core (Rust) → LLM Serv
 
 | 维度 | Kocoro | MoonTide（现状 / 讨论方向） |
 |------|--------|-------------------------|
-| Agent loop | Go monolith (`internal/agent`) | Node/TS [`loop.ts`](../../../packages/agent/src/agent/loop.ts) |
-| LLM seam | Provider 接口（Cloud gateway / Ollama） | [`runLLM`](../../../packages/llm/src/pipeline/runLLM.ts) → `LLMProvider` |
+| Agent loop | Go monolith (`internal/agent`) | 历史 Node/TS `packages/agent/src/agent/loop.ts` |
+| LLM seam | Provider 接口（Cloud gateway / Ollama） | 历史 `packages/llm/src/pipeline/runLLM.ts` → `LLMProvider` |
 | UI | 闭源 native Desktop | 开源 Slint sidecar（tail JSONL + status） |
 | 本地 LLM | Ollama 套壳 | 倾向 Rust direct GGUF（见 [edge-local-models.md](../llm/edge-local-models.md)） |
 | Memory | `tlm` sidecar + UDS + cloud bundle | Session Event Log spec；episodic backlog |
@@ -183,10 +183,10 @@ Infer **不要**进 WASM；沙箱 **不要**扛 GB 权重。
 
 | # | Kocoro 做法 | MoonTide 建议 | 关联 Spec / 模块 |
 |---|-------------|-----------|------------------|
-| 1 | Memory sidecar + daemon supervise | `moontide-memory` 独立进程；Node 只调 `memory.query` IPC | [context-backlog.md](../context/context-backlog.md)、[session-handoff.md](../session/session-handoff.md) |
+| 1 | Memory sidecar + daemon supervise | `moontide-memory` 独立进程；Node 只调 `memory.query` IPC | 历史 [context-backlog.md](../../archive/notes/context/context-backlog.md)、[session-handoff.md](../session/session-handoff.md) |
 | 2 | `<private_memory>` 当 turn 注入、不落 transcript | Composer 支持 **ephemeral inject block** + Manifest 审计 | 历史 [context-composer.md](../../archive/spec/context-composer.md) |
 | 3 | Small-tier preflight before main LLM | Model Router v2：0.8B 本地做 intent / memory intent | [edge-local-models.md](../llm/edge-local-models.md)、历史 [llm-provider.md](../../archive/spec/llm-provider.md) §10 |
-| 4 | `runLLM` 是唯一 LLM 出口 | 已实现 seam；cloud / local-direct 都走 `LLMProvider` | [`runLLM.ts`](../../../packages/llm/src/pipeline/runLLM.ts) |
+| 4 | `runLLM` 是唯一 LLM 出口 | 历史 seam；当前 Rust 以 `LLMProvider` 为出口 | 历史 `packages/llm/src/pipeline/runLLM.ts` |
 | 5 | Tool spill 三层 budget | 对齐 tool artifact + prune；避免 `messages[]` splice 丢事实 | 历史 [context-composer.md](../../archive/spec/context-composer.md) |
 | 6 | Deferred tools + search | 工具多时 schema 预算；与 Composer tool 解析一致 | 历史 [llm-input.md](../../archive/spec/llm-input.md) |
 | 7 | Daemon HTTP + SSE 本地 API | 远期：MoonTide daemon 模式（IM / 自动化），不只 REPL | [runtime-multilang.md](runtime-multilang.md) |

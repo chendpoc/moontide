@@ -1,6 +1,6 @@
 # Feature Eval Impact Card
 
-复制到 feature PR 描述，或链到本文件。详设：[`docs/notes/evals/agent-eval-roadmap.md`](../docs/notes/evals/agent-eval-roadmap.md) §6。
+复制到 feature PR 描述，或链到本文件。历史详设：[`agent-eval-roadmap.md`](../docs/archive/notes/evals/agent-eval-roadmap.md) §6；Rust 评测路线以根 `TODO.md` 为准。
 
 ## Hypothesis
 

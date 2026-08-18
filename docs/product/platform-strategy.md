@@ -1,7 +1,7 @@
 
 > **文档性质：** product（方向与发布策略，非 Spec、非实现承诺）  
 > **Doc Map：** [`docs/README.md`](../README.md) · 命名与保留产品名见 [`vision.md`](vision.md)  
-> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context/context-analysis.md)；历史 Hook 候选见 [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md) §11+；插件加载与 MCP 集成见 [`plugin-host.md`](../notes/runtime/plugin-host.md)
+> **分工：** Desktop IPC / sidecar 细节见 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md)；竞品 context 机制见 [`context-analysis.md`](../notes/context/context-analysis.md)；历史 Hook 候选见 [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md) §11+；历史插件加载与 MCP 集成见 [`plugin-host.md`](../archive/notes/runtime/plugin-host.md)
 
 ---
 
@@ -79,7 +79,7 @@ flowchart TB
 
 ## 4. 三层扩展互操作
 
-兼容分层（P0/P1/P2）见 [`ecosystem-compat.md`](../notes/runtime/ecosystem-compat.md)。
+历史兼容分层（P0/P1/P2）见 [`ecosystem-compat.md`](../archive/notes/runtime/ecosystem-compat.md)。
 
 | 层 | 机制 | 用户需 Node？ | 兼容承诺 |
 |----|------|---------------|----------|
@@ -190,7 +190,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) | Desktop IPC、20MB 分发、sidecar 监管 |
 | [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md) | Go daemon / sidecar 参考 |
 | [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md) | 历史 Hook 候选 |
-| [`plugin-host.md`](../notes/runtime/plugin-host.md) | Plugin host、MCP attach、tool registry |
+| 历史 [`plugin-host.md`](../archive/notes/runtime/plugin-host.md) | Plugin host、MCP attach、tool registry |
 | [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md) | 当前 Rust Turn 级事件与 legacy Agent Event 边界 |
 
 ---
@@ -198,5 +198,5 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 ## 10. Status
 
 - **方向已定：** Rust release CLI、MCP L1、可选 Node sidecar L2、不 embed JS runtime。
-- **实现状态：** TypeScript CLI 仍为功能最全的参考实现；**Rust CLI R0 可本地 dev 启动**（`cargo run -p moontide-cli -- --workdir .`），含 `/help`、`/thinking`、`/verbose` 与 stderr trace；sidecar pack 未 ship。
+- **实现状态：** 当前以 Rust `agent-core`、`agent-tools`、`agent` 和 `cli` 为实现基线；Desktop Shell v0.1 正在补齐流式 UI、宿主事件、approval、取消清理与 Session 恢复。TypeScript 内容仅作为历史参考，sidecar 仍后置。
 - **修订：** 随 release 里程碑更新 §5 指标与 §8 阶段。

@@ -1,13 +1,15 @@
 # cli 实现子任务
 
-> [`README.md`](README.md) · [`DESIGN.md`](DESIGN.md) · [`batch-implement`](../../../../.agents/skills/moontide-kernel-plan/batch-implement/SKILL.md)
+> [`README.md`](README.md) · [`DESIGN.md`](DESIGN.md) · [`batch-implement`](../../.agents/skills/moontide-kernel-plan/batch-implement/SKILL.md)
+
+状态约定：`☑` = 实现与测试完成；`◐` = 实现与测试完成，等待 Review 或集成门禁；`☐` = 未开始。
 
 ## Review 批总览
 
 | 批 | TASK | 主题 | 预估 diff | 状态 |
 |----|------|------|-----------|------|
-| **R1** | 01 | crate scaffold、args/config、one-shot | ~550 行 | ☑ |
-| **R2** | 02–03 | REPL、approval、render、Ctrl-C 与测试 | ~850 行 | ☑ |
+| **R1** | 01 | crate scaffold、args/config、one-shot | ~550 行 | ◐ Review |
+| **R2** | 02–03 | REPL、approval、render、Ctrl-C 与测试 | ~850 行 | ◐ Review |
 
 ## TASK 明细
 
@@ -18,7 +20,7 @@
 - **范围：** 根 `Cargo.toml`、`Cargo.lock`、`crates/cli/Cargo.toml`、`crates/cli/src/main.rs`、`args.rs`、`config.rs`、`render.rs`、`tests.rs`
 - **预估 diff：** ~550 行
 - **完成标准：** `cargo test -p cli`；四种启动组合（create/resume × prompt/REPL dispatch）中 one-shot、missing key、invalid path 与 output boundary 通过。
-- **状态：** ☐
+- **状态：** ◐ Review
 
 ### TASK-cli-02: REPL 与交互式 approval
 
@@ -27,7 +29,7 @@
 - **范围：** `crates/cli/src/repl.rs`、`approval.rs`、`render.rs`、`main.rs`、`tests.rs`
 - **预估 diff：** ~550 行
 - **完成标准：** REPL command/approval/output tests；Turn error 后下一输入仍可执行；CLI 不直接 import agent-core。
-- **状态：** ☐
+- **状态：** ◐ Review
 
 ### TASK-cli-03: Ctrl-C cancellation 与 shell conformance
 
@@ -36,7 +38,7 @@
 - **范围：** `crates/cli/src/main.rs`、`repl.rs`、`tests.rs`、`PROGRESS.md`、顶层 checklist
 - **预估 diff：** ~300 行
 - **完成标准：** workspace fmt/clippy/test；Ctrl-C cancellation 与后续 turn、stdout/stderr 和 CLI → agent 依赖守门通过。
-- **状态：** ☑
+- **状态：** ◐ Review
 
 ## 实现约束
 

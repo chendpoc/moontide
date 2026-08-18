@@ -153,7 +153,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 ## 对 MoonTide 的具体判断
 
 > **注（2026-08）：** C1–C5 已落地（`composeContext` 编译、Artifact spill、CompactionSave、Checkpoint 等）。  
-> 下文部分 bullet 为迁移前诊断；**当前 pending 与执行顺序**见 [`context-window-roadmap.md`](context-window-roadmap.md)。
+> 下文部分 bullet 为迁移前诊断；历史 roadmap 见 [`context-window-roadmap.md`](../../archive/notes/context/context-window-roadmap.md)，当前执行顺序以根 [`TODO.md`](../../../TODO.md) 为准。
 
 | 诊断项 | 迁移前 | 现状 |
 |--------|--------|------|
@@ -162,7 +162,7 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 | `sessions.ts` 持 messages 引用 | 是 | **done** — `runtime-status.ts` |
 | model profile 128K | 与 DeepSeek 1M 不一致 | **done** — Provider C（`ModelProfile`） |
 
-建议保持克制，按这个顺序推进（**背景参考**；当前执行顺序以 [roadmap](context-window-roadmap.md) 为准）：
+建议保持克制，按这个顺序推进（**背景参考**；当前执行顺序以根 [`TODO.md`](../../../TODO.md) 为准）：
 
 1. 修正 model profile，并区分 previous actual usage、下一轮 compile 输入体量、reserved output。历史 Model Profile 方案见 [`llm-provider.md`](../../archive/spec/llm-provider.md) §9.4；历史 Session 中间态见 [`context-composer.md`](../../archive/spec/context-composer.md)。
 2. Rust 当前已将 messages materialize 与 `ModelRequest` compile 分责；边界见 [`agent-core.md`](../../../crates/docs/agent-core.md)，context 内部仍待设计。
@@ -172,10 +172,10 @@ Reasonix 的设计更健壮，但它把 context、memory、recovery、cache、su
 6. 建立多次 compaction、约束存活、exact path/error recall、tool pair、overflow、crash/resume、cache hit、latency/cost 测试。
 7. 只有这些指标证明有必要，再考虑 graph、vector memory 或后台 compaction。
 
-**演进特性 backlog**（分账、Structured IR、Compose 实验与 Deferred 项）见 [`context-backlog.md`](context-backlog.md)。
+**历史演进特性 backlog**（分账、Structured IR、Compose 实验与 Deferred 项）见 [`context-backlog.md`](../../archive/notes/context/context-backlog.md)。
 
 不需要因为 Codex 使用 Rust 就重写 MoonTide agent core。这个问题的主要矛盾是 state ownership、invariants、recovery 和 observability，TypeScript 完全能够正确实现。
 
-完整的架构候选、before/after 图和优先级在这里：[architecture review](/private/tmp/architecture-review-20260730-agent-context-sota.html)。
+完整的架构候选、before/after 图和优先级曾记录在临时分析文件中，该文件不属于仓库当前文档。
 
 Which of these would you like to explore?

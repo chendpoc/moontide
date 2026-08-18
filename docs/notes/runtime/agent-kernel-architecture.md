@@ -2,7 +2,7 @@
 
 > **文档性质：** notes（讨论收敛，非实现 Spec、非近期交付承诺）
 > **状态：** 决策已收敛（2026-08）
-> **关联：** 当前 [`agent-core.md`](../../../crates/docs/agent-core.md) · [`agent-core-roadmap.md`](agent-core-roadmap.md) · [`agent-runtime-product-direction.md`](agent-runtime-product-direction.md) · [`edge-local-models.md`](../llm/edge-local-models.md) · [`runtime-multilang.md`](runtime-multilang.md) · [`agent-eval-roadmap.md`](../evals/agent-eval-roadmap.md)
+> **关联：** 当前 [`agent-core.md`](../../../crates/docs/agent-core.md) · 历史 [`agent-core-roadmap.md`](../../archive/notes/runtime/agent-core-roadmap.md) · [`agent-runtime-product-direction.md`](agent-runtime-product-direction.md) · [`edge-local-models.md`](../llm/edge-local-models.md) · [`runtime-multilang.md`](runtime-multilang.md) · 历史 [`agent-eval-roadmap.md`](../../archive/notes/evals/agent-eval-roadmap.md)
 
 本文档记录一次从「Pi 教训」出发、逐层收敛到「内核完整模块清单 + 决策清单」的架构讨论。多数结论与现有 spec/notes 一致，本文聚焦**增量**（Pi 事实核验、性能认知校准、蒸馏误区、验收网关、多 agent 形态、A2A 通信、crate 拆分判据、subagent 定位、多语言 trade-off、event bus 设计），重叠部分只引用不重复。
 
@@ -131,7 +131,7 @@
 
 ## 6. crate 拆分判据
 
-> 与 [`monorepo-packages.md`](monorepo-packages.md)、[`agent-harness-cli-split.md`](agent-harness-cli-split.md) 已有包结构讨论互补，本节补**判据本身**。
+> 与历史 [`monorepo-packages.md`](../../archive/notes/runtime/monorepo-packages.md)、[`agent-harness-cli-split.md`](../../archive/notes/runtime/agent-harness-cli-split.md) 已有包结构讨论互补，本节补**判据本身**。
 
 **crate 拆分的唯一硬价值 = 编译期依赖方向强制 + 跨二进制共享契约。** 防膨胀、代码清晰是 mod + lint 的事，和拆 crate 无关。
 

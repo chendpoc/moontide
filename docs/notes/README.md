@@ -2,6 +2,8 @@
 
 `notes/` 保存分析、候选、研究、讨论和开发计划。这里的文档默认**不是当前 Rust 契约**；当前系统设计见 [`../../crates/docs/`](../../crates/docs/)，模块细节见对应源码 README/DESIGN，执行优先级见根 [`TODO.md`](../../TODO.md)。
 
+文档状态分为：`Candidate`（候选设计）、`Research`（调研分析）、`Plan`（开发计划）、`Historical`（已被当前文档替代）。notes 中的“定稿”或“完成”不自动改变当前实现契约。
+
 TS 时代的讨论与实现文档已归档到 [`../archive/`](../archive/)，不参与当前契约，也不在下列索引中。
 
 ## Runtime
@@ -34,3 +36,7 @@ TS 时代的讨论与实现文档已归档到 [`../archive/`](../archive/)，不
 ## Generated proposals
 
 [`tool-hints/`](tool-hints/) 是 `record_tool_hint` 的写入位置，由 Rust 实现和测试引用。该目录保持稳定，不随 notes 分类移动；其中内容只供人工审核，不自动应用到工具实现。
+
+## Roadmap candidates
+
+[`roadmap/README.md`](roadmap/README.md) 保存从历史 TODO 提炼出的工程候选，不改变根 `TODO.md` 的当前执行优先级。

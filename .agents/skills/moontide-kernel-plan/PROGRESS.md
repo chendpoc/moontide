@@ -19,9 +19,11 @@
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent` R1/R2 与 CLI R1/R2、R3 Settings/trace 接缝已实现并通过测试，等待 Review；OTel 与 scheduler 继续后置。
+- 当前推进：`agent` 与 CLI 作为宿主基线保留；Desktop v0.1 已确认采用单窗口、单活跃 Session、Turn 串行，下一阶段先对齐流式 UI、宿主事件、审批、取消清理与 Session query 接缝。
 
 ## 变更记录
+
+- 2026-08-18：确认 Desktop v0.1 开发方向：单窗口、单活跃 Session、Turn 串行；`agent-core` 主干进入稳定底座阶段，下一阶段转向 Desktop Shell 宿主能力；多 Session 并发、scheduler、多 Agent 后置。
 
 - 2026-08-17：`cli` R1 完成：加入 `moontide` binary、clap/config/env 解析、create/resume dispatch、one-shot stdout/stderr 边界与 fail-closed Ask handler；workspace 197 tests、fmt/clippy 通过，等待 Review。
 
