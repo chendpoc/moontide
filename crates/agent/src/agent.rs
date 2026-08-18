@@ -1,11 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use agent_core::{
     llm::protocol::{ModelResponse, ThinkingLevel},
     model_input::ModelRequestConfig,
     r#loop::{AgentLoop, ToolPermissionMap, TurnInput, TurnPolicy},
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use tokio_util::sync::CancellationToken;
 
 use crate::{bootstrap, config::AgentConfig, prompt};
@@ -41,8 +41,39 @@ impl Agent {
         Self::from_parts(config, parts)
     }
 
+    pub fn reload(&mut self, config: AgentConfig) -> Result<()> {
+        config.validate_values()?;
+        config.ensure_paths()?;
+        let session_id = self.session_id.clone();
+        let parts = bootstrap::resume(&config, &session_id)?;
+        self.apply_parts(config, parts);
+        Ok(())
+    }
+
+    pub fn apply_turn_limits(
+        &mut self,
+        max_steps: u32,
+        max_tokens: u32,
+        thinking_level: Option<ThinkingLevel>,
+    ) -> Result<()> {
+        if max_steps == 0 {
+            bail!("max_steps must be greater than zero");
+        }
+        if max_tokens == 0 {
+            bail!("max_tokens must be greater than zero");
+        }
+        self.max_steps = max_steps;
+        self.max_tokens = max_tokens;
+        self.thinking_level = thinking_level;
+        Ok(())
+    }
+
     pub fn session_id(&self) -> &str {
         &self.session_id
+    }
+
+    pub fn cwd(&self) -> &Path {
+        &self.cwd
     }
 
     pub async fn turn(
@@ -84,5 +115,17 @@ impl Agent {
             permissions: config.permissions,
             approval_configured: config.approval.is_some(),
         })
+    }
+
+    fn apply_parts(&mut self, config: AgentConfig, parts: AgentParts) {
+        self.loop_ = parts.loop_;
+        self.cwd = parts.cwd;
+        self.model = config.model;
+        self.max_tokens = config.max_tokens;
+        self.thinking_level = config.thinking_level;
+        self.max_steps = config.max_steps;
+        self.tool_names = config.tool_names;
+        self.permissions = config.permissions;
+        self.approval_configured = config.approval.is_some();
     }
 }

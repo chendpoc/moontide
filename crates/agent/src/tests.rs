@@ -56,6 +56,25 @@ fn resume_preserves_session_identity() {
     assert_eq!(resumed.session_id(), session_id);
 }
 
+// Scenario: runtime settings change provider-facing limits without creating a new session.
+// Expected: reload keeps session identity while apply_turn_limits updates per-turn bounds.
+// Invariant: session item log remains tied to the original session id after reload.
+#[test]
+fn reload_preserves_session_and_applies_turn_limits() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let mut agent = Agent::create(config(&temp)).expect("minimal agent should bootstrap");
+    let session_id = agent.session_id().to_owned();
+
+    agent
+        .apply_turn_limits(6, 256, Some(ThinkingLevel::Low))
+        .expect("turn limits should apply");
+
+    let mut updated = config(&temp);
+    updated.model = "updated-model".into();
+    agent.reload(updated).expect("agent should reload");
+    assert_eq!(agent.session_id(), session_id);
+}
+
 // Scenario: config contains a tool name absent from the first-party catalog.
 // Expected: bootstrap fails before constructing a runnable Agent.
 // Invariant: unknown capabilities are rejected at composition time, not on first model call.
