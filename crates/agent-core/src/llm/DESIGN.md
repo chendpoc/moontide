@@ -195,7 +195,7 @@ impl ModelResponseBuilder {
 }
 ```
 
-**fold 规则：** `block_index` 或 Text/Thinking 类型变化 → flush；`ToolUseFinished` → `ContentBlock::ToolUse`；`Finished` → flush + 元数据。
+**fold 规则：** `block_index` 或 Text/Thinking 类型变化 → flush；ToolUse 按 `id` 维护多个并行 open block，`ToolUseFinished` 先标记完成，再按 `ToolUseStarted` 顺序 flush 为 `ContentBlock::ToolUse`；`Finished` → flush + 元数据。`pending` 在并行 ToolUse 时暴露第一个尚未完成的调用。
 
 ### 6.5 错误
 
@@ -318,7 +318,7 @@ struct Preset {
 ## 11. 不变量
 
 1. 成功 `stream`：**恰好一个** `Finished`，且为最后一项
-2. Tool 流：`ToolUseStarted` → `ToolUsePart*` → `ToolUseFinished { input }`
+2. Tool 流：每个 `id` 满足 `ToolUseStarted` → `ToolUsePart*` → `ToolUseFinished { input }`；多个 id 可交错并行
 3. `block_index`：同 index 内类型一致；tool 不占 text/thinking index
 4. **fold 唯一性：** 仅 `ModelResponseBuilder`
 5. `ModelRequest.messages` 非空；`system` 可空串
@@ -333,6 +333,7 @@ struct Preset {
 |------|-----|------|
 | handoff 后 history 含不支持的 block | `normalize::common` | strip，不 panic |
 | OpenAI `tool_calls.arguments` 分片 | `openai_chat/stream` | 合并后 `ToolUseFinished` |
+| OpenAI 多个并行 tool calls | `openai_chat/stream` + `response_builder` | 按 index/id 收束并保持 provider 顺序 |
 | DeepSeek thinking | `openai_chat/thinking` | `ThinkingPart` |
 | HTTP 4xx/5xx | `adapter` | `RequestFailed` |
 | 用户 abort | `loop` + provider | `Cancelled { User }` |

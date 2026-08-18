@@ -126,6 +126,8 @@ let response = run_model_call(provider.as_ref(), request).await?;
 
 Loop 对该入口的 R1 约束：一个 Step 只 `compile` 一次；仅 `RequestFailureKind::Recoverable` 重试，默认初次后再试 3 次；同一 Step/ModelRequest、每次 attempt 使用新的 `llm_call_id`。retry/backoff 不进入 LLMProvider。
 
+一个 provider response 可以包含多个并行 ToolUse。`run_model_call*` 按 `tool_use_id` fold 每个调用，并按 provider 的调用顺序交付 `ModelResponse.content`；`snapshot.pending` 在多个调用同时进行时展示第一个尚未完成的调用。
+
 ### loop + 流式 UI + event
 
 ```rust

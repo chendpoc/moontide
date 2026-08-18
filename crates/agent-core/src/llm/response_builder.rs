@@ -1,4 +1,6 @@
-use std::mem;
+use std::{collections::VecDeque, mem};
+
+use serde_json::Value;
 
 use crate::llm::protocol::{
     ContentBlock, LlmError, ModelResponse, ModelResponseSnapshot, ModelStreamEvent, PendingBlock,
@@ -16,6 +18,7 @@ struct OpenTool {
     id: String,
     name: String,
     input_json: String,
+    finished: Option<(String, Value)>,
 }
 
 /// Authoritative fold from [`ModelStreamEvent`] to [`ModelResponse`].
@@ -26,7 +29,7 @@ pub struct ModelResponseBuilder {
     open_part: Option<OpenPartKind>,
     open_text: String,
     open_thinking: String,
-    open_tool: Option<OpenTool>,
+    open_tools: VecDeque<OpenTool>,
     stop_reason: Option<StopReason>,
     usage: Option<Usage>,
     finished: bool,
@@ -40,7 +43,7 @@ impl ModelResponseBuilder {
             open_part: None,
             open_text: String::new(),
             open_thinking: String::new(),
-            open_tool: None,
+            open_tools: VecDeque::new(),
             stop_reason: None,
             usage: None,
             finished: false,
@@ -55,6 +58,10 @@ impl ModelResponseBuilder {
             });
         }
 
+        // Stream fold state machine: adapter deltas → committed `content` + optional `pending`.
+        // Text/Thinking append to one open part per `block_index`; switching index or kind flushes
+        // the previous part into `content`. ToolUse follows Started → Part* → Finished per id;
+        // `Finished` requires no open tools and marks the builder terminal for `finish()`.
         match event {
             ModelStreamEvent::TextPart { block_index, text } => {
                 self.ensure_text_part(block_index)?;
@@ -69,50 +76,56 @@ impl ModelResponseBuilder {
             }
             ModelStreamEvent::ToolUseStarted { id, name } => {
                 self.flush_open_part();
-                if self.open_tool.is_some() {
+                if self.open_tools.iter().any(|tool| tool.id == id) {
                     return Err(LlmError::RequestFailed {
                         kind: RequestFailureKind::Unrecoverable,
-                        message: format!("nested ToolUseStarted for {id}"),
+                        message: format!("duplicate ToolUseStarted for {id}"),
                     });
                 }
-                self.open_tool = Some(OpenTool {
+                self.open_tools.push_back(OpenTool {
                     id,
                     name,
                     input_json: String::new(),
+                    finished: None,
                 });
             }
             ModelStreamEvent::ToolUsePart { id, input_json } => {
-                let tool = self
-                    .open_tool
-                    .as_mut()
-                    .ok_or_else(|| LlmError::RequestFailed {
-                        kind: RequestFailureKind::Unrecoverable,
-                        message: format!("ToolUsePart without ToolUseStarted for {id}"),
-                    })?;
-                if tool.id != id {
+                let tool = self.open_tools.iter_mut().find(|tool| tool.id == id);
+                let tool = tool.ok_or_else(|| LlmError::RequestFailed {
+                    kind: RequestFailureKind::Unrecoverable,
+                    message: format!("ToolUsePart without ToolUseStarted for {id}"),
+                })?;
+                if tool.finished.is_some() {
                     return Err(LlmError::RequestFailed {
                         kind: RequestFailureKind::Unrecoverable,
-                        message: format!("ToolUsePart id mismatch: expected {}, got {id}", tool.id),
+                        message: format!("ToolUsePart after ToolUseFinished for {id}"),
                     });
                 }
                 tool.input_json.push_str(&input_json);
             }
             ModelStreamEvent::ToolUseFinished { id, name, input } => {
-                if let Some(open) = self.open_tool.take() {
-                    if open.id != id {
-                        return Err(LlmError::RequestFailed {
-                            kind: RequestFailureKind::Unrecoverable,
-                            message: format!(
-                                "ToolUseFinished id mismatch: expected {}, got {id}",
-                                open.id
-                            ),
-                        });
-                    }
+                let tool = self.open_tools.iter_mut().find(|tool| tool.id == id);
+                let tool = tool.ok_or_else(|| LlmError::RequestFailed {
+                    kind: RequestFailureKind::Unrecoverable,
+                    message: format!("ToolUseFinished without ToolUseStarted for {id}"),
+                })?;
+                if tool.finished.is_some() {
+                    return Err(LlmError::RequestFailed {
+                        kind: RequestFailureKind::Unrecoverable,
+                        message: format!("duplicate ToolUseFinished for {id}"),
+                    });
                 }
-                self.content.push(ContentBlock::ToolUse { id, name, input });
+                tool.finished = Some((name, input));
+                self.flush_finished_tools();
             }
             ModelStreamEvent::Finished { stop_reason, usage } => {
                 self.flush_open_part();
+                if !self.open_tools.is_empty() {
+                    return Err(LlmError::RequestFailed {
+                        kind: RequestFailureKind::Unrecoverable,
+                        message: "Finished with unfinished tool use".into(),
+                    });
+                }
                 self.stop_reason = Some(stop_reason);
                 self.usage = usage;
                 self.finished = true;
@@ -195,8 +208,31 @@ impl ModelResponseBuilder {
         }
     }
 
+    fn flush_finished_tools(&mut self) {
+        loop {
+            if !self
+                .open_tools
+                .front()
+                .is_some_and(|tool| tool.finished.is_some())
+            {
+                break;
+            }
+            let Some(tool) = self.open_tools.pop_front() else {
+                break;
+            };
+            let Some((name, input)) = tool.finished else {
+                break;
+            };
+            self.content.push(ContentBlock::ToolUse {
+                id: tool.id,
+                name,
+                input,
+            });
+        }
+    }
+
     fn pending_block(&self) -> Option<PendingBlock> {
-        if let Some(tool) = &self.open_tool {
+        if let Some(tool) = self.open_tools.iter().find(|tool| tool.finished.is_none()) {
             return Some(PendingBlock::ToolUse {
                 id: tool.id.clone(),
                 name: tool.name.clone(),
@@ -298,6 +334,51 @@ mod tests {
             response.content.first(),
             Some(ContentBlock::ToolUse { .. })
         ));
+    }
+
+    // Scenario: the second parallel tool call finishes before the first one.
+    // Expected: the final content remains in ToolUseStarted order.
+    // Invariant: provider completion timing cannot reorder assistant tool calls.
+    #[test]
+    fn parallel_tool_calls_preserve_start_order_when_finished_out_of_order() {
+        let mut builder = ModelResponseBuilder::new("m");
+        apply_all(
+            &mut builder,
+            &[
+                ModelStreamEvent::ToolUseStarted {
+                    id: "t0".into(),
+                    name: "read".into(),
+                },
+                ModelStreamEvent::ToolUseStarted {
+                    id: "t1".into(),
+                    name: "grep".into(),
+                },
+                ModelStreamEvent::ToolUseFinished {
+                    id: "t1".into(),
+                    name: "grep".into(),
+                    input: json!({"pattern": "Agent"}),
+                },
+                ModelStreamEvent::ToolUseFinished {
+                    id: "t0".into(),
+                    name: "read".into(),
+                    input: json!({"path": "README.md"}),
+                },
+                ModelStreamEvent::Finished {
+                    stop_reason: StopReason::ToolUse,
+                    usage: None,
+                },
+            ],
+        );
+        let response = builder.finish().expect("finish");
+        let ids: Vec<_> = response
+            .content
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolUse { id, .. } => Some(id.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids, vec!["t0", "t1"]);
     }
 
     #[test]

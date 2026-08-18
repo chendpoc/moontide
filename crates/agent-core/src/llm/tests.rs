@@ -182,6 +182,65 @@ mod provider_tests {
         assert!(updates[0].pending.is_some());
         assert_eq!(updates[1].stop_reason, Some(StopReason::EndTurn));
     }
+
+    // Scenario: an OpenAI-compatible provider streams two tool calls in one assistant response.
+    // Expected: both calls fold into the final response in their provider order.
+    // Invariant: a second ToolUseStarted is a parallel call, not a malformed nested call.
+    #[tokio::test]
+    async fn complete_accepts_parallel_tool_calls() {
+        let provider = MockProvider::new(vec![
+            Ok(ModelStreamEvent::ToolUseStarted {
+                id: "call_00".into(),
+                name: "read".into(),
+            }),
+            Ok(ModelStreamEvent::ToolUsePart {
+                id: "call_00".into(),
+                input_json: r#"{"path":"README.md"}"#.into(),
+            }),
+            Ok(ModelStreamEvent::ToolUseStarted {
+                id: "call_01".into(),
+                name: "grep".into(),
+            }),
+            Ok(ModelStreamEvent::ToolUsePart {
+                id: "call_01".into(),
+                input_json: r#"{"pattern":"Agent"}"#.into(),
+            }),
+            Ok(ModelStreamEvent::ToolUseFinished {
+                id: "call_00".into(),
+                name: "read".into(),
+                input: serde_json::json!({"path": "README.md"}),
+            }),
+            Ok(ModelStreamEvent::ToolUseFinished {
+                id: "call_01".into(),
+                name: "grep".into(),
+                input: serde_json::json!({"pattern": "Agent"}),
+            }),
+            Ok(ModelStreamEvent::Finished {
+                stop_reason: StopReason::ToolUse,
+                usage: None,
+            }),
+        ]);
+
+        let response = complete(&provider, sample_request())
+            .await
+            .expect("parallel tool calls should fold");
+
+        assert_eq!(
+            response.content,
+            vec![
+                ContentBlock::ToolUse {
+                    id: "call_00".into(),
+                    name: "read".into(),
+                    input: serde_json::json!({"path": "README.md"}),
+                },
+                ContentBlock::ToolUse {
+                    id: "call_01".into(),
+                    name: "grep".into(),
+                    input: serde_json::json!({"pattern": "Agent"}),
+                },
+            ]
+        );
+    }
 }
 
 /// README §11 stream invariants.

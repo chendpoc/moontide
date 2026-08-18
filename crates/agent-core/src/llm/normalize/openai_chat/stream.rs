@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -60,7 +60,7 @@ struct ToolCallState {
 /// Stateful decoder: merges fragmented tool `arguments` before [`ModelStreamEvent::ToolUseFinished`].
 #[derive(Debug, Default)]
 pub struct StreamDecoder {
-    tool_calls: HashMap<u32, ToolCallState>,
+    tool_calls: BTreeMap<u32, ToolCallState>,
     message_end_emitted: bool,
 }
 
@@ -277,6 +277,33 @@ mod tests {
             .iter()
             .any(|e| matches!(e, ModelStreamEvent::ToolUseFinished { .. })));
         assert!(matches!(d3.last(), Some(ModelStreamEvent::Finished { .. })));
+    }
+
+    // Scenario: one OpenAI chunk introduces two tool calls with distinct provider indexes.
+    // Expected: both calls finish in ascending index order.
+    // Invariant: downstream folding receives deterministic tool-call order.
+    #[test]
+    fn parallel_tool_calls_finish_in_index_order() {
+        let mut decoder = StreamDecoder::new();
+        decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c0","function":{"name":"read","arguments":"{\"path\":\"a\"}"}},{"index":1,"id":"c1","function":{"name":"grep","arguments":"{\"pattern\":\"x\"}"}}]},"finish_reason":null}]}"#,
+            ))
+            .expect("parallel start chunk");
+
+        let finished = decoder
+            .decode_chunk(&chunk(
+                r#"{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            ))
+            .expect("parallel finish chunk");
+        let ids: Vec<_> = finished
+            .iter()
+            .filter_map(|event| match event {
+                ModelStreamEvent::ToolUseFinished { id, .. } => Some(id.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids, vec!["c0", "c1"]);
     }
 
     #[test]
