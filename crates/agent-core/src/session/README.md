@@ -13,8 +13,9 @@
 
 ```text
 .moontide/sessions/
-├── {session_id}.meta.json      # SessionHeader
-└── {session_id}.log.jsonl      # 每行一条 SessionItem
+└── {YYYY-MM-DD}/                  # 本地日期分区
+    ├── {session_id}.meta.json     # SessionHeader
+    └── {session_id}.log.jsonl     # 每行一条 SessionItem
 ```
 
 **一句话：** session 负责事实的 create/load/append/fork；不负责模型输入 shaping（`context`）、Turn 状态机（`loop`）或观测日志（`event`）。
@@ -171,7 +172,7 @@ let child = store.fork(&sessions_dir, &boundary_item_id)?;
 
 | 项 | 约定 |
 |----|------|
-| 目录 | 由 agent/cli 注入；默认 `.moontide/sessions` |
+| 目录 | 由 agent/cli 注入；默认 `.moontide/sessions/{YYYY-MM-DD}/` |
 | 环境变量 | session 不读取 |
 | `session_id` | UUID |
 | runtime writer | 一个 AgentLoop 独占一个 SessionStore |

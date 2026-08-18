@@ -27,11 +27,13 @@ SessionStore 是 AgentLoop 的 non-Clone、独占运行时状态。R1 不用 `Ar
 
 ```text
 {sessions_dir}/
-├── {session_id}.meta.json    # SessionHeader
-└── {session_id}.log.jsonl    # 一行 JSON = 一个 SessionItem
+└── {YYYY-MM-DD}/
+    ├── {session_id}.meta.json    # SessionHeader
+    └── {session_id}.log.jsonl    # 一行 JSON = 一个 SessionItem
 ```
 
 - `sessions_dir` 由 agent/cli 注入；session 不读 env；
+- 新建 session 写入本地日期分区 `{YYYY-MM-DD}/`；`load` 在该根目录下扫描日期子目录定位 `{session_id}`；
 - `session_id` 是 UUID；create/load 校验以防路径逃逸；
 - R1 全量 load 进内存，大 log 流式迭代后置；
 - header 不进入 Session Item Log。

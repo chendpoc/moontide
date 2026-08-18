@@ -867,9 +867,13 @@ fn integration_tool_result_preserves_status_and_content_across_both_logs() {
             other => panic!("expected tool result, got {other:?}"),
         }
 
-        let session_log =
-            std::fs::read_to_string(sessions_dir.join(format!("{session_id}.log.jsonl")))
-                .expect("read session log");
+        let partition = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let session_log = std::fs::read_to_string(
+            sessions_dir
+                .join(&partition)
+                .join(format!("{session_id}.log.jsonl")),
+        )
+        .expect("read session log");
         let session_line: serde_json::Value =
             serde_json::from_str(session_log.trim()).expect("parse session line");
         assert_eq!(

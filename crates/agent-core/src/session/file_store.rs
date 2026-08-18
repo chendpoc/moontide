@@ -16,11 +16,12 @@ impl FileSessionStore {
     pub(crate) fn create(sessions_dir: impl AsRef<Path>, header: &SessionHeader) -> Result<Self> {
         validate_session_id(&header.session_id)?;
 
-        let sessions_dir = sessions_dir.as_ref().to_path_buf();
-        fs::create_dir_all(&sessions_dir)
-            .with_context(|| format!("create sessions dir {}", sessions_dir.display()))?;
+        let sessions_dir = sessions_dir.as_ref();
+        let storage_dir = sessions_dir.join(today_partition());
+        fs::create_dir_all(&storage_dir)
+            .with_context(|| format!("create session storage dir {}", storage_dir.display()))?;
 
-        let store = Self::from_header(sessions_dir, &header.session_id);
+        let store = Self::from_storage_dir(storage_dir, &header.session_id);
         store.write_header(header)?;
         File::create(&store.log_path)
             .with_context(|| format!("create log file {}", store.log_path.display()))?;
@@ -31,8 +32,8 @@ impl FileSessionStore {
     pub(crate) fn open(sessions_dir: impl AsRef<Path>, session_id: &str) -> Result<Self> {
         validate_session_id(session_id)?;
 
-        let sessions_dir = sessions_dir.as_ref().to_path_buf();
-        let store = Self::from_header(sessions_dir, session_id);
+        let storage_dir = locate_session_dir(sessions_dir.as_ref(), session_id)?;
+        let store = Self::from_storage_dir(storage_dir, session_id);
 
         if !store.meta_path.is_file() {
             anyhow::bail!("session meta not found: {}", store.meta_path.display());
@@ -110,9 +111,8 @@ impl FileSessionStore {
         Ok(())
     }
 
-    fn from_header(sessions_dir: PathBuf, session_id: &str) -> Self {
-        let meta_path = sessions_dir.join(format!("{session_id}.meta.json"));
-        let log_path = sessions_dir.join(format!("{session_id}.log.jsonl"));
+    fn from_storage_dir(storage_dir: PathBuf, session_id: &str) -> Self {
+        let (meta_path, log_path) = session_file_paths(&storage_dir, session_id);
         Self {
             session_id: session_id.to_string(),
             meta_path,
@@ -146,6 +146,51 @@ fn migrate_v1_tool_result(version: u32, value: &mut serde_json::Value) {
             "value": legacy_content,
         });
     }
+}
+
+pub(crate) fn locate_session_dir(sessions_dir: &Path, session_id: &str) -> Result<PathBuf> {
+    validate_session_id(session_id)?;
+
+    let entries = fs::read_dir(sessions_dir)
+        .with_context(|| format!("read sessions dir {}", sessions_dir.display()))?;
+    for entry in entries {
+        let entry = entry
+            .with_context(|| format!("read sessions dir entry in {}", sessions_dir.display()))?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        if !is_date_partition(name) {
+            continue;
+        }
+        if path.join(format!("{session_id}.meta.json")).is_file() {
+            return Ok(path);
+        }
+    }
+
+    anyhow::bail!(
+        "session meta not found under {} for session_id {session_id}",
+        sessions_dir.display()
+    )
+}
+
+fn session_file_paths(storage_dir: &Path, session_id: &str) -> (PathBuf, PathBuf) {
+    (
+        storage_dir.join(format!("{session_id}.meta.json")),
+        storage_dir.join(format!("{session_id}.log.jsonl")),
+    )
+}
+
+fn today_partition() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
+fn is_date_partition(name: &str) -> bool {
+    chrono::NaiveDate::parse_from_str(name, "%Y-%m-%d").is_ok()
 }
 
 pub(crate) fn validate_session_id(session_id: &str) -> Result<()> {

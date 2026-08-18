@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde_json::json;
 use tempfile::TempDir;
@@ -9,6 +9,38 @@ use crate::tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus};
 
 fn sessions_dir(root: &TempDir) -> PathBuf {
     root.path().join("sessions")
+}
+
+fn session_storage_dir(root_sessions_dir: &Path, session_id: &str) -> PathBuf {
+    super::file_store::locate_session_dir(root_sessions_dir, session_id).expect("locate session")
+}
+
+fn session_meta_path(root_sessions_dir: &Path, session_id: &str) -> PathBuf {
+    let storage_dir = session_storage_dir(root_sessions_dir, session_id);
+    storage_dir.join(format!("{session_id}.meta.json"))
+}
+
+fn session_log_path(root_sessions_dir: &Path, session_id: &str) -> PathBuf {
+    let storage_dir = session_storage_dir(root_sessions_dir, session_id);
+    storage_dir.join(format!("{session_id}.log.jsonl"))
+}
+
+// 场景：新建 session 写入本地日期分区目录，load 通过扫描日期子目录定位文件。
+// 预期：meta/log 位于 `{sessions_dir}/{YYYY-MM-DD}/` 下且可 reload；不变量：根目录不直接存放 session 文件。
+#[test]
+fn create_stores_session_under_date_partition() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+    let partition = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let storage_dir = dir.join(&partition);
+
+    assert!(session_meta_path(&dir, &session_id).starts_with(&storage_dir));
+    assert!(session_log_path(&dir, &session_id).starts_with(&storage_dir));
+    assert!(!dir.join(format!("{session_id}.meta.json")).exists());
+
+    SessionStore::load(&dir, &session_id).expect("reload partitioned session");
 }
 
 // 场景：创建 v2 session 后写入消息、ToolCall 与 ToolResult，再重新加载；预期：header、顺序、身份、状态和 payload 往返一致；不变量/副作用：seq 连续，Session Item Log 不产生额外的调用模型。
@@ -138,7 +170,7 @@ fn load_rejects_seq_gap() {
         })
         .expect("commit");
 
-    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let log_path = session_log_path(&dir, &session_id);
     let raw = std::fs::read_to_string(&log_path).expect("read log");
     let mut lines: Vec<String> = raw.lines().map(str::to_string).collect();
     let mut second: serde_json::Value = serde_json::from_str(&lines[1]).expect("parse line");
@@ -169,7 +201,7 @@ fn load_rejects_item_from_another_session() {
         })
         .expect("commit");
 
-    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let log_path = session_log_path(&dir, &session_id);
     let raw = std::fs::read_to_string(&log_path).expect("read log");
     let mut item: serde_json::Value = serde_json::from_str(raw.trim()).expect("parse item");
     item["session_id"] = json!("other-session");
@@ -199,8 +231,8 @@ fn load_v1_tool_items_into_canonical_call_and_result_models() {
     let dir = sessions_dir(&root);
     let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
     let session_id = store.header().session_id.clone();
-    let meta_path = dir.join(format!("{session_id}.meta.json"));
-    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let meta_path = session_meta_path(&dir, &session_id);
+    let log_path = session_log_path(&dir, &session_id);
 
     let mut meta: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&meta_path).expect("read session meta"))
@@ -267,8 +299,8 @@ fn load_v1_tool_items_into_canonical_call_and_result_models() {
         .expect("fork migrated v1 session");
     assert_eq!(forked.header().version, 2);
     let forked_id = forked.header().session_id.clone();
-    let forked_log = std::fs::read_to_string(dir.join(format!("{forked_id}.log.jsonl")))
-        .expect("read v2 fork log");
+    let forked_log =
+        std::fs::read_to_string(session_log_path(&dir, &forked_id)).expect("read v2 fork log");
     assert!(forked_log.contains("\"kind\":\"tool_result\""));
     assert!(!forked_log.contains("\"kind\":\"tool_outcome\""));
     let reloaded_fork = SessionStore::load(&dir, &forked_id).expect("load v2 fork");
@@ -289,8 +321,8 @@ fn load_v1_append_current_tool_result_and_reload_without_content_drift() {
     let dir = sessions_dir(&root);
     let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
     let session_id = store.header().session_id.clone();
-    let meta_path = dir.join(format!("{session_id}.meta.json"));
-    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let meta_path = session_meta_path(&dir, &session_id);
+    let log_path = session_log_path(&dir, &session_id);
 
     let mut meta: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&meta_path).expect("read session meta"))
@@ -366,7 +398,7 @@ fn load_rejects_unsupported_header_version() {
     let dir = sessions_dir(&root);
     let store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
     let session_id = store.header().session_id.clone();
-    let meta_path = dir.join(format!("{session_id}.meta.json"));
+    let meta_path = session_meta_path(&dir, &session_id);
     let mut meta: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&meta_path).expect("read session meta"))
             .expect("parse session meta");
@@ -403,7 +435,7 @@ fn load_v2_rejects_tool_result_without_status() {
         })
         .expect("commit tool result");
 
-    let log_path = dir.join(format!("{session_id}.log.jsonl"));
+    let log_path = session_log_path(&dir, &session_id);
     let mut item: serde_json::Value = serde_json::from_str(
         std::fs::read_to_string(&log_path)
             .expect("read session log")
