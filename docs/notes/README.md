@@ -12,6 +12,7 @@ TS 时代的讨论与实现文档已归档到 [`../archive/`](../archive/)，不
 |------|------|
 | [`runtime/agent-kernel-architecture.md`](runtime/agent-kernel-architecture.md) | 内核架构收敛：Pi 教训、模型 daemon、验收网关、subagent、A2A、crate 判据、多语言 trade-off、event bus 与决策清单 |
 | [`runtime/agent-runtime-product-direction.md`](runtime/agent-runtime-product-direction.md) | 元 agent、共享 Runtime 与产品 Preset / Shell 边界 |
+| [`runtime/runtime-host-architecture.md`](runtime/runtime-host-architecture.md) | CLI、Desktop、Frontend、Runtime Host 与 Agent Worker 的渐进式架构候选 |
 | [`runtime/runtime-multilang.md`](runtime/runtime-multilang.md) | 多语言 Desktop Runtime、sidecar 与 IPC |
 | [`runtime/kocoro-architecture.md`](runtime/kocoro-architecture.md) | Kocoro/Shannon 参考架构分析 |
 
