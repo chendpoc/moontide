@@ -1,11 +1,13 @@
 use std::env;
 
+use agent::ThinkingLevel;
 use anyhow::{bail, Context, Result};
 
 use crate::{
     args::{ApprovalPolicyArg, CliArgs, TraceModeArg},
     input::InputOwner,
     render::write_diagnostic_stderr,
+    setting_catalog::initial_runtime_settings,
 };
 
 const API_KEY_ENV: &str = "DEEPSEEK_API_KEY";
@@ -29,7 +31,27 @@ pub(crate) struct RuntimeSettings {
     pub(crate) api_key: String,
     pub(crate) approval_policy: ApprovalPolicy,
     pub(crate) trace_mode: TraceMode,
+    pub(crate) model: String,
+    pub(crate) base_url: String,
+    pub(crate) max_tokens: u32,
+    pub(crate) max_steps: u32,
+    pub(crate) thinking_level: Option<ThinkingLevel>,
+    pub(crate) quiet_startup: bool,
     pub(crate) input_owner: Option<InputOwner>,
+}
+
+pub(crate) fn format_api_key(api_key: &str) -> String {
+    if api_key.trim().is_empty() {
+        return "(empty)".into();
+    }
+    if env::var(API_KEY_ENV)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .is_some_and(|value| value == api_key)
+    {
+        return "*** (env)".into();
+    }
+    "*** (runtime)".into()
 }
 
 pub(crate) fn resolve_one_shot(args: &CliArgs) -> Result<RuntimeSettings> {
@@ -37,12 +59,7 @@ pub(crate) fn resolve_one_shot(args: &CliArgs) -> Result<RuntimeSettings> {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("{API_KEY_ENV} is required for one-shot mode"))?;
-    Ok(RuntimeSettings {
-        api_key,
-        approval_policy: args.approval_policy.into(),
-        trace_mode: args.trace.into(),
-        input_owner: None,
-    })
+    Ok(initial_runtime_settings(args, api_key))
 }
 
 pub(crate) fn resolve_interactive(
@@ -59,6 +76,9 @@ pub(crate) fn resolve_interactive(
         args.session.as_deref().unwrap_or("create new session")
     ))
     .context("write settings summary")?;
+
+    let mut settings = initial_runtime_settings(args, String::new());
+    settings.input_owner = Some(input_owner.clone());
 
     let api_key = match env::var(API_KEY_ENV)
         .ok()
@@ -79,9 +99,10 @@ pub(crate) fn resolve_interactive(
             api_key
         }
     };
+    settings.api_key = api_key;
 
-    let approval_policy = choose_approval_policy(args.approval_policy, &input_owner)?;
-    if matches!(approval_policy, ApprovalPolicy::AlwaysAllow) {
+    settings.approval_policy = choose_approval_policy(args.approval_policy, &input_owner)?;
+    if matches!(settings.approval_policy, ApprovalPolicy::AlwaysAllow) {
         write_diagnostic_stderr(
             "WARNING: always-allow permits every enabled tool without approval. Type ALLOW to continue.",
         )
@@ -104,12 +125,7 @@ pub(crate) fn resolve_interactive(
         bail!("startup cancelled from settings");
     }
 
-    Ok(RuntimeSettings {
-        api_key,
-        approval_policy,
-        trace_mode: args.trace.into(),
-        input_owner: Some(input_owner),
-    })
+    Ok(settings)
 }
 
 fn choose_approval_policy(

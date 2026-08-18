@@ -1,10 +1,13 @@
 mod approval;
 mod args;
 mod config;
+mod fuzzy;
 mod input;
 mod render;
 mod repl;
+mod setting_catalog;
 mod settings;
+mod settings_ui;
 mod trace;
 
 use std::process::ExitCode;
@@ -78,9 +81,12 @@ async fn run() -> Result<()> {
             }
         }
         (LaunchMode::Repl, None) => {
+            let mut runtime_settings = settings;
             run_repl(
                 &mut agent,
                 input_owner.ok_or_else(|| anyhow::anyhow!("interactive input owner missing"))?,
+                &args,
+                &mut runtime_settings,
             )
             .await
         }

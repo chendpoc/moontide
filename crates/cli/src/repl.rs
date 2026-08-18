@@ -5,17 +5,21 @@ use anyhow::{Context, Result};
 use rustyline::error::ReadlineError;
 use tokio_util::sync::CancellationToken;
 
+use crate::args::CliArgs;
 use crate::input::InputOwner;
 use crate::render::{write_assistant_stdout, write_diagnostic_stderr};
+use crate::settings::RuntimeSettings;
+use crate::settings_ui::run_settings_ui;
 
 const PROMPT: &str = "moontide> ";
-const HELP: &str = "/id  show session id\n/help  show this help\n/exit  exit the REPL";
+const HELP: &str = "/id       show session id\n/settings  open settings overlay\n/help      show this help\n/exit      exit the REPL";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReplCommand {
     Exit,
     Help,
     SessionId,
+    Settings,
     Turn(String),
 }
 
@@ -29,11 +33,17 @@ pub(crate) fn parse_command(line: String) -> ReplCommand {
         "/exit" => ReplCommand::Exit,
         "/help" => ReplCommand::Help,
         "/id" => ReplCommand::SessionId,
+        "/settings" => ReplCommand::Settings,
         _ => ReplCommand::Turn(line),
     }
 }
 
-pub(crate) async fn run(agent: &mut Agent, input_owner: InputOwner) -> Result<()> {
+pub(crate) async fn run(
+    agent: &mut Agent,
+    input_owner: InputOwner,
+    args: &CliArgs,
+    settings: &mut RuntimeSettings,
+) -> Result<()> {
     loop {
         match input_owner.readline(PROMPT) {
             Ok(line) => {
@@ -50,6 +60,10 @@ pub(crate) async fn run(agent: &mut Agent, input_owner: InputOwner) -> Result<()
                     ReplCommand::SessionId => {
                         write_diagnostic_stderr(&format!("session id: {}", agent.session_id()))
                             .context("write REPL session id")?;
+                    }
+                    ReplCommand::Settings => {
+                        settings.input_owner = Some(input_owner.clone());
+                        tokio::task::block_in_place(|| run_settings_ui(settings, agent, args))?;
                     }
                     ReplCommand::Turn(text) => {
                         let cancellation = CancellationToken::new();

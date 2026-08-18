@@ -1,7 +1,7 @@
 # cli
 
 > **性质：** MoonTide 用户入口的纯壳。
-> **状态：** CLI R1/R2 与 R3 Settings Preflight 已实现并通过测试，等待 Review。
+> **状态：** CLI R1/R2/R3 与 R4 `/settings` overlay 已实现并通过测试。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
 > **关联：** [`../agent/README.md`](../agent/README.md) · [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md)
 
@@ -76,6 +76,7 @@ Trace 模式分层：`events` 展示 Turn/Step/LLM/Tool/Result 生命周期；`e
 | 输入 | 行为 |
 |------|------|
 | 普通文本 | 执行一个 Agent Turn |
+| `/settings` | 打开 settings overlay（逐键筛选、↑↓ 选择、Enter/Space 修改） |
 | `/id` | 打印当前 session id |
 | `/help` | 打印命令帮助 |
 | `/exit` | 退出 REPL |

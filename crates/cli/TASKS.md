@@ -10,6 +10,8 @@
 |----|------|------|-----------|------|
 | **R1** | 01 | crate scaffold、args/config、one-shot | ~550 行 | ◐ Review |
 | **R2** | 02–03 | REPL、approval、render、Ctrl-C 与测试 | ~850 行 | ◐ Review |
+| **R3** | 04 | Settings Preflight、InputOwner 与 runtime settings | ~500 行 | ◐ Review |
+| **R4** | 05 | `/settings` overlay、catalog 与 fuzzy filter | ~700 行 | ◐ Review |
 
 ## TASK 明细
 
@@ -38,6 +40,24 @@
 - **范围：** `crates/cli/src/main.rs`、`repl.rs`、`tests.rs`、`PROGRESS.md`、顶层 checklist
 - **预估 diff：** ~300 行
 - **完成标准：** workspace fmt/clippy/test；Ctrl-C cancellation 与后续 turn、stdout/stderr 和 CLI → agent 依赖守门通过。
+- **状态：** ◐ Review
+
+### TASK-cli-04: Settings Preflight 与共享输入所有权
+
+- **做什么：** 在 Agent create/resume 前解析 interactive runtime settings；让 REPL 与 approval 共享单一 InputOwner，并接入 trace、thinking 与 turn limit 的 CLI 设置。
+- **依赖：** TASK-cli-03
+- **范围：** `crates/cli/src/input.rs`、`settings.rs`、`config.rs`、`trace.rs`、`main.rs`、`tests.rs`
+- **预估 diff：** ~500 行
+- **完成标准：** interactive key/approval policy/confirmation、shared input owner、runtime settings 与 trace tests 通过。
+- **状态：** ◐ Review
+
+### TASK-cli-05: `/settings` overlay 与 catalog
+
+- **做什么：** 实现 crossterm alternate-screen settings overlay、逐键 fuzzy filter、setting catalog 与 NextTurn/ReloadAgent/NextLaunch/ReadOnly 生效边界。
+- **依赖：** TASK-cli-04
+- **范围：** `crates/cli/src/fuzzy.rs`、`setting_catalog.rs`、`settings_ui.rs`、`settings.rs`、`repl.rs`、`main.rs`、`tests.rs`
+- **预估 diff：** ~700 行
+- **完成标准：** catalog 排除 session/runs/tools，筛选与 setting cycle 测试通过；always-allow 必须显式输入 `ALLOW`；退出或错误后 raw mode 与 alternate screen 均恢复。
 - **状态：** ◐ Review
 
 ## 实现约束

@@ -159,6 +159,12 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSe
         api_key: api_key.into(),
         approval_policy,
         trace_mode: TraceMode::Off,
+        model: "deepseek-chat".into(),
+        base_url: "https://api.deepseek.com".into(),
+        max_tokens: super::config::DEFAULT_MAX_TOKENS,
+        max_steps: super::config::DEFAULT_MAX_STEPS,
+        thinking_level: None,
+        quiet_startup: false,
         input_owner: None,
     }
 }
@@ -214,6 +220,7 @@ fn renderer_keeps_stdout_to_final_assistant_text() {
 fn repl_commands_are_classified_without_agent_access() {
     assert_eq!(parse_command("/id".into()), ReplCommand::SessionId);
     assert_eq!(parse_command("/help".into()), ReplCommand::Help);
+    assert_eq!(parse_command("/settings".into()), ReplCommand::Settings);
     assert_eq!(parse_command("/exit".into()), ReplCommand::Exit);
     assert_eq!(
         parse_command("continue the task".into()),

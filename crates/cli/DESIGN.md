@@ -1,7 +1,7 @@
 # cli — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** CLI R1/R2 与 R3 Settings Preflight、InputOwner、Ctrl-C 已实现，等待 Review。
+> **状态：** CLI R1/R2/R3 与 R4 `/settings` overlay 已实现并通过测试。
 > **关联：** [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md)
 
 ---
@@ -33,8 +33,9 @@ crates/cli/
     config.rs            # args/env/defaults → AgentConfig
     repl.rs              # command loop
     approval.rs          # ToolApprovalHandler over stdin/stderr
-    render.rs            # final ModelResponse → stdout
-    tests.rs
+    settings_ui.rs         # crossterm /settings overlay
+    setting_catalog.rs     # SettingItem catalog + fuzzy filter + apply effects
+    fuzzy.rs               # Pi-compatible fuzzy filter
 ```
 
 CLI 不创建第二套 domain model；`CliArgs`、REPL command 与 render DTO 都是壳内私有类型。
@@ -113,6 +114,7 @@ input_owner = settings.input_owner
 loop:
   line = input_owner.readline(" > ")
   if line == /exit: break
+  if line == /settings: crossterm overlay; continue
   if line == /id: print Agent::session_id to stderr; continue
   if line == /help: print commands; continue
 
@@ -124,6 +126,15 @@ loop:
 ```
 
 REPL 不把 Ctrl-C 转换为新的 SessionItem；Loop 负责 cleanup 与事实配对。Turn error 打印到 stderr 后回到下一次 readline。
+
+### `/settings` overlay
+
+- 命令：`/settings`；Pi 风格 hint：`Type to search · ↑↓ select · Enter/Space change · Esc cancel`
+- UI：`crossterm` raw mode + alternate screen；逐键 filter（Pi fuzzy + token 分词）；↑↓ 选择
+- Catalog 仅含用户向 agent 设置：model、base-url、api-key（masked）、approval-policy、trace、thinking-level、max-steps、max-tokens、cwd（只读）、quiet-startup（下次启动）
+- 不含 session-id、runs-dir、tools（Session 列表与 plugin 负责）
+- 生效策略：`NextTurn`（max-* / thinking）、`ReloadAgent`（model / provider / approval / trace）、`NextLaunch`（quiet-startup）、`ReadOnly`
+- 持久化：R4 仅进程内 `RuntimeSettings`；`.moontide/settings.json` 后置
 
 ---
 
