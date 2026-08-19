@@ -365,7 +365,7 @@ just check
 - 不用 `Session Event Log`、`SessionLog`、`Item Log` 代替 Session Item Log；
 - 不用 `derive_messages`、`projection`、`restore` 代替 `materialize`；
 - 不用 `compose` 代替 `compile`；
-- 不用 `bus` / `sink` 指 TurnEvent dispatch；未来异步 observer bridge 另行命名；
+- 不用 `bus` / `sink` 指 TurnEvent dispatch；异步观测使用 `ObserverBridge`，sidecar transport 另行命名；
 - 不用“工具验收网关”描述 tools 的核心职责；模型 offload 验收属于 scheduler。
 
 命名的目标是一词一义，并能对应具体模块、边界或不变量。

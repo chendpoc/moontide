@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；Agent Event Log worker 属于 `agent::log` 的 R3；R4 observer bridge 后置。
+> **状态：** R1–R3、typed payload、Loop R1 post-commit Hook / borrowed mutable commit 重构与 R4 observer bridge 已实现；sidecar transport 后置。
 > **关联：** [`../loop/DESIGN.md`](../loop/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -272,12 +272,30 @@ pub struct PipelineRegistry {
     hooks: Vec<std::sync::Arc<dyn HookHandler>>,
 }
 
+pub struct ObserverEvent {
+    pub context: TraceContext,
+    pub event: TurnEvent,
+}
+
+pub struct ObserverBridge { /* bounded Tokio sender */ }
+
+impl ObserverBridge {
+    pub fn channel(
+        capacity: usize,
+    ) -> anyhow::Result<(Self, tokio::sync::mpsc::Receiver<ObserverEvent>)>;
+
+    pub fn try_publish(&self, context: &TraceContext, event: &TurnEvent);
+}
+
 pub struct EventDispatcher {
     registry: PipelineRegistry,
     trace: TraceContext,
+    observer_bridge: Option<ObserverBridge>,
 }
 
 impl EventDispatcher {
+    pub fn with_observer_bridge(self, bridge: ObserverBridge) -> Self;
+
     pub fn emit(
         &mut self,
         commit: &mut dyn CommitHandler,
@@ -351,10 +369,10 @@ cli → observer bridge 或 tail runs/*.active.jsonl
 4. commit error 原样传播，Hook error fail-open；
 5. Hook 不能 Block、Approve、Cancel、Retry 或修改 event；
 6. Hook 顺序稳定，一个失败不跳过后续 Hook；
-7. 每次 emit 清理 transient correlation fields，Hook 只能看到当前 event 的 identity；
+7. 每次 emit 清理 transient correlation fields，Hook 和 observer bridge 只能看到当前 event 的 identity；
 8. EventDispatcher / PipelineRegistry 不拥有 SessionStore；
 9. derive 不写回 Session Item Log；
-10. observer bridge 不参与 commit 完成条件；
+10. observer bridge 在全部 Hook 之后 publish，不参与 commit 完成条件；
 11. `TurnEvent` 增加字段时同步 dispatch、derive、commit 与结构测试；
 12. Agent Event / Session Item schema 的持久化变化另行版本化；
 13. tool event 直接包装 ToolCall / ToolResult，不复制领域字段；
@@ -402,7 +420,8 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 | **R3-legacy** | session commit + Agent Event recorder port | 文件 adapter 已迁移至 `agent::log` |
 | **R3-F2** | ToolCall/ToolResult typed payload | 已实现 |
 | **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | 已实现于 Loop R1 |
-| **R4-B** | optional observer bridge + sidecar bridge | 后置 |
+| **R4-Observer** | bounded post-commit observer bridge | 本批实现，待 Review |
+| **R4-Sidecar** | observer bridge → sidecar transport | 后置 |
 
 R4-A 应作为 loop `batch-implement` 的第一批接缝任务。它不授权删除任何已存在的观测能力。
 
@@ -417,6 +436,7 @@ R4-A 应作为 loop `batch-implement` 的第一批接缝任务。它不授权删
 - PipelineRegistry 不拥有 CommitHandler；
 - SessionStore 可直接作为连续 emit 的唯一 mutable commit target；
 - Agent Event derive Hook 原样转交 record；
+- observer bridge 在 Hook 后以 bounded `try_publish` 入队，queue/receiver 故障不传播到 dispatch；
 - R4-A 前后 derive mapping、wire schema、64 KiB、seq/turn 恢复行为不变；
 - tool call/result identity、input、status、content 不丢失；
 - Turn/Step/round 顺序与 [`../loop/DESIGN.md`](../loop/DESIGN.md) 一致；

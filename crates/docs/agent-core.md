@@ -39,7 +39,7 @@ cli（纯壳）→ agent（组合根）
 | `llm` | MoonTide 协议、provider port、adapter/normalize、request preflight | 基础库 | 已实现 |
 | `session` | Session Item Log 的 create/load/commit/fork 与恢复不变量 | llm/tools 契约 + event commit seam | 已实现；Loop 接缝增量待做 |
 | `tools` | ToolSpec、Tool、冻结 registry、input validation、单次执行 | 基础库 | 已实现 |
-| `event` | TurnEvent、dispatcher、derive、Agent Event recorder port | llm/tools 契约 | 当前分期已实现；observer bridge 后置 |
+| `event` | TurnEvent、dispatcher、derive、Agent Event recorder port、observer bridge | llm/tools 契约 | R4 observer bridge 已实现；sidecar 后置 |
 | `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | R1 已实现并完成测试 |
 | `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol + tools | R1 已实现、测试并通过 Review |
 | `loop` | AgentLoop ownership、Turn/Step/tool round、permission/approval、LLM retry 与 Turn cancellation | 模块 1–6 | R1–R3 + conformance 已实现 |

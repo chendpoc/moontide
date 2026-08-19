@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use crate::event::{
     derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
     CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, LlmCallOutcome,
-    PipelineRegistry, TraceContext, TurnEvent,
+    ObserverBridge, ObserverEvent, PipelineRegistry, TraceContext, TurnEvent,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::tools::{ToolCall, ToolContent, ToolResult};
@@ -25,6 +25,14 @@ impl CommitHandler for MockCommitHandler {
     fn commit(&mut self, _event: &TurnEvent) -> Result<Option<String>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(Some("item-1".to_string()))
+    }
+}
+
+struct FailingCommitHandler;
+
+impl CommitHandler for FailingCommitHandler {
+    fn commit(&mut self, _event: &TurnEvent) -> Result<Option<String>> {
+        Err(anyhow!("commit failed"))
     }
 }
 
@@ -66,6 +74,24 @@ impl HookHandler for RecordingHook {
             .lock()
             .map_err(|_| anyhow!("observe lock poisoned"))?
             .push(event.clone());
+        Ok(())
+    }
+}
+
+struct ObserverOrderingHook {
+    receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<ObserverEvent>>>,
+    observed_empty: Arc<AtomicBool>,
+}
+
+impl HookHandler for ObserverOrderingHook {
+    fn on_event(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<()> {
+        let queue_was_empty = self
+            .receiver
+            .lock()
+            .map_err(|_| anyhow!("observer receiver lock poisoned"))?
+            .try_recv()
+            .is_err();
+        self.observed_empty.store(queue_was_empty, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -203,7 +229,10 @@ fn hook_fail_open_continues_dispatch() {
 fn committable_runs_hook_after_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
     let observed = Arc::new(Mutex::new(Vec::new()));
-    let mut dispatcher = test_dispatcher(vec![Arc::new(RecordingHook::new(Arc::clone(&observed)))]);
+    let mut dispatcher = test_dispatcher(vec![
+        Arc::new(FailingHook),
+        Arc::new(RecordingHook::new(Arc::clone(&observed))),
+    ]);
     let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
 
     dispatcher
@@ -223,6 +252,127 @@ fn committable_runs_hook_after_commit() {
     let events = observed.lock().expect("lock");
     assert_eq!(events.len(), 1);
     assert!(matches!(events[0], TurnEvent::AssistantFinalized { .. }));
+}
+
+// 场景：dispatcher 配置 bounded observer bridge，并完成一个 post-commit event。
+// 预期：所有 Hook 完成后，bridge 收到带当前 TraceContext 的不可变事件副本。
+// 不变量/副作用：observer publish 不改变同步 commit 结果，消费端拥有独立事件所有权。
+#[test]
+fn observer_bridge_publishes_after_hooks() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let (bridge, receiver) = ObserverBridge::channel(2).expect("bridge");
+    let receiver = Arc::new(Mutex::new(receiver));
+    let observed_empty = Arc::new(AtomicBool::new(false));
+    let mut dispatcher = test_dispatcher(vec![
+        Arc::new(RecordingHook::new(Arc::clone(&observed))),
+        Arc::new(ObserverOrderingHook {
+            receiver: Arc::clone(&receiver),
+            observed_empty: Arc::clone(&observed_empty),
+        }),
+    ]);
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = MockCommitHandler::new(Arc::new(AtomicUsize::new(0)));
+
+    dispatcher
+        .emit(
+            &mut commit,
+            TurnEvent::ToolCallRecorded {
+                turn: 7,
+                call: ToolCall::new("tool-7", "grep", serde_json::json!({})).expect("tool call"),
+            },
+        )
+        .expect("emit");
+
+    assert!(observed_empty.load(Ordering::SeqCst));
+    let delivered = receiver
+        .lock()
+        .expect("observer receiver")
+        .try_recv()
+        .expect("observer event");
+    assert!(matches!(
+        delivered.event,
+        TurnEvent::ToolCallRecorded { .. }
+    ));
+    assert_eq!(delivered.context.run_id, "run-1");
+    assert_eq!(delivered.context.session_id, "session-1");
+    assert_eq!(delivered.context.turn, 7);
+    assert_eq!(delivered.context.session_item_id.as_deref(), Some("item-1"));
+    assert_eq!(delivered.context.tool_use_id.as_deref(), Some("tool-7"));
+    assert!(delivered.context.llm_call_id.is_none());
+    assert_eq!(observed.lock().expect("hook events").len(), 1);
+}
+
+// 场景：observer bridge 使用零容量配置。
+// 预期：channel 构造失败，而不是创建无法工作的同步边界。
+// 不变量/副作用：有效 bridge 始终具有可表达的 bounded queue。
+#[test]
+fn observer_bridge_rejects_zero_capacity() {
+    assert!(ObserverBridge::channel(0).is_err());
+}
+
+// 场景：observer bridge 队列容量为 1，连续发布两个事件。
+// 预期：第二个事件被非阻塞丢弃，两个 emit 都成功返回。
+// 不变量/副作用：observer backpressure 不传播到 commit 或 AgentLoop。
+#[test]
+fn observer_bridge_full_queue_is_fail_open() {
+    let mut dispatcher = test_dispatcher(vec![]);
+    let (bridge, mut receiver) = ObserverBridge::channel(1).expect("bridge");
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = MockCommitHandler::new(Arc::new(AtomicUsize::new(0)));
+
+    dispatcher
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 1 })
+        .expect("first emit");
+    dispatcher
+        .emit(&mut commit, TurnEvent::TurnEnded { turn: 1 })
+        .expect("second emit");
+
+    assert!(matches!(
+        receiver.try_recv().expect("first observer event"),
+        crate::event::ObserverEvent {
+            event: TurnEvent::TurnStarted { turn: 1 },
+            ..
+        }
+    ));
+    assert!(receiver.try_recv().is_err());
+}
+
+// 场景：observer bridge 的消费端已关闭，dispatcher 继续派发事件。
+// 预期：publish 失败被忽略，emit 仍成功返回。
+// 不变量/副作用：observer 生命周期故障不影响 Session/Turn 正确性路径。
+#[test]
+fn observer_bridge_closed_consumer_is_fail_open() {
+    let mut dispatcher = test_dispatcher(vec![]);
+    let (bridge, receiver) = ObserverBridge::channel(1).expect("bridge");
+    drop(receiver);
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = MockCommitHandler::new(Arc::new(AtomicUsize::new(0)));
+
+    dispatcher
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 1 })
+        .expect("observer failure must not fail emit");
+}
+
+// 场景：committable event 的 Session commit 失败，同时配置 observer bridge。
+// 预期：emit 返回 commit 错误且 bridge 不收到该事件。
+// 不变量/副作用：observer bridge 只能观察已成功提交的 committable event。
+#[test]
+fn observer_bridge_does_not_publish_when_commit_fails() {
+    let mut dispatcher = test_dispatcher(vec![]);
+    let (bridge, mut receiver) = ObserverBridge::channel(1).expect("bridge");
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = FailingCommitHandler;
+
+    assert!(dispatcher
+        .emit(
+            &mut commit,
+            TurnEvent::UserPromptCommitted {
+                turn: 1,
+                text: "not committed".into(),
+            },
+        )
+        .is_err());
+    assert!(receiver.try_recv().is_err());
 }
 
 fn test_ctx() -> TraceContext {

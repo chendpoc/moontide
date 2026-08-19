@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed commit 接缝已实现；Agent Event Log worker 位于 `agent::log` 的 R3；R4 observer bridge 后置。
+> **状态：** R1–R3、typed payload、Loop R1 post-commit Hook / borrowed commit 接缝与 R4 observer bridge 已实现；sidecar transport 后置。
 > **关联：** [`../loop/README.md`](../loop/README.md) · [`../session/README.md`](../session/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
@@ -59,7 +59,7 @@ loop.emit(TurnEvent, &mut SessionStore)
 
 ---
 
-## 公开 API（Loop R1 目标契约）
+## 公开 API
 
 ```rust
 pub trait CommitHandler {
@@ -74,7 +74,22 @@ pub trait HookHandler: Send + Sync {
     ) -> anyhow::Result<()>;
 }
 
+pub struct ObserverEvent {
+    pub context: TraceContext,
+    pub event: TurnEvent,
+}
+
+impl ObserverBridge {
+    pub fn channel(
+        capacity: usize,
+    ) -> anyhow::Result<(Self, tokio::sync::mpsc::Receiver<ObserverEvent>)>;
+
+    pub fn try_publish(&self, context: &TraceContext, event: &TurnEvent);
+}
+
 impl EventDispatcher {
+    pub fn with_observer_bridge(self, bridge: ObserverBridge) -> Self;
+
     pub fn emit(
         &mut self,
         commit: &mut dyn CommitHandler,
@@ -88,9 +103,15 @@ PipelineRegistry::builder()
     .build_frozen();
 
 EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
+EventDispatcher::new(registry, TraceContext::new(run_id, session_id))
+    .with_observer_bridge(bridge);
 ```
 
 当前实现是 `commit → post-commit Hook`；`EventDispatcher` 每次 emit 借用 mutable commit target，`PipelineRegistry` 只冻结 Hook。旧的 `HookOutcome::Block` 与独立 `ObserveHandler` 已删除；AgentEvent、schema 和 derive mapping 保持稳定。默认 `DiagnosticPersistence::Off` 不装配 Agent Event queue、worker 或 file writer；启用诊断 policy 时由 `agent::log` 的 R3 链路装配。
+
+可选 `ObserverBridge` 在所有 Hook 完成后以 bounded `try_publish` 入队不可变的
+`ObserverEvent`。它不等待、不启动独立 worker；消费端持有返回的 Tokio receiver，队列满或
+receiver 关闭均忽略。该 bridge 只提供异步观测接缝，sidecar transport 由后续任务实现。
 
 Agent Event 能力由 `DeriveAgentEventHook` 接线。event core 只负责 derive
 `AgentEventRecord` 和提供 `AgentEventRecorder` port；Hook 不能直接执行文件 IO。

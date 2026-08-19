@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use super::observer_bridge::ObserverBridge;
 use super::registry::{CommitHandler, PipelineRegistry};
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
@@ -8,11 +9,22 @@ use super::turn_event::TurnEvent;
 pub struct EventDispatcher {
     registry: PipelineRegistry,
     trace: TraceContext,
+    observer_bridge: Option<ObserverBridge>,
 }
 
 impl EventDispatcher {
     pub fn new(registry: PipelineRegistry, trace: TraceContext) -> Self {
-        Self { registry, trace }
+        Self {
+            registry,
+            trace,
+            observer_bridge: None,
+        }
+    }
+
+    /// Adds an optional post-commit observer queue to this dispatcher.
+    pub fn with_observer_bridge(mut self, bridge: ObserverBridge) -> Self {
+        self.observer_bridge = Some(bridge);
+        self
     }
 
     pub fn trace(&self) -> &TraceContext {
@@ -36,6 +48,10 @@ impl EventDispatcher {
                     "event hook failed: index={hook_index}, event={event:?}, error={error:#}"
                 );
             }
+        }
+
+        if let Some(bridge) = &self.observer_bridge {
+            bridge.try_publish(&self.trace, &event);
         }
 
         Ok(())

@@ -81,7 +81,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 |------|------|
 | Session Item Log → messages | **materialize**（不用 derive_messages / 投影 / 还原） |
 | SystemPrompt + messages + tools → ModelRequest | **compile**（不用 compose） |
-| TurnEvent → Agent Event | **derive**（`event::derive` 已落地；完整 observer bridge/sidecar 仍后置） |
+| TurnEvent → Agent Event | **derive**（`event::derive` 与 observer bridge 已落地；sidecar 仍后置） |
 
 **实体：**
 
