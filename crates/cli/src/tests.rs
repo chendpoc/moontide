@@ -167,6 +167,7 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> GlobalCon
         max_tokens: super::config::DEFAULT_MAX_TOKENS,
         max_steps: super::config::DEFAULT_MAX_STEPS,
         thinking_level: None,
+        persistence: agent::PersistenceConfig::default(),
         input_owner: None,
     }
 }

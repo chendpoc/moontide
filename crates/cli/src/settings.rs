@@ -1,6 +1,6 @@
 use std::{env, fs, path::Path};
 
-use agent::ThinkingLevel;
+use agent::{DiagnosticPersistence, PersistenceConfig, SessionPersistence, ThinkingLevel};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +42,7 @@ pub(crate) struct GlobalConfigStore {
     pub(crate) max_tokens: u32,
     pub(crate) max_steps: u32,
     pub(crate) thinking_level: Option<ThinkingLevel>,
+    pub(crate) persistence: PersistenceConfig,
     pub(crate) input_owner: Option<InputOwner>,
 }
 
@@ -56,6 +57,7 @@ struct PersistedSettings {
     max_tokens: u32,
     max_steps: u32,
     thinking_level: Option<ThinkingLevel>,
+    persistence: PersistenceConfig,
 }
 
 impl PersistedSettings {
@@ -70,6 +72,7 @@ impl PersistedSettings {
             max_tokens: settings.max_tokens,
             max_steps: settings.max_steps,
             thinking_level: settings.thinking_level,
+            persistence: settings.persistence,
         }
     }
 
@@ -89,6 +92,7 @@ impl PersistedSettings {
         settings.max_tokens = self.max_tokens;
         settings.max_steps = self.max_steps;
         settings.thinking_level = self.thinking_level;
+        settings.persistence = self.persistence;
         Ok(())
     }
 }
@@ -181,13 +185,18 @@ pub(crate) fn resolve_interactive(
 
 pub(crate) fn load_global_config_store(args: &CliArgs) -> Result<GlobalConfigStore> {
     validate_explicit_api_key(args)?;
+    let mut settings = load_persisted_global_config_store(args)?;
+    apply_cli_overrides(&mut settings, args);
+    Ok(settings)
+}
+
+pub(crate) fn load_persisted_global_config_store(args: &CliArgs) -> Result<GlobalConfigStore> {
     let paths = resolve_project_paths(args)?;
     let mut settings = default_global_config_store();
     if paths.settings_path.exists() {
         let persisted = load_persisted_settings(&paths.settings_path)?;
         persisted.apply_to(&mut settings)?;
     }
-    apply_cli_overrides(&mut settings, args);
     Ok(settings)
 }
 
@@ -217,6 +226,10 @@ pub(crate) fn default_global_config_store() -> GlobalConfigStore {
         max_tokens: DEFAULT_MAX_TOKENS,
         max_steps: DEFAULT_MAX_STEPS,
         thinking_level: None,
+        persistence: PersistenceConfig {
+            session: SessionPersistence::Items,
+            diagnostic: DiagnosticPersistence::Off,
+        },
         input_owner: None,
     }
 }
@@ -371,7 +384,11 @@ mod tests {
                 "base_url": "https://file.example",
                 "max_tokens": 2048,
                 "max_steps": 4,
-                "thinking_level": "low"
+                "thinking_level": "low",
+                "persistence": {
+                    "session": "items",
+                    "diagnostic": "off"
+                }
             }"#,
         )
         .expect("settings file");
@@ -444,6 +461,10 @@ mod tests {
             max_tokens: 8192,
             max_steps: 12,
             thinking_level: Some(ThinkingLevel::High),
+            persistence: PersistenceConfig {
+                session: SessionPersistence::Items,
+                diagnostic: DiagnosticPersistence::Off,
+            },
             input_owner: None,
         };
 
@@ -457,6 +478,8 @@ mod tests {
         assert_eq!(value["api_key"], "persisted-key");
         assert_eq!(value["model"], "persisted-model");
         assert_eq!(value["thinking_level"], "high");
+        assert_eq!(value["persistence"]["session"], "items");
+        assert_eq!(value["persistence"]["diagnostic"], "off");
 
         let reloaded = load_global_config_store(&args).expect("global config store should reload");
         assert_eq!(reloaded.model, "persisted-model");

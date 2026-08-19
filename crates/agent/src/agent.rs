@@ -8,7 +8,12 @@ use agent_core::{
 use anyhow::{bail, Result};
 use tokio_util::sync::CancellationToken;
 
-use crate::{bootstrap, config::AgentConfig, progress::ProgressHandle, prompt};
+use crate::{
+    bootstrap,
+    config::AgentConfig,
+    progress::{ProgressHandle, ProgressStatus},
+    prompt,
+};
 
 /// Facade that owns one session's complete agent runtime.
 pub struct Agent {
@@ -44,6 +49,7 @@ impl Agent {
     }
 
     pub fn reload(&mut self, config: AgentConfig) -> Result<()> {
+        bootstrap::ensure_runtime()?;
         config.validate_values()?;
         config.ensure_paths()?;
         let session_id = self.session_id.clone();
@@ -91,6 +97,11 @@ impl Agent {
         self.progress_handle
             .as_ref()
             .is_some_and(ProgressHandle::take_resync_required)
+    }
+
+    /// Returns the current ProgressWorker status, if progress is configured.
+    pub fn progress_status(&self) -> Option<ProgressStatus> {
+        self.progress_handle.as_ref().map(ProgressHandle::status)
     }
 
     pub async fn turn(

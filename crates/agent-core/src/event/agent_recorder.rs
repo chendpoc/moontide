@@ -1,17 +1,19 @@
+#[cfg(test)]
 use std::path::Path;
+#[cfg(test)]
 use std::sync::{Mutex, MutexGuard};
 
+#[cfg(test)]
 use anyhow::{Context, Result};
+#[cfg(test)]
 use serde_json::{json, Value};
 
 use super::derive::{derive_agent_event, AgentEventRecord};
+#[cfg(test)]
 use super::file_writer::FileWriter;
 use super::registry::HookHandler;
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
-
-/// Maximum serialized size of a persisted Agent Event JSONL line.
-pub(crate) const MAX_AGENT_EVENT_BYTES: usize = 64 * 1024;
 
 /// Receives a derived Agent Event record.
 pub trait AgentEventRecorder: Send + Sync {
@@ -44,11 +46,9 @@ where
     }
 }
 
-/// Appends Agent Event records using a file writer for physical I/O.
-///
-/// This type owns Agent Event semantics: identity validation, sequence and
-/// turn recovery, bounded JSONL encoding, and append state. [`FileWriter`]
-/// only performs path-based filesystem I/O.
+/// Legacy file recorder retained behind the private event module until the R3
+/// `agent::log` migration. R2 bootstrap never constructs this type.
+#[cfg(test)]
 pub struct FileAgentEventRecorder {
     file: FileWriter,
     run_id: String,
@@ -56,11 +56,13 @@ pub struct FileAgentEventRecorder {
 }
 
 #[derive(Debug, Default)]
+#[cfg(test)]
 struct RecorderState {
     next_seq: u64,
     last_turn: Option<u64>,
 }
 
+#[cfg(test)]
 impl FileAgentEventRecorder {
     pub fn new(runs_dir: impl AsRef<Path>, run_id: &str) -> Result<Self> {
         let path = runs_dir.as_ref().join(format!("{run_id}.active.jsonl"));
@@ -77,12 +79,12 @@ impl FileAgentEventRecorder {
         self.file.path()
     }
 
-    /// Returns the last persisted turn, if the active file already contains an event.
     pub fn last_turn(&self) -> Result<Option<u64>> {
         Ok(lock_state(&self.state)?.last_turn)
     }
 }
 
+#[cfg(test)]
 impl AgentEventRecorder for FileAgentEventRecorder {
     fn append(&self, mut record: AgentEventRecord) -> Result<()> {
         if record.run_id != self.run_id {
@@ -110,6 +112,10 @@ impl AgentEventRecorder for FileAgentEventRecorder {
     }
 }
 
+#[cfg(test)]
+pub(crate) const MAX_AGENT_EVENT_BYTES: usize = 64 * 1024;
+
+#[cfg(test)]
 fn read_existing_state(file: &FileWriter, run_id: &str) -> Result<RecorderState> {
     let mut state = RecorderState::default();
     for (line_idx, line) in file.read_lines()?.into_iter().enumerate() {
@@ -150,13 +156,14 @@ fn read_existing_state(file: &FileWriter, run_id: &str) -> Result<RecorderState>
     Ok(state)
 }
 
+#[cfg(test)]
 fn lock_state(state: &Mutex<RecorderState>) -> Result<MutexGuard<'_, RecorderState>> {
     state
         .lock()
         .map_err(|_| anyhow::anyhow!("agent event seq lock poisoned"))
 }
 
-/// Applies the file format's 64 KiB line limit without changing identity fields.
+#[cfg(test)]
 pub(crate) fn truncate_record(mut record: AgentEventRecord) -> AgentEventRecord {
     let Ok(mut bytes) = serde_json::to_vec(&record) else {
         return record;
@@ -187,10 +194,12 @@ pub(crate) fn truncate_record(mut record: AgentEventRecord) -> AgentEventRecord 
     record
 }
 
+#[cfg(test)]
 fn fits_persisted_line(serialized_bytes: usize) -> bool {
     serialized_bytes.saturating_add(1) <= MAX_AGENT_EVENT_BYTES
 }
 
+#[cfg(test)]
 fn truncate_value_strings(value: &mut Value, max_string_bytes: usize) {
     match value {
         Value::String(s) => {

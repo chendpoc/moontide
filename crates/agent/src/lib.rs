@@ -22,8 +22,10 @@ pub use agent_core::{
     tools::{ToolCall, ToolResult},
 };
 pub use config::ProgressObserver;
-pub use config::{AgentConfig, ProviderConfig};
-pub use progress::{ProgressEvent, ProgressHandle};
+pub use config::{
+    AgentConfig, DiagnosticPersistence, PersistenceConfig, ProviderConfig, SessionPersistence,
+};
+pub use progress::{ProgressEvent, ProgressHandle, ProgressStatus, ProgressWorkerState};
 
 /// Returns the most recently modified persisted session without creating a runtime Agent.
 pub fn latest_session_id(

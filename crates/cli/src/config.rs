@@ -83,6 +83,7 @@ pub(crate) fn resolve_agent_config_with(
         permissions,
         approval,
         progress,
+        persistence: settings.persistence,
     })
 }
 

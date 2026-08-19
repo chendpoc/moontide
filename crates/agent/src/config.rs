@@ -5,6 +5,7 @@ use agent_core::{
     r#loop::{ToolApprovalHandler, ToolPermissionMap},
 };
 use anyhow::{bail, Context, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::progress::ProgressEvent;
 
@@ -30,6 +31,56 @@ pub struct AgentConfig {
     pub permissions: ToolPermissionMap,
     pub approval: Option<Arc<dyn ToolApprovalHandler>>,
     pub progress: Option<Arc<dyn ProgressObserver>>,
+    pub persistence: PersistenceConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionPersistence {
+    Items,
+    Disabled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticPersistence {
+    Off,
+    Errors,
+    Normal,
+    Debug,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PersistenceConfig {
+    pub session: SessionPersistence,
+    pub diagnostic: DiagnosticPersistence,
+}
+
+impl Default for PersistenceConfig {
+    fn default() -> Self {
+        Self {
+            session: SessionPersistence::Items,
+            diagnostic: DiagnosticPersistence::Off,
+        }
+    }
+}
+
+impl PersistenceConfig {
+    pub(crate) fn validate_r2(&self) -> Result<()> {
+        if self.session != SessionPersistence::Items {
+            bail!(
+                "session persistence {:?} is not implemented in R2",
+                self.session
+            );
+        }
+        if self.diagnostic != DiagnosticPersistence::Off {
+            bail!(
+                "diagnostic persistence {:?} is reserved for the R3 Agent Event Log",
+                self.diagnostic
+            );
+        }
+        Ok(())
+    }
 }
 
 /// Receives safe semantic progress events without influencing agent decisions.
@@ -39,6 +90,7 @@ pub trait ProgressObserver: Send + Sync {
 
 impl AgentConfig {
     pub(crate) fn validate_values(&self) -> Result<()> {
+        self.persistence.validate_r2()?;
         if self.provider.base_url.trim().is_empty() {
             bail!("provider base_url must not be empty");
         }

@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 
 use agent_core::{
     event::{HookHandler, LlmCallOutcome, TraceContext, TurnEvent},
@@ -14,6 +11,42 @@ use tokio::sync::{mpsc, oneshot};
 use crate::config::ProgressObserver;
 
 const PROGRESS_QUEUE_CAPACITY: usize = 256;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgressWorkerState {
+    Running,
+    Degraded,
+    Stopped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgressStatus {
+    pub state: ProgressWorkerState,
+    pub queue_capacity: usize,
+    pub queue_len: usize,
+    pub dropped_events: u64,
+    pub resync_required: bool,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug)]
+struct ProgressStatusState {
+    state: ProgressWorkerState,
+    dropped_events: u64,
+    resync_required: bool,
+    last_error: Option<String>,
+}
+
+impl Default for ProgressStatusState {
+    fn default() -> Self {
+        Self {
+            state: ProgressWorkerState::Running,
+            dropped_events: 0,
+            resync_required: false,
+            last_error: None,
+        }
+    }
+}
 
 /// Safe semantic progress events exposed by the composition root.
 #[derive(Debug, Clone, PartialEq)]
@@ -68,45 +101,54 @@ enum ProgressCommand {
     },
 }
 
-enum ProgressSink {
-    Queued {
-        sender: mpsc::Sender<ProgressCommand>,
-        resync_required: Arc<AtomicBool>,
-    },
-    Direct {
-        observer: Arc<dyn ProgressObserver>,
-    },
-}
-
 /// Handle for draining the asynchronous progress observer queue.
 pub struct ProgressHandle {
-    sender: Option<mpsc::Sender<ProgressCommand>>,
-    resync_required: Arc<AtomicBool>,
+    sender: mpsc::Sender<ProgressCommand>,
+    status: Arc<Mutex<ProgressStatusState>>,
 }
 
 impl ProgressHandle {
     /// Waits until all progress commands currently queued have been consumed.
     pub async fn flush(&self) -> Result<()> {
-        let Some(sender) = &self.sender else {
-            return Ok(());
-        };
         let (ack, completion) = oneshot::channel();
-        sender
-            .send(ProgressCommand::Flush { ack })
-            .await
-            .context("send progress flush command")?;
-        completion.await.context("await progress worker flush")?;
+        if let Err(error) = self.sender.send(ProgressCommand::Flush { ack }).await {
+            mark_stopped(
+                &self.status,
+                format!("send progress flush command: {error}"),
+            );
+            return Err(anyhow::anyhow!("send progress flush command: {error}"));
+        }
+        if let Err(error) = completion.await {
+            mark_stopped(
+                &self.status,
+                format!("await progress worker flush: {error}"),
+            );
+            return Err(anyhow::anyhow!("await progress worker flush: {error}"));
+        }
         Ok(())
+    }
+
+    /// Returns a point-in-time worker and queue status without clearing resync state.
+    pub fn status(&self) -> ProgressStatus {
+        snapshot_status(&self.status, self.sender.capacity())
     }
 
     /// Returns and clears the resync marker set after queue loss or worker exit.
     pub fn take_resync_required(&self) -> bool {
-        self.resync_required.swap(false, Ordering::AcqRel)
+        match self.status.lock() {
+            Ok(mut status) => {
+                let required = status.resync_required;
+                status.resync_required = false;
+                required
+            }
+            Err(_) => true,
+        }
     }
 }
 
 pub(crate) struct ProgressHook {
-    sink: ProgressSink,
+    sender: mpsc::Sender<ProgressCommand>,
+    status: Arc<Mutex<ProgressStatusState>>,
     state: Mutex<ProgressState>,
 }
 
@@ -123,37 +165,20 @@ struct ActiveCall {
 }
 
 impl ProgressHook {
-    pub(crate) fn new(observer: Arc<dyn ProgressObserver>) -> (Self, ProgressHandle) {
-        let resync_required = Arc::new(AtomicBool::new(false));
-        match tokio::runtime::Handle::try_current() {
-            Ok(handle) => {
-                let (sender, receiver) = mpsc::channel(PROGRESS_QUEUE_CAPACITY);
-                handle.spawn(run_worker(receiver, observer));
-                (
-                    Self {
-                        sink: ProgressSink::Queued {
-                            sender: sender.clone(),
-                            resync_required: Arc::clone(&resync_required),
-                        },
-                        state: Mutex::new(ProgressState::default()),
-                    },
-                    ProgressHandle {
-                        sender: Some(sender),
-                        resync_required,
-                    },
-                )
-            }
-            Err(_) => (
-                Self {
-                    sink: ProgressSink::Direct { observer },
-                    state: Mutex::new(ProgressState::default()),
-                },
-                ProgressHandle {
-                    sender: None,
-                    resync_required,
-                },
-            ),
-        }
+    pub(crate) fn new(observer: Arc<dyn ProgressObserver>) -> Result<(Self, ProgressHandle)> {
+        let status = Arc::new(Mutex::new(ProgressStatusState::default()));
+        let handle = tokio::runtime::Handle::try_current()
+            .context("ProgressHook requires a Tokio runtime")?;
+        let (sender, receiver) = mpsc::channel(PROGRESS_QUEUE_CAPACITY);
+        handle.spawn(run_worker(receiver, observer, Arc::clone(&status)));
+        Ok((
+            Self {
+                sender: sender.clone(),
+                status: Arc::clone(&status),
+                state: Mutex::new(ProgressState::default()),
+            },
+            ProgressHandle { sender, status },
+        ))
     }
 }
 
@@ -175,32 +200,22 @@ impl HookHandler for ProgressHook {
 
 impl ProgressHook {
     fn enqueue(&self, event: ProgressEvent) {
-        match &self.sink {
-            ProgressSink::Queued {
-                sender,
-                resync_required,
-            } => {
-                let command = match &event {
-                    ProgressEvent::AssistantResponseSnapshot {
-                        turn, llm_call_id, ..
-                    } => ProgressCommand::Snapshot {
-                        key: (*turn, llm_call_id.clone()),
-                        event,
-                    },
-                    _ => ProgressCommand::Event(event),
-                };
-                match sender.try_send(command) {
-                    Ok(()) => {}
-                    Err(error) => {
-                        resync_required.store(true, Ordering::Release);
-                        eprintln!("progress event dropped: {error}");
-                    }
-                }
+        let command = match &event {
+            ProgressEvent::AssistantResponseSnapshot {
+                turn, llm_call_id, ..
+            } => ProgressCommand::Snapshot {
+                key: (*turn, llm_call_id.clone()),
+                event,
+            },
+            _ => ProgressCommand::Event(event),
+        };
+        match self.sender.try_send(command) {
+            Ok(()) => {}
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                mark_dropped(&self.status);
             }
-            ProgressSink::Direct { observer } => {
-                if let Err(error) = observer.on_progress(&event) {
-                    eprintln!("progress observer failed: {error:#}");
-                }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                mark_stopped(&self.status, "progress worker channel closed".to_owned());
             }
         }
     }
@@ -209,6 +224,7 @@ impl ProgressHook {
 async fn run_worker(
     mut receiver: mpsc::Receiver<ProgressCommand>,
     observer: Arc<dyn ProgressObserver>,
+    status: Arc<Mutex<ProgressStatusState>>,
 ) {
     let mut pending = None;
     loop {
@@ -220,7 +236,7 @@ async fn run_worker(
             },
         };
         match command {
-            ProgressCommand::Event(event) => notify_observer(observer.as_ref(), &event),
+            ProgressCommand::Event(event) => notify_observer(observer.as_ref(), &event, &status),
             ProgressCommand::Snapshot { key, mut event } => {
                 loop {
                     match receiver.try_recv() {
@@ -239,18 +255,74 @@ async fn run_worker(
                     }
                 }
 
-                notify_observer(observer.as_ref(), &event);
+                notify_observer(observer.as_ref(), &event, &status);
             }
             ProgressCommand::Flush { ack } => {
                 let _ = ack.send(());
             }
         }
     }
+    mark_stopped(&status, "progress worker stopped".to_owned());
 }
 
-fn notify_observer(observer: &dyn ProgressObserver, event: &ProgressEvent) {
+fn notify_observer(
+    observer: &dyn ProgressObserver,
+    event: &ProgressEvent,
+    status: &Arc<Mutex<ProgressStatusState>>,
+) {
     if let Err(error) = observer.on_progress(event) {
-        eprintln!("progress observer failed: {error:#}");
+        mark_degraded(status, format!("progress observer failed: {error:#}"));
+    }
+}
+
+fn mark_dropped(status: &Arc<Mutex<ProgressStatusState>>) {
+    if let Ok(mut status) = status.lock() {
+        status.state = ProgressWorkerState::Degraded;
+        status.dropped_events = status.dropped_events.saturating_add(1);
+        status.resync_required = true;
+        status.last_error = Some("progress queue full; event dropped".to_owned());
+    }
+}
+
+fn mark_degraded(status: &Arc<Mutex<ProgressStatusState>>, error: String) {
+    if let Ok(mut status) = status.lock() {
+        if status.state != ProgressWorkerState::Stopped {
+            status.state = ProgressWorkerState::Degraded;
+        }
+        status.last_error = Some(error);
+    }
+}
+
+fn mark_stopped(status: &Arc<Mutex<ProgressStatusState>>, error: String) {
+    if let Ok(mut status) = status.lock() {
+        status.state = ProgressWorkerState::Stopped;
+        status.resync_required = true;
+        status.last_error = Some(error);
+    }
+}
+
+fn snapshot_status(
+    status: &Arc<Mutex<ProgressStatusState>>,
+    available_capacity: usize,
+) -> ProgressStatus {
+    let queue_len = PROGRESS_QUEUE_CAPACITY.saturating_sub(available_capacity);
+    match status.lock() {
+        Ok(status) => ProgressStatus {
+            state: status.state,
+            queue_capacity: PROGRESS_QUEUE_CAPACITY,
+            queue_len,
+            dropped_events: status.dropped_events,
+            resync_required: status.resync_required,
+            last_error: status.last_error.clone(),
+        },
+        Err(_) => ProgressStatus {
+            state: ProgressWorkerState::Stopped,
+            queue_capacity: PROGRESS_QUEUE_CAPACITY,
+            queue_len,
+            dropped_events: 0,
+            resync_required: true,
+            last_error: Some("progress status lock poisoned".to_owned()),
+        },
     }
 }
 
@@ -610,10 +682,48 @@ mod tests {
         }
     }
 
+    struct FailingObserver;
+
+    impl ProgressObserver for FailingObserver {
+        fn on_progress(&self, _event: &ProgressEvent) -> Result<()> {
+            Err(anyhow::anyhow!("observer unavailable"))
+        }
+    }
+
+    // Scenario: the progress observer fails while consuming a queued event.
+    // Expected: the worker remains fail-open but reports Degraded and last_error.
+    // Invariant: observer failure does not return through the Hook or block flush.
     #[tokio::test]
+    async fn worker_status_records_observer_failure() {
+        let observer = Arc::new(FailingObserver);
+        let (hook, handle) = ProgressHook::new(observer).expect("runtime should be available");
+        hook.on_event(
+            &TraceContext::new("run-status", "session-status"),
+            &TurnEvent::TurnStarted { turn: 1 },
+        )
+        .expect("hook should enqueue without observer failure");
+
+        handle
+            .flush()
+            .await
+            .expect("worker should flush queued event");
+
+        let status = handle.status();
+        assert_eq!(status.state, ProgressWorkerState::Degraded);
+        assert_eq!(status.queue_capacity, PROGRESS_QUEUE_CAPACITY);
+        assert_eq!(status.queue_len, 0);
+        assert_eq!(status.dropped_events, 0);
+        assert!(!status.resync_required);
+        assert!(status
+            .last_error
+            .as_deref()
+            .is_some_and(|error| error.contains("observer unavailable")));
+    }
+
     // Scenario: two queued snapshots for one call precede a lifecycle event.
     // Expected: the worker delivers only the latest snapshot, then preserves the lifecycle event.
     // Invariant: coalescing never crosses a call identity or reorders lifecycle events.
+    #[tokio::test]
     async fn worker_coalesces_same_call_snapshots() {
         let events = Arc::new(Mutex::new(Vec::new()));
         let observer = Arc::new(RecordingObserver {
@@ -682,10 +792,16 @@ mod tests {
             .await
             .expect("flush should queue");
 
-        let worker = tokio::spawn(run_worker(receiver, observer));
+        let status = Arc::new(Mutex::new(ProgressStatusState::default()));
+        let worker_status = Arc::clone(&status);
+        let worker = tokio::spawn(run_worker(receiver, observer, worker_status));
         completion.await.expect("worker should flush");
         drop(sender);
         worker.await.expect("worker should stop");
+
+        let status = snapshot_status(&status, PROGRESS_QUEUE_CAPACITY);
+        assert_eq!(status.state, ProgressWorkerState::Stopped);
+        assert!(status.resync_required);
 
         let delivered = events.lock().expect("observer events lock");
         assert_eq!(delivered.len(), 2);

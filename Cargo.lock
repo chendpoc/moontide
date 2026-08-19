@@ -9,6 +9,7 @@ dependencies = [
  "agent-core",
  "agent-tools",
  "anyhow",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

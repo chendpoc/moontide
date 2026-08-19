@@ -6,8 +6,8 @@ use crate::{
     config::resolve_agent_config,
     fuzzy::fuzzy_filter,
     settings::{
-        format_api_key, load_global_config_store, persist_global_config_store, ApprovalPolicy,
-        GlobalConfigStore, TraceMode,
+        format_api_key, load_persisted_global_config_store, persist_global_config_store,
+        ApprovalPolicy, GlobalConfigStore, TraceMode,
     },
 };
 
@@ -265,7 +265,7 @@ fn reload_agent_from_persisted_store(
     agent: &mut Agent,
 ) -> Result<()> {
     let input_owner = settings.input_owner.clone();
-    let mut reloaded = load_global_config_store(args)?;
+    let mut reloaded = load_persisted_global_config_store(args)?;
     reloaded.input_owner = input_owner;
     let config = resolve_agent_config(args, &reloaded)?;
     agent.reload(config)?;
@@ -345,14 +345,15 @@ fn parse_thinking(value: &str) -> Result<Option<ThinkingLevel>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::persist_global_config_store;
     use clap::Parser;
     use tempfile::tempdir;
 
     // Scenario: catalog excludes session id, runs dir, and tool list settings.
     // Expected: only user-facing agent settings appear in the catalog.
     // Invariant: session identity and extension-owned tools stay outside settings.
-    #[test]
-    fn catalog_excludes_session_tools_and_runs_dir() {
+    #[tokio::test]
+    async fn catalog_excludes_session_tools_and_runs_dir() {
         let mut args = <CliArgs as Parser>::parse_from(["moontide"]);
         let directory = tempdir().expect("temporary CLI settings directory");
         args.cwd = Some(directory.path().to_owned());
@@ -366,6 +367,45 @@ mod tests {
         assert!(!labels.iter().any(|label| label.contains("session id")));
         assert!(!labels.iter().any(|label| label.contains("runs")));
         assert!(!labels.iter().any(|label| label.contains("tools")));
+    }
+
+    // Scenario: settings file changes after the in-memory runtime store was loaded.
+    // Expected: reload reads persisted values without applying stale CLI overrides.
+    // Invariant: reload updates the runtime store from the settings file.
+    #[tokio::test]
+    async fn reload_preserves_runtime_settings_over_cli_overrides() {
+        let mut args = <CliArgs as Parser>::parse_from([
+            "moontide",
+            "--cwd",
+            "/tmp",
+            "--model",
+            "cli-model",
+            "--base-url",
+            "https://cli.example",
+        ]);
+        let directory = tempdir().expect("temporary CLI settings directory");
+        args.cwd = Some(directory.path().to_owned());
+        let mut settings =
+            crate::settings::load_global_config_store(&args).expect("global config store");
+        settings.api_key = "secret".into();
+        settings.model = "runtime-model".into();
+        settings.base_url = "https://runtime.example".into();
+        persist_global_config_store(&args, &settings).expect("runtime settings should persist");
+
+        let config = resolve_agent_config(&args, &settings).expect("agent config");
+        let mut agent = Agent::create(config).expect("agent should bootstrap");
+
+        let mut externally_updated = settings.clone();
+        externally_updated.model = "external-model".into();
+        externally_updated.base_url = "https://external.example".into();
+        persist_global_config_store(&args, &externally_updated)
+            .expect("external settings update should persist");
+
+        reload_agent_from_persisted_store(&args, &mut settings, &mut agent)
+            .expect("agent should reload from persisted settings");
+
+        assert_eq!(settings.model, "external-model");
+        assert_eq!(settings.base_url, "https://external.example");
     }
 
     // Scenario: a numeric setting has a value outside the standard cycle choices.

@@ -4,11 +4,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-/// Low-level append-only text file access.
+/// Low-level append-only text file access retained for legacy recorder tests.
 ///
-/// This type knows nothing about Agent Events, runs, records, JSON schemas, or
-/// sequence numbers. It only maintains a concrete file and newline-delimited
-/// text I/O for its caller.
+/// R2 does not assemble this writer. The R3 Agent Event Log migration will move
+/// the physical writer into `agent::log`.
 pub(crate) struct FileWriter {
     path: PathBuf,
 }

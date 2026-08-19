@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use agent_core::{
-    event::{
-        DeriveAgentEventHook, EventDispatcher, FileAgentEventRecorder, PipelineRegistry,
-        TraceContext,
-    },
+    event::{EventDispatcher, PipelineRegistry, TraceContext},
     llm::{
         adapter::{build_provider, AdapterConfig},
         LLMProvider,
@@ -27,7 +24,14 @@ pub(crate) fn resume(config: &AgentConfig, session_id: &str) -> Result<AgentPart
     build(config, Some(session_id))
 }
 
+pub(crate) fn ensure_runtime() -> Result<()> {
+    tokio::runtime::Handle::try_current()
+        .map(|_| ())
+        .context("Agent create/resume/reload requires a Tokio runtime")
+}
+
 fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
+    ensure_runtime()?;
     config.validate_values()?;
     config.ensure_paths()?;
 
@@ -51,12 +55,9 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
     .context("build tool runtime")?;
 
     let run_id = Uuid::new_v4().to_string();
-    let recorder = FileAgentEventRecorder::new(&config.runs_dir, &run_id)
-        .context("create Agent Event recorder")?;
-    let hook = Arc::new(DeriveAgentEventHook::new(recorder));
-    let mut pipeline_builder = PipelineRegistry::builder().hook(hook);
+    let mut pipeline_builder = PipelineRegistry::builder();
     let progress_handle = if let Some(observer) = config.progress.clone() {
-        let (hook, handle) = ProgressHook::new(observer);
+        let (hook, handle) = ProgressHook::new(observer)?;
         pipeline_builder = pipeline_builder.hook(Arc::new(hook));
         Some(handle)
     } else {
