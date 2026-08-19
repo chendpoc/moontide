@@ -1,4 +1,4 @@
-use agent::{ProgressEvent, ProgressObserver};
+use agent::{PendingBlock, ProgressEvent, ProgressObserver};
 use anyhow::Result;
 
 use crate::settings::TraceMode;
@@ -25,36 +25,42 @@ impl ProgressObserver for TraceObserver {
 pub(crate) fn format_progress_event(mode: TraceMode, event: &ProgressEvent) -> Option<String> {
     match event {
         ProgressEvent::TurnStarted { turn } => Some(format!("[trace] turn={turn} started")),
-        ProgressEvent::LlmCallStarted { turn, step } => {
+        ProgressEvent::LlmCallStarted { turn, step, .. } => {
             Some(format!("[trace] turn={turn} step={step} llm started"))
         }
-        ProgressEvent::Thinking { turn, step, text } if mode == TraceMode::EventsAndThinking => {
-            Some(format!("[trace] turn={turn} step={step} thinking: {text}"))
-        }
-        ProgressEvent::Thinking { .. } => None,
-        ProgressEvent::ToolCall {
+        ProgressEvent::AssistantResponseSnapshot {
             turn,
-            name,
-            tool_use_id,
-            input,
-        } => Some(format!(
-            "[trace] turn={turn} tool={name} id={tool_use_id} input={input}"
+            step,
+            snapshot,
+            ..
+        } if mode == TraceMode::EventsAndThinking => match snapshot.pending.as_ref() {
+            Some(PendingBlock::Thinking { thinking }) => Some(format!(
+                "[trace] turn={turn} step={step} thinking: {thinking}"
+            )),
+            _ => None,
+        },
+        ProgressEvent::AssistantResponseSnapshot { .. }
+        | ProgressEvent::AssistantFinalized { .. } => None,
+        ProgressEvent::ToolCall { turn, call } => Some(format!(
+            "[trace] turn={turn} tool={} id={} input={}",
+            call.name(),
+            call.tool_use_id(),
+            serde_json::to_string(call.input()).unwrap_or_else(|_| "<invalid-json>".into())
         )),
-        ProgressEvent::ToolResult {
-            turn,
-            name,
-            tool_use_id,
-            status,
-            summary,
-        } => Some(format!(
-            "[trace] turn={turn} tool={name} id={tool_use_id} result={status}: {summary}"
+        ProgressEvent::ToolResult { turn, result } => Some(format!(
+            "[trace] turn={turn} tool={} id={} result={:?}: {:?}",
+            result.name(),
+            result.tool_use_id(),
+            result.status(),
+            result.content()
         )),
         ProgressEvent::LlmCallEnded {
             turn,
             step,
-            stop_reason,
+            outcome,
+            ..
         } => Some(format!(
-            "[trace] turn={turn} step={step} llm ended stop={stop_reason}"
+            "[trace] turn={turn} step={step} llm ended outcome={outcome:?}"
         )),
         ProgressEvent::TurnEnded { turn } => Some(format!("[trace] turn={turn} ended")),
     }

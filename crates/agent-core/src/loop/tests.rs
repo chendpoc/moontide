@@ -10,7 +10,9 @@ use futures::stream;
 use tempfile::tempdir;
 
 use crate::{
-    event::{EventDispatcher, HookHandler, PipelineRegistry, TraceContext, TurnEvent},
+    event::{
+        EventDispatcher, HookHandler, LlmCallOutcome, PipelineRegistry, TraceContext, TurnEvent,
+    },
     llm::{
         protocol::{ContentBlock, LlmError, ModelResponse, ModelStreamEvent, StopReason},
         LLMProvider,
@@ -204,6 +206,8 @@ struct CancelOnEventHook {
 
 struct LlmAttemptHook {
     attempts: Arc<Mutex<Vec<(u32, String)>>>,
+    finalized: Arc<Mutex<Vec<String>>>,
+    ended: Arc<Mutex<Vec<(String, LlmCallOutcome)>>>,
 }
 
 impl HookHandler for LlmAttemptHook {
@@ -216,6 +220,23 @@ impl HookHandler for LlmAttemptHook {
                 .lock()
                 .expect("attempts lock")
                 .push((*step, llm_call_id.clone()));
+        }
+        if let TurnEvent::AssistantFinalized { llm_call_id, .. } = event {
+            self.finalized
+                .lock()
+                .expect("finalized lock")
+                .push(llm_call_id.clone());
+        }
+        if let TurnEvent::LlmCallEnded {
+            llm_call_id,
+            outcome,
+            ..
+        } = event
+        {
+            self.ended
+                .lock()
+                .expect("ended lock")
+                .push((llm_call_id.clone(), outcome.clone()));
         }
         Ok(())
     }
@@ -1128,6 +1149,8 @@ async fn recoverable_retry_preserves_step_and_request_identity() {
     ])));
     let requests = Arc::new(Mutex::new(Vec::new()));
     let attempts = Arc::new(Mutex::new(Vec::new()));
+    let finalized = Arc::new(Mutex::new(Vec::new()));
+    let ended = Arc::new(Mutex::new(Vec::new()));
     let provider: Arc<dyn LLMProvider> = Arc::new(RecordingQueuedProvider {
         scripts,
         requests: Arc::clone(&requests),
@@ -1140,6 +1163,8 @@ async fn recoverable_retry_preserves_step_and_request_identity() {
         None,
         vec![Arc::new(LlmAttemptHook {
             attempts: Arc::clone(&attempts),
+            finalized: Arc::clone(&finalized),
+            ended: Arc::clone(&ended),
         })],
     );
 
@@ -1159,6 +1184,17 @@ async fn recoverable_retry_preserves_step_and_request_identity() {
     assert_eq!(recorded_attempts[0].0, 0);
     assert_eq!(recorded_attempts[1].0, 0);
     assert_ne!(recorded_attempts[0].1, recorded_attempts[1].1);
+    let finalized_call_ids = finalized.lock().expect("finalized lock");
+    assert_eq!(
+        finalized_call_ids.as_slice(),
+        [recorded_attempts[1].1.clone()]
+    );
+    let ended_calls = ended.lock().expect("ended lock");
+    assert_eq!(ended_calls.len(), 2);
+    assert_eq!(ended_calls[0].0, recorded_attempts[0].1);
+    assert!(matches!(ended_calls[0].1, LlmCallOutcome::Failed { .. }));
+    assert_eq!(ended_calls[1].0, recorded_attempts[1].1);
+    assert!(matches!(ended_calls[1].1, LlmCallOutcome::Succeeded { .. }));
 }
 
 // 场景：LLM attempt 返回 Unrecoverable，队列中仍有后续 script。

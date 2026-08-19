@@ -9,8 +9,8 @@ use super::agent_recorder::{truncate_record, FileAgentEventRecorder, MAX_AGENT_E
 use super::file_writer::FileWriter;
 use crate::event::{
     derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
-    CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, PipelineRegistry,
-    TraceContext, TurnEvent,
+    CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, LlmCallOutcome,
+    PipelineRegistry, TraceContext, TurnEvent,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
 use crate::session::{SessionItem, SessionStore};
@@ -216,6 +216,7 @@ fn committable_runs_hook_after_commit() {
             &mut commit,
             TurnEvent::AssistantFinalized {
                 turn: 1,
+                llm_call_id: "call-1".into(),
                 blocks: vec![ContentBlock::Text {
                     text: "done".to_string(),
                 }],
@@ -304,17 +305,20 @@ fn derive_llm_call_started_and_ended_maps_trace() {
             turn: 2,
             step: 1,
             llm_call_id: "call-1".to_string(),
-            stop_reason: StopReason::EndTurn,
-            usage: Some(Usage {
-                input_tokens: 10,
-                output_tokens: 5,
-            }),
+            outcome: LlmCallOutcome::Succeeded {
+                stop_reason: StopReason::EndTurn,
+                usage: Some(Usage {
+                    input_tokens: 10,
+                    output_tokens: 5,
+                }),
+            },
         },
     );
     assert_eq!(ended.channel, AgentChannel::Trace);
     assert_eq!(ended.kind, "llm_call");
     assert_eq!(ended.payload["status"], "ended");
-    assert_eq!(ended.payload["usage"]["input_tokens"], 10);
+    assert_eq!(ended.payload["outcome"]["status"], "succeeded");
+    assert_eq!(ended.payload["outcome"]["usage"]["input_tokens"], 10);
 }
 
 // 场景：流式 snapshot 只有 pending text，没有最终 content。
@@ -458,6 +462,7 @@ fn derive_assistant_finalized_maps_conversation_final() {
         &ctx,
         &TurnEvent::AssistantFinalized {
             turn: 1,
+            llm_call_id: "call-1".into(),
             blocks: vec![
                 ContentBlock::Text {
                     text: "hello".to_string(),
@@ -784,6 +789,7 @@ fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
             &mut store,
             TurnEvent::AssistantFinalized {
                 turn: 1,
+                llm_call_id: "call-1".into(),
                 blocks: vec![ContentBlock::Text {
                     text: "final answer".into(),
                 }],

@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；R4 bus 后置。
+> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；Agent Event Log worker 属于 `agent::log`；R4 observer bridge 后置。
 > **关联：** [`../loop/DESIGN.md`](../loop/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -12,18 +12,18 @@
 |----|------|
 | `TurnEvent` 语义协议 | Turn/Step/tool 状态机（loop） |
 | 同步 dispatch：commit → post-commit Hook | permission、approval、retry、cancel 决策 |
-| `derive` → `AgentEventRecord` | `SessionStore` 实现 |
-| Hook registry 与可选 EventBus | sidecar IPC |
-| Agent Event recorder port 与当前 file adapter | `model_input::compile` / `context::materialize` |
+| `derive` → AgentEventRecord / recorder port | `SessionStore` 实现 |
+| Hook registry 与 TurnEvent dispatch | sidecar IPC |
+| event schema 与 derive mapping | Agent Event queue、worker、文件 IO |
 
 **核心：** event 维护事实提交与扩展 callback 的顺序；它不拥有事实源，也不允许 Hook 改变正确性路径。
 
 ```text
 Committable TurnEvent:
-  mutable commit borrow → Hook* fail-open → bus
+  mutable commit borrow → Hook* fail-open → observer bridge
 
 Observational TurnEvent:
-  Hook* fail-open → bus
+  Hook* fail-open → observer bridge
 ```
 
 Agent Event Log 是 Hook 的一个消费者，不是 Session Item Log 的替代品。
@@ -57,13 +57,12 @@ event/
   pipeline.rs             # dispatch
   registry.rs             # frozen Hook registry
   derive.rs
-  agent_recorder.rs       # Agent Event append + current file-backed recorder
-  file_writer.rs          # path-based raw file I/O only
-  bus.rs                  # 后置
+  agent_recorder.rs       # AgentEventRecorder port / derive hook
+  observer_bridge.rs      # 后置 observer bridge
   tests.rs
 ```
 
-当前 `agent_recorder.rs` / `file_writer.rs` 能力保留。接缝重构只改变 callback/ownership，不删除 AgentEvent、wire schema、storage 或文件写入。
+当前 AgentEventRecord、wire schema 与 derive mapping 保留。Agent Event queue、worker 和 FileAgentEventRecorder 迁移到 `agent::log`；event core 不再拥有 Tokio worker 或物理文件 IO。
 
 ---
 
@@ -74,7 +73,8 @@ event/
 | `TurnEvent` | → `SessionItem` | 时机 |
 |-------------|-----------------|------|
 | `UserPromptCommitted` | `UserMessage` | LLM 前 |
-| `AssistantFinalized` | `AssistantMessage` | 完整 assistant blocks 确认后 |
+| `AssistantFinalized` with non-empty blocks | `AssistantMessage` | 完整 assistant blocks 确认后 |
+| `AssistantFinalized` with empty blocks | no Session item | tool-only successful call 的 finalized marker |
 | `ToolCallRecorded { call }` | `ToolCall { call }` | tool 副作用前 |
 | `ToolResultRecorded { result }` | `ToolResult { result }` | 单 call 结果确定后 |
 | `CompactionApplied` | `Compaction` | 后置 context policy |
@@ -112,11 +112,11 @@ emit(commit, event):
       diagnose error
       continue
 
-  bus.publish(event)  # optional; failure ignored
+  observer_bridge.publish(event)  # optional; failure ignored
   return Ok
 ```
 
-同步 commit 是正确性路径；Hook 和 bus 都是观测扩展。Committable event 的 Hook 只在 commit 成功后看到事件，因此不能观测到“声称已提交但实际失败”的事实。Transient identity 只属于当前 emit；Hook 不从 TraceContext 读取上一事件的 `session_item_id`、`tool_use_id` 或 `llm_call_id`。
+同步 commit 是正确性路径；Hook 和 observer bridge 都是观测扩展。Committable event 的 Hook 只在 commit 成功后看到事件，因此不能观测到“声称已提交但实际失败”的事实。Transient identity 只属于当前 emit；Hook 不从 TraceContext 读取上一事件的 `session_item_id`、`tool_use_id` 或 `llm_call_id`。
 
 Hook 调用顺序等于 frozen registry 的注册顺序；一个 Hook 失败不能跳过后续 Hook。诊断输出使用 logger/stderr，不递归 emit 新 TurnEvent。
 
@@ -135,14 +135,14 @@ Turn:
     materialize → compile
     emit LlmCallStarted
     llm::run_model_call* → MessageUpdate*
-    emit LlmCallEnded on completed response
+    emit exactly one LlmCallEnded for every attempt, with its outcome
 
     terminal response:
       emit AssistantFinalized            # no tool blocks
       emit TurnEnded
 
     ToolUse response:
-      emit AssistantFinalized if non-tool blocks exist
+      emit AssistantFinalized once; use empty blocks when the response is tool-only
       emit every ToolCallRecorded         # all calls before side effects
       sequentially process and emit every ToolResultRecorded
       next Step, or close round then fail at max_steps
@@ -151,18 +151,42 @@ Turn:
 硬顺序：
 
 1. `UserPromptCommitted` 成功先于首个 LLM attempt；
-2. ToolUse response 中可持久化的 assistant blocks 先于 ToolCall；
+2. 一个成功完成的 LLM call 恰好产生一个 `AssistantFinalized`；非空 blocks 才写入 Session，tool-only 的空 marker 不写入 Session；
 3. 同一 round 的全部 ToolCall 先于任何 executor 副作用；
 4. 每个 call 恰好一个 ToolResult，下一 Step 前 round 全量闭合；
 5. executor Err / 执行中取消的当前 result 是 `OutcomeUnknown`，未开始 siblings 是 `Cancelled(Parent)`。
 
-重试 attempt 复用同一 Step，但使用新的 `llm_call_id`。失败 attempt 的 partial updates 只在 Agent Event 中出现，不 commit AssistantMessage。R1 不新增 failed/retry TurnEvent；完整失败/span 观测等 observability 接入时再设计。
+重试 attempt 复用同一 Step，但使用新的 `llm_call_id`。每个 attempt，无论成功、请求失败、无效响应或取消，都恰好产生一个 `LlmCallEnded`；失败 attempt 的 partial updates 只在 Agent Event 中出现，不 commit AssistantMessage。
 
 ---
 
 ## 7. 类型签名
 
-### 7.1 `TurnEvent`
+### 7.1 `LlmCallOutcome`
+
+```rust
+pub enum LlmCallFailureKind {
+    Request(RequestFailureKind),
+    InvalidResponse,
+}
+
+pub enum LlmCallOutcome {
+    Succeeded {
+        stop_reason: StopReason,
+        usage: Option<Usage>,
+    },
+    Failed {
+        kind: LlmCallFailureKind,
+    },
+    Cancelled {
+        reason: CancelReason,
+    },
+}
+```
+
+`LlmCallOutcome` 是运行时语义，不承载 provider 原始错误文本；详细诊断继续由 logger 记录。`StopReason`、`RequestFailureKind` 和 `CancelReason` 保持 enum，不在 progress 或 frontend API 中降级为状态字符串。
+
+### 7.2 `TurnEvent`
 
 ```rust
 pub enum TurnEvent {
@@ -170,7 +194,11 @@ pub enum TurnEvent {
     TurnEnded { turn: u64 },
 
     UserPromptCommitted { turn: u64, text: String },
-    AssistantFinalized { turn: u64, blocks: Vec<ContentBlock> },
+    AssistantFinalized {
+        turn: u64,
+        llm_call_id: String,
+        blocks: Vec<ContentBlock>,
+    },
     ToolCallRecorded { turn: u64, call: ToolCall },
     ToolResultRecorded { turn: u64, result: ToolResult },
 
@@ -179,8 +207,7 @@ pub enum TurnEvent {
         turn: u64,
         step: u32,
         llm_call_id: String,
-        stop_reason: StopReason,
-        usage: Option<Usage>,
+        outcome: LlmCallOutcome,
     },
     MessageUpdate {
         turn: u64,
@@ -268,6 +295,7 @@ pub fn derive_agent_event(
 ) -> anyhow::Result<Option<AgentEventRecord>>;
 
 pub trait AgentEventRecorder: Send + Sync {
+    /// Must be non-blocking for the EventDispatcher caller.
     fn append(&self, record: AgentEventRecord) -> anyhow::Result<()>;
 }
 
@@ -282,16 +310,15 @@ impl HookHandler for DeriveAgentEventHook {
 }
 ```
 
-当前 `DeriveObserveHandler` 只改 adapter 角色/名称；derive mapping、AgentEventRecord、recorder 与 file storage 均保留。
+`DeriveAgentEventHook` 只调用 `derive_agent_event` 并转交 `AgentEventRecorder`。具体 queued recorder、worker 和 FileAgentEventRecorder 位于 `agent::log`；`append` 只做 bounded `try_send`，不能同步写文件。
 
 `derive_agent_event` 使用私有借用 DTO 固定 Agent Event wire schema，序列化失败返回 `Err`。ToolCall/ToolResult 直接来自 canonical tools 契约；wire DTO 不形成并行领域模型。
 
-`FileAgentEventRecorder` 继续负责：
-
-- 校验 `runId`；
-- 恢复下一个 `seq` 与最后 `turn`；
-- 64 KiB JSONL 截断与最终行长校验；
-- 调用内部 `FileWriter` 完成路径级 I/O。
+`agent::log::AgentEventLogWorker` 负责校验 `runId`、恢复下一个 `seq` 与最后
+`turn`、64 KiB JSONL 截断、批量 flush、rotation 和 retention。queue 只按事件
+数量 bounded；队列满时不等待，累计 `dropped_events` 并进入 `Degraded`。
+`dropped_bytes`、byte-budget queue 和 metrics exporter 后置。Agent Event Log
+worker 与 ProgressWorker 使用不同 queue、writer 和状态。
 
 ---
 
@@ -301,11 +328,12 @@ impl HookHandler for DeriveAgentEventHook {
 event → llm::protocol
 event → tools（只读 ToolCall / ToolResult）
 event ↛ loop
+agent::log → event::{AgentEventRecord, AgentEventRecorder}
 
 session → event::CommitHandler + TurnEvent（直接实现 mutable seam）
 loop → EventDispatcher::emit + TurnEvent
 agent → PipelineRegistry + concrete Hook/recorder assembly
-cli → bus 或 tail runs/*.jsonl
+cli → observer bridge 或 tail runs/*.active.jsonl
 ```
 
 `event` 不 import SessionStore。`session` 已经拥有 TurnEvent → SessionItem 的 commit mapping，因此实现 CommitHandler 不新增反向编排依赖。
@@ -323,7 +351,7 @@ cli → bus 或 tail runs/*.jsonl
 7. 每次 emit 清理 transient correlation fields，Hook 只能看到当前 event 的 identity；
 8. EventDispatcher / PipelineRegistry 不拥有 SessionStore；
 9. derive 不写回 Session Item Log；
-10. bus 不参与 commit 完成条件；
+10. observer bridge 不参与 commit 完成条件；
 11. `TurnEvent` 增加字段时同步 dispatch、derive、commit 与结构测试；
 12. Agent Event / Session Item schema 的持久化变化另行版本化；
 13. tool event 直接包装 ToolCall / ToolResult，不复制领域字段；
@@ -371,7 +399,7 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 | **R3** | session commit + Agent Event recorder/file adapter | 已实现 |
 | **R3-F2** | ToolCall/ToolResult typed payload | 已实现 |
 | **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | 已实现于 Loop R1 |
-| **R4-B** | optional bus + sidecar bridge | 后置 |
+| **R4-B** | optional observer bridge + sidecar bridge | 后置 |
 
 R4-A 应作为 loop `batch-implement` 的第一批接缝任务。它不授权删除任何已存在的观测能力。
 

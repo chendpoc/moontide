@@ -10,16 +10,20 @@ pub mod platform;
 
 pub use agent::Agent;
 pub use agent_core::{
+    event::{LlmCallFailureKind, LlmCallOutcome},
     llm::{
         adapter::AdapterFamily,
-        protocol::{ContentBlock, ModelResponse, StopReason, ThinkingLevel},
+        protocol::{
+            ContentBlock, ModelResponse, ModelResponseSnapshot, PendingBlock, StopReason,
+            ThinkingLevel,
+        },
     },
     r#loop::{ToolApproval, ToolApprovalHandler, ToolPermission, ToolPermissionMap},
-    tools::ToolCall,
+    tools::{ToolCall, ToolResult},
 };
 pub use config::ProgressObserver;
 pub use config::{AgentConfig, ProviderConfig};
-pub use progress::ProgressEvent;
+pub use progress::{ProgressEvent, ProgressHandle};
 
 /// Returns the most recently modified persisted session without creating a runtime Agent.
 pub fn latest_session_id(

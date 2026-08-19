@@ -258,7 +258,7 @@ turn(input, cancellation):
         return response
 
       ToolRound { assistant_blocks, calls, response }:
-        emit AssistantFinalized if blocks non-empty
+        emit AssistantFinalized once; empty blocks for tool-only response are not committed
         commit all ToolCallRecorded
         process all calls sequentially and commit all results
         if step is last permitted step:
@@ -316,8 +316,18 @@ for attempt in 0..=max_llm_retries:
     run_model_call_with_updates(provider, request.clone(), on_update) → result
 
   success:
-    emit LlmCallEnded
-    return response
+    classify response shape
+    emit LlmCallEnded(Succeeded { stop_reason, usage })
+    emit AssistantFinalized once after the successful response is accepted
+    continue terminal/tool-round handling
+
+  invalid response shape:
+    emit LlmCallEnded(Failed { InvalidResponse })
+    return error
+
+  request failure or cancellation:
+    emit LlmCallEnded(Failed/Cancelled)
+    retry only recoverable request failures while attempts remain
 
   RequestFailed(Recoverable) and attempts remain:
     cancellation-aware backoff
@@ -327,7 +337,7 @@ for attempt in 0..=max_llm_retries:
     return original last error
 ```
 
-`ModelRequest` 在同一 Step 内保持字节语义等价；attempt 不重新 materialize/compile，防止 retry 期间 Session 或工具集合漂移。每个 attempt 有独立 `llm_call_id`，流式 partial snapshot 只作为 Agent Event 观测，不 commit AssistantMessage。
+`ModelRequest` 在同一 Step 内保持字节语义等价；attempt 不重新 materialize/compile，防止 retry 期间 Session 或工具集合漂移。每个 attempt 有独立 `llm_call_id`，每个 attempt 恰好有一个 `LlmCallEnded`。流式 partial snapshot 只作为 Agent Event / progress 观测，不 commit AssistantMessage。
 
 ### 7.2 retry 分类
 

@@ -19,7 +19,8 @@ AgentConfig（显式解析值）
       ├─ permissions + approval → ToolRuntime
       ├─ create/load SessionStore
       ├─ Harness + Project Instructions → SystemPrompt
-      └─ EventDispatcher + legacy Agent Event recorder
+      ├─ EventDispatcher + Agent Event Log policy/worker
+      └─ ProgressWorker（可选 frontend observer）
                     │
                     ▼
              AgentLoop::new(AgentLoopInit)
@@ -63,6 +64,24 @@ pub struct AgentConfig {
     pub permissions: agent_core::r#loop::ToolPermissionMap,
     pub approval: Option<std::sync::Arc<dyn agent_core::r#loop::ToolApprovalHandler>>,
     pub progress: Option<std::sync::Arc<dyn agent::ProgressObserver>>,
+    pub persistence: PersistenceConfig,
+}
+
+pub enum SessionPersistence {
+    Items,
+    Disabled, // reserved; R2 does not implement
+}
+
+pub enum DiagnosticPersistence {
+    Off,
+    Errors,
+    Normal,
+    Debug,
+}
+
+pub struct PersistenceConfig {
+    pub session: SessionPersistence,
+    pub diagnostic: DiagnosticPersistence,
 }
 
 pub struct Agent {
@@ -82,6 +101,11 @@ impl Agent {
     ) -> anyhow::Result<Self>;
 
     pub fn session_id(&self) -> &str;
+
+    pub async fn flush_progress(&self) -> anyhow::Result<()>;
+    pub fn progress_status(&self) -> Option<ProgressStatus>;
+    pub async fn flush_agent_events(&self) -> anyhow::Result<()>;
+    pub fn agent_event_log_status(&self) -> Option<AgentEventLogStatus>;
 
     pub async fn turn(
         &mut self,
@@ -122,6 +146,12 @@ pub fn write_settings_atomically(
 相对路径以 resolved `cwd` 为基准；默认目录为 `<cwd>/.moontide/sessions`、`<cwd>/.moontide/runs` 和 `<cwd>/.moontide/settings.json`。普通解析只做绝对化，不默认 `canonicalize`。CLI/其他宿主负责设置 schema、优先级、环境变量和 JSON 读写；`agent-core` 不依赖该 module。
 
 `ProgressObserver` 接收由 TurnEvent 派生的安全 `ProgressEvent`，用于 CLI、Desktop 或 HTTP 展示；它是只读、fail-open 的观察接缝，不参与 Loop 决策，也不等同于 OTel trace/span。
+
+`Agent::create`、`Agent::resume` 和 `Agent::reload` 要求调用方已经运行在 Tokio runtime 内。无 runtime 不提供同步 observer 或 file writer fallback。
+
+Agent Event Log 的队列、worker 和文件写入位于 [`src/log/README.md`](src/log/README.md)；Progress 的 snapshot/finalized 和宿主 fold 语义见 [`src/progress/README.md`](src/progress/README.md)。
+
+Assistant snapshot、finalized 和宿主 fold 语义见 [`src/progress/README.md`](src/progress/README.md)；实现约束见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
 
 ---
 
@@ -169,7 +199,7 @@ Agent::turn(text, token)
 
 同一个 `Agent` 可以连续执行多轮；CLI 不保存对话历史，历史只存在 Session Item Log。`Agent` 不实现 Clone，也不支持同一 Session 的并发 writer。
 
-Session 默认目录由宿主通过 `agent::platform::ProjectPaths` 解析为 `<cwd>/.moontide/sessions`；Agent Event 默认目录为 `<cwd>/.moontide/runs`。项目设置位于 `<cwd>/.moontide/settings.json`。`runId` 由组合根生成，仅作为现有观测分区键，不恢复 Run 实体。
+Session 默认目录由宿主通过 `agent::platform::ProjectPaths` 解析为 `<cwd>/.moontide/sessions`；Agent Event 默认目录为 `<cwd>/.moontide/runs`。项目设置位于 `<cwd>/.moontide/settings.json`。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，但不启动 Agent Event Log worker 或创建 runs 文件。`runId` 由组合根生成，仅作为现有观测分区键，不恢复 Run 实体。
 
 ---
 

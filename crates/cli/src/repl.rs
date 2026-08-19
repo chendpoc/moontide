@@ -104,6 +104,7 @@ pub(crate) async fn run(
                             tokio::signal::ctrl_c(),
                         )
                         .await?;
+                        let _ = active_agent.flush_progress().await;
                         match outcome {
                             TurnOutcome::Completed(Ok(response)) => {
                                 write_assistant_stdout(&response, std::io::stdout().lock())

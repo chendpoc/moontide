@@ -8,7 +8,7 @@ use agent_core::{
 use anyhow::{bail, Result};
 use tokio_util::sync::CancellationToken;
 
-use crate::{bootstrap, config::AgentConfig, prompt};
+use crate::{bootstrap, config::AgentConfig, progress::ProgressHandle, prompt};
 
 /// Facade that owns one session's complete agent runtime.
 pub struct Agent {
@@ -22,12 +22,14 @@ pub struct Agent {
     tool_names: Vec<String>,
     permissions: ToolPermissionMap,
     approval_configured: bool,
+    progress_handle: Option<ProgressHandle>,
 }
 
 pub(crate) struct AgentParts {
     pub(crate) loop_: AgentLoop,
     pub(crate) session_id: String,
     pub(crate) cwd: PathBuf,
+    pub(crate) progress_handle: Option<ProgressHandle>,
 }
 
 impl Agent {
@@ -76,6 +78,21 @@ impl Agent {
         &self.cwd
     }
 
+    /// Drains progress events before a host renders a completed turn or exits.
+    pub async fn flush_progress(&self) -> Result<()> {
+        if let Some(handle) = &self.progress_handle {
+            handle.flush().await?;
+        }
+        Ok(())
+    }
+
+    /// Returns and clears whether progress delivery lost events and needs resync.
+    pub fn take_progress_resync_required(&self) -> bool {
+        self.progress_handle
+            .as_ref()
+            .is_some_and(ProgressHandle::take_resync_required)
+    }
+
     pub async fn turn(
         &mut self,
         text: String,
@@ -114,6 +131,7 @@ impl Agent {
             tool_names: config.tool_names,
             permissions: config.permissions,
             approval_configured: config.approval.is_some(),
+            progress_handle: parts.progress_handle,
         })
     }
 
@@ -127,5 +145,6 @@ impl Agent {
         self.tool_names = config.tool_names;
         self.permissions = config.permissions;
         self.approval_configured = config.approval.is_some();
+        self.progress_handle = parts.progress_handle;
     }
 }

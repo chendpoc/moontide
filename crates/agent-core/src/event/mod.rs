@@ -13,7 +13,7 @@ pub use derive::{derive_agent_event, AgentChannel, AgentEventRecord, AgentPhase}
 pub use pipeline::EventDispatcher;
 pub use registry::{CommitHandler, HookHandler, PipelineRegistry, PipelineRegistryBuilder};
 pub use trace_context::TraceContext;
-pub use turn_event::{TurnCompactionKind, TurnEvent};
+pub use turn_event::{LlmCallFailureKind, LlmCallOutcome, TurnCompactionKind, TurnEvent};
 
 #[cfg(test)]
 mod tests;

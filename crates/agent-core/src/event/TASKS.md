@@ -19,7 +19,7 @@ R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeli
 | **R3-F2** | 14 | ToolCall / ToolResult typed payload 接缝 | ☑ |
 | **R3-F3** | 15 | 删除领域 Run，保留 legacy Agent Event 契约 | ☑ |
 | **R4-A** | 16–17 | borrowed mutable commit + post-commit Hook，保留 AgentEvent 栈 | ☑ |
-| **R4** | 10–11 | EventBus + sidecar bridge | ☐ |
+| **R4** | 10–11 | observer bridge + sidecar bridge | ☐ |
 
 ---
 
@@ -157,16 +157,16 @@ R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeli
 
 ---
 
-## R4：bus + sidecar
+## R4：observer bridge + sidecar
 
-### TASK-event-10: EventBus
+### TASK-event-10: Observer bridge
 
-- **做什么：** tokio broadcast；Hook 之后 publish；失败忽略。
-- **范围：** `bus.rs`。
+- **做什么：** 后置异步 observer bridge；Hook 之后 publish；失败忽略。
+- **范围：** `observer_bridge.rs`。
 - **状态：** ☐
 
 ### TASK-event-11: sidecar bridge
 
-- **做什么：** bus 订阅 → Transport（后置）。
+- **做什么：** observer bridge 订阅 → Transport（后置）。
 - **范围：** `agent` / `cli`。
 - **状态：** ☐

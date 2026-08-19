@@ -43,6 +43,11 @@ pub fn write_settings_atomically(path: &Path, bytes: &[u8]) -> anyhow::Result<()
 
 设置 schema 和 JSON 解析由 frontend 拥有。文件从第一版带 `version: 1`。`api_key` 允许持久化；它不进入 Session Item Log 或 Agent Event Log。
 
+项目设置中的 `persistence.session` 与 `persistence.diagnostic` 解析为
+`PersistenceConfig` 后注入 `AgentConfig`；默认值是
+`SessionPersistence::Items + DiagnosticPersistence::Off`。该 policy 的完整契约见
+[`crates/docs/logging-and-session-design.md`](../../../docs/logging-and-session-design.md)。
+
 `write_settings_atomically` 只负责完整 bytes 的跨平台原子替换，第一版假设一个 workspace 只有一个 settings writer。读取失败、JSON 损坏或未知版本由 frontend 显式报告并保留原文件。
 
 ## 非目标

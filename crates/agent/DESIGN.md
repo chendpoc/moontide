@@ -41,6 +41,7 @@ crates/agent/
   src/
     lib.rs
     config.rs             # ProviderConfig / AgentConfig
+    log/                  # Agent Event queue / worker / file persistence
     platform/              # ProjectPaths 与 settings 原子写入
     bootstrap.rs          # create/resume 装配
     prompt.rs             # Harness + AGENTS.md → SystemPrompt
@@ -48,7 +49,7 @@ crates/agent/
     tests.rs
 ```
 
-Agent Event 的具体 file adapter 暂时复用 `agent-core::event::FileAgentEventRecorder`；待 agent crate 稳定后再评估是否迁移文件适配器，不在初版复制实现。
+Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent::log` 拥有；`agent-core::event` 只提供 `AgentEventRecord`、derive mapping 和 `AgentEventRecorder` port。Progress worker 独立位于 `agent::progress`。
 
 ---
 
@@ -74,6 +75,14 @@ pub struct AgentConfig {
     pub permissions: ToolPermissionMap,
     pub approval: Option<Arc<dyn ToolApprovalHandler>>,
     pub progress: Option<Arc<dyn ProgressObserver>>,
+    pub persistence: PersistenceConfig,
+}
+
+pub enum SessionPersistence { Items, Disabled /* reserved in R2 */ }
+pub enum DiagnosticPersistence { Off, Errors, Normal, Debug }
+pub struct PersistenceConfig {
+    pub session: SessionPersistence,
+    pub diagnostic: DiagnosticPersistence,
 }
 
 pub struct Agent {
@@ -130,8 +139,9 @@ create: SessionStore::create(sessions_dir, cwd)
 resume: SessionStore::load(sessions_dir, session_id)
 session_id = store.header().session_id.clone()
 legacy_run_id = new UUID（只用于 Agent Event 分区）
-recorder = FileAgentEventRecorder::new(runs_dir, legacy_run_id)
-hooks = [DeriveAgentEventHook(recorder)]
+diagnostic = persistence.diagnostic
+diagnostic == Off → 不注册 Agent Event Hook，不启动 worker，不创建 runs 文件
+otherwise → agent::log::start(...)
 events = EventDispatcher::new(PipelineRegistry::builder().hook(...).build_frozen(), TraceContext)
 ```
 
@@ -200,6 +210,7 @@ Agent 不在 bootstrap 时验证 provider 网络可达性；第一次 Turn 的 p
 ```text
 agent → agent-core::{event, llm, loop, model_input, session, tools}
 agent → agent-tools
+agent::log → agent-core::event::{AgentEventRecord, AgentEventRecorder}
 agent ↛ cli
 agent ↛ scheduler
 agent ↛ provider adapter concrete modules
@@ -208,7 +219,9 @@ cli → agent
 agent-core ↛ agent / cli / agent-tools
 ```
 
-`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。
+`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。Agent Event Log 的诊断 policy 不进入 `session` 或 `agent-core::event`。
+
+R2 的 snapshot/finalized identity、事件顺序和 fail-open 细节见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
 
 ## 8. Platform paths and project settings
 
@@ -258,9 +271,10 @@ agent-core       → Session Item Log / AgentLoop，不读取 settings.json
 ## 9. 错误与生命周期
 
 - `create/resume` 失败不产生可运行 Agent；
+- `create/resume/reload` 必须在 Tokio runtime 内调用；
 - `Agent::turn` 错误不回滚已提交 Session facts；
 - Agent 可在 facts 仍可 materialize 时继续下一 Turn；
-- Agent Event Hook/recorder fail-open，不覆盖 Session commit error；
+- Agent Event Hook/worker fail-open，不覆盖 Session commit error；
 - Agent drop 只释放运行时句柄，Session Item Log 已落盘事实保留；
 - 同一 Agent 串行调用 Turn；并发调用者须自行在更高层协调。
 

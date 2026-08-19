@@ -81,7 +81,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 |------|------|
 | Session Item Log → messages | **materialize**（不用 derive_messages / 投影 / 还原） |
 | SystemPrompt + messages + tools → ModelRequest | **compile**（不用 compose） |
-| TurnEvent → Agent Event | **derive**（`event::derive` 已落地；完整 bus/sidecar 仍后置） |
+| TurnEvent → Agent Event | **derive**（`event::derive` 已落地；完整 observer bridge/sidecar 仍后置） |
 
 **实体：**
 
@@ -91,7 +91,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 | log 中的一条记录 | **SessionItem**（不用 SessionEvent / SessionLogEntry） |
 | 现有 `runId` 分区的观测日志 | **Agent Event Log**（legacy `runId` 不代表 Run 实体） |
 
-内核：**TurnEvent bus**（不用 sink）、**resolveTurnConfig** / **resolveTurnContext**（不用 fold 指 config）。sidecar 只经文件消费，不走 IPC。
+内核：**TurnEvent dispatch**（不用 bus / sink）、**resolveTurnConfig** / **resolveTurnContext**（不用 fold 指 config）。sidecar 只经文件消费，不走 IPC。
 
 执行层级：**Session → Turn → Step → Tool round**；不建立领域 Run。LLM retry 是同一 Step 内的 attempt，不消耗新 Step。
 

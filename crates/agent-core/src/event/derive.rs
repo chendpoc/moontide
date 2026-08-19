@@ -117,7 +117,7 @@ pub fn derive_agent_event(
             json!({ "text": text }),
             Some(truncate_preview(text, 120)),
         ),
-        TurnEvent::AssistantFinalized { turn, blocks } => {
+        TurnEvent::AssistantFinalized { turn, blocks, .. } => {
             let text = blocks_text(blocks);
             (
                 *turn,
@@ -170,8 +170,7 @@ pub fn derive_agent_event(
             turn,
             step,
             llm_call_id,
-            stop_reason,
-            usage,
+            outcome,
         } => (
             *turn,
             AgentPhase::PostLlm,
@@ -181,8 +180,7 @@ pub fn derive_agent_event(
                 "llmCallId": llm_call_id,
                 "step": step,
                 "status": "ended",
-                "stopReason": stop_reason,
-                "usage": usage,
+                "outcome": outcome,
             }),
             None,
         ),

@@ -55,9 +55,13 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
         .context("create Agent Event recorder")?;
     let hook = Arc::new(DeriveAgentEventHook::new(recorder));
     let mut pipeline_builder = PipelineRegistry::builder().hook(hook);
-    if let Some(observer) = config.progress.clone() {
-        pipeline_builder = pipeline_builder.hook(Arc::new(ProgressHook::new(observer)));
-    }
+    let progress_handle = if let Some(observer) = config.progress.clone() {
+        let (hook, handle) = ProgressHook::new(observer);
+        pipeline_builder = pipeline_builder.hook(Arc::new(hook));
+        Some(handle)
+    } else {
+        None
+    };
     let pipelines = pipeline_builder
         .build_frozen()
         .context("freeze event hook registry")?;
@@ -83,6 +87,7 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
         loop_,
         session_id: stable_session_id,
         cwd,
+        progress_handle,
     })
 }
 

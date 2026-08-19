@@ -220,21 +220,34 @@ git diff
 
 ---
 
-## Step 5b：GitHub 分支与 PR（推荐，Review 批 = 一次 PR）
+## Step 5b：GitHub 分支与 PR（需求集成线 + Review 批 PR）
 
 本地 `git diff` review 与 **GitHub PR review** 可并存：实现仍按 Review 批停等；通过后 commit → push → 开 PR，在 GitHub 上做正式 review / merge。
 
-### 分支模型（`feat/{mod}/base` + stacked `feat/{mod}/r{n}`）
+### 分支命名
 
-Git **不能**同时存在分支 `feat/agent-core-llm` 与 `feat/agent-core-llm/r1`（ref 路径冲突）。模块集成线必须是 **`feat/agent-core-llm/base`**，不能是 `feat/agent-core-llm`。
+以一个完整需求作为分支命名空间，`<demand>` 使用小写 kebab-case，例如 `assistant-host`、`project-settings`：
 
-**若已误建 `feat/agent-core-llm`：** 用 **rename**，不要 `checkout -b feat/agent-core-llm/base`：
+```text
+feat/<demand>/base       # 需求集成线，最终合入 main
+feat/<demand>/r1         # Review 批 R1
+feat/<demand>/r2         # Review 批 R2，依赖 r1
+release/<demand>-v1.0    # 可选：进入发布冻结后的稳定化分支
+```
+
+`feat/<demand>-v1.0` 不作为常规开发分支；版本号表达发布生命周期，应使用 `release/` 命名空间。没有发布冻结需求时，不创建 release 分支。
+
+### 分支模型（`feat/{demand}/base` + stacked `feat/{demand}/r{n}`）
+
+Git **不能**同时存在分支 `feat/assistant-host` 与 `feat/assistant-host/base`（ref 路径冲突）。需求集成线必须是 **`feat/<demand>/base`**，不能省略 `/base`。
+
+**若已误建 `feat/<demand>`：** 用 **rename**，不要直接创建同名的 `/base` 子分支：
 
 ```bash
-git branch -m feat/agent-core-llm feat/agent-core-llm/base
+git branch -m feat/<demand> feat/<demand>/base
 # 远程若已有旧名：push 新名后删旧 remote branch
-git push -u origin feat/agent-core-llm/base
-git push origin --delete feat/agent-core-llm   # 确认无人依赖后再删
+git push -u origin feat/<demand>/base
+git push origin --delete feat/<demand>   # 确认无人依赖后再删
 ```
 
 **模式 B（默认）：stacked PR — 开发与 review 并行**
@@ -243,53 +256,57 @@ Review 批在 git 上**串行依赖**（R2 基于 R1 commit），但 **PR review
 
 ```text
 main
- └── feat/agent-core-llm/base
+ └── feat/<demand>/base
        └── r1 ──PR#1──► base        （review 中）
              └── r2 ──PR#2──► r1     （开发 + review 可并行）
                    └── r3 ──PR#3──► r2
-模块完成后：feat/agent-core-llm/base → main
+需求完成后：feat/<demand>/base → main
 ```
 
 | 分支 | 从哪切 | PR 目标 | 说明 |
 |------|--------|---------|------|
-| **模块集成** | `main` | `main`（模块完成时） | `feat/{mod}/base` |
+| **需求集成** | `main` | `main`（需求完成时） | `feat/{demand}/base` |
 | **R1** | `base` | **`base`** | 首批 |
 | **R{n}（n≥2）** | **`r{n−1}`** | **`r{n−1}`** | stacked；不等待 R{n−1} merge 即可切分支开发 |
 
-GitHub 上同模块分支会归组显示；**Review 批 = 一次 PR**，不每个细 TASK 开分支。
+GitHub 上同需求分支会归组显示；**Review 批 = 一次 PR**，不为每个细 TASK 开分支。
 
 **R{n−1} merge 进 `base` 后（R{n} 栈整理，必做）：**
 
 ```bash
 git fetch origin
-git checkout feat/agent-core-llm/r2
-git rebase origin/feat/agent-core-llm/base
+git switch feat/<demand>/r2
+git rebase origin/feat/<demand>/base
 git push --force-with-lease
-gh pr edit <r2-pr-number> --base feat/agent-core-llm/base
+gh pr edit <r2-pr-number> --base feat/<demand>/base
 ```
 
 - **合并顺序**：必须先 merge R{n−1}，再 merge R{n}（GitHub 会提示 blocked 直到 base PR 合并）
 - **R{n−1} 有 review fix**：在 `r{n−1}` 上 amend/追加 commit 后，`r{n}` 执行 `git rebase r{n−1}`（或 rebase 到更新后的 `origin/r{n−1}`）
 - push rebase 结果一律用 **`--force-with-lease`**
 
-### 模块开始时（一次性）
+### 需求开始时（一次性）
 
 ```bash
-git checkout main && git pull
-git checkout -b feat/agent-core-llm/base
-git push -u origin feat/agent-core-llm/base
+git switch main
+git pull --ff-only
+git switch -c feat/<demand>/base
+git push -u origin feat/<demand>/base
 ```
+
+不得直接在 `main` 上实现需求。需求分支创建后，所有实现、review 修复和批次提交都在需求命名空间内完成。
 
 ### Review 批 R1（首批）
 
 ```bash
-git checkout feat/agent-core-llm/base && git pull
-git checkout -b feat/agent-core-llm/r1
+git switch feat/<demand>/base
+git pull --ff-only
+git switch -c feat/<demand>/r1
 # … 实现 + just check …
 git add <paths>
-git commit -m "feat(agent-core/llm): R1 contract layer (TASK 01-03)"
-git push -u origin feat/agent-core-llm/r1
-gh pr create --base feat/agent-core-llm/base --title "feat(agent-core/llm): R1 contract layer" --body "$(cat <<'EOF'
+git commit -m "feat(<demand>): R1 <topic>"
+git push -u origin feat/<demand>/r1
+gh pr create --base feat/<demand>/base --title "feat(<demand>): R1 <topic>" --body "$(cat <<'EOF'
 ## 做什么
 契约层：crate + protocol + provider（TASK 01–03）
 
@@ -306,13 +323,14 @@ EOF
 
 ```bash
 git fetch origin
-git checkout feat/agent-core-llm/r1 && git pull    # 上一批分支
-git checkout -b feat/agent-core-llm/r2
+git switch feat/<demand>/r1
+git pull --ff-only
+git switch -c feat/<demand>/r2
 # … 实现 + just check …
 git add <paths>
-git commit -m "feat(agent-core/llm): R2 normalize layer (TASK 04-08)"
-git push -u origin feat/agent-core-llm/r2
-gh pr create --base feat/agent-core-llm/r1 --title "feat(agent-core/llm): R2 normalize layer" --body "$(cat <<'EOF'
+git commit -m "feat(<demand>): R2 <topic>"
+git push -u origin feat/<demand>/r2
+gh pr create --base feat/<demand>/r1 --title "feat(<demand>): R2 <topic>" --body "$(cat <<'EOF'
 ## 做什么
 normalize 层（TASK 04–08）
 
@@ -325,16 +343,18 @@ EOF
 
 R1 merge 进 `base` 后，按上文 **栈整理** 把 R2 PR 改 base 为 `base` 并 rebase。
 
-### 模块完成时
+### 需求完成时
 
 ```bash
-gh pr create --base main --head feat/agent-core-llm/base --title "feat(agent-core): llm module"
+gh pr create --base main --head feat/<demand>/base --title "feat(<demand>): complete"
 ```
+
+需求 PR 合入 `main` 后，如需发布冻结再从 `main` 创建 `release/<demand>-v1.0`。发布分支只接收稳定性修复和发布元数据，不承载新的需求开发。
 
 ### Agent 纪律
 
 - **未经用户说 push / 开 PR，不 push、不 `gh pr create`**
-- PR **base**：R1 → `base`；R{n≥2} → **`r{n−1}`**（stacked）；R{n−1} merge 后 R{n} 改 base 为 `base` 并 rebase。整模块 PR → `main`
+- PR **base**：R1 → `base`；R{n≥2} → **`r{n−1}`**（stacked）；R{n−1} merge 后 R{n} 改 base 为 `base` 并 rebase。需求集成 PR：`feat/<demand>/base` → `main`
 - PR body 写 **Review 批主题 + TASK 编号**，附 Test plan
 - 多 agent 并行：每人用独立批分支，避免同批分支冲突
 
@@ -345,11 +365,11 @@ gh pr create --base main --head feat/agent-core-llm/base --title "feat(agent-cor
 | 实现完 | 停等，`git diff` | — |
 | 用户通过 | commit | push + 开 PR（用户说 push 时） |
 | Review | 可读本地 diff | PR Files changed |
-| 合并 | — | 按序 merge stacked PR；R{n−1} 进 `base` 后整理 R{n} 栈 |
+| 合并 | — | 按序 merge stacked PR；R{n−1} 进 `base` 后整理 R{n} 栈；需求完成后 `base` PR → `main` |
 
 ---
 
-## Step 6：模块收尾
+## Step 6：需求/模块收尾
 
 全部 TASK ☑ 且 `just check` 全绿：
 

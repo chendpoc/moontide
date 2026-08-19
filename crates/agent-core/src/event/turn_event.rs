@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    llm::protocol::{ContentBlock, ModelResponseSnapshot, StopReason, Usage},
+    llm::protocol::{
+        CancelReason, ContentBlock, ModelResponseSnapshot, RequestFailureKind, StopReason, Usage,
+    },
     tools::{ToolCall, ToolResult},
 };
 
@@ -12,6 +14,30 @@ pub enum TurnCompactionKind {
     Prune,
     TailWindow,
     Summary,
+}
+
+/// Failure classification for one model-call attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LlmCallFailureKind {
+    Request(RequestFailureKind),
+    InvalidResponse,
+}
+
+/// Typed terminal outcome for one model-call attempt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum LlmCallOutcome {
+    Succeeded {
+        stop_reason: StopReason,
+        usage: Option<Usage>,
+    },
+    Failed {
+        kind: LlmCallFailureKind,
+    },
+    Cancelled {
+        reason: CancelReason,
+    },
 }
 
 /// Turn-level semantic event emitted by `loop`.
@@ -30,6 +56,7 @@ pub enum TurnEvent {
     },
     AssistantFinalized {
         turn: u64,
+        llm_call_id: String,
         blocks: Vec<ContentBlock>,
     },
     ToolCallRecorded {
@@ -50,8 +77,7 @@ pub enum TurnEvent {
         turn: u64,
         step: u32,
         llm_call_id: String,
-        stop_reason: StopReason,
-        usage: Option<Usage>,
+        outcome: LlmCallOutcome,
     },
     MessageUpdate {
         turn: u64,

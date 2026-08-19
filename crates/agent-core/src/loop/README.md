@@ -190,11 +190,11 @@ R1 不增加 `TurnCompleted` / `TurnFailed` SessionItem；恢复只以已提交�
 
 ## Step 与模型响应
 
-一个 Step 是一次**逻辑**模型调用。初始 Step 为 0；同一请求的 retry attempt 不增加 Step，也不重新 `compile`，但每次 attempt 使用新的 `llm_call_id`。
+一个 Step 是一次**逻辑**模型调用。初始 Step 为 0；同一请求的 retry attempt 不增加 Step，也不重新 `compile`，但每次 attempt 使用新的 `llm_call_id`。每个 attempt 无论成功、请求失败、无效响应或取消，都恰好产生一个带 typed outcome 的 `LlmCallEnded`。
 
 | `StopReason` | R1 行为 |
 |--------------|---------|
-| `ToolUse` | 必须至少含一个 `ToolUse`；非 tool blocks 先作为 `AssistantFinalized` 提交（为空则跳过），随后按模型顺序提交全部 `ToolCall` 并完成 round |
+| `ToolUse` | 必须至少含一个 `ToolUse`；每个成功 call 发送一次 `AssistantFinalized`，tool-only 使用空 marker 且不写入 Session，随后按模型顺序提交全部 `ToolCall` 并完成 round |
 | `EndTurn` | 响应不得含 `ToolUse`；提交 assistant blocks，返回原 `ModelResponse` |
 | `MaxTokens` | 响应不得含 `ToolUse`；提交可用 assistant blocks，返回原 `ModelResponse` |
 | `Other(_)` | 响应不得含 `ToolUse`；提交可用 assistant blocks，返回原 `ModelResponse` |

@@ -18,7 +18,7 @@
   1. llm         LLMProvider trait + ModelRequest/Response/Delta 类型
   2. session     Session Item Log 事实源（依赖 llm/tools 契约；实现 event commit seam）
   3. tools       ToolSpec + 单次执行边界（相对独立；验收 / offload 归 scheduler）
-  4. event       TurnEvent 类型 + bus（tool TurnEvent 直接包装 tools call/result）
+  4. event       TurnEvent 类型 + dispatch（tool TurnEvent 直接包装 tools call/result）
 
 装配层（依赖契约层）
   5. model_input 纯组装 ModelRequest（依赖 tools + llm protocol）
@@ -69,7 +69,7 @@ agent create/load/fork SessionStore
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
 | 2 | `session` | llm + tools + event seam | ☑ | ☑ | ☑ | R1–R3；v2 call/result payload；Loop 接缝增量待实现 |
 | 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2；loop 接缝归后续 loop；验收 / offload 归 scheduler |
-| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + R4-A；typed call/result payload；bus 后置；[`src/event/README.md`](src/event/README.md) |
+| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + R4-A；typed call/result payload；observer bridge 后置；[`src/event/README.md`](src/event/README.md) |
 | 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
 | 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成并通过 Review；compaction 后置 |
 | 7 | `loop` | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；scheduler 暂缓，转 Desktop Shell |

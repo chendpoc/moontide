@@ -316,20 +316,29 @@ async fn completed_turn_wins_pending_ctrl_c() {
 }
 
 // Scenario: trace mode renders semantic progress events for CLI diagnostics.
-// Expected: tool/LLM lifecycle is visible, while thinking text remains opt-in.
+// Expected: tool/LLM lifecycle is visible, while thinking from snapshots remains opt-in.
 // Invariant: trace output is stderr-facing presentation and does not alter final assistant stdout.
 #[test]
 fn trace_mode_renders_events_and_opt_in_thinking() {
     let tool = agent::ProgressEvent::ToolCall {
         turn: 1,
-        name: "bash".into(),
-        tool_use_id: "tool-1".into(),
-        input: "{\"command\":\"pwd\"}".into(),
+        call: agent::ToolCall::new("tool-1", "bash", serde_json::json!({"command": "pwd"}))
+            .expect("tool call should be valid"),
     };
-    let thinking = agent::ProgressEvent::Thinking {
+    let thinking = agent::ProgressEvent::AssistantResponseSnapshot {
         turn: 1,
         step: 0,
-        text: "inspect workspace".into(),
+        llm_call_id: "call-1".into(),
+        update_index: 0,
+        snapshot: agent::ModelResponseSnapshot {
+            content: Vec::new(),
+            pending: Some(agent::PendingBlock::Thinking {
+                thinking: "inspect workspace".into(),
+            }),
+            stop_reason: None,
+            usage: None,
+            model: None,
+        },
     };
 
     assert!(format_progress_event(TraceMode::Events, &tool)
