@@ -107,6 +107,8 @@ impl Agent {
 
     pub async fn flush_progress(&self) -> anyhow::Result<()>;
     pub fn progress_status(&self) -> Option<ProgressStatus>;
+    pub async fn flush_agent_event_log(&self) -> anyhow::Result<()>;
+    pub fn agent_event_log_status(&self) -> Option<AgentEventLogStatus>;
     pub async fn turn(
         &mut self,
         text: String,
@@ -114,6 +116,10 @@ impl Agent {
     ) -> anyhow::Result<agent_core::llm::protocol::ModelResponse>;
 }
 ```
+
+`AgentEventLogState`、`AgentEventLogStatus` 和 `AgentEventLogHandle` 由 crate root 导出；
+诊断 recorder 或 worker 启动失败不会阻断 Agent，宿主通过
+`agent_event_log_status()` 和 `flush_agent_event_log()` 读取并暴露该错误。
 
 `latest_session_id()` 只查询已持久化的 Session Item Log，不创建 runtime `Agent`。`AgentConfig` 只接收已经解析好的显式值。`agent` 不读取环境变量；CLI 或其他宿主负责把环境变量、参数和默认值解析成该结构。
 

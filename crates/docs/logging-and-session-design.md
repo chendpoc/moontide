@@ -68,8 +68,8 @@ Agent Event Log 由 `TurnEvent` derive 得到，记录“发生了什么以及�
 - turn / step / LLM attempt 生命周期；
 - typed `LlmCallOutcome`；
 - 完整 `ToolCall` / `ToolResult` payload；
-- `AssistantFinalized`；
-- 按 persistence policy 选择的 `MessageUpdate` snapshot；
+- `AssistantFinalized` 的 `llmCallId`、完整 `blocks` 和 text convenience field；
+- 按 persistence policy 选择的 `MessageUpdate`，其中保留完整 `snapshot`（content、pending、stop reason、usage、model）；
 - provider raw trace（后置；当前 R3 没有该数据源，不进入 Debug derived record）。
 
 完整 record 只存在于派生和 queue 阶段。写入 JSONL 时才执行单条大小限制、截断、preview 或简化；发生简化时必须记录 `truncated` / `originalBytes`。

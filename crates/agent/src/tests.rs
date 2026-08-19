@@ -143,7 +143,7 @@ async fn ask_without_handler_is_rejected() {
     assert!(format!("{error:#}").contains("approval handler"));
 }
 
-// Scenario: resolved config has an empty model and a non-directory cwd.
+// Scenario: resolved config has invalid model, provider, bounds, or cwd values.
 // Expected: validation fails before provider/session assembly.
 // Invariant: invalid host paths and model bounds cannot produce partial runtime state.
 #[tokio::test]
@@ -168,7 +168,14 @@ async fn invalid_config_values_are_rejected() {
     let mut agent_config = config(&temp);
     agent_config.cwd = PathBuf::from("missing-working-directory");
     assert!(Agent::create(agent_config).is_err());
+}
 
+// Scenario: a valid Agent enables Normal diagnostic persistence.
+// Expected: the diagnostic worker starts and creates its active JSONL file.
+// Invariant: enabling diagnostics does not change Session ownership or require a second runtime.
+#[tokio::test]
+async fn diagnostic_persistence_starts_worker() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent_config = config(&temp);
     agent_config.persistence.diagnostic = crate::DiagnosticPersistence::Normal;
     let agent = Agent::create(agent_config).expect("normal diagnostic persistence should start");

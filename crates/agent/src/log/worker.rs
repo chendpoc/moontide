@@ -26,7 +26,7 @@ pub struct AgentEventLogStatus {
 }
 
 pub struct AgentEventLogHandle {
-    sender: mpsc::Sender<LogCommand>,
+    sender: Option<mpsc::Sender<LogCommand>>,
     queue_sender: mpsc::Sender<AgentEventRecord>,
     status: Arc<Mutex<QueueStatus>>,
 }
@@ -34,15 +34,34 @@ pub struct AgentEventLogHandle {
 impl AgentEventLogHandle {
     pub(crate) fn new(queued: &QueuedAgentEventRecorder, worker: WorkerHandle) -> Self {
         Self {
-            sender: worker.sender,
+            sender: Some(worker.sender),
             queue_sender: queued.sender(),
             status: queued.status(),
         }
     }
 
+    pub(crate) fn failed(queued: &QueuedAgentEventRecorder, error: String) -> Self {
+        let status = queued.status();
+        mark_stopped(&status, error);
+        Self {
+            sender: None,
+            queue_sender: queued.sender(),
+            status,
+        }
+    }
+
     pub async fn flush(&self) -> Result<()> {
+        let Some(sender) = &self.sender else {
+            let message = self
+                .status
+                .lock()
+                .ok()
+                .and_then(|status| status.last_error.clone())
+                .unwrap_or_else(|| "agent event log worker is unavailable".into());
+            return Err(anyhow::anyhow!(message));
+        };
         let (ack, completion) = oneshot::channel();
-        if let Err(error) = self.sender.send(LogCommand::Flush { ack }).await {
+        if let Err(error) = sender.send(LogCommand::Flush { ack }).await {
             let message = format!("send agent event log flush command: {error}");
             mark_stopped(&self.status, message.clone());
             return Err(anyhow::anyhow!(message));
@@ -185,6 +204,7 @@ fn map_state(state: QueueState) -> AgentEventLogState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_core::event::{AgentChannel, AgentEventRecorder, AgentPhase};
 
     // Scenario: the worker command receiver is already closed when a host requests flush.
     // Expected: flush returns an error and status becomes Stopped with a diagnostic message.
@@ -196,7 +216,7 @@ mod tests {
         let (queue_sender, _queue_receiver) = mpsc::channel(1);
         let status = Arc::new(Mutex::new(QueueStatus::default()));
         let handle = AgentEventLogHandle {
-            sender,
+            sender: Some(sender),
             queue_sender,
             status: Arc::clone(&status),
         };
@@ -224,7 +244,7 @@ mod tests {
         let (queue_sender, _queue_receiver) = mpsc::channel(1);
         let status = Arc::new(Mutex::new(QueueStatus::default()));
         let handle = AgentEventLogHandle {
-            sender,
+            sender: Some(sender),
             queue_sender,
             status: Arc::clone(&status),
         };
@@ -236,5 +256,41 @@ mod tests {
             .last_error
             .as_deref()
             .is_some_and(|error| error.contains("worker flush")));
+    }
+
+    // Scenario: diagnostic recorder startup fails before a worker can be created.
+    // Expected: the host receives a stopped status and flush reports the startup error.
+    // Invariant: later post-commit diagnostics remain fail-open and do not fail the Agent turn.
+    #[tokio::test]
+    async fn failed_handle_is_fail_open_and_reports_startup_error() {
+        let (queued, _receiver) =
+            QueuedAgentEventRecorder::new(crate::DiagnosticPersistence::Debug);
+        let handle = AgentEventLogHandle::failed(&queued, "recorder unavailable".into());
+
+        assert_eq!(handle.status().state, AgentEventLogState::Stopped);
+        assert!(handle
+            .flush()
+            .await
+            .expect_err("failed worker flush should report startup error")
+            .to_string()
+            .contains("recorder unavailable"));
+
+        queued
+            .append(AgentEventRecord {
+                id: "event-1".into(),
+                seq: None,
+                run_id: "run-1".into(),
+                turn: 1,
+                phase: AgentPhase::PostLlm,
+                channel: AgentChannel::Trace,
+                kind: "turn_started".into(),
+                ts: 1,
+                payload: serde_json::json!({}),
+                preview: None,
+                truncated: None,
+                original_bytes: None,
+            })
+            .expect("failed diagnostic recorder must remain fail-open");
+        assert_eq!(handle.status().queue_len, 0);
     }
 }

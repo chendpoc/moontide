@@ -100,7 +100,8 @@ EventDispatcher
 4. worker 串行消费，保证 Agent Event Log 内部顺序；
 5. 文件 recorder 在落盘阶段处理 JSONL 大小限制、preview、truncate 和 `originalBytes`；
 6. `ToolResult::content` 在 derive 和 queue 阶段不降级为 body string；
-7. 文件 flush 失败只影响诊断 worker，不回滚已经成功 commit 的 Session fact。
+7. `AssistantFinalized` 保留 `llmCallId` 与完整 `blocks`；`MessageUpdate` 保留完整 `snapshot`，便利字段不能替代 canonical payload；
+8. 文件 flush 失败只影响诊断 worker，不回滚已经成功 commit 的 Session fact。
 
 ## 5. Persistence policy
 
@@ -126,7 +127,9 @@ R3 维护：
 
 不实现 `dropped_bytes`、byte-budget queue 或 metrics exporter。若未来按字节限制 queue，再新增对应计量字段。
 
-worker 的 observer / file error 记录诊断并进入 `Degraded` 或 `Stopped`；不得通过 Hook 返回到 AgentLoop，也不得伪造 Session commit 成功或失败。
+worker 的 observer / file error 记录诊断并进入 `Degraded` 或 `Stopped`；启动 recorder 或
+worker 失败时也保留一个 `Stopped` handle，让 Agent 继续运行并由 host 读取错误。错误不得
+通过 Hook 返回到 AgentLoop，也不得伪造 Session commit 成功或失败。
 
 ## 7. Import 边界
 

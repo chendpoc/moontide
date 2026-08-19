@@ -111,10 +111,26 @@ fn build_agent_event_log(
     let (queued, receiver) =
         crate::log::QueuedAgentEventRecorder::new(config.persistence.diagnostic);
     let status = queued.status();
-    let recorder = crate::log::FileAgentEventRecorder::new(&config.runs_dir, run_id)
-        .context("create Agent Event Log recorder")?;
-    let worker = crate::log::AgentEventLogWorker::start(receiver, recorder, status)
-        .context("start Agent Event Log worker")?;
+    let recorder = match crate::log::FileAgentEventRecorder::new(&config.runs_dir, run_id) {
+        Ok(recorder) => recorder,
+        Err(error) => {
+            let handle = crate::log::AgentEventLogHandle::failed(
+                &queued,
+                format!("create Agent Event Log recorder: {error:#}"),
+            );
+            return Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle));
+        }
+    };
+    let worker = match crate::log::AgentEventLogWorker::start(receiver, recorder, status) {
+        Ok(worker) => worker,
+        Err(error) => {
+            let handle = crate::log::AgentEventLogHandle::failed(
+                &queued,
+                format!("start Agent Event Log worker: {error:#}"),
+            );
+            return Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle));
+        }
+    };
     let handle = crate::log::AgentEventLogHandle::new(&queued, worker);
     Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle))
 }

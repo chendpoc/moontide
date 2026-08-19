@@ -58,6 +58,17 @@ impl AgentEventRecorder for QueuedAgentEventRecorder {
             return Ok(());
         }
 
+        // A failed diagnostic startup or stopped worker is fail-open: retain the
+        // status for the host, but do not emit one hook error for every later event.
+        if self
+            .status
+            .lock()
+            .map(|status| status.state == QueueState::Stopped)
+            .unwrap_or(true)
+        {
+            return Ok(());
+        }
+
         match self.sender.try_send(record) {
             Ok(()) => Ok(()),
             Err(mpsc::error::TrySendError::Full(_)) => {

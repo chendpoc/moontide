@@ -96,7 +96,7 @@ pub struct Agent {
 impl Agent {
     pub fn create(config: AgentConfig) -> anyhow::Result<Self>;
     pub fn resume(config: AgentConfig, session_id: &str) -> anyhow::Result<Self>;
-    pub async fn reload(config: AgentConfig) -> anyhow::Result<()>;
+    pub async fn reload(&mut self, config: AgentConfig) -> anyhow::Result<()>;
     pub fn session_id(&self) -> &str;
     pub async fn turn(
         &mut self,

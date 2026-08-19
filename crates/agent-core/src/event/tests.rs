@@ -343,6 +343,8 @@ fn derive_message_update_pending_text_maps_assistant_text() {
     assert_eq!(record.kind, "assistant_text");
     assert_eq!(record.payload["body"], "partial");
     assert_eq!(record.payload["charCount"], 7);
+    assert_eq!(record.payload["snapshot"]["pending"]["kind"], "text");
+    assert_eq!(record.payload["snapshot"]["pending"]["text"], "partial");
 }
 
 // 场景：流式 snapshot 携带尚未提交的 Unicode tool input；预期：使用独立的 trace/tool_use_update schema 并按字符计数；不变量/副作用：流式观测不能冒充已提交的 ToolCall 事实。
@@ -382,6 +384,18 @@ fn derive_message_update_separates_partial_tool_use_from_committed_call() {
             "input": expected_input,
             "llmCallId": "llm-call-1",
             "step": 2,
+            "snapshot": {
+                "content": [],
+                "pending": {
+                    "kind": "tool_use",
+                    "id": "tool-stream-1",
+                    "name": "grep",
+                    "input_json": input_json,
+                },
+                "stop_reason": null,
+                "usage": null,
+                "model": null,
+            },
         })
     );
 }
@@ -414,6 +428,10 @@ fn derive_message_update_counts_persisted_invalid_partial_input() {
     assert_eq!(record.kind, "tool_use_update");
     assert_eq!(record.payload["input"], input_json);
     assert_eq!(record.payload["charCount"], persisted_input.chars().count());
+    assert_eq!(
+        record.payload["snapshot"]["pending"]["input_json"],
+        input_json
+    );
 }
 
 // 场景：流式 snapshot 已形成完整 ToolUse block 但尚未产生 ToolCallRecorded；预期：仍使用 tool_use_update，并输出与 committed schema 区分的 llmCallId/step；不变量/副作用：snapshot 完整不等于调用事实已提交。
@@ -446,6 +464,15 @@ fn derive_message_update_completed_tool_block_remains_update() {
     assert_eq!(record.payload["charCount"], input_json.chars().count());
     assert_eq!(record.payload["llmCallId"], "llm-call-2");
     assert_eq!(record.payload["step"], 3);
+    assert_eq!(
+        record.payload["snapshot"]["content"][0],
+        serde_json::json!({
+            "type": "tool_use",
+            "id": "tool-stream-2",
+            "name": "read_file",
+            "input": input,
+        })
+    );
 }
 
 // 场景：assistant 最终消息包含 text 与 thinking blocks。
@@ -472,6 +499,14 @@ fn derive_assistant_finalized_maps_conversation_final() {
     assert_eq!(record.channel, AgentChannel::Conversation);
     assert_eq!(record.kind, "final");
     assert_eq!(record.payload["text"], "hello");
+    assert_eq!(record.payload["llmCallId"], "call-1");
+    assert_eq!(
+        record.payload["blocks"],
+        serde_json::json!([
+            { "type": "text", "text": "hello" },
+            { "type": "thinking", "thinking": "hmm" },
+        ])
+    );
 }
 
 // 场景：ToolResult 携带工具名称、调用 ID、状态和文本结果；预期：trace/tool_result payload 完整保留这些语义；不变量/副作用：观测日志直接读取 ToolResult，不复制另一套结果结构。
