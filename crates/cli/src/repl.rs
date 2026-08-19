@@ -102,14 +102,17 @@ pub(crate) async fn run(
                             anyhow::anyhow!("active agent missing after creation")
                         })?;
                         let cancellation = CancellationToken::new();
-                        let outcome = await_turn_with_ctrl_c(
-                            active_agent.turn(text, cancellation.clone()),
-                            cancellation,
-                            tokio::signal::ctrl_c(),
+                        let outcome = super::finalize_turn(
+                            await_turn_with_ctrl_c(
+                                active_agent.turn(text, cancellation.clone()),
+                                cancellation,
+                                tokio::signal::ctrl_c(),
+                            )
+                            .await,
+                            super::flush_progress(active_agent),
+                            super::flush_agent_event_log(active_agent),
                         )
                         .await?;
-                        let _ = active_agent.flush_progress().await;
-                        super::flush_agent_event_log(active_agent).await;
                         match outcome {
                             TurnOutcome::Completed(Ok(response)) => {
                                 write_assistant_stdout(&response, std::io::stdout().lock())

@@ -8,7 +8,7 @@
 | 1 | `llm` | 契约 | 无 | ☑ | ☑ | ☑ | R1–R6 完成；PR [#1](https://github.com/chendpoc/moontide/pull/1)–[#8](https://github.com/chendpoc/moontide/pull/8) |
 | 2 | `session` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + v2 call/result payload |
 | 3 | `tools` | 契约 | 无 | ☑ | ☑ | ☑ | RB1–RB2 + agent-tools R1；loop 集成归 loop 模块 |
-| 4 | `event` | 契约 | llm + tools 契约 | ☑ | ◐ | ◐ | R1–R3 + typed call/result payload；R4 observer bridge 已实现，等待 Review；sidecar 后置 |
+| 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R4 observer bridge 已实现；sidecar 后置 |
 | 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
 | 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成并通过 Review；compaction 后置 |
 | 7 | `loop` | 编排 | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；进入 scheduler 架构对齐 |
@@ -16,10 +16,10 @@
 
 ## 当前目标
 
-- 模块 1–3 `llm` / `session` / `tools`：**设计、实现与测试完成**；`event` 的 R1–R3 已完成，R4 observer bridge 已实现并等待 Review，sidecar 后置。
+- 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**；event sidecar 后置。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent::log` R3 已实现并通过 focused tests；event R4 observer bridge 已实现，等待 Review；随后完成 CLI 对 log/event/progress 的消费，再进入 Desktop Shell。
+- 当前推进：`agent::log` R3 与 event R4 observer bridge 已完成；当前推进 CLI 对 log/event/progress 的宿主消费，再进入 Desktop Shell。
 - 2026-08-19：日志架构完成 R3 落地：`TurnEvent dispatch → Session Item Log + Progress` 仍是默认路径；按 `DiagnosticPersistence` 启用时，`agent::log` 以 bounded queue、Tokio worker 和 buffered JSONL writer 持久化 Agent Event Log。
 
 ## 变更记录

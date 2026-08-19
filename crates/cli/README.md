@@ -1,7 +1,7 @@
 # cli
 
 > **性质：** MoonTide 用户入口的纯壳。
-> **状态：** CLI R1/R2/R3/R4 与 R5 项目设置持久化已实现并通过 workspace 检查。
+> **状态：** CLI R1/R2/R3/R4 与 R5 Progress/diagnostic status consumption 已实现；R5 待 Review。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
 > **关联：** [`../agent/README.md`](../agent/README.md) · [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md)
 
@@ -97,6 +97,7 @@ Trace 模式分层：`events` 展示 Turn/Step/LLM/Tool/Result 生命周期；`e
 - session id、approval prompt、diagnostics → stderr；
 - one-shot Turn error → stderr + non-zero exit；
 - REPL Turn error → stderr，REPL 继续；
+- Progress worker error、dropped event 或 resync requirement → stderr；
 - Tool approval prompt 显示工具名、结构化参数摘要和 `y/N`；
 - CLI 不 tail Agent Event JSONL，不直接渲染流式 snapshot。
 

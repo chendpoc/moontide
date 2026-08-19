@@ -10,10 +10,10 @@ mod settings;
 mod settings_ui;
 mod trace;
 
-use std::process::ExitCode;
+use std::{future::Future, io, process::ExitCode};
 
 use agent::{Agent, AgentConfig};
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use args::{CliArgs, LaunchMode};
 use clap::Parser;
 use config::{resolve_agent_config, session_mode, validate_prompt};
@@ -81,14 +81,17 @@ async fn run() -> Result<()> {
                 .as_mut()
                 .ok_or_else(|| anyhow::anyhow!("one-shot mode requires an active agent"))?;
             let session_id = active_agent.session_id().to_owned();
-            let outcome = await_turn_with_ctrl_c(
-                active_agent.turn(prompt, cancellation.clone()),
-                cancellation,
-                tokio::signal::ctrl_c(),
+            let outcome = finalize_turn(
+                await_turn_with_ctrl_c(
+                    active_agent.turn(prompt, cancellation.clone()),
+                    cancellation,
+                    tokio::signal::ctrl_c(),
+                )
+                .await,
+                flush_progress(active_agent),
+                flush_agent_event_log(active_agent),
             )
             .await?;
-            let _ = active_agent.flush_progress().await;
-            flush_agent_event_log(active_agent).await;
             let result = match outcome {
                 TurnOutcome::Completed(Ok(response)) => {
                     write_assistant_stdout(&response, std::io::stdout().lock())?;
@@ -117,6 +120,76 @@ async fn run() -> Result<()> {
         }
         _ => bail!("invalid CLI launch state"),
     }
+}
+
+pub(crate) async fn flush_progress(agent: &Agent) -> Result<()> {
+    let flush_result = agent.flush_progress().await;
+    let resync_required = agent.take_progress_resync_required();
+    let status = agent.progress_status();
+    report_progress_diagnostics(
+        flush_result,
+        resync_required,
+        status.as_ref(),
+        render::write_diagnostic_stderr,
+    )
+}
+
+pub(crate) async fn finalize_turn<ProgressFlush, LogFlush>(
+    turn_result: Result<TurnOutcome>,
+    progress_flush: ProgressFlush,
+    log_flush: LogFlush,
+) -> Result<TurnOutcome>
+where
+    ProgressFlush: Future<Output = Result<()>>,
+    LogFlush: Future<Output = ()>,
+{
+    let progress_result = progress_flush.await;
+    log_flush.await;
+    progress_result?;
+    turn_result
+}
+
+pub(crate) fn report_progress_diagnostics<WriteDiagnostic>(
+    flush_result: Result<()>,
+    resync_required: bool,
+    status: Option<&agent::ProgressStatus>,
+    mut write_diagnostic: WriteDiagnostic,
+) -> Result<()>
+where
+    WriteDiagnostic: FnMut(&str) -> io::Result<()>,
+{
+    if let Err(error) = flush_result {
+        write_diagnostic(&format!("ERROR: Progress flush failed: {error:#}"))
+            .context("write Progress flush diagnostic")?;
+    }
+    if let Some(status) = status {
+        for message in progress_status_messages(status, resync_required) {
+            write_diagnostic(&message).context("write Progress status diagnostic")?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn progress_status_messages(
+    status: &agent::ProgressStatus,
+    resync_required: bool,
+) -> Vec<String> {
+    let mut messages = Vec::new();
+    if resync_required {
+        messages.push(
+            "WARNING: Progress events were dropped; frontend state requires resync from session facts"
+                .into(),
+        );
+    }
+    if status.state != agent::ProgressWorkerState::Running {
+        messages.push(format!(
+            "WARNING: Progress worker state={:?}, dropped_events={}, last_error={}",
+            status.state,
+            status.dropped_events,
+            status.last_error.as_deref().unwrap_or("none")
+        ));
+    }
+    messages
 }
 
 pub(crate) async fn flush_agent_event_log(agent: &Agent) {

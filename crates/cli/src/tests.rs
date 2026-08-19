@@ -1,5 +1,6 @@
 use std::{
     future, io,
+    io::Write,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -14,8 +15,10 @@ use crate::{
     approval::{parse_response, truncate_preview},
     args::{CliArgs, LaunchMode},
     config::{resolve_agent_config_with, session_mode, validate_prompt},
+    finalize_turn, progress_status_messages,
     render::{assistant_text, write_assistant_stdout},
     repl::{await_turn_with_ctrl_c, parse_command, ReplCommand, TurnOutcome},
+    report_progress_diagnostics,
     settings::{ApprovalPolicy, GlobalConfigStore, TraceMode},
     trace::format_progress_event,
 };
@@ -351,4 +354,94 @@ fn trace_mode_renders_events_and_opt_in_thinking() {
             .expect("thinking event should render")
             .contains("thinking: inspect workspace")
     );
+}
+
+// Scenario: the Progress worker reports dropped events and a degraded state at turn completion.
+// Expected: CLI produces stderr-facing resync and worker diagnostics instead of silently discarding them.
+// Invariant: status formatting does not alter assistant stdout or reconstruct state from Agent Event JSONL.
+#[test]
+fn progress_status_reports_resync_and_worker_error() {
+    let status = agent::ProgressStatus {
+        state: agent::ProgressWorkerState::Degraded,
+        queue_capacity: 256,
+        queue_len: 0,
+        dropped_events: 2,
+        resync_required: true,
+        last_error: Some("observer failed".into()),
+    };
+
+    let messages = progress_status_messages(&status, true);
+    assert_eq!(messages.len(), 2);
+    assert!(messages[0].contains("resync"));
+    assert!(messages[1].contains("dropped_events=2"));
+    assert!(messages[1].contains("observer failed"));
+}
+
+// Scenario: Progress flushing fails while the CLI has a diagnostic sink available.
+// Expected: the flush failure is formatted and written through the diagnostic boundary.
+// Invariant: a worker failure is not silently discarded; only the sink's own I/O error is propagated.
+#[test]
+fn progress_flush_error_is_written_to_diagnostic_sink() {
+    let mut output = Vec::new();
+    report_progress_diagnostics(
+        Err(anyhow::anyhow!("worker stopped")),
+        false,
+        None,
+        |message| writeln!(output, "{message}"),
+    )
+    .expect("diagnostic sink should accept the flush error");
+
+    let output = String::from_utf8(output).expect("diagnostic output should be UTF-8");
+    assert!(output.contains("ERROR: Progress flush failed"));
+    assert!(output.contains("worker stopped"));
+}
+
+// Scenario: Ctrl-C signal handling returns an I/O error after cancelling an in-flight Turn.
+// Expected: shared turn finalization still flushes Progress and Agent Event Log before returning the signal error.
+// Invariant: signal failure cannot bypass either persistence/diagnostic flush boundary.
+#[tokio::test]
+async fn signal_error_still_runs_turn_flushes() {
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+    let turn = async move {
+        release_rx
+            .await
+            .map_err(|_| anyhow::anyhow!("turn release sender dropped"))?;
+        Ok::<_, anyhow::Error>(ModelResponse {
+            content: vec![ContentBlock::Text {
+                text: "ignored".into(),
+            }],
+            stop_reason: StopReason::EndTurn,
+            usage: None,
+            model: None,
+        })
+    };
+    let turn_result = await_turn_with_ctrl_c(turn, cancellation.clone(), async move {
+        release_tx
+            .send(())
+            .map_err(|_| io::Error::other("turn cleanup receiver dropped"))?;
+        Err::<(), _>(io::Error::other("signal failed"))
+    })
+    .await;
+
+    let progress_flushed = Arc::new(AtomicBool::new(false));
+    let progress_flushed_flag = Arc::clone(&progress_flushed);
+    let log_flushed = Arc::new(AtomicBool::new(false));
+    let log_flushed_flag = Arc::clone(&log_flushed);
+    let result = finalize_turn(
+        turn_result,
+        async move {
+            progress_flushed_flag.store(true, Ordering::SeqCst);
+            Ok(())
+        },
+        async move {
+            log_flushed_flag.store(true, Ordering::SeqCst);
+        },
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert!(cancellation.is_cancelled());
+    assert!(progress_flushed.load(Ordering::SeqCst));
+    assert!(log_flushed.load(Ordering::SeqCst));
 }

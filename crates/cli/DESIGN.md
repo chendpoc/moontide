@@ -1,7 +1,7 @@
 # cli — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** CLI R1/R2/R3/R4 与 R5 项目设置持久化已实现并通过 workspace 检查。
+> **状态：** CLI R1/R2/R3/R4 与 R5 Progress/diagnostic status consumption 已实现；R5 待 Review。
 > **关联：** [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md)
 
 ---
@@ -198,6 +198,8 @@ CLI 不直接消费 `ModelStreamEvent` 或 `ModelResponseSnapshot`；流式 UI �
 | `/exit` | zero exit | zero exit |
 
 CLI 不对 anyhow error 重新建模；只负责格式化诊断和退出策略。
+Progress flush failure、worker `Degraded`/`Stopped` 和 `resync_required` 必须输出到 stderr；
+resync 只提示宿主需要从 Session/turn result 重建状态，不在 CLI 内读取 Agent Event JSONL。
 
 ---
 

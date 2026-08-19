@@ -19,7 +19,7 @@ R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeli
 | **R3-F2** | 14 | ToolCall / ToolResult typed payload 接缝 | ☑ |
 | **R3-F3** | 15 | 删除领域 Run，保留 legacy Agent Event 契约 | ☑ |
 | **R4-A** | 16–17 | borrowed mutable commit + post-commit Hook，保留 AgentEvent 栈 | ☑ |
-| **R4-Observer** | 10 | bounded observer bridge + dispatcher 接线 | ◐ Review |
+| **R4-Observer** | 10 | bounded observer bridge + dispatcher 接线 | ☑ |
 | **R4-Sidecar** | 11 | observer bridge 订阅 → Transport | ☐ |
 
 ---
@@ -165,7 +165,7 @@ R1–R3-F3 记录已经交付的历史实现；Loop R1 已批准替换旧 pipeli
 - **做什么：** 后置异步 observer bridge；Hook 之后 publish；失败忽略。
 - **范围：** `observer_bridge.rs`、`pipeline.rs`、`mod.rs`、`tests.rs`。
 - **完成标准：** bounded `try_publish` 在全部 Hook 后执行；queue 满或 receiver 关闭不影响 dispatch；commit 失败不 publish；消费端可取得不可变 `TraceContext + TurnEvent`。
-- **状态：** ◐ Review
+- **状态：** ☑
 
 ### TASK-event-11: sidecar bridge
 

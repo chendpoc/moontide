@@ -420,7 +420,7 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 | **R3-legacy** | session commit + Agent Event recorder port | 文件 adapter 已迁移至 `agent::log` |
 | **R3-F2** | ToolCall/ToolResult typed payload | 已实现 |
 | **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | 已实现于 Loop R1 |
-| **R4-Observer** | bounded post-commit observer bridge | 本批实现，待 Review |
+| **R4-Observer** | bounded post-commit observer bridge | 已实现 |
 | **R4-Sidecar** | observer bridge → sidecar transport | 后置 |
 
 R4-A 应作为 loop `batch-implement` 的第一批接缝任务。它不授权删除任何已存在的观测能力。
