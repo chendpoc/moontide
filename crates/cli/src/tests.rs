@@ -7,15 +7,16 @@ use std::{
     },
 };
 
-use agent::{Agent, ContentBlock, ModelResponse, StopReason};
+use agent::{ContentBlock, ModelResponse, StopReason};
+use tempfile::tempdir;
 
 use crate::{
     approval::{parse_response, truncate_preview},
-    args::{ApprovalPolicyArg, CliArgs, LaunchMode},
+    args::{CliArgs, LaunchMode},
     config::{resolve_agent_config_with, session_mode, validate_prompt},
     render::{assistant_text, write_assistant_stdout},
     repl::{await_turn_with_ctrl_c, parse_command, ReplCommand, TurnOutcome},
-    settings::{ApprovalPolicy, RuntimeSettings, TraceMode},
+    settings::{ApprovalPolicy, GlobalConfigStore, TraceMode},
     trace::format_progress_event,
 };
 
@@ -37,8 +38,8 @@ fn args_select_one_shot_without_side_effects() {
     assert_eq!(args.launch_mode(), LaunchMode::OneShot);
     assert_eq!(args.prompt.as_deref(), Some("inspect project"));
     assert_eq!(args.cwd, Some(PathBuf::from("workspace")));
-    assert_eq!(args.model, "custom-model");
-    assert_eq!(args.approval_policy, ApprovalPolicyArg::Always);
+    assert_eq!(args.model.as_deref(), Some("custom-model"));
+    assert_eq!(args.approval_policy, None);
 }
 
 // Scenario: no --prompt is supplied for either a new or resumed Session.
@@ -61,7 +62,8 @@ fn create_and_resume_dispatch_to_repl_seam() {
 #[test]
 fn config_resolution_uses_explicit_inputs() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
-    let cwd = PathBuf::from("project");
+    let directory = tempdir().expect("temporary project directory");
+    let cwd = directory.path().to_owned();
     let config = resolve_agent_config_with(
         &args,
         cwd.clone(),
@@ -85,9 +87,10 @@ fn config_resolution_uses_explicit_inputs() {
 #[test]
 fn always_approval_policy_maps_all_tools_to_ask() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
+    let directory = tempdir().expect("temporary project directory");
     let config = resolve_agent_config_with(
         &args,
-        PathBuf::from("project"),
+        directory.path().to_owned(),
         Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Always),
     )
@@ -105,9 +108,10 @@ fn always_approval_policy_maps_all_tools_to_ask() {
 #[test]
 fn always_allow_policy_maps_all_tools_to_allow() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
+    let directory = tempdir().expect("temporary project directory");
     let config = resolve_agent_config_with(
         &args,
-        PathBuf::from("project"),
+        directory.path().to_owned(),
         Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::AlwaysAllow),
     )
@@ -143,19 +147,18 @@ fn missing_api_key_is_rejected() {
 #[test]
 fn invalid_working_directory_is_rejected_by_agent_boundary() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
-    let config = resolve_agent_config_with(
+    let result = resolve_agent_config_with(
         &args,
         PathBuf::from("missing-working-directory"),
         Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Default),
-    )
-    .expect("CLI config should resolve before Agent path validation");
+    );
 
-    assert!(Agent::create(config).is_err());
+    assert!(result.is_err());
 }
 
-fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSettings {
-    RuntimeSettings {
+fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> GlobalConfigStore {
+    GlobalConfigStore {
         api_key: api_key.into(),
         approval_policy,
         trace_mode: TraceMode::Off,
@@ -164,7 +167,6 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSe
         max_tokens: super::config::DEFAULT_MAX_TOKENS,
         max_steps: super::config::DEFAULT_MAX_STEPS,
         thinking_level: None,
-        quiet_startup: false,
         input_owner: None,
     }
 }

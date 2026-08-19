@@ -4,6 +4,7 @@
 > **当前阶段：** Desktop Shell v0.1
 > **执行路线：** [`../../TODO.md`](../../TODO.md)
 > **详细能力清单：** [`desktop-development-direction.md`](desktop-development-direction.md)
+> **成熟产品方向：** [`mature-product-direction.md`](mature-product-direction.md)
 > **历史版本：** [`../archive/product/plan-legacy-2026-08.md`](../archive/product/plan-legacy-2026-08.md)
 
 ## 1. 当前产品边界
@@ -63,6 +64,7 @@ P0 能力：
 - scheduler、多 Agent、delegate；
 - sidecar、MCP 和跨进程 daemon；
 - 本地模型 daemon；
+- Remote Compute、SSH 远程模型和 GPU 租赁；
 - compaction、memory、retrieval；
 - Go services、Node extension 和跨设备同步。
 

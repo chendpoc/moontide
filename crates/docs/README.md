@@ -12,6 +12,7 @@
 | [`extension-sidecar-runtime.md`](extension-sidecar-runtime.md) | 候选设计 | sidecar / MCP 边界，尚未实现 |
 | [`logging-and-session-design.md`](logging-and-session-design.md) | 候选设计 | 日志与 Session 方案，需以当前 `session` / `event` 契约为准 |
 | [`tiered-context-memory.md`](tiered-context-memory.md) | 候选设计 | 分层 Context 与长期记忆，尚未实现 |
+| [`tool-mediated-context-exploration.md`](tool-mediated-context-exploration.md) | 讨论候选 | 基础工具优先、语义工具加速与大内容有界探索，尚未实现 |
 
 候选设计不自动覆盖当前契约。它们必须在开头声明状态，并在确认后同步到本目录的当前 Rust 系统设计或源码模块设计文档。
 

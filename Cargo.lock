@@ -321,6 +321,7 @@ dependencies = [
  "clap",
  "crossterm",
  "rustyline",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

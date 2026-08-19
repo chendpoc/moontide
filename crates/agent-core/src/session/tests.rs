@@ -43,6 +43,32 @@ fn create_stores_session_under_date_partition() {
     SessionStore::load(&dir, &session_id).expect("reload partitioned session");
 }
 
+// 场景：sessions 目录不存在，随后创建两个日期分区内的 session。
+// 预期：查询不存在的目录返回 None，随后返回最近修改的 session id；不变量：查询只读，不创建 SessionStore 或文件。
+#[test]
+fn latest_session_id_is_read_only_and_returns_newest_session() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+
+    assert_eq!(
+        SessionStore::latest_session_id(&dir).expect("query missing dir"),
+        None
+    );
+    assert!(!dir.exists());
+
+    let first = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create first");
+    let first_id = first.header().session_id.clone();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let second = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create second");
+    let second_id = second.header().session_id.clone();
+
+    assert_ne!(first_id, second_id);
+    assert_eq!(
+        SessionStore::latest_session_id(&dir).expect("query latest session"),
+        Some(second_id)
+    );
+}
+
 // 场景：创建 v2 session 后写入消息、ToolCall 与 ToolResult，再重新加载；预期：header、顺序、身份、状态和 payload 往返一致；不变量/副作用：seq 连续，Session Item Log 不产生额外的调用模型。
 #[test]
 fn create_commit_load_round_trip() {

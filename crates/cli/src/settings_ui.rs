@@ -18,13 +18,13 @@ use crate::{
     setting_catalog::{
         apply_setting_change, apply_status_message, SettingApplyEffect, SettingCatalog,
     },
-    settings::RuntimeSettings,
+    settings::GlobalConfigStore,
 };
 
 const HINT: &str = "Type to search · ↑↓ select · Enter/Space change · Esc cancel";
 
 pub(crate) fn run_settings_ui(
-    settings: &mut RuntimeSettings,
+    settings: &mut GlobalConfigStore,
     agent: &mut Agent,
     args: &CliArgs,
 ) -> Result<()> {
@@ -65,7 +65,7 @@ pub(crate) fn run_settings_ui(
 fn settings_loop(
     stdout: &mut impl Write,
     catalog: &mut SettingCatalog,
-    settings: &mut RuntimeSettings,
+    settings: &mut GlobalConfigStore,
     agent: &mut Agent,
     args: &CliArgs,
     filter: &mut String,
@@ -109,7 +109,7 @@ fn settings_loop(
 
 struct SettingsKeyCtx<'a, W: Write> {
     catalog: &'a mut SettingCatalog,
-    settings: &'a mut RuntimeSettings,
+    settings: &'a mut GlobalConfigStore,
     agent: &'a mut Agent,
     args: &'a CliArgs,
     filter: &'a mut String,
@@ -148,9 +148,13 @@ fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) -> Resul
                     return Ok(false);
                 }
                 if effect != SettingApplyEffect::ReadOnly {
-                    if let Err(error) =
-                        apply_setting_change(effect, ctx.settings, ctx.agent, ctx.args)
-                    {
+                    if let Err(error) = apply_setting_change(
+                        effect,
+                        &previous_settings,
+                        ctx.settings,
+                        ctx.agent,
+                        ctx.args,
+                    ) {
                         *ctx.settings = previous_settings;
                         *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent);
                         return Err(error);

@@ -41,6 +41,7 @@ crates/agent/
   src/
     lib.rs
     config.rs             # ProviderConfig / AgentConfig
+    platform/              # ProjectPaths 与 settings 原子写入
     bootstrap.rs          # create/resume 装配
     prompt.rs             # Harness + AGENTS.md → SystemPrompt
     agent.rs              # Agent facade → AgentLoop
@@ -209,9 +210,52 @@ agent-core ↛ agent / cli / agent-tools
 
 `ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。
 
+## 8. Platform paths and project settings
+
+`agent::platform` 是宿主共用的跨平台路径 seam，不是包住所有 `std::fs` / `std::path` 的万能 common module。
+
+### 8.1 `ProjectPaths`
+
+```text
+resolve(cwd, sessions_dir?, runs_dir?)
+  → absolute cwd
+  → relative overrides resolve against cwd
+  → missing overrides default to cwd/.moontide/{sessions,runs}
+  → settings_path = cwd/.moontide/settings.json
+```
+
+规则：
+
+- 使用 `PathBuf` / `OsStr`，不把路径转为字符串再处理；
+- 不拼接 `/` 或 `\\`；
+- 不读取环境变量；
+- 不默认调用 `canonicalize`；
+- `cwd` 必须是现有目录；
+- `sessions_dir` / `runs_dir` 可不存在，由宿主 bootstrap 创建和校验；
+- 用户传入的绝对路径不被重定位。
+
+Session/Run/Settings 均为项目本地 `.moontide` 布局；用户级 config/data/cache 目录不属于当前 module。
+
+### 8.2 Settings persistence
+
+设置 schema 由 CLI/frontend 拥有，第一版带显式 `version: 1`。`api_key` 可以持久化在项目设置中；它不进入 Session Item Log 或 Agent Event Log。
+
+API key 优先级：`--api-key` > `DEEPSEEK_API_KEY` > `settings.json` > interactive input。其他设置优先级：显式 CLI 参数 > `settings.json` > 环境变量 > 默认值。CLI 参数必须使用 `Option<T>` 保留“未传入”和“显式传入”的区别。
+
+`write_settings_atomically(path, bytes)` 在目标目录创建临时文件，写入完整 bytes 后以平台可用的替换语义更新目标文件。它不解析 JSON、不合并配置、不实现 concurrent writer；第一版约束一个 workspace 同时只有一个 settings writer。损坏或未知版本的 settings 文件由 frontend 显式报错并保留原文件。
+
+### 8.3 Ownership
+
+```text
+agent::platform  → 路径解析、settings 原子替换
+cli/frontend     → settings schema、JSON 解析、优先级、读写流程
+agent            → AgentConfig 装配
+agent-core       → Session Item Log / AgentLoop，不读取 settings.json
+```
+
 ---
 
-## 8. 错误与生命周期
+## 9. 错误与生命周期
 
 - `create/resume` 失败不产生可运行 Agent；
 - `Agent::turn` 错误不回滚已提交 Session facts；
@@ -222,7 +266,7 @@ agent-core ↛ agent / cli / agent-tools
 
 ---
 
-## 9. 决策记录
+## 10. 决策记录
 
 1. agent 是唯一组合根，不把装配逻辑塞入 cli 或 agent-core；
 2. AgentConfig 接收显式解析值，agent 不读取环境变量；
@@ -234,7 +278,7 @@ agent-core ↛ agent / cli / agent-tools
 
 ---
 
-## 10. 单测方向
+## 11. 单测方向
 
 - ProviderConfig → AdapterConfig 映射；
 - create/resume Session identity 与独立 legacy run partition；
@@ -245,3 +289,6 @@ agent-core ↛ agent / cli / agent-tools
 - Agent 多 Turn 复用同一 SessionStore；
 - Agent 不直接 commit_item、不 import scheduler/cli；
 - bootstrap 错误不产生半装配 Agent。
+- ProjectPaths 的相对/绝对路径解析在 macOS、Windows、Linux 保持同一契约；
+- settings 原子写入不留下半个 JSON，目标文件替换失败时返回错误；
+- settings writer 的单写者约束不被伪装成跨进程并发支持。

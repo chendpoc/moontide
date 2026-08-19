@@ -1,12 +1,15 @@
 use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
 
-use agent::{AdapterFamily, AgentConfig, ToolApprovalHandler, ToolPermission, ToolPermissionMap};
+use agent::{
+    platform::ProjectPaths, AdapterFamily, AgentConfig, ToolApprovalHandler, ToolPermission,
+    ToolPermissionMap,
+};
 use anyhow::{bail, Context, Result};
 
 use crate::args::CliArgs;
 use crate::{
     approval::{InteractiveApproval, NonInteractiveApproval},
-    settings::{ApprovalPolicy, RuntimeSettings, TraceMode},
+    settings::{ApprovalPolicy, GlobalConfigStore, TraceMode},
     trace::TraceObserver,
 };
 
@@ -16,7 +19,7 @@ const API_KEY_ENV: &str = "DEEPSEEK_API_KEY";
 
 pub(crate) fn resolve_agent_config(
     args: &CliArgs,
-    settings: &RuntimeSettings,
+    settings: &GlobalConfigStore,
 ) -> Result<AgentConfig> {
     let cwd = args
         .cwd
@@ -27,23 +30,26 @@ pub(crate) fn resolve_agent_config(
     resolve_agent_config_with(args, cwd, Some(settings.api_key.clone()), settings)
 }
 
+pub(crate) fn resolve_project_paths(args: &CliArgs) -> Result<ProjectPaths> {
+    let cwd = args
+        .cwd
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(env::current_dir)
+        .context("resolve current working directory")?;
+    ProjectPaths::resolve(cwd, args.sessions_dir.clone(), args.runs_dir.clone())
+}
+
 pub(crate) fn resolve_agent_config_with(
     args: &CliArgs,
     cwd: PathBuf,
     api_key: Option<String>,
-    settings: &RuntimeSettings,
+    settings: &GlobalConfigStore,
 ) -> Result<AgentConfig> {
     let api_key = api_key
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("{API_KEY_ENV} is required"))?;
-    let sessions_dir = args
-        .sessions_dir
-        .clone()
-        .unwrap_or_else(|| cwd.join(".moontide").join("sessions"));
-    let runs_dir = args
-        .runs_dir
-        .clone()
-        .unwrap_or_else(|| cwd.join(".moontide").join("runs"));
+    let paths = ProjectPaths::resolve(cwd, args.sessions_dir.clone(), args.runs_dir.clone())?;
 
     let (tool_names, permissions) = coding_preset(settings.approval_policy);
     let approval: Option<Arc<dyn ToolApprovalHandler>> = match settings.approval_policy {
@@ -61,9 +67,9 @@ pub(crate) fn resolve_agent_config_with(
         }
     };
     Ok(AgentConfig {
-        cwd,
-        sessions_dir,
-        runs_dir,
+        cwd: paths.cwd,
+        sessions_dir: paths.sessions_dir,
+        runs_dir: paths.runs_dir,
         provider: agent::ProviderConfig {
             family: AdapterFamily::OpenAiChatCompletions,
             base_url: settings.base_url.clone(),

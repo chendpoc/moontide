@@ -1,6 +1,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use anyhow::{Context, Result};
 
@@ -176,6 +177,94 @@ pub(crate) fn locate_session_dir(sessions_dir: &Path, session_id: &str) -> Resul
         "session meta not found under {} for session_id {session_id}",
         sessions_dir.display()
     )
+}
+
+pub(crate) fn latest_session_id(sessions_dir: &Path) -> Result<Option<String>> {
+    let entries = match fs::read_dir(sessions_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("read sessions dir {}", sessions_dir.display()))
+        }
+    };
+
+    let mut latest: Option<(SystemTime, String)> = None;
+    for entry in entries {
+        let entry = entry
+            .with_context(|| format!("read sessions dir entry in {}", sessions_dir.display()))?;
+        let storage_dir = entry.path();
+        if !storage_dir.is_dir() {
+            continue;
+        }
+        let partition = entry.file_name();
+        let Some(partition) = partition.to_str() else {
+            continue;
+        };
+        if !is_date_partition(partition) {
+            continue;
+        }
+
+        for file in fs::read_dir(&storage_dir)
+            .with_context(|| format!("read session partition {}", storage_dir.display()))?
+        {
+            let file = file.with_context(|| {
+                format!("read session partition entry in {}", storage_dir.display())
+            })?;
+            let path = file.path();
+            let Some(name) = file.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            let Some(session_id) = name.strip_suffix(".meta.json") else {
+                continue;
+            };
+            if validate_session_id(session_id).is_err() {
+                continue;
+            }
+
+            let (_, log_path) = session_file_paths(&storage_dir, session_id);
+            if !path.is_file() || !log_path.is_file() {
+                continue;
+            }
+            let modified = newest_modified_time(&path, &log_path)?;
+            let is_newer = match latest.as_ref() {
+                None => true,
+                Some((latest_time, latest_id)) => {
+                    modified > *latest_time
+                        || (modified == *latest_time && session_id > latest_id.as_str())
+                }
+            };
+            if is_newer {
+                latest = Some((modified, session_id.to_owned()));
+            }
+        }
+    }
+
+    Ok(latest.map(|(_, session_id)| session_id))
+}
+
+fn newest_modified_time(meta_path: &Path, log_path: &Path) -> Result<SystemTime> {
+    let meta_time = fs::metadata(meta_path)
+        .with_context(|| format!("read session meta metadata {}", meta_path.display()))?
+        .modified()
+        .with_context(|| {
+            format!(
+                "read session meta modification time {}",
+                meta_path.display()
+            )
+        })?;
+    let log_time = match fs::metadata(log_path) {
+        Ok(metadata) => Some(metadata.modified().with_context(|| {
+            format!("read session log modification time {}", log_path.display())
+        })?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("read session log metadata {}", log_path.display()))
+        }
+    };
+
+    Ok(log_time.map_or(meta_time, |time| time.max(meta_time)))
 }
 
 fn session_file_paths(storage_dir: &Path, session_id: &str) -> (PathBuf, PathBuf) {

@@ -3,9 +3,12 @@ use anyhow::{bail, Result};
 
 use crate::{
     args::CliArgs,
-    config::{resolve_agent_config, DEFAULT_MAX_STEPS, DEFAULT_MAX_TOKENS},
+    config::resolve_agent_config,
     fuzzy::fuzzy_filter,
-    settings::{format_api_key, ApprovalPolicy, RuntimeSettings, TraceMode},
+    settings::{
+        format_api_key, load_global_config_store, persist_global_config_store, ApprovalPolicy,
+        GlobalConfigStore, TraceMode,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,7 +20,6 @@ pub(crate) enum SettingId {
     MaxSteps,
     MaxTokens,
     Model,
-    QuietStartup,
     ThinkingLevel,
     Trace,
 }
@@ -27,7 +29,6 @@ pub(crate) enum SettingApplyEffect {
     ReadOnly,
     NextTurn,
     ReloadAgent,
-    NextLaunch,
 }
 
 pub(crate) struct SettingEntry {
@@ -53,7 +54,6 @@ impl SettingEntry {
             SettingId::MaxSteps => "max-steps",
             SettingId::MaxTokens => "max-tokens",
             SettingId::Model => "model",
-            SettingId::QuietStartup => "quiet-startup",
             SettingId::ThinkingLevel => "thinking-level",
             SettingId::Trace => "trace",
         }
@@ -65,7 +65,7 @@ pub(crate) struct SettingCatalog {
 }
 
 impl SettingCatalog {
-    pub(crate) fn from_runtime(settings: &RuntimeSettings, agent: &Agent) -> Self {
+    pub(crate) fn from_runtime(settings: &GlobalConfigStore, agent: &Agent) -> Self {
         Self {
             entries: vec![
                 SettingEntry {
@@ -159,14 +159,6 @@ impl SettingCatalog {
                     values: None,
                     apply: SettingApplyEffect::ReadOnly,
                 },
-                SettingEntry {
-                    id: SettingId::QuietStartup,
-                    label: "Quiet startup",
-                    description: "Hide verbose startup output on the next CLI launch",
-                    current_value: bool_label(settings.quiet_startup).to_owned(),
-                    values: Some(vec!["false".into(), "true".into()]),
-                    apply: SettingApplyEffect::NextLaunch,
-                },
             ],
         }
     }
@@ -206,7 +198,7 @@ impl SettingCatalog {
         Ok(Some(entry.apply))
     }
 
-    pub(crate) fn sync_to_runtime(&self, settings: &mut RuntimeSettings) -> Result<()> {
+    pub(crate) fn sync_to_runtime(&self, settings: &mut GlobalConfigStore) -> Result<()> {
         for entry in &self.entries {
             match entry.id {
                 SettingId::Model => settings.model = entry.current_value.clone(),
@@ -228,9 +220,6 @@ impl SettingCatalog {
                         anyhow::anyhow!("invalid max tokens value: {}", entry.current_value)
                     })?;
                 }
-                SettingId::QuietStartup => {
-                    settings.quiet_startup = entry.current_value == "true";
-                }
                 SettingId::ApiKey | SettingId::Cwd => {}
             }
         }
@@ -240,22 +229,48 @@ impl SettingCatalog {
 
 pub(crate) fn apply_setting_change(
     effect: SettingApplyEffect,
-    settings: &RuntimeSettings,
+    previous_settings: &GlobalConfigStore,
+    settings: &mut GlobalConfigStore,
     agent: &mut Agent,
     args: &CliArgs,
 ) -> Result<()> {
-    match effect {
-        SettingApplyEffect::ReadOnly | SettingApplyEffect::NextLaunch => Ok(()),
+    if matches!(effect, SettingApplyEffect::ReadOnly) {
+        return Ok(());
+    }
+
+    persist_global_config_store(args, settings)?;
+    let apply_result = match effect {
         SettingApplyEffect::NextTurn => agent.apply_turn_limits(
             settings.max_steps,
             settings.max_tokens,
             settings.thinking_level,
         ),
-        SettingApplyEffect::ReloadAgent => {
-            let config = resolve_agent_config(args, settings)?;
-            agent.reload(config)
+        SettingApplyEffect::ReloadAgent => reload_agent_from_persisted_store(args, settings, agent),
+        SettingApplyEffect::ReadOnly => Ok(()),
+    };
+    if let Err(error) = apply_result {
+        if let Err(restore_error) = persist_global_config_store(args, previous_settings) {
+            return Err(error.context(format!(
+                "restore settings file after applying runtime settings failed: {restore_error:#}"
+            )));
         }
+        return Err(error);
     }
+    Ok(())
+}
+
+fn reload_agent_from_persisted_store(
+    args: &CliArgs,
+    settings: &mut GlobalConfigStore,
+    agent: &mut Agent,
+) -> Result<()> {
+    let input_owner = settings.input_owner.clone();
+    let mut reloaded = load_global_config_store(args)?;
+    reloaded.input_owner = input_owner;
+    let config = resolve_agent_config(args, &reloaded)?;
+    agent.reload(config)?;
+    *settings = reloaded;
+    Ok(())
 }
 
 pub(crate) fn apply_status_message(effect: SettingApplyEffect) -> &'static str {
@@ -263,7 +278,6 @@ pub(crate) fn apply_status_message(effect: SettingApplyEffect) -> &'static str {
         SettingApplyEffect::ReadOnly => "read-only",
         SettingApplyEffect::NextTurn => "applied on next turn",
         SettingApplyEffect::ReloadAgent => "agent reloaded",
-        SettingApplyEffect::NextLaunch => "applies on next launch",
     }
 }
 
@@ -300,14 +314,6 @@ fn thinking_label(level: Option<ThinkingLevel>) -> &'static str {
     }
 }
 
-fn bool_label(value: bool) -> &'static str {
-    if value {
-        "true"
-    } else {
-        "false"
-    }
-}
-
 fn parse_approval(value: &str) -> Result<ApprovalPolicy> {
     match value {
         "always ask" => Ok(ApprovalPolicy::Always),
@@ -336,21 +342,6 @@ fn parse_thinking(value: &str) -> Result<Option<ThinkingLevel>> {
     }
 }
 
-pub(crate) fn initial_runtime_settings(args: &CliArgs, api_key: String) -> RuntimeSettings {
-    RuntimeSettings {
-        api_key,
-        approval_policy: args.approval_policy.into(),
-        trace_mode: args.trace.into(),
-        model: args.model.clone(),
-        base_url: args.base_url.clone(),
-        max_tokens: DEFAULT_MAX_TOKENS,
-        max_steps: DEFAULT_MAX_STEPS,
-        thinking_level: None,
-        quiet_startup: false,
-        input_owner: None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,7 +356,9 @@ mod tests {
         let mut args = <CliArgs as Parser>::parse_from(["moontide"]);
         let directory = tempdir().expect("temporary CLI settings directory");
         args.cwd = Some(directory.path().to_owned());
-        let settings = initial_runtime_settings(&args, "secret".into());
+        let mut settings =
+            crate::settings::load_global_config_store(&args).expect("global config store");
+        settings.api_key = "secret".into();
         let config = resolve_agent_config(&args, &settings).expect("config");
         let agent = Agent::create(config).expect("agent");
         let catalog = SettingCatalog::from_runtime(&settings, &agent);

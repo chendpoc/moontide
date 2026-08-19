@@ -53,7 +53,7 @@
 
 ### TASK-cli-05: `/settings` overlay 与 catalog
 
-- **做什么：** 实现 crossterm alternate-screen settings overlay、逐键 fuzzy filter、setting catalog 与 NextTurn/ReloadAgent/NextLaunch/ReadOnly 生效边界。
+- **做什么：** 实现 crossterm alternate-screen settings overlay、逐键 fuzzy filter、setting catalog 与 NextTurn/ReloadAgent/ReadOnly 生效边界。
 - **依赖：** TASK-cli-04
 - **范围：** `crates/cli/src/fuzzy.rs`、`setting_catalog.rs`、`settings_ui.rs`、`settings.rs`、`repl.rs`、`main.rs`、`tests.rs`
 - **预估 diff：** ~700 行

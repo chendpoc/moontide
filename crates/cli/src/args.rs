@@ -18,6 +18,10 @@ pub(crate) struct CliArgs {
     #[arg(long)]
     pub(crate) cwd: Option<PathBuf>,
 
+    /// API key used for the provider; falls back to the project settings file.
+    #[arg(long, env = "DEEPSEEK_API_KEY")]
+    pub(crate) api_key: Option<String>,
+
     /// Session Item Log directory.
     #[arg(long)]
     pub(crate) sessions_dir: Option<PathBuf>,
@@ -27,20 +31,20 @@ pub(crate) struct CliArgs {
     pub(crate) runs_dir: Option<PathBuf>,
 
     /// Model name sent to the OpenAI-compatible provider.
-    #[arg(long, default_value = "deepseek-chat")]
-    pub(crate) model: String,
+    #[arg(long)]
+    pub(crate) model: Option<String>,
 
     /// OpenAI-compatible endpoint root.
-    #[arg(long, default_value = "https://api.deepseek.com")]
-    pub(crate) base_url: String,
+    #[arg(long)]
+    pub(crate) base_url: Option<String>,
 
     /// Approval policy for non-interactive one-shot mode and the Settings default.
-    #[arg(long, value_enum, default_value_t = ApprovalPolicyArg::Always)]
-    pub(crate) approval_policy: ApprovalPolicyArg,
+    #[arg(long, value_enum)]
+    pub(crate) approval_policy: Option<ApprovalPolicyArg>,
 
     /// Display live execution events on stderr.
-    #[arg(long, value_enum, default_value_t = TraceModeArg::Off)]
-    pub(crate) trace: TraceModeArg,
+    #[arg(long, value_enum)]
+    pub(crate) trace: Option<TraceModeArg>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
