@@ -1,6 +1,6 @@
 # 日志与 Session 设计
 
-> 状态：R2 当前路径已确认；Session Item Log 契约已实现，Progress 是当前宿主事件路径；Agent Event Log 保留为 R3/可选诊断能力。
+> 状态：R3 日志链路已实现；默认仍使用 Session Item Log + Progress，Agent Event Log 按 policy 可选启用。
 
 本文统一定义 Session Item Log、Agent Event Log、Progress stream 和项目级 persistence policy。它不把三条链路合并成一种日志。
 
@@ -9,7 +9,7 @@
 ```text
                          ┌─ Session Item Log ───────→ resume / materialize
 TurnEvent dispatch ──────┼─ Progress queue ──────────→ frontend
-                         └─ Agent Event Log ─────────→ R3 optional diagnostics
+                         └─ Agent Event Log ─────────→ optional diagnostics
 ```
 
 | 链路 | Owner | 目的 | 默认是否落盘 | 丢失影响 |
@@ -20,9 +20,8 @@ TurnEvent dispatch ──────┼─ Progress queue ───────
 
 核心原则：**Session Item Log 是唯一恢复事实源；TurnEvent dispatch 是唯一事件入口；Progress 服务实时消费；Agent Event Log 只在需要诊断持久化时启用。**
 
-R2 的实际运行路径只有 `TurnEvent dispatch → Session Item Log + Progress`。Agent Event
-Log 的 schema、recorder port 和组合根 owner 可以提前定义，但 queue、worker 和文件
-持久化不属于 R2 必需实现。
+默认运行路径仍是 `TurnEvent dispatch → Session Item Log + Progress`。启用诊断 policy
+后，额外接入 `agent::log` 的 queue、worker 和文件持久化。
 
 ## 2. 文件与事实源
 
@@ -34,7 +33,7 @@ Log 的 schema、recorder port 和组合根 owner 可以提前定义，但 queue
 │       ├── {session_id}.meta.json       # SessionHeader
 │       └── {session_id}.log.jsonl       # Session Item Log
 └── runs/
-    └── {run_id}.active.jsonl            # Agent Event Log（R3 optional）
+    └── {run_id}.active.jsonl            # Agent Event Log（diagnostic policy enabled）
 ```
 
 Session 使用本地日期分区；Agent Event 使用当前 legacy `run_id` 分区和 `.active.jsonl` 文件名。resume 只读取对应 Session Item Log，不依赖 Agent Event Log、Progress queue 或 frontend 状态。
@@ -59,18 +58,19 @@ Session Item Log 保存模型可见或恢复所需的 canonical `SessionItem`：
 4. header 外置，不作为可 materialize 的 SessionItem；
 5. Session commit 失败必须暴露到 turn 边界，不能被观测 Hook 吞掉。
 
-Session Item Log 属于正确性路径，不进入可丢弃 queue。当前 R2 只实现 `SessionPersistence::Items`；`Disabled` 保留为后续 memory-only SessionStore 设计，不在本批实现。
+Session Item Log 属于正确性路径，不进入可丢弃 queue。当前实现只提供
+`SessionPersistence::Items`；`Disabled` 保留为后续 memory-only SessionStore 设计，不在本批实现。
 
-## 4. Agent Event Log（R3 optional）
+## 4. Agent Event Log（R3）
 
-Agent Event Log 由 `TurnEvent` derive 得到，记录“发生了什么以及怎么发生”，但不是 resume 所需事实。它是 R3 的可选诊断持久化能力，不是 R2 的默认运行路径。启用后，Agent Event Record 在 queue 中保留完整 canonical payload：
+Agent Event Log 由 `TurnEvent` derive 得到，记录“发生了什么以及怎么发生”，但不是 resume 所需事实。它是 R3 的可选诊断持久化能力，默认仍关闭。启用后，Agent Event Record 在 bounded queue 中保留完整 canonical payload：
 
 - turn / step / LLM attempt 生命周期；
 - typed `LlmCallOutcome`；
 - 完整 `ToolCall` / `ToolResult` payload；
 - `AssistantFinalized`；
 - 按 persistence policy 选择的 `MessageUpdate` snapshot；
-- provider raw trace（仅 Debug，且必须经过脱敏策略）。
+- provider raw trace（后置；当前 R3 没有该数据源，不进入 Debug derived record）。
 
 完整 record 只存在于派生和 queue 阶段。写入 JSONL 时才执行单条大小限制、截断、preview 或简化；发生简化时必须记录 `truncated` / `originalBytes`。
 
@@ -116,9 +116,9 @@ Hook 不把 queue backpressure 传入 commit 或 loop；只有 queue 已关闭�
 
 Agent Event Log worker 独占文件句柄、seq/turn 恢复、JSONL 编码、批量 flush 和文件生命周期。worker 不依赖 AgentLoop、SessionStore 或 frontend。
 
-R2 不创建 Agent Event Log worker，不创建 `runs/{run_id}.active.jsonl`，也不向 Agent
-公开 diagnostic flush/status API。后续只有出现崩溃诊断、独立进程观测、sidecar 消费或
-持久化 replay 等真实消费者时，才实现本节链路。
+`DiagnosticPersistence::Off` 不创建 Agent Event Log worker，不创建 `runs/{run_id}.active.jsonl`；
+Agent 仍提供统一的 flush/status API，但关闭 policy 时返回 `None`/no-op。当前 R3 不实现
+provider raw trace、rotation、retention 或 sidecar 消费。
 
 ## 5. Progress stream
 
@@ -156,7 +156,7 @@ Persistence policy 由 CLI/frontend 解析，写入项目级 `<cwd>/.moontide/se
 ```rust
 enum SessionPersistence {
     Items,
-    Disabled, // reserved; R2 does not implement
+    Disabled, // reserved; current batch does not implement
 }
 
 enum DiagnosticPersistence {
@@ -208,7 +208,7 @@ Items + Off
   → Progress 是否启用由 frontend observer / trace mode 独立决定
 ```
 
-`DiagnosticPersistence::Errors` 的错误事件分类在实现该模式前必须单独定义；当前实现批只要求 `Off` 的关闭语义和 `Normal` / `Debug` 的后续扩展位置。
+`DiagnosticPersistence::Errors` 只记录失败或取消的 LLM call 和非 succeeded 的 tool result；`Normal` 过滤高频 snapshot；`Debug` 记录全部 derived records。三种模式都通过独立 worker 写入，并由 status 暴露 dropped events 与 file/worker errors。
 
 ## 7. Worker API 原则
 
@@ -245,8 +245,8 @@ pub struct AgentEventLogStatus {
 }
 ```
 
-R2 不要求 Agent Event Log 的 `dropped_bytes`、byte-budget queue、metrics exporter、flush
-或持久化 status API；这些属于 R3 诊断资源能力。
+当前 R3 不要求 Agent Event Log 的 `dropped_bytes`、byte-budget queue 或 metrics exporter；
+R3 已提供显式 `flush` 和持久化 worker status API。
 
 ## 8. Plugin / Hook 边界
 
@@ -265,10 +265,10 @@ R2 不要求 Agent Event Log 的 `dropped_bytes`、byte-budget queue、metrics e
 ## 10. 非目标
 
 - 不用 Agent Event Log 恢复 Session；
-- 不在 R2 实现 Agent Event Log queue、worker 和文件持久化；
+- 不在当前 R3 实现 provider raw trace、rotation、retention 或 sidecar 消费；
 - 不把每个 token 永久保存为默认行为；
 - 不把 Progress snapshot 写入 Session Item Log；
 - 不让 Hook 同步执行文件 IO；
 - 不引入无界 queue；
-- 不在 R2 实现 `SessionPersistence::Disabled`；
+- 不在当前批实现 `SessionPersistence::Disabled`；
 - 不为当前单窗口、单活跃 Session、Turn 串行场景提前引入 daemon、IPC 或 multi-session scheduler。

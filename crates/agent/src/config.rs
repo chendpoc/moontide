@@ -66,18 +66,9 @@ impl Default for PersistenceConfig {
 }
 
 impl PersistenceConfig {
-    pub(crate) fn validate_r2(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         if self.session != SessionPersistence::Items {
-            bail!(
-                "session persistence {:?} is not implemented in R2",
-                self.session
-            );
-        }
-        if self.diagnostic != DiagnosticPersistence::Off {
-            bail!(
-                "diagnostic persistence {:?} is reserved for the R3 Agent Event Log",
-                self.diagnostic
-            );
+            bail!("session persistence {:?} is not implemented", self.session);
         }
         Ok(())
     }
@@ -90,7 +81,7 @@ pub trait ProgressObserver: Send + Sync {
 
 impl AgentConfig {
     pub(crate) fn validate_values(&self) -> Result<()> {
-        self.persistence.validate_r2()?;
+        self.persistence.validate()?;
         if self.provider.base_url.trim().is_empty() {
             bail!("provider base_url must not be empty");
         }

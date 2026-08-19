@@ -23,7 +23,7 @@ use crate::{
 
 const HINT: &str = "Type to search · ↑↓ select · Enter/Space change · Esc cancel";
 
-pub(crate) fn run_settings_ui(
+pub(crate) async fn run_settings_ui(
     settings: &mut GlobalConfigStore,
     agent: &mut Agent,
     args: &CliArgs,
@@ -50,7 +50,8 @@ pub(crate) fn run_settings_ui(
         args,
         &mut filter,
         &mut selected,
-    );
+    )
+    .await;
 
     let restore_result = queue!(stdout, Show, LeaveAlternateScreen)
         .and_then(|_| stdout.flush())
@@ -62,7 +63,7 @@ pub(crate) fn run_settings_ui(
     raw_mode_result
 }
 
-fn settings_loop(
+async fn settings_loop(
     stdout: &mut impl Write,
     catalog: &mut SettingCatalog,
     settings: &mut GlobalConfigStore,
@@ -97,7 +98,7 @@ fn settings_loop(
                     filtered: &filtered,
                     stdout,
                 };
-                if handle_key(key, &mut ctx)? {
+                if handle_key(key, &mut ctx).await? {
                     return Ok(());
                 }
             }
@@ -118,7 +119,7 @@ struct SettingsKeyCtx<'a, W: Write> {
     stdout: &'a mut W,
 }
 
-fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) -> Result<bool> {
+async fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) -> Result<bool> {
     match key.code {
         KeyCode::Esc => return Ok(true),
         KeyCode::Up => {
@@ -154,7 +155,9 @@ fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) -> Resul
                         ctx.settings,
                         ctx.agent,
                         ctx.args,
-                    ) {
+                    )
+                    .await
+                    {
                         *ctx.settings = previous_settings;
                         *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent);
                         return Err(error);

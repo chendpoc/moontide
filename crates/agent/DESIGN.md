@@ -1,7 +1,7 @@
 # agent — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** 初步可用版 Agent R1/R2 已实现；CLI 接缝按后续 `cli` 模块实现。
+> **状态：** 初步可用版 Agent R1–R3 已实现；CLI 接缝按后续 `cli` 模块实现。
 > **关联：** [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ---
@@ -17,7 +17,7 @@
 | agent-tools catalog → ToolRegistry | 复制 ToolRuntime/Loop 状态机 |
 | permission map + approval handler 注入 | scheduler、并发 ToolExecutor |
 | Harness/Project → SystemPrompt | 将 UserMessage 拼入 SystemPrompt |
-| EventDispatcher 与 Progress Hook | R3 前不装配 Agent Event diagnostic worker、OTel、sidecar、A2A |
+| EventDispatcher、Progress Hook 与可选 Agent Event diagnostic worker | OTel、sidecar、A2A |
 | AgentLoop ownership | CLI 参数、REPL、stdout 渲染 |
 
 依赖方向固定：
@@ -41,7 +41,7 @@ crates/agent/
   src/
     lib.rs
     config.rs             # ProviderConfig / AgentConfig
-    log/                  # R3 optional Agent Event diagnostic queue / worker / file persistence
+    log/                  # R3 Agent Event diagnostic queue / worker / file persistence
     platform/              # ProjectPaths 与 settings 原子写入
     bootstrap.rs          # create/resume 装配
     prompt.rs             # Harness + AGENTS.md → SystemPrompt
@@ -49,9 +49,10 @@ crates/agent/
     tests.rs
 ```
 
-Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent::log` 预留；R2
-不装配这些组件。`agent-core::event` 只提供 `AgentEventRecord`、derive mapping 和
-`AgentEventRecorder` port。Progress worker 独立位于 `agent::progress`，是 R2 当前宿主事件路径。
+Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent::log` 实现；默认
+`DiagnosticPersistence::Off` 不装配这些组件。`agent-core::event` 只提供
+`AgentEventRecord`、derive mapping 和 `AgentEventRecorder` port。Progress worker 独立位于
+`agent::progress`，是默认宿主事件路径。
 
 ---
 
@@ -80,7 +81,7 @@ pub struct AgentConfig {
     pub persistence: PersistenceConfig,
 }
 
-pub enum SessionPersistence { Items, Disabled /* reserved in R2 */ }
+    pub enum SessionPersistence { Items, Disabled /* reserved */ }
 pub enum DiagnosticPersistence { Off, Errors, Normal, Debug }
 pub struct PersistenceConfig {
     pub session: SessionPersistence,
@@ -95,6 +96,7 @@ pub struct Agent {
 impl Agent {
     pub fn create(config: AgentConfig) -> anyhow::Result<Self>;
     pub fn resume(config: AgentConfig, session_id: &str) -> anyhow::Result<Self>;
+    pub async fn reload(config: AgentConfig) -> anyhow::Result<()>;
     pub fn session_id(&self) -> &str;
     pub async fn turn(
         &mut self,
@@ -140,11 +142,11 @@ config.tool_names
 create: SessionStore::create(sessions_dir, cwd)
 resume: SessionStore::load(sessions_dir, session_id)
 session_id = store.header().session_id.clone()
-legacy_run_id = new UUID（保留为 trace context；R3 才用于 Agent Event 分区文件）
+legacy_run_id = new UUID（保留为 trace context；启用 diagnostic policy 时用于 Agent Event 分区文件）
 diagnostic = persistence.diagnostic
 diagnostic == Off → 不注册 Agent Event Hook，不启动 diagnostic worker，不创建 runs 文件
-R2 → 注册 Progress Hook（若 frontend 提供 observer）
-R3 → 按真实诊断消费者决定是否注册 Agent Event Hook / worker
+Progress → 注册 Progress Hook（若 frontend 提供 observer）
+diagnostic != Off → 注册 Agent Event Hook / worker
 events = EventDispatcher::new(PipelineRegistry::builder().hook(progress?).build_frozen(), TraceContext)
 ```
 
@@ -278,6 +280,7 @@ agent-core       → Session Item Log / AgentLoop，不读取 settings.json
 - `Agent::turn` 错误不回滚已提交 Session facts；
 - Agent 可在 facts 仍可 materialize 时继续下一 Turn；
 - Agent Event Hook/worker fail-open，不覆盖 Session commit error；
+- `Agent::reload` 在替换旧 diagnostic worker 前等待 flush；flush 失败则返回错误并保留旧运行时；
 - Agent drop 只释放运行时句柄，Session Item Log 已落盘事实保留；
 - 同一 Agent 串行调用 Turn；并发调用者须自行在更高层协调。
 

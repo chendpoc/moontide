@@ -1,16 +1,16 @@
-# agent log（R3 optional）
+# agent log（R3）
 
-> **性质：** Agent 组合根中预留的 Agent Event Log 诊断持久化接缝。
+> **性质：** Agent 组合根中的 Agent Event Log 诊断持久化模块。
 > **边界：** 不负责 Session Item Log，不负责 Progress frontend rendering。
-> **当前阶段：** R2 不装配、不启动；只有出现真实诊断持久化消费者后进入 R3 实现。
+> **当前阶段：** R3 已实现；默认仍关闭诊断持久化。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
 
 ## 1. 这是什么
 
-`agent::log` 未来将 `agent-core::event` 派生的完整 `AgentEventRecord` 通过有界队列异步写入 Agent Event Log。R2 只保留该边界的设计，不把它放进当前 Agent 运行路径。
+`agent::log` 将 `agent-core::event` 派生的完整 `AgentEventRecord` 通过有界队列异步写入 Agent Event Log。
 
 ```text
-R3 optional:
+R3:
 TurnEvent dispatch
   → agent-core::event::derive_agent_event
   → QueuedAgentEventRecorder
@@ -25,7 +25,7 @@ Agent Event Log 是诊断观测，不是 Session Item Log 的替代品。它可�
 
 | 调用者 | 可用 | 禁止 |
 |---|---|---|
-| **agent bootstrap** | R3 按 `DiagnosticPersistence` 装配 worker | 在 R2 强制创建 diagnostic worker |
+| **agent bootstrap** | 按 `DiagnosticPersistence` 装配 worker | 把诊断日志作为 Session 恢复源 |
 | **agent host** | R3 读取 `AgentEventLogStatus`、显式 flush | 根据诊断日志恢复 Session |
 | **agent-core::event** | 提供 `AgentEventRecord` 和 recorder port | 读取 settings.json、创建 Tokio worker |
 | **session** | 只维护 Session Item Log | 写 Agent Event Log |
@@ -45,9 +45,18 @@ policy 由 CLI/frontend 从 `<cwd>/.moontide/settings.json` 解析，再注入 `
 }
 ```
 
-R2 默认是 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，运行
+默认仍是 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，运行
 `TurnEvent dispatch` 和 Progress，但不注册 Agent Event Hook、不启动 Agent Event Log
-worker，也不创建 runs 文件。
+worker，也不创建 active JSONL 文件。设置为 `Errors`、`Normal` 或 `Debug` 时，bootstrap
+注册 post-commit `DeriveAgentEventHook`、启动独立 worker 并创建
+`runs/{run_id}.active.jsonl`。
+
+policy 的记录范围：
+
+- `Errors`：仅 LLM failed/cancelled 和非 succeeded 的 tool result；
+- `Normal`：生命周期、prompt/final、LLM call、tool call/result，过滤高频 snapshot；
+- `Debug`：保留所有 derived records，文件 writer 仍执行 64 KiB 截断；
+- `Off`：完全关闭该诊断链路。
 
 ## 4. Worker status
 
@@ -72,4 +81,4 @@ pub struct AgentEventLogStatus {
 - 让 queue 满时等待 worker；
 - 让诊断持久化 policy 进入 `agent-core::session`；
 - 在 R2 强制要求 Tokio runtime 以启动未使用的 diagnostic worker；
-- 在无真实消费者时提前实现同步或异步 diagnostic writer。
+- 把 Agent Event Log 当成 Session resume 的事实源。

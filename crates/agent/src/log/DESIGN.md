@@ -2,7 +2,7 @@
 
 > **读者：** `agent` 实现者、组合根维护者和代码审查者。
 > **对外契约：** [`README.md`](README.md)。
-> **阶段：** R3 optional；R2 只确认边界和 persistence policy 的配置位置，不装配 Agent Event Log worker。
+> **阶段：** R3 已实现；默认 `DiagnosticPersistence::Off` 仍关闭该链路。
 
 ## 1. 职责与边界
 
@@ -23,7 +23,6 @@ crates/agent/src/log/
   README.md
   DESIGN.md
   mod.rs
-  policy.rs                 # PersistenceConfig 的 diagnostic 接缝
   queued_recorder.rs        # bounded try_send + status
   worker.rs                 # AgentEventLogWorker
   file_recorder.rs          # JSONL、seq/turn、truncate、flush
@@ -73,7 +72,8 @@ impl AgentEventLogWorker {
     pub(crate) fn start(
         receiver: tokio::sync::mpsc::Receiver<AgentEventRecord>,
         recorder: FileAgentEventRecorder,
-    ) -> anyhow::Result<AgentEventLogHandle>;
+        status: std::sync::Arc<std::sync::Mutex<QueueStatus>>,
+    ) -> anyhow::Result<WorkerHandle>;
 }
 ```
 
@@ -108,16 +108,16 @@ EventDispatcher
 
 | policy | bootstrap 行为 |
 |---|---|
-| `DiagnosticPersistence::Off` | 不注册 Agent Event Hook，不创建 worker，不创建 runs 文件 |
-| `Errors` | 后置；错误事件分类需要单独定义 |
-| `Normal` | 注册 worker，记录选定语义事件 |
-| `Debug` | 注册 worker，允许全量 snapshot / raw trace（需脱敏和 retention） |
+| `DiagnosticPersistence::Off` | 不注册 Agent Event Hook，不创建 worker，不创建 active JSONL 文件 |
+| `Errors` | 只入队 failed/cancelled LLM call 和非 succeeded tool result |
+| `Normal` | 入队生命周期、conversation、LLM call 和 tool 语义事件，过滤高频 snapshot |
+| `Debug` | 入队全部 derived records，文件边界仍执行 64 KiB 截断 |
 
-`SessionPersistence::Disabled` 在 R2 只保留枚举位置，不实现；它需要 memory-only SessionStore 或可插拔 Session backend。
+`SessionPersistence::Disabled` 只保留枚举位置，不实现；它需要 memory-only SessionStore 或可插拔 Session backend。
 
 ## 6. 状态与错误
 
-R2 只维护：
+R3 维护：
 
 - `Running` / `Degraded` / `Stopped`；
 - queue capacity / length；
@@ -149,4 +149,5 @@ agent::log ↛ cli
 - 文件落盘阶段的 64 KiB 限制、truncate、seq/turn 恢复继续成立；
 - flush 等待已入队记录完成；
 - worker error 不影响 Session commit 和 Agent turn 结果；
+- `Agent::reload` 在替换旧 worker 前等待其显式 flush；flush 失败则 reload 返回错误并保留旧运行时；
 - Agent create/resume/reload 在无 Tokio runtime 时返回明确错误。

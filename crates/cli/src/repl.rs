@@ -73,7 +73,11 @@ pub(crate) async fn run(
                         Some(active_agent) => {
                             settings.input_owner = Some(input_owner.clone());
                             tokio::task::block_in_place(|| {
-                                run_settings_ui(settings, active_agent, args)
+                                tokio::runtime::Handle::current().block_on(run_settings_ui(
+                                    settings,
+                                    active_agent,
+                                    args,
+                                ))
                             })?;
                         }
                         None => write_diagnostic_stderr(
@@ -105,6 +109,7 @@ pub(crate) async fn run(
                         )
                         .await?;
                         let _ = active_agent.flush_progress().await;
+                        super::flush_agent_event_log(active_agent).await;
                         match outcome {
                             TurnOutcome::Completed(Ok(response)) => {
                                 write_assistant_stdout(&response, std::io::stdout().lock())

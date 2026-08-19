@@ -227,7 +227,7 @@ impl SettingCatalog {
     }
 }
 
-pub(crate) fn apply_setting_change(
+pub(crate) async fn apply_setting_change(
     effect: SettingApplyEffect,
     previous_settings: &GlobalConfigStore,
     settings: &mut GlobalConfigStore,
@@ -245,7 +245,9 @@ pub(crate) fn apply_setting_change(
             settings.max_tokens,
             settings.thinking_level,
         ),
-        SettingApplyEffect::ReloadAgent => reload_agent_from_persisted_store(args, settings, agent),
+        SettingApplyEffect::ReloadAgent => {
+            reload_agent_from_persisted_store(args, settings, agent).await
+        }
         SettingApplyEffect::ReadOnly => Ok(()),
     };
     if let Err(error) = apply_result {
@@ -259,7 +261,7 @@ pub(crate) fn apply_setting_change(
     Ok(())
 }
 
-fn reload_agent_from_persisted_store(
+pub(crate) async fn reload_agent_from_persisted_store(
     args: &CliArgs,
     settings: &mut GlobalConfigStore,
     agent: &mut Agent,
@@ -268,7 +270,7 @@ fn reload_agent_from_persisted_store(
     let mut reloaded = load_persisted_global_config_store(args)?;
     reloaded.input_owner = input_owner;
     let config = resolve_agent_config(args, &reloaded)?;
-    agent.reload(config)?;
+    agent.reload(config).await?;
     *settings = reloaded;
     Ok(())
 }
@@ -402,6 +404,7 @@ mod tests {
             .expect("external settings update should persist");
 
         reload_agent_from_persisted_store(&args, &mut settings, &mut agent)
+            .await
             .expect("agent should reload from persisted settings");
 
         assert_eq!(settings.model, "external-model");

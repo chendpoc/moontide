@@ -1,7 +1,7 @@
 # agent
 
 > **性质：** MoonTide 组合根的对外契约。
-> **状态：** 初步可用版 Agent R1/R2 已实现并通过 workspace 检查；CLI 宿主基线已完成，Desktop v0.1 接入准备中。
+> **状态：** 初步可用版 Agent R1–R3 已实现；CLI 宿主基线已完成，Desktop v0.1 接入准备中。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
 > **关联：** [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-tools/README.md`](../agent-tools/README.md) · [`../cli/README.md`](../cli/README.md)
 
@@ -9,7 +9,7 @@
 
 ## 这是什么
 
-`agent` 是唯一的组合根。它把 provider、Session、第一方工具、permission、approval、Progress 和 AgentLoop 装配起来；Agent Event Log 仅作为 R3 optional 诊断能力保留，不进入 R2 默认路径。
+`agent` 是唯一的组合根。它把 provider、Session、第一方工具、permission、approval、Progress、AgentLoop 和可选 Agent Event Log 装配起来；诊断日志默认关闭。
 
 ```text
 AgentConfig（显式解析值）
@@ -21,7 +21,7 @@ AgentConfig（显式解析值）
       ├─ Harness + Project Instructions → SystemPrompt
       ├─ EventDispatcher + Progress Hook
       ├─ ProgressWorker（可选 frontend observer）
-      └─ Agent Event Log（R3 optional diagnostic）
+      └─ Agent Event Log（R3 diagnostic persistence）
                     │
                     ▼
              AgentLoop::new(AgentLoopInit)
@@ -70,7 +70,7 @@ pub struct AgentConfig {
 
 pub enum SessionPersistence {
     Items,
-    Disabled, // reserved; R2 does not implement
+    Disabled, // reserved; current batch does not implement
 }
 
 pub enum DiagnosticPersistence {
@@ -100,6 +100,8 @@ impl Agent {
         config: AgentConfig,
         session_id: &str,
     ) -> anyhow::Result<Self>;
+
+    pub async fn reload(&mut self, config: AgentConfig) -> anyhow::Result<()>;
 
     pub fn session_id(&self) -> &str;
 
@@ -147,7 +149,7 @@ pub fn write_settings_atomically(
 
 `Agent::create`、`Agent::resume` 和 `Agent::reload` 要求调用方已经运行在 Tokio runtime 内。无 runtime 不提供同步 Progress observer fallback。
 
-Agent Event Log 的 R3 optional 设计位于 [`src/log/README.md`](src/log/README.md)；R2
+Agent Event Log 的 R3 设计与实现位于 [`src/log/README.md`](src/log/README.md)；默认
 不装配其队列、worker 或文件写入。Progress 的 snapshot/finalized 和宿主 fold 语义见
 [`src/progress/README.md`](src/progress/README.md)。
 
@@ -192,6 +194,11 @@ Agent::resume(config, session_id)
   → SessionStore::load
   → AgentLoop::new
 
+Agent::reload(config).await
+  → flush old diagnostic worker
+  → SessionStore::load with the same session id
+  → replace AgentLoop and optional diagnostic worker
+
 Agent::turn(text, token)
   → TurnInput
   → AgentLoop::turn
@@ -199,7 +206,7 @@ Agent::turn(text, token)
 
 同一个 `Agent` 可以连续执行多轮；CLI 不保存对话历史，历史只存在 Session Item Log。`Agent` 不实现 Clone，也不支持同一 Session 的并发 writer。
 
-Session 默认目录由宿主通过 `agent::platform::ProjectPaths` 解析为 `<cwd>/.moontide/sessions`；Agent Event 的 R3 optional 默认目录预留为 `<cwd>/.moontide/runs`。项目设置位于 `<cwd>/.moontide/settings.json`。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，运行 Progress，但不启动 Agent Event Log worker 或创建 runs 文件。`runId` 由组合根生成，仅作为现有观测分区键，不恢复 Run 实体。
+Session 默认目录由宿主通过 `agent::platform::ProjectPaths` 解析为 `<cwd>/.moontide/sessions`；Agent Event 的 R3 目录为 `<cwd>/.moontide/runs`。项目设置位于 `<cwd>/.moontide/settings.json`。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，运行 Progress，但不启动 Agent Event Log worker 或创建 active JSONL 文件。`runId` 由组合根生成，仅作为现有观测分区键，不恢复 Run 实体。
 
 ---
 

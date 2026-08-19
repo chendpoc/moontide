@@ -22,7 +22,7 @@
 
 ### TASK-agent-02: Provider、tools、Session 与 Event bootstrap
 
-- **做什么：** 实现 create/resume 的组合装配：provider、catalog tool selection、ToolRegistry/ToolRuntime、SessionStore、Progress Hook、PipelineRegistry/EventDispatcher 和 AgentLoopInit。未知 tool、permission 漂移、Ask 无 handler、Session 初始化错误在 bootstrap 阶段返回；Agent Event recorder 仅作为 R3 optional，不属于当前装配路径。
+- **做什么：** 实现 create/resume 的组合装配：provider、catalog tool selection、ToolRegistry/ToolRuntime、SessionStore、Progress Hook、PipelineRegistry/EventDispatcher、可选 Agent Event Log 和 AgentLoopInit。未知 tool、permission 漂移、Ask 无 handler、Session 初始化错误在 bootstrap 阶段返回。
 - **依赖：** TASK-agent-01
 - **范围：** `crates/agent/src/bootstrap.rs`、`agent.rs`、`tests.rs`、必要的 `lib.rs`；不修改 agent-core/agent-tools 实现
 - **预估 diff：** ~500 行

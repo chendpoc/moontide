@@ -88,6 +88,7 @@ async fn run() -> Result<()> {
             )
             .await?;
             let _ = active_agent.flush_progress().await;
+            flush_agent_event_log(active_agent).await;
             let result = match outcome {
                 TurnOutcome::Completed(Ok(response)) => {
                     write_assistant_stdout(&response, std::io::stdout().lock())?;
@@ -115,6 +116,24 @@ async fn run() -> Result<()> {
             repl_result
         }
         _ => bail!("invalid CLI launch state"),
+    }
+}
+
+pub(crate) async fn flush_agent_event_log(agent: &Agent) {
+    if let Err(error) = agent.flush_agent_event_log().await {
+        let _ = render::write_diagnostic_stderr(&format!(
+            "ERROR: diagnostic Agent Event Log flush failed: {error:#}"
+        ));
+    }
+    if let Some(status) = agent.agent_event_log_status() {
+        if status.state != agent::AgentEventLogState::Running {
+            let _ = render::write_diagnostic_stderr(&format!(
+                "WARNING: diagnostic Agent Event Log state={:?}, dropped_events={}, last_error={}",
+                status.state,
+                status.dropped_events,
+                status.last_error.as_deref().unwrap_or("none")
+            ));
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 mod agent;
 mod bootstrap;
 mod config;
+mod log;
 mod progress;
 mod prompt;
 
@@ -25,6 +26,7 @@ pub use config::ProgressObserver;
 pub use config::{
     AgentConfig, DiagnosticPersistence, PersistenceConfig, ProviderConfig, SessionPersistence,
 };
+pub use log::{AgentEventLogHandle, AgentEventLogState, AgentEventLogStatus};
 pub use progress::{ProgressEvent, ProgressHandle, ProgressStatus, ProgressWorkerState};
 
 /// Returns the most recently modified persisted session without creating a runtime Agent.

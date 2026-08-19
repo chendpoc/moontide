@@ -19,8 +19,8 @@
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent` 与 CLI 作为宿主基线保留；Desktop v0.1 已确认采用单窗口、单活跃 Session、Turn 串行，下一阶段先对齐流式 UI、宿主事件、审批、取消清理与 Session query 接缝。
-- 2026-08-19：重新收敛日志架构：R2 当前运行路径为 `TurnEvent dispatch → Session Item Log + Progress`；Agent Event Log 保留为 `agent::log` 的 R3 optional 诊断能力，不在 R2 装配 queue、worker 或 runs 文件。
+- 当前推进：`agent::log` R3 已实现并通过 focused tests；下一步先完成 event observer bridge 与 CLI 对 log/event/progress 的消费，再进入 Desktop Shell。
+- 2026-08-19：日志架构完成 R3 落地：`TurnEvent dispatch → Session Item Log + Progress` 仍是默认路径；按 `DiagnosticPersistence` 启用时，`agent::log` 以 bounded queue、Tokio worker 和 buffered JSONL writer 持久化 Agent Event Log。
 
 ## 变更记录
 

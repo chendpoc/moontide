@@ -2,8 +2,6 @@
 
 mod agent_recorder;
 mod derive;
-#[cfg(test)]
-mod file_writer;
 mod pipeline;
 mod registry;
 mod trace_context;

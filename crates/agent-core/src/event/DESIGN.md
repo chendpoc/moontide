@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；R2 只保留 Agent Event derive/recorder port，Agent Event Log worker 属于 `agent::log` 的 R3 optional；R4 observer bridge 后置。
+> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；Agent Event Log worker 属于 `agent::log` 的 R3；R4 observer bridge 后置。
 > **关联：** [`../loop/DESIGN.md`](../loop/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -62,9 +62,9 @@ event/
   tests.rs
 ```
 
-当前 AgentEventRecord、wire schema 与 derive mapping 保留。R2 不强制装配 Agent Event
-queue、worker 和 FileAgentEventRecorder；未来实现时迁移到 `agent::log`，event core 不拥有
-Tokio worker 或物理文件 IO。
+当前 AgentEventRecord、wire schema 与 derive mapping 保留。默认不装配 Agent Event
+queue、worker 和 FileAgentEventRecorder；启用诊断 policy 时由 `agent::log` 装配，event
+core 不拥有 Tokio worker 或物理文件 IO。
 
 ---
 
@@ -317,11 +317,11 @@ impl HookHandler for DeriveAgentEventHook {
 `derive_agent_event` 使用私有借用 DTO 固定 Agent Event wire schema，序列化失败返回 `Err`。ToolCall/ToolResult 直接来自 canonical tools 契约；wire DTO 不形成并行领域模型。
 
 `agent::log::AgentEventLogWorker` 负责校验 `runId`、恢复下一个 `seq` 与最后
-`turn`、64 KiB JSONL 截断、批量 flush、rotation 和 retention。queue 只按事件
+`turn`、64 KiB JSONL 截断和批量 flush；rotation 和 retention 后置。queue 只按事件
 数量 bounded；队列满时不等待，累计 `dropped_events` 并进入 `Degraded`。
-`dropped_bytes`、byte-budget queue 和 metrics exporter 后置。R2 不实现 Agent Event Log
-worker；后续 Agent Event Log
-worker 与 ProgressWorker 使用不同 queue、writer 和状态。
+`dropped_bytes`、byte-budget queue 和 metrics exporter 后置。默认 `DiagnosticPersistence::Off`
+不装配 Agent Event Log worker；启用诊断 policy 时由 `agent::log` 装配。它与
+ProgressWorker 使用不同 queue、writer 和状态。
 
 ---
 
@@ -399,7 +399,7 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 |----|------|------|
 | **R1** | TurnEvent + TraceContext + EventDispatcher + handlers | 已实现旧 pipeline |
 | **R2** | derive + channel mapping | 已实现 |
-| **R3-legacy** | session commit + Agent Event recorder/file adapter | 旧实现保留，R2 不装配 |
+| **R3-legacy** | session commit + Agent Event recorder port | 文件 adapter 已迁移至 `agent::log` |
 | **R3-F2** | ToolCall/ToolResult typed payload | 已实现 |
 | **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | 已实现于 Loop R1 |
 | **R4-B** | optional observer bridge + sidecar bridge | 后置 |

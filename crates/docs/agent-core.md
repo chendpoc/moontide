@@ -73,7 +73,7 @@ Session Item Log ──materialize──► messages ──compile──► Mode
 
 - **Session Item Log** 是可恢复事实源，`session` 是唯一写者；
 - **Agent Event Log** 是由 `TurnEvent` derive 的观测记录，不反向覆盖 session；当前 `runId` 仅为 legacy 分区键，不构成 Run 实体；
-- Agent Event Log 的未来 queue、worker、persistence policy 和文件 writer 属于 `agent` 组合根的 [`agent::log`](../agent/src/log/README.md)；R2 不装配它，`agent-core::event` 只拥有 derive、record 和 recorder port；
+- Agent Event Log 的 queue、worker、persistence policy 和文件 writer 属于 `agent` 组合根的 [`agent::log`](../agent/src/log/README.md)；默认 `Off` 不装配它，`agent-core::event` 只拥有 derive、record 和 recorder port；
 - 项目级路径与 policy 见 [`logging-and-session-design.md`](logging-and-session-design.md)，R2 默认是 `SessionPersistence::Items + DiagnosticPersistence::Off`；
 - **ModelRequest** 是单次模型调用产物，不是事实源，不持久化替代 session；
 - provider adapter 只编码请求，不修改 session/context 语义。

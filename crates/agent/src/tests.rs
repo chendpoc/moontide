@@ -88,7 +88,7 @@ async fn reload_preserves_session_and_applies_turn_limits() {
 
     let mut updated = config(&temp);
     updated.model = "updated-model".into();
-    agent.reload(updated).expect("agent should reload");
+    agent.reload(updated).await.expect("agent should reload");
     assert_eq!(agent.session_id(), session_id);
 }
 
@@ -171,10 +171,18 @@ async fn invalid_config_values_are_rejected() {
 
     let mut agent_config = config(&temp);
     agent_config.persistence.diagnostic = crate::DiagnosticPersistence::Normal;
-    let error = Agent::create(agent_config)
-        .err()
-        .expect("R3 diagnostic persistence must not be silently ignored");
-    assert!(error.to_string().contains("R3 Agent Event Log"));
+    let agent = Agent::create(agent_config).expect("normal diagnostic persistence should start");
+    let status = agent
+        .agent_event_log_status()
+        .expect("diagnostic worker status should be exposed");
+    assert_eq!(status.state, crate::AgentEventLogState::Running);
+    assert!(temp
+        .path()
+        .join("runs")
+        .read_dir()
+        .expect("runs")
+        .next()
+        .is_some());
 }
 
 // Scenario: nested project directories contain AGENTS.md files at multiple ancestors.

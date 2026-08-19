@@ -118,9 +118,9 @@ ToolCall、ToolResult、LlmCallEnded 和 finalized 等生命周期事件保持�
 `dropped_events` / `resync_required`，frontend 通过 resync 从 canonical Session /
 Agent 结果恢复。R2 不要求 `dropped_bytes` 或 byte-budget queue。
 
-ProgressQueue 不与未来的 Agent Event Log queue 共享；后者由 R3 optional 的
-[`agent::log`](../log/README.md) 负责诊断落盘。R2 只创建 ProgressWorker，不创建 Agent
-Event Log worker。ProgressWorker 必须在 Tokio runtime 内创建和启动，不提供无 runtime
+ProgressQueue 不与 Agent Event Log queue 共享；后者由 R3 的
+[`agent::log`](../log/README.md) 负责诊断落盘，是否创建由 `DiagnosticPersistence` 决定。
+ProgressWorker 必须在 Tokio runtime 内创建和启动，不提供无 runtime
 的同步 observer fallback。`Agent::create`、`Agent::resume` 和
 `Agent::reload` 也要求调用方已经运行在 Tokio runtime 内。
 

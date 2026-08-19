@@ -205,7 +205,7 @@ crates/agent/src/tests.rs           # 宿主接缝集成测试
 - partial snapshot 后的失败不产生成功型 finalized；
 - snapshot coalesce、队列溢出和 frontend resync 不阻塞 AgentLoop；
 - observer 错误不改变 Agent turn 结果和 Session commit；
-- bounded tool input/result 约束继续成立；`dropped_bytes` 和 byte-budget queue 不属于 R2；Agent Event Log worker 也不属于 R2 当前路径。
+- bounded tool input/result 约束继续成立；`dropped_bytes` 和 byte-budget queue 仍后置；Agent Event Log worker 位于独立的 `agent::log` lane。
 
 ## 7. 实现分期
 

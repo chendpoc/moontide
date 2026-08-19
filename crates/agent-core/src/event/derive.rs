@@ -79,6 +79,7 @@ struct ToolResultTracePayload<'a> {
     tool_name: &'a str,
     tool_use_id: &'a str,
     status: &'a ToolResultStatus,
+    content: &'a ToolContent,
     body: &'a str,
     char_count: usize,
 }
@@ -387,6 +388,7 @@ fn tool_result_trace_payload(result: &ToolResult) -> Result<(Value, String)> {
         tool_name: result.name(),
         tool_use_id: result.tool_use_id(),
         status: result.status(),
+        content: result.content(),
         body: &body,
         char_count: body.chars().count(),
     })

@@ -56,6 +56,14 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
 
     let run_id = Uuid::new_v4().to_string();
     let mut pipeline_builder = PipelineRegistry::builder();
+    let agent_event_log_handle =
+        if config.persistence.diagnostic == crate::config::DiagnosticPersistence::Off {
+            None
+        } else {
+            let (hook, handle) = build_agent_event_log(config, &run_id)?;
+            pipeline_builder = pipeline_builder.hook(Arc::new(hook));
+            Some(handle)
+        };
     let progress_handle = if let Some(observer) = config.progress.clone() {
         let (hook, handle) = ProgressHook::new(observer)?;
         pipeline_builder = pipeline_builder.hook(Arc::new(hook));
@@ -88,8 +96,27 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
         loop_,
         session_id: stable_session_id,
         cwd,
+        agent_event_log_handle,
         progress_handle,
     })
+}
+
+fn build_agent_event_log(
+    config: &AgentConfig,
+    run_id: &str,
+) -> Result<(
+    agent_core::event::DeriveAgentEventHook<crate::log::QueuedAgentEventRecorder>,
+    crate::log::AgentEventLogHandle,
+)> {
+    let (queued, receiver) =
+        crate::log::QueuedAgentEventRecorder::new(config.persistence.diagnostic);
+    let status = queued.status();
+    let recorder = crate::log::FileAgentEventRecorder::new(&config.runs_dir, run_id)
+        .context("create Agent Event Log recorder")?;
+    let worker = crate::log::AgentEventLogWorker::start(receiver, recorder, status)
+        .context("start Agent Event Log worker")?;
+    let handle = crate::log::AgentEventLogHandle::new(&queued, worker);
+    Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle))
 }
 
 fn build_tool_registry(config: &AgentConfig) -> Result<ToolRegistry> {
