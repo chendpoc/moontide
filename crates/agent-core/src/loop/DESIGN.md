@@ -458,8 +458,8 @@ impl EventDispatcher {
 Pipeline 顺序：
 
 ```text
-Committable: commit → hook*（全部 fail-open）→ optional bus
-Observational: hook*（全部 fail-open）→ optional bus
+Committable: commit → hook*（全部 fail-open）→ optional observer bridge
+Observational: hook*（全部 fail-open）→ optional observer bridge
 ```
 
 - `PipelineRegistry` 只冻结 hooks；不拥有 commit；

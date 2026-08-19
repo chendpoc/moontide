@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::event` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)。
-> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed commit 接缝已实现；Agent Event Log worker 由 `agent::log` 后置接入；R4 observer bridge 后置。
+> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed commit 接缝已实现；R2 当前只提供 Agent Event derive/recorder port，Agent Event Log worker 延后到 R3 optional；R4 observer bridge 后置。
 > **关联：** [`../loop/README.md`](../loop/README.md) · [`../session/README.md`](../session/README.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
@@ -15,7 +15,7 @@
 loop.emit(TurnEvent, &mut SessionStore)
     → dispatch
         commit  （仅 Committable；写 Session Item Log）
-        hook*   （post-commit、fail-open；Agent Event / UI / sidecar / metrics）
+        hook*   （post-commit、fail-open；Progress / optional diagnostics）
         observer bridge     （后置观测加速）
 ```
 
@@ -51,7 +51,7 @@ loop.emit(TurnEvent, &mut SessionStore)
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
 | **`loop`** | `EventDispatcher::emit(&mut commit, event)` | `commit_item`、直接写 Agent Event JSONL |
-| **`agent`** | 装配 `PipelineRegistry`、Agent Event Hook、`EventDispatcher` | 把 permission 或 control flow 放进 Hook |
+| **`agent`** | 装配 `PipelineRegistry`、Progress Hook、`EventDispatcher`；R3 再装配 Agent Event Hook | 把 permission 或 control flow 放进 Hook |
 | **`session`** | 直接实现 mutable `CommitHandler` | `emit`、持有 dispatcher |
 | **`cli` / UI** | 通过 Progress 或 tail `.moontide/runs/*.active.jsonl` | `emit` |
 | **Hook 作者** | 只读 `TraceContext` / `TurnEvent`，输出观测副作用 | Block、Approve、Cancel、Retry、修改 event |
@@ -90,11 +90,12 @@ PipelineRegistry::builder()
 EventDispatcher::new(registry, TraceContext::new(run_id, session_id));
 ```
 
-当前实现是 `commit → post-commit Hook`；`EventDispatcher` 每次 emit 借用 mutable commit target，`PipelineRegistry` 只冻结 Hook。旧的 `HookOutcome::Block` 与独立 `ObserveHandler` 已删除；AgentEvent、schema 和 derive mapping 保持稳定，queue、worker 与 file writer 按 R2 设计迁移到 `agent::log`。
+当前实现是 `commit → post-commit Hook`；`EventDispatcher` 每次 emit 借用 mutable commit target，`PipelineRegistry` 只冻结 Hook。旧的 `HookOutcome::Block` 与独立 `ObserveHandler` 已删除；AgentEvent、schema 和 derive mapping 保持稳定。R2 不强制装配 Agent Event queue、worker 或 file writer；这些属于 `agent::log` 的 R3 optional 诊断能力。
 
-Agent Event 能力由 `DeriveAgentEventHook` 接线。event core 只负责 derive
+Agent Event 能力由 `DeriveAgentEventHook` 接线。R2 只保留该 port，是否装配由后续
+诊断消费者决定。event core 只负责 derive
 `AgentEventRecord` 和提供 `AgentEventRecorder` port；Hook 不能直接执行文件 IO。
-队列、worker 和文件 recorder 由组合根的 [`agent::log`](../../../agent/src/log/README.md)
+未来的队列、worker 和文件 recorder 由组合根的 [`agent::log`](../../../agent/src/log/README.md)
 负责：
 
 ```rust
@@ -103,14 +104,14 @@ pub trait AgentEventRecorder: Send + Sync {
 }
 ```
 
-Hook 只调用 `derive_agent_event` 并转交 recorder。`agent::log::AgentEventLogWorker`
+R3 Hook 只调用 `derive_agent_event` 并转交 recorder。`agent::log::AgentEventLogWorker`
 负责文件句柄、`seq` / 最后 `turn` 恢复、64 KiB JSONL 行限制、批量 flush、rotation
 和 retention。worker 使用 bounded queue；队列满时不阻塞 loop，累计
 `dropped_events` 并暴露 `Degraded` 状态。完整 canonical payload 在 queue 中保留，
 落盘时才允许 truncate / preview / 简化。
 
-Agent Event Log 是诊断观测，不是 Session Item Log 的替代品。`SessionOnly`
-模式下可以完全关闭 Agent Event Log；resume 只读取 Session Item Log。
+Agent Event Log 是诊断观测，不是 Session Item Log 的替代品。R2 `SessionOnly`
+模式下完全关闭 Agent Event Log；resume 只读取 Session Item Log。
 
 `runId` / `run_id` / `runs/` 是现有 Agent Event wire/storage 的 legacy 分区契约，不定义可 cancel、resume、await 的 Run 实体。等 observability 正式接入后，再设计 trace/span identity 与迁移。
 
@@ -138,16 +139,13 @@ fn emit_turn_start(
 
 对 `UserPromptCommitted`，`emit` 返回 `Ok` 表示 UserMessage 已 commit；Hook 的失败不改变这一事实。
 
-### agent 组合根
+### agent 组合根（R2 当前路径）
 
 ```rust
 let session = SessionStore::create(&sessions_dir, cwd)?;
 let session_id = session.header().session_id.clone();
-let recorder = agent::log::QueuedAgentEventRecorder::new(agent_event_queue);
-
 let registry = PipelineRegistry::builder()
-    .hook(Arc::new(DeriveAgentEventHook::new(recorder)))
-    .hook(Arc::new(ui_hook))
+    .hook(Arc::new(progress_hook))
     .build_frozen()?;
 
 let events = EventDispatcher::new(
@@ -163,15 +161,15 @@ let agent_loop = AgentLoop::new(AgentLoopInit {
 });
 ```
 
-`AgentEventLogWorker::start(...)` 在同一个 Tokio runtime 内启动，并独占
-`FileAgentEventRecorder` / 文件句柄；Hook registry 只持有 queue producer。
-`Agent::create` / `resume` / `reload` 在无 Tokio runtime 时返回错误。
+R2 只装配 Progress Hook。Agent Event Log 的 worker、文件句柄和 diagnostic flush
+属于 R3 optional；`Agent::create` / `resume` / `reload` 仍要求调用方运行在 Tokio runtime 内，
+因为当前 ProgressWorker 需要该 runtime。
 
 ### cli（无需 import dispatch）
 
 ```text
-tail workdir/.moontide/runs/<runId>.active.jsonl
-字段：channel · kind · turn · phase · payload
+ProgressObserver（R2）
+R3 diagnostic tail：workdir/.moontide/runs/<runId>.active.jsonl
 ```
 
 ---

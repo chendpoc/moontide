@@ -23,7 +23,7 @@
 
 ## 关键设计决策速查
 
-1. **三流分离**：Session Item Log（可重放事实）· Agent Event Log / logger（可丢弃诊断）· Progress（实时 frontend 消费）。判断标准：模型可见 / resume 要知道 → Session Item Log；否则按诊断或实时展示分别进入 Agent Event Log / logger 或 Progress。
+1. **三种语义、两条 R2 路径**：Session Item Log（可重放事实）· Progress（实时 frontend 消费）· Agent Event Log / logger（R3 optional 可丢弃诊断）。判断标准：模型可见 / resume 要知道 → Session Item Log；只为实时展示 → Progress；只有出现真实诊断持久化消费者时才启用 Agent Event Log。
 2. **session 四不变量**：`seq == log.len()`、先校验后冻结、模型可见先入 log、header 外置。
 3. **扩展边界**：sidecar（进程间）+ MCP（JSON-RPC over stdio）；隔离靠 OS 进程边界强制，非约定。
 4. **runtime 成本**：共享 runtime 默认（O(版本数)），embedded（打包单文件）例外（O(N) 重复）。
@@ -49,13 +49,13 @@
 
 > loop R1 response/tool round（2026-08-17）：ToolUse response 必须至少一个 ToolUse；非 tool blocks 先作为 AssistantFinalized 提交，全部 ToolCall 在任何副作用前按模型顺序 commit，然后 R1 顺序执行 resolve → validate → permission/approval → execute → result commit。每 call 恰好一个 result。unknown/invalid/denied 为模型可见结果；approval Cancelled 为当前 User/剩余 Parent；approval handler Err 为当前 Disposed/剩余 Parent；executor Err 或执行中取消为当前 OutcomeUnknown/剩余 Parent，全部 commit 后传播。EndTurn/MaxTokens/Other 禁止 ToolUse，提交可用 assistant blocks并返回原 ModelResponse；模型产生 ToolResult 非法。
 
-> loop R1 retry/cancel/hook（2026-08-17）：只重试 LlmError Recoverable，默认初次后 3 次，固定 cancellation-aware backoff 500ms/1s/2s；tool/session/hook 不自动 retry。Turn 直接使用 tokio_util CancellationToken，不建立 TurnCancellation/TurnHandle/interrupt 公共抽象；drop future 不是正式取消，调用方 cancel 后继续 await cleanup。Hook 的本质是 post-commit、fail-open 的扩展 callback，只读 TurnEvent/TraceContext，不能 Block/Approve/Cancel/Retry；原 ObserveHandler 合并为 Hook，Agent Event derive/recorder/schema 归 event，Agent Event queue/worker/file persistence 归 agent::log。follow-up/steering、多 Turn Run、scheduler 并发、tool retry、compaction、subagent、OTel 与 lease 后置。
+> loop R1 retry/cancel/hook（2026-08-17）：只重试 LlmError Recoverable，默认初次后 3 次，固定 cancellation-aware backoff 500ms/1s/2s；tool/session/hook 不自动 retry。Turn 直接使用 tokio_util CancellationToken，不建立 TurnCancellation/TurnHandle/interrupt 公共抽象；drop future 不是正式取消，调用方 cancel 后继续 await cleanup。Hook 的本质是 post-commit、fail-open 的扩展 callback，只读 TurnEvent/TraceContext，不能 Block/Approve/Cancel/Retry；原 ObserveHandler 合并为 Hook，Agent Event derive/recorder/schema 归 event，Agent Event queue/worker/file persistence 归 `agent::log` 的 R3 optional。R2 当前只启用 Session + Progress；follow-up/steering、多 Turn Run、scheduler 并发、tool retry、compaction、subagent、OTel 与 lease 后置。
 
 > Desktop v0.1 范围（2026-08-18，用户确认）：下一阶段采用单窗口、单活跃 Session、Turn 串行；Desktop 直接复用 `agent`，不复制 AgentLoop，不通过 CLI 子进程接入。P0 包含 assistant 流式 snapshot、宿主 UI 事件、approval、CancellationToken 清理、运行状态、Session 恢复、错误展示、配置与密钥管理；多 Session 并发、后台队列、scheduler、多 Agent、sidecar 和跨进程 daemon 后置。
 
 > Progress R2 事件契约（2026-08-19，用户确认）：所有 LLM attempt 都发一次 `LlmCallEnded`，使用 typed `LlmCallOutcome` 表达成功、请求失败、无效响应或取消；每个成功 call 发一次 `AssistantFinalized`，tool-only response 使用空 marker 关闭运行时 draft，但空 marker 不写入 Session Item Log。`ToolCall` / `ToolResult` 以完整 canonical payload 传播，状态使用 enum；R2 删除独立 `Thinking` progress event，frontend 从全量 `AssistantResponseSnapshot` 渲染 thinking。`ProgressHook` 只在 post-commit 后以 bounded `try_send` 入队，ProgressWorker 异步串行调用 observer；snapshot 可 coalesce，生命周期事件保持顺序，队列溢出触发 `dropped_events` / resync 但不阻塞 AgentLoop；ProgressWorker 不提供无 runtime fallback，Agent create/resume/reload 要求 Tokio runtime。普通 plugin 只作 post-commit observer，before-event 决策使用 permission/approval 等显式 API。
 
-> Agent Event Log R2 设计（2026-08-19，用户确认）：Agent Event Log 不放入 session，新增 `agent::log` 作为组合根模块；`agent-core::event` 只拥有 TurnEvent、derive、AgentEventRecord 和 recorder port。完整 canonical record 进入 bounded queue，`AgentEventLogWorker` 在落盘阶段执行 JSONL 限制、truncate、preview 和简化。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`，关闭 Agent Event Hook/worker；策略由 CLI/frontend 从 `.moontide/settings.json` 解析后注入 AgentConfig。R2 只统计 dropped_events，不引入 dropped_bytes 或 byte-budget queue。
+> Agent Event Log 收敛（2026-08-19，用户确认）：保留 `agent::log` 作为 R3 optional 诊断持久化模块；R2 当前运行路径收敛为 `TurnEvent dispatch → Session Item Log + Progress`。`agent-core::event` 只拥有 TurnEvent、derive、AgentEventRecord 和 recorder port；未来 Agent Event queue/worker/file persistence 由 `agent::log` 负责。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`，R2 不注册 Agent Event Hook、不启动 worker、不创建 runs 文件；策略由 CLI/frontend 从 `.moontide/settings.json` 解析后注入 AgentConfig。`dropped_events`、落盘简化和 diagnostic status 属于 R3，不引入 `dropped_bytes` 或 byte-budget queue。
 
 > loop TASK review（2026-08-17）：`TraceContext` 的 `session_item_id`、`tool_use_id`、`llm_call_id` 每次 `emit` 开始清理，再从当前 event 填充；`run_id` / `session_id` 保留为稳定上下文。`max_llm_retries` 收敛为 `0..=3`，默认 3，超过范围拒绝。
 

@@ -1,5 +1,7 @@
-# agent::log — R2 tasks
+# agent::log — R3 optional tasks
 
+> 当前状态：R2 只保留设计边界，不装配该模块。只有出现真实诊断持久化消费者后，才按本清单实现。
+>
 > 目标：按已确认设计，把 Agent Event Log 从 `agent-core::event` 的同步文件 recorder 收敛为 `agent::log` 的 bounded queue + worker + file recorder。
 
 ## 设计门禁
@@ -10,13 +12,13 @@
 - [ ] `AgentEventLogWorker` 独占 receiver、flush 生命周期和 worker 状态；
 - [ ] `FileAgentEventRecorder` 迁移到 `agent::log`，落盘时才执行 JSONL 限制、truncate、preview 和简化；
 - [ ] queue 阶段保留完整 canonical `ToolCall` / `ToolResult` payload；
-- [ ] `DiagnosticPersistence::Off` 不注册 Hook、不启动 worker、不创建 `runs/{run_id}.active.jsonl`；
+- [ ] R3 `DiagnosticPersistence::Off` 不注册 Hook、不启动 worker、不创建 `runs/{run_id}.active.jsonl`；
 - [ ] `Agent::create`、`resume`、`reload` 和 worker start 要求 Tokio runtime；不提供同步 fallback；
-- [ ] R2 只暴露 `dropped_events`，不实现 `dropped_bytes`、byte-budget queue 或 metrics exporter；
+- [ ] R3 只暴露 `dropped_events`，不实现 `dropped_bytes`、byte-budget queue 或 metrics exporter；
 
 ## 实现批次
 
-### TASK-log-01：policy 与 bootstrap 装配
+### TASK-log-01：policy 与 bootstrap 装配（R3）
 
 - 定义 `SessionPersistence`、`DiagnosticPersistence`、`PersistenceConfig`；
 - 由 `AgentConfig` 接收已解析 policy，`agent-core` 不读取 settings；

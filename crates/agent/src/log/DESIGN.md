@@ -1,7 +1,8 @@
-# agent log — 技术设计
+# agent log — R3 技术设计
 
 > **读者：** `agent` 实现者、组合根维护者和代码审查者。
 > **对外契约：** [`README.md`](README.md)。
+> **阶段：** R3 optional；R2 只确认边界和 persistence policy 的配置位置，不装配 Agent Event Log worker。
 
 ## 1. 职责与边界
 
@@ -9,7 +10,7 @@
 |---|---|
 | Agent Event Record 的 bounded queue | Session Item Log 写入 |
 | Agent Event Log worker 生命周期 | Progress frontend rendering |
-| 按 policy 装配或关闭 diagnostic sink | permission、approval、retry、cancel 决策 |
+| 按 policy 装配或关闭 diagnostic recorder | permission、approval、retry、cancel 决策 |
 | 文件 writer 独占与显式 flush | 从 Agent Event Log 恢复 Session |
 | dropped event / worker status | 领域 Run 实体 |
 

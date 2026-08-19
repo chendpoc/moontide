@@ -1,6 +1,6 @@
 # 日志与 Session 设计
 
-> 状态：R2 设计已确认；Session Item Log 契约已实现，Progress 部分实现，Agent Event Log worker 与 persistence policy 待实现。
+> 状态：R2 当前路径已确认；Session Item Log 契约已实现，Progress 是当前宿主事件路径；Agent Event Log 保留为 R3/可选诊断能力。
 
 本文统一定义 Session Item Log、Agent Event Log、Progress stream 和项目级 persistence policy。它不把三条链路合并成一种日志。
 
@@ -8,17 +8,21 @@
 
 ```text
                          ┌─ Session Item Log ───────→ resume / materialize
-TurnEvent dispatch ──────┼─ Agent Event Log queue ───→ buffered file writer
-                         └─ Progress queue ──────────→ frontend
+TurnEvent dispatch ──────┼─ Progress queue ──────────→ frontend
+                         └─ Agent Event Log ─────────→ R3 optional diagnostics
 ```
 
 | 链路 | Owner | 目的 | 默认是否落盘 | 丢失影响 |
 |---|---|---|---:|---|
 | Session Item Log | `agent-core::session` | 模型可见、resume 必需的 canonical facts | 是 | 影响 resume 和后续请求历史 |
-| Agent Event Log | `agent::log` | 生命周期、调用和诊断观测 | 否 | 影响诊断，不影响 resume |
+| Agent Event Log | `agent::log` | 可选生命周期、调用和诊断观测 | R3 可选 | 影响诊断，不影响 resume |
 | Progress stream | `agent::progress` | frontend 实时渲染 | 否 | frontend 需要 resync |
 
-核心原则：**Session Item Log 是唯一恢复事实源；Agent Event Log 只 derive 观测；Progress 只服务实时消费。**
+核心原则：**Session Item Log 是唯一恢复事实源；TurnEvent dispatch 是唯一事件入口；Progress 服务实时消费；Agent Event Log 只在需要诊断持久化时启用。**
+
+R2 的实际运行路径只有 `TurnEvent dispatch → Session Item Log + Progress`。Agent Event
+Log 的 schema、recorder port 和组合根 owner 可以提前定义，但 queue、worker 和文件
+持久化不属于 R2 必需实现。
 
 ## 2. 文件与事实源
 
@@ -30,7 +34,7 @@ TurnEvent dispatch ──────┼─ Agent Event Log queue ───→ b
 │       ├── {session_id}.meta.json       # SessionHeader
 │       └── {session_id}.log.jsonl       # Session Item Log
 └── runs/
-    └── {run_id}.active.jsonl            # Agent Event Log
+    └── {run_id}.active.jsonl            # Agent Event Log（R3 optional）
 ```
 
 Session 使用本地日期分区；Agent Event 使用当前 legacy `run_id` 分区和 `.active.jsonl` 文件名。resume 只读取对应 Session Item Log，不依赖 Agent Event Log、Progress queue 或 frontend 状态。
@@ -57,9 +61,9 @@ Session Item Log 保存模型可见或恢复所需的 canonical `SessionItem`：
 
 Session Item Log 属于正确性路径，不进入可丢弃 queue。当前 R2 只实现 `SessionPersistence::Items`；`Disabled` 保留为后续 memory-only SessionStore 设计，不在本批实现。
 
-## 4. Agent Event Log
+## 4. Agent Event Log（R3 optional）
 
-Agent Event Log 由 `TurnEvent` derive 得到，记录“发生了什么以及怎么发生”，但不是 resume 所需事实。Agent Event Record 在 queue 中保留完整 canonical payload：
+Agent Event Log 由 `TurnEvent` derive 得到，记录“发生了什么以及怎么发生”，但不是 resume 所需事实。它是 R3 的可选诊断持久化能力，不是 R2 的默认运行路径。启用后，Agent Event Record 在 queue 中保留完整 canonical payload：
 
 - turn / step / LLM attempt 生命周期；
 - typed `LlmCallOutcome`；
@@ -93,7 +97,7 @@ agent::log
 
 `session` 不实现 Agent Event Log。它只实现 Session Item Log 和 mutable `CommitHandler`。
 
-### 4.2 写入链路
+### 4.2 R3 写入链路
 
 ```text
 TurnEvent dispatch
@@ -112,6 +116,10 @@ Hook 不把 queue backpressure 传入 commit 或 loop；只有 queue 已关闭�
 
 Agent Event Log worker 独占文件句柄、seq/turn 恢复、JSONL 编码、批量 flush 和文件生命周期。worker 不依赖 AgentLoop、SessionStore 或 frontend。
 
+R2 不创建 Agent Event Log worker，不创建 `runs/{run_id}.active.jsonl`，也不向 Agent
+公开 diagnostic flush/status API。后续只有出现崩溃诊断、独立进程观测、sidecar 消费或
+持久化 replay 等真实消费者时，才实现本节链路。
+
 ## 5. Progress stream
 
 Progress 是独立的实时消费链路：
@@ -125,7 +133,7 @@ TurnEvent dispatch
                   → CLI / Desktop / headless frontend
 ```
 
-Progress 与 Agent Event Log 使用不同 queue、worker、状态和 flush handle。任一 worker 的失败都不能改变 AgentLoop 的正确性结果。
+Progress 是 R2 的实时消费链路；Agent Event Log 若在 R3 启用，才拥有自己的 queue、worker、状态和 flush handle。两者不共享持久化语义。任一 observer/diagnostic worker 的失败都不能改变 AgentLoop 的正确性结果。
 
 Progress 事件要求：
 
@@ -206,7 +214,7 @@ Items + Off
 
 Progress 和 Agent Event Log 不抽象成一个泛化 `Worker<T>` trait。两者丢失语义、flush 语义和状态字段不同。
 
-Progress 最小状态：
+R2 Progress 最小状态：
 
 ```rust
 pub enum ProgressWorkerState {
@@ -225,7 +233,7 @@ pub struct ProgressStatus {
 }
 ```
 
-Agent Event Log 最小状态：
+R3 Agent Event Log 最小状态：
 
 ```rust
 pub struct AgentEventLogStatus {
@@ -237,7 +245,8 @@ pub struct AgentEventLogStatus {
 }
 ```
 
-R2 不要求 `dropped_bytes`、byte-budget queue 或 metrics exporter；这些属于后续资源计量能力。
+R2 不要求 Agent Event Log 的 `dropped_bytes`、byte-budget queue、metrics exporter、flush
+或持久化 status API；这些属于 R3 诊断资源能力。
 
 ## 8. Plugin / Hook 边界
 
@@ -256,6 +265,7 @@ R2 不要求 `dropped_bytes`、byte-budget queue 或 metrics exporter；这些�
 ## 10. 非目标
 
 - 不用 Agent Event Log 恢复 Session；
+- 不在 R2 实现 Agent Event Log queue、worker 和文件持久化；
 - 不把每个 token 永久保存为默认行为；
 - 不把 Progress snapshot 写入 Session Item Log；
 - 不让 Hook 同步执行文件 IO；

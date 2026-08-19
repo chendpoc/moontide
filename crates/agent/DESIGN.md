@@ -17,7 +17,7 @@
 | agent-tools catalog → ToolRegistry | 复制 ToolRuntime/Loop 状态机 |
 | permission map + approval handler 注入 | scheduler、并发 ToolExecutor |
 | Harness/Project → SystemPrompt | 将 UserMessage 拼入 SystemPrompt |
-| Agent Event recorder 与 EventDispatcher | OTel、sidecar、A2A |
+| EventDispatcher 与 Progress Hook | R3 前不装配 Agent Event diagnostic worker、OTel、sidecar、A2A |
 | AgentLoop ownership | CLI 参数、REPL、stdout 渲染 |
 
 依赖方向固定：
@@ -41,7 +41,7 @@ crates/agent/
   src/
     lib.rs
     config.rs             # ProviderConfig / AgentConfig
-    log/                  # Agent Event queue / worker / file persistence
+    log/                  # R3 optional Agent Event diagnostic queue / worker / file persistence
     platform/              # ProjectPaths 与 settings 原子写入
     bootstrap.rs          # create/resume 装配
     prompt.rs             # Harness + AGENTS.md → SystemPrompt
@@ -49,7 +49,9 @@ crates/agent/
     tests.rs
 ```
 
-Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent::log` 拥有；`agent-core::event` 只提供 `AgentEventRecord`、derive mapping 和 `AgentEventRecorder` port。Progress worker 独立位于 `agent::progress`。
+Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent::log` 预留；R2
+不装配这些组件。`agent-core::event` 只提供 `AgentEventRecord`、derive mapping 和
+`AgentEventRecorder` port。Progress worker 独立位于 `agent::progress`，是 R2 当前宿主事件路径。
 
 ---
 
@@ -138,11 +140,12 @@ config.tool_names
 create: SessionStore::create(sessions_dir, cwd)
 resume: SessionStore::load(sessions_dir, session_id)
 session_id = store.header().session_id.clone()
-legacy_run_id = new UUID（只用于 Agent Event 分区）
+legacy_run_id = new UUID（保留为 trace context；R3 才用于 Agent Event 分区文件）
 diagnostic = persistence.diagnostic
-diagnostic == Off → 不注册 Agent Event Hook，不启动 worker，不创建 runs 文件
-otherwise → agent::log::start(...)
-events = EventDispatcher::new(PipelineRegistry::builder().hook(...).build_frozen(), TraceContext)
+diagnostic == Off → 不注册 Agent Event Hook，不启动 diagnostic worker，不创建 runs 文件
+R2 → 注册 Progress Hook（若 frontend 提供 observer）
+R3 → 按真实诊断消费者决定是否注册 Agent Event Hook / worker
+events = EventDispatcher::new(PipelineRegistry::builder().hook(progress?).build_frozen(), TraceContext)
 ```
 
 EventDispatcher 不拥有 SessionStore；AgentLoopInit 一次性转移 store/provider/tools/events 所有权。
@@ -219,7 +222,7 @@ cli → agent
 agent-core ↛ agent / cli / agent-tools
 ```
 
-`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。Agent Event Log 的诊断 policy 不进入 `session` 或 `agent-core::event`。
+`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。Agent Event Log 的 R3 诊断 policy 不进入 `session` 或 `agent-core::event`。
 
 R2 的 snapshot/finalized identity、事件顺序和 fail-open 细节见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
 

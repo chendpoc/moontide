@@ -9,7 +9,7 @@
 
 ## 这是什么
 
-`agent` 是唯一的组合根。它把 provider、Session、第一方工具、permission、approval、Agent Event recorder 和 AgentLoop 装配起来，但不复制 Loop 的 Turn 状态机。
+`agent` 是唯一的组合根。它把 provider、Session、第一方工具、permission、approval、Progress 和 AgentLoop 装配起来；Agent Event Log 仅作为 R3 optional 诊断能力保留，不进入 R2 默认路径。
 
 ```text
 AgentConfig（显式解析值）
@@ -19,8 +19,9 @@ AgentConfig（显式解析值）
       ├─ permissions + approval → ToolRuntime
       ├─ create/load SessionStore
       ├─ Harness + Project Instructions → SystemPrompt
-      ├─ EventDispatcher + Agent Event Log policy/worker
-      └─ ProgressWorker（可选 frontend observer）
+      ├─ EventDispatcher + Progress Hook
+      ├─ ProgressWorker（可选 frontend observer）
+      └─ Agent Event Log（R3 optional diagnostic）
                     │
                     ▼
              AgentLoop::new(AgentLoopInit)
@@ -104,9 +105,6 @@ impl Agent {
 
     pub async fn flush_progress(&self) -> anyhow::Result<()>;
     pub fn progress_status(&self) -> Option<ProgressStatus>;
-    pub async fn flush_agent_events(&self) -> anyhow::Result<()>;
-    pub fn agent_event_log_status(&self) -> Option<AgentEventLogStatus>;
-
     pub async fn turn(
         &mut self,
         text: String,
@@ -147,9 +145,11 @@ pub fn write_settings_atomically(
 
 `ProgressObserver` 接收由 TurnEvent 派生的安全 `ProgressEvent`，用于 CLI、Desktop 或 HTTP 展示；它是只读、fail-open 的观察接缝，不参与 Loop 决策，也不等同于 OTel trace/span。
 
-`Agent::create`、`Agent::resume` 和 `Agent::reload` 要求调用方已经运行在 Tokio runtime 内。无 runtime 不提供同步 observer 或 file writer fallback。
+`Agent::create`、`Agent::resume` 和 `Agent::reload` 要求调用方已经运行在 Tokio runtime 内。无 runtime 不提供同步 Progress observer fallback。
 
-Agent Event Log 的队列、worker 和文件写入位于 [`src/log/README.md`](src/log/README.md)；Progress 的 snapshot/finalized 和宿主 fold 语义见 [`src/progress/README.md`](src/progress/README.md)。
+Agent Event Log 的 R3 optional 设计位于 [`src/log/README.md`](src/log/README.md)；R2
+不装配其队列、worker 或文件写入。Progress 的 snapshot/finalized 和宿主 fold 语义见
+[`src/progress/README.md`](src/progress/README.md)。
 
 Assistant snapshot、finalized 和宿主 fold 语义见 [`src/progress/README.md`](src/progress/README.md)；实现约束见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
 
@@ -199,7 +199,7 @@ Agent::turn(text, token)
 
 同一个 `Agent` 可以连续执行多轮；CLI 不保存对话历史，历史只存在 Session Item Log。`Agent` 不实现 Clone，也不支持同一 Session 的并发 writer。
 
-Session 默认目录由宿主通过 `agent::platform::ProjectPaths` 解析为 `<cwd>/.moontide/sessions`；Agent Event 默认目录为 `<cwd>/.moontide/runs`。项目设置位于 `<cwd>/.moontide/settings.json`。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，但不启动 Agent Event Log worker 或创建 runs 文件。`runId` 由组合根生成，仅作为现有观测分区键，不恢复 Run 实体。
+Session 默认目录由宿主通过 `agent::platform::ProjectPaths` 解析为 `<cwd>/.moontide/sessions`；Agent Event 的 R3 optional 默认目录预留为 `<cwd>/.moontide/runs`。项目设置位于 `<cwd>/.moontide/settings.json`。默认 `SessionPersistence::Items + DiagnosticPersistence::Off`：创建 Session，运行 Progress，但不启动 Agent Event Log worker 或创建 runs 文件。`runId` 由组合根生成，仅作为现有观测分区键，不恢复 Run 实体。
 
 ---
 

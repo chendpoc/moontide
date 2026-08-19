@@ -210,13 +210,14 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 Agent Event Log 是由 `TurnEvent` derive 的观测记录，服务于诊断、sidecar 和后续指标。它不是恢复事实源，也不能反向修改 Session Item Log。
 
 `agent-core::event` 只拥有 `TurnEvent`、derive、`AgentEventRecord` 和
-`AgentEventRecorder` port；`agent::log` 拥有 bounded queue、worker、persistence
-policy 和 file recorder。queue 中保留完整 canonical payload，只有落盘阶段才允许
-JSONL 限制、truncate、preview 或简化。队列溢出只统计 `dropped_events`，不引入
-`dropped_bytes` 或 byte-budget queue。
+`AgentEventRecorder` port；R3 需要诊断持久化时，`agent::log` 才拥有 bounded queue、
+worker、persistence policy 和 file recorder。queue 中保留完整 canonical payload，
+只有落盘阶段才允许 JSONL 限制、truncate、preview 或简化。队列溢出只统计
+`dropped_events`，不引入 `dropped_bytes` 或 byte-budget queue。
 
 默认 policy 是 `SessionPersistence::Items + DiagnosticPersistence::Off`：Session
-Item Log 正常写入，但不注册 Agent Event Hook、不启动 worker，也不创建 runs 文件。
+Item Log 正常写入，R2 不注册 Agent Event Hook、不启动 diagnostic worker，也不创建
+runs 文件；当前实时宿主事件由 Progress 提供。
 完整的三流、路径和 settings 契约见
 [`logging-and-session-design.md`](logging-and-session-design.md)。
 

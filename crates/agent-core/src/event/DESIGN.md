@@ -1,7 +1,7 @@
 # event — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；Agent Event Log worker 属于 `agent::log`；R4 observer bridge 后置。
+> **状态：** R1–R3、typed payload 与 Loop R1 post-commit Hook / borrowed mutable commit 重构已实现；R2 只保留 Agent Event derive/recorder port，Agent Event Log worker 属于 `agent::log` 的 R3 optional；R4 observer bridge 后置。
 > **关联：** [`../loop/DESIGN.md`](../loop/DESIGN.md) · [`../session/DESIGN.md`](../session/DESIGN.md) · [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`UBIQUITOUS_LANGUAGE.md`](../../../../UBIQUITOUS_LANGUAGE.md)
 
 ---
@@ -62,7 +62,9 @@ event/
   tests.rs
 ```
 
-当前 AgentEventRecord、wire schema 与 derive mapping 保留。Agent Event queue、worker 和 FileAgentEventRecorder 迁移到 `agent::log`；event core 不再拥有 Tokio worker 或物理文件 IO。
+当前 AgentEventRecord、wire schema 与 derive mapping 保留。R2 不强制装配 Agent Event
+queue、worker 和 FileAgentEventRecorder；未来实现时迁移到 `agent::log`，event core 不拥有
+Tokio worker 或物理文件 IO。
 
 ---
 
@@ -317,7 +319,8 @@ impl HookHandler for DeriveAgentEventHook {
 `agent::log::AgentEventLogWorker` 负责校验 `runId`、恢复下一个 `seq` 与最后
 `turn`、64 KiB JSONL 截断、批量 flush、rotation 和 retention。queue 只按事件
 数量 bounded；队列满时不等待，累计 `dropped_events` 并进入 `Degraded`。
-`dropped_bytes`、byte-budget queue 和 metrics exporter 后置。Agent Event Log
+`dropped_bytes`、byte-budget queue 和 metrics exporter 后置。R2 不实现 Agent Event Log
+worker；后续 Agent Event Log
 worker 与 ProgressWorker 使用不同 queue、writer 和状态。
 
 ---
@@ -367,7 +370,7 @@ cli → observer bridge 或 tail runs/*.active.jsonl
 | commit `Err` | 停止当前 dispatch，向 loop 传播 |
 | Hook `Err` | 记录诊断，继续后续 Hook，最终 `Ok` |
 | Agent Event derive/append `Err` | 作为 Hook error fail-open，不回滚 Session |
-| bus 失败 | 忽略 |
+| observer bridge 失败 | 忽略 |
 
 Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记录 hook identity 与错误上下文，但不能递归 emit。
 
@@ -376,7 +379,7 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 ## 11. 决策记录
 
 1. TurnEvent 是内核运行语义；Agent Event 是 derive 的观测 wire；
-2. Session commit 是同步正确性路径，bus 只是观测加速；
+2. Session commit 是同步正确性路径，observer bridge 只是后置观测扩展；
 3. Hook 的本质是可维护/可扩展 callback，不是决策链；
 4. Hook 统一在 commit 后运行并 fail-open；Observational event 直接进入 Hook；
 5. 删除 `HookOutcome::Block` 与重复 `ObserveHandler`；
@@ -396,7 +399,7 @@ Hook 的 fail-open 不是吞掉诊断：实现必须至少经 logger/stderr 记�
 |----|------|------|
 | **R1** | TurnEvent + TraceContext + EventDispatcher + handlers | 已实现旧 pipeline |
 | **R2** | derive + channel mapping | 已实现 |
-| **R3** | session commit + Agent Event recorder/file adapter | 已实现 |
+| **R3-legacy** | session commit + Agent Event recorder/file adapter | 旧实现保留，R2 不装配 |
 | **R3-F2** | ToolCall/ToolResult typed payload | 已实现 |
 | **R4-A** | borrowed mutable CommitHandler；post-commit Hook；Observe adapter 合并；保留 AgentEvent 栈 | 已实现于 Loop R1 |
 | **R4-B** | optional observer bridge + sidecar bridge | 后置 |

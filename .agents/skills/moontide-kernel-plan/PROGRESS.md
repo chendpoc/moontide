@@ -8,7 +8,7 @@
 | 1 | `llm` | 契约 | 无 | ☑ | ☑ | ☑ | R1–R6 完成；PR [#1](https://github.com/chendpoc/moontide/pull/1)–[#8](https://github.com/chendpoc/moontide/pull/8) |
 | 2 | `session` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + v2 call/result payload |
 | 3 | `tools` | 契约 | 无 | ☑ | ☑ | ☑ | RB1–RB2 + agent-tools R1；loop 集成归 loop 模块 |
-| 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 bus 待做 |
+| 4 | `event` | 契约 | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + typed call/result payload；R4 observer bridge 待做 |
 | 5 | `model_input` | 装配 | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成并已 commit/push；compile 唯一出口 |
 | 6 | `context` | 装配 | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 `materialize` 完成并通过 Review；compaction 后置 |
 | 7 | `loop` | 编排 | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；进入 scheduler 架构对齐 |
@@ -20,6 +20,7 @@
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
 - 当前推进：`agent` 与 CLI 作为宿主基线保留；Desktop v0.1 已确认采用单窗口、单活跃 Session、Turn 串行，下一阶段先对齐流式 UI、宿主事件、审批、取消清理与 Session query 接缝。
+- 2026-08-19：重新收敛日志架构：R2 当前运行路径为 `TurnEvent dispatch → Session Item Log + Progress`；Agent Event Log 保留为 `agent::log` 的 R3 optional 诊断能力，不在 R2 装配 queue、worker 或 runs 文件。
 
 ## 变更记录
 
