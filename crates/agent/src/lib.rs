@@ -58,5 +58,12 @@ pub fn latest_session_id(
     agent_core::session::SessionStore::latest_session_id(sessions_dir)
 }
 
+/// Returns the most recently modified persisted session without creating a runtime Agent.
+pub fn latest_session_id(
+    sessions_dir: impl AsRef<std::path::Path>,
+) -> anyhow::Result<Option<String>> {
+    agent_core::session::SessionStore::latest_session_id(sessions_dir)
+}
+
 #[cfg(test)]
 mod tests;
