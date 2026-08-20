@@ -93,6 +93,16 @@ pub fn latest_session_id(
     sessions_dir: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<Option<String>>;
 
+pub use agent_core::session::{SessionItem, SessionSnapshot, SessionSummary};
+
+pub struct SessionQuery;
+
+impl SessionQuery {
+    pub fn new(sessions_dir: std::path::PathBuf) -> Self;
+    pub fn list(&self) -> anyhow::Result<Vec<SessionSummary>>;
+    pub fn load(&self, session_id: &str) -> anyhow::Result<SessionSnapshot>;
+}
+
 impl Agent {
     pub fn create(config: AgentConfig) -> anyhow::Result<Self>;
 
