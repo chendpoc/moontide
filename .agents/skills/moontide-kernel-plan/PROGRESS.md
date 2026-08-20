@@ -19,8 +19,11 @@
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**；event sidecar 后置。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent::log` R3 与 event R4 observer bridge 已完成；当前推进 CLI 对 log/event/progress 的宿主消费，再进入 Desktop Shell。
+- 当前推进：`agent::log` R3 与 event R4 observer bridge 已完成；CLI 宿主消费已完成当前批，Desktop D1 Host actor、SessionQuery facade 和 ordered EventBuffer 已实现；Desktop 进程化目标架构已确认，下一阶段先冻结 desktop-protocol，再进入 RenderState/D3 Iced UI 与 agent-host 拆分。
 - 2026-08-19：日志架构完成 R3 落地：`TurnEvent dispatch → Session Item Log + Progress` 仍是默认路径；按 `DiagnosticPersistence` 启用时，`agent::log` 以 bounded queue、Tokio worker 和 buffered JSONL writer 持久化 Agent Event Log。
+- 2026-08-19：Desktop D0 baseline 文档完成，新增 `crates/desktop/{README,DESIGN,UI-STATE,UI-INTERACTION,UI-TECH-CHOICE,TASKS}.md`；架构 review 后收敛为单一 ordered EventBuffer、SessionQuery facade、typed command error 和 resync 新基线语义。
+- 2026-08-20：用户确认 Iced 为 Desktop UI framework；Electron/内置 Chromium 排除，Tauri 后置，Slint 不进入实现合约。Desktop D1 Host actor、SessionQuery facade、ApprovalBroker、EventBuffer 和测试完成；完整 Iced 窗口进入 D3。
+- 2026-08-20：用户确认 Desktop 进程化目标架构：Iced UI process → `desktop-protocol` → `agent-host` runtime process；AgentLoop 保持 Host 内 Tokio task，subagent 先做逻辑 actor，daemon 后置为独立 sibling/service。当前先保留 D1 同进程基线，后续抽 protocol DTO 与 in-process transport adapter。
 
 ## 变更记录
 

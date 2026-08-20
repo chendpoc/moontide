@@ -21,6 +21,36 @@ description: MoonTide 内核 Rust 化路线图与进度（8 模块依赖顺序�
 - `session` 是 item log **唯一写者**；`model_input::compile()` 和 `context::materialize()` 是**唯一出口**。
 - **不 import、不复用** `crates/` 下旧 draft 代码（`moontide-agent` / `composer` / `llm` / `session` / `tools` / `observability` / `protocol` 等，只作设计参考）。
 - 每个模块走「架构对齐 → 落文档 → 实现 → 单测 → 更新 PROGRESS」循环，不先写完 8 份再写代码。
+- 每个实现批次同时生成 **Agent Task** 与 **User Parallel Task**：Agent Task 推进代码，User Parallel Task 让用户在等待期间完成与本批直接相关的追踪、review、practice 或决策任务；两者在同一验收点汇合。
+
+### 批次上下文与角色边界
+
+- 每个 Review 批必须建立一个 **Work Packet**，作为 Implementer、Reviewer 和用户之间的最小交接上下文；不要把完整历史对话当作唯一上下文。
+- **Implementer** 负责 scoped 实现、测试、文档同步和实现证据；不得静默改架构、公开 API 或批次范围。
+- **Reviewer** 负责独立读取 Work Packet、live source、当前 diff 和验证结果，输出 Standards / Spec findings；不得直接替 Implementer 修代码。
+- Implementer 与 Reviewer 是逻辑上分离的角色。存在可靠的多 agent 能力时可使用独立 Reviewer；否则也必须以新的 review phase 和独立检查清单执行，不把 Implementer 的自检摘要当作 review 证据。
+- Work Packet、Implementation Evidence 和 Review Report 属于开发治理资料，不属于 MoonTide runtime，不进入 `agent-core` / `agent-tools` / `agent` / `cli` 产品边界。
+- 只有架构冲突、公开契约变化、范围扩张、破坏性操作或无法解决的 blocker 才暂停请求用户；普通实现细节和 scoped 测试修复继续在批次内完成。
+
+### 协作 agent 名称
+
+- **Tideforge**：`role: implementer`，把 Work Packet 转化为 scoped 代码、测试和文档证据。
+- **Tidewatch**：`role: reviewer`，独立检查 Work Packet、live source、diff 和验证结果，输出 Review Report。
+- `implementer` / `reviewer` 是 canonical role；`Tideforge` / `Tidewatch` 是协作名称。名称不得改变权限边界，也不代表 MoonTide runtime 内的产品组件。
+
+### 自适应开发模式
+
+计划是当前假设，不是冻结合同。真实开发允许在调研、spike 或实现中发现新约束，并据此调整功能范围、模块设计和架构；但调整必须按影响等级处理，不得静默改变公共契约。
+
+| 模式 | 触发条件 | 允许动作 | 交付物 |
+|---|---|---|---|
+| **Discovery** | 功能是否值得做、设计证据不足或存在多个可行方向 | 调研、追踪、最小 spike、可丢弃实验 | 假设、证据、开放问题、建议 |
+| **Implementation** | 当前契约和范围足够稳定 | scoped 代码、测试、文档和验证 | Implementation Evidence |
+| **Replan** | 实现发现设计、边界或产品目标需要变化 | 暂停当前实现，更新决策和 Work Packet | Decision Record、更新后的范围 |
+
+变化等级：`L0` 为局部实现细节，Tideforge 可直接决定；`L1` 为模块内部设计，Tideforge 提议、Tidewatch 检查并记录；`L2` 为公开 API、所有权、依赖方向或持久化格式，必须回到架构对齐；`L3` 为功能存在性、版本范围或用户体验，必须由用户决定。
+
+Discovery 不应被强行包装成完整 TASK，也不应把临时 spike 当作产品代码；只有证据支持继续后，才进入 Implementation。
 
 ## 模块文档机制（README + DESIGN）
 
@@ -56,6 +86,19 @@ README（产品面）          DESIGN（实现面）
 | §1 架构对齐 | **产品评审** | 职责、公开 API、调用边界、与上下游关系 | 暂不落盘，或只记 CONTEXT |
 | §2 设计文档 | **产品定稿 + 技术评审** | 用户确认 README 承诺后，补 DESIGN 兑现方案 | **同时**落 README + DESIGN |
 | §3 实现 | **按图施工** | 契约以 **README** 为准；细节以 **DESIGN** 为准 | 改公开 API → 回 §1 产品评审 |
+
+### 双轨协作（每个实现批次）
+
+实现批次不是只有 Agent 的执行清单，还必须包含一个用户可在等待期间完成的并行任务。用户是产品/架构决策参与者和学习者，不默认承担方案正确性证明或缺陷发现责任；Agent 必须主动完成独立的架构、Spec、Standards、错误路径和验证检查。
+
+| 任务 | 负责者 | 目的 | 要求 |
+|---|---|---|---|
+| **Agent Task** | Agent | 实现、测试、文档同步、批次自检 | 有明确 scope、diff 预算和验证命令 |
+| **User Parallel Task** | 用户 | 掌控项目状态、理解真实代码、练习修改或准备决策 | 15–60 分钟，有文件/路径、产出和验收标准；不要求用户独立证明方案正确 |
+
+User Parallel Task 默认从 `Trace`（追调用链）、`Review`（检查契约/错误路径）、`Practice`（独立小修改/测试）、`Decision`（基于证据做边界决策）中选择。它不应重复 Agent 正在修改的同一文件，也不阻塞 Agent 继续实现；若用户需要改代码，必须指定不冲突的路径或先建立独立工作区。
+
+批次完成时，Agent 交付实现证据，用户交付并行任务产出，双方使用同一组 Shared Acceptance 汇合。不得把 User Parallel Task 变成泛化读书、未来架构发散或额外需求。
 
 ### README 推荐结构（对外）
 
@@ -110,7 +153,7 @@ README（产品面）          DESIGN（实现面）
 
 ## 推进模板（硬门禁：先架构对齐）
 
-用户扮演**架构师**：掌握到 **trait / 结构体 / enum / 公开函数签名** 这一层；**不**讨论函数体、胶水代码、序列化细节、测试样板。
+用户扮演**产品/架构决策参与者与学习者**：掌握到 **trait / 结构体 / enum / 公开函数签名** 这一层；**不**要求用户独立判断所有架构错误，也不讨论函数体、胶水代码、序列化细节、测试样板。Agent 必须把方案依据、替代方案、风险、反例和验证证据讲清楚，并主动指出用户可能无法发现的错误。
 
 每个模块严格按四段推进，**禁止跳过第 1 段直接写代码**：
 
@@ -129,7 +172,7 @@ README（产品面）          DESIGN（实现面）
 对齐方式：
 
 1. Agent 给出草案（可用 Rust 伪代码签名）。
-2. **停下来等用户确认或修订**——逐项改到用户满意。
+2. **停下来等用户确认或修订**——用户确认的是目标、边界和可接受取舍，不等同于用户已证明方案正确；Agent 仍需独立验证并披露未证实假设。
 3. 有分歧时先辩清楚再往下；用户未明确「可以落文档 / 可以写代码」之前，**不写实现、不建源码文件**。
 4. 确认结果写入对话结论；若决策可复用，补一条到 [CONTEXT.md](CONTEXT.md)「关键设计决策速查」。
 
@@ -151,8 +194,8 @@ README（产品面）          DESIGN（实现面）
 设计文档 ☑ 后，**必须**走子 skill [batch-implement](batch-implement/SKILL.md)：
 
 1. 从 **DESIGN.md**（+ README 公开 API）生成 `src/{mod}/TASKS.md`（可参考子 skill 内 `llm-TASKS.example.md`）
-2. 与用户确认本批 TASK（默认 1 个/批）
-3. 实现 + `just check` → **停等用户 git diff review**
+2. 与用户确认本批 TASK、User Parallel Task 和 Shared Acceptance（默认一个 Review 批配一个用户任务）
+3. 实现 + `just check` + 批次自检；用户并行完成 User Parallel Task → **停等用户 git diff review**
 4. 用户说 **commit** 后再提交；勾选 TASK → 下一批
 5. 全部 TASK ☑ 后进入 §4 收尾
 
