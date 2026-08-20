@@ -1,7 +1,7 @@
 # agent — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** 初步可用版 Agent R1/R2 已实现；CLI 接缝按后续 `cli` 模块实现。
+> **状态：** 初步可用版 Agent R1–R3 已实现；CLI 接缝按后续 `cli` 模块实现。
 > **关联：** [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ---
@@ -17,7 +17,7 @@
 | agent-tools catalog → ToolRegistry | 复制 ToolRuntime/Loop 状态机 |
 | permission map + approval handler 注入 | scheduler、并发 ToolExecutor |
 | Harness/Project → SystemPrompt | 将 UserMessage 拼入 SystemPrompt |
-| Agent Event recorder 与 EventDispatcher | OTel、sidecar、A2A |
+| EventDispatcher、Progress Hook 与可选 Agent Event diagnostic worker | OTel、sidecar、A2A |
 | AgentLoop ownership | CLI 参数、REPL、stdout 渲染 |
 
 依赖方向固定：
@@ -41,13 +41,18 @@ crates/agent/
   src/
     lib.rs
     config.rs             # ProviderConfig / AgentConfig
+    log/                  # R3 Agent Event diagnostic queue / worker / file persistence
+    platform/              # ProjectPaths 与 settings 原子写入
     bootstrap.rs          # create/resume 装配
     prompt.rs             # Harness + AGENTS.md → SystemPrompt
     agent.rs              # Agent facade → AgentLoop
     tests.rs
 ```
 
-Agent Event 的具体 file adapter 暂时复用 `agent-core::event::FileAgentEventRecorder`；待 agent crate 稳定后再评估是否迁移文件适配器，不在初版复制实现。
+Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent::log` 实现；默认
+`DiagnosticPersistence::Off` 不装配这些组件。`agent-core::event` 只提供
+`AgentEventRecord`、derive mapping 和 `AgentEventRecorder` port。Progress worker 独立位于
+`agent::progress`，是默认宿主事件路径。
 
 ---
 
@@ -73,6 +78,14 @@ pub struct AgentConfig {
     pub permissions: ToolPermissionMap,
     pub approval: Option<Arc<dyn ToolApprovalHandler>>,
     pub progress: Option<Arc<dyn ProgressObserver>>,
+    pub persistence: PersistenceConfig,
+}
+
+    pub enum SessionPersistence { Items, Disabled /* reserved */ }
+pub enum DiagnosticPersistence { Off, Errors, Normal, Debug }
+pub struct PersistenceConfig {
+    pub session: SessionPersistence,
+    pub diagnostic: DiagnosticPersistence,
 }
 
 pub struct Agent {
@@ -83,6 +96,7 @@ pub struct Agent {
 impl Agent {
     pub fn create(config: AgentConfig) -> anyhow::Result<Self>;
     pub fn resume(config: AgentConfig, session_id: &str) -> anyhow::Result<Self>;
+    pub async fn reload(&mut self, config: AgentConfig) -> anyhow::Result<()>;
     pub fn session_id(&self) -> &str;
     pub async fn turn(
         &mut self,
@@ -128,10 +142,12 @@ config.tool_names
 create: SessionStore::create(sessions_dir, cwd)
 resume: SessionStore::load(sessions_dir, session_id)
 session_id = store.header().session_id.clone()
-legacy_run_id = new UUID（只用于 Agent Event 分区）
-recorder = FileAgentEventRecorder::new(runs_dir, legacy_run_id)
-hooks = [DeriveAgentEventHook(recorder)]
-events = EventDispatcher::new(PipelineRegistry::builder().hook(...).build_frozen(), TraceContext)
+legacy_run_id = new UUID（保留为 trace context；启用 diagnostic policy 时用于 Agent Event 分区文件）
+diagnostic = persistence.diagnostic
+diagnostic == Off → 不注册 Agent Event Hook，不启动 diagnostic worker，不创建 runs 文件
+Progress → 注册 Progress Hook（若 frontend 提供 observer）
+diagnostic != Off → 注册 Agent Event Hook / worker
+events = EventDispatcher::new(PipelineRegistry::builder().hook(progress?).build_frozen(), TraceContext)
 ```
 
 EventDispatcher 不拥有 SessionStore；AgentLoopInit 一次性转移 store/provider/tools/events 所有权。
@@ -199,6 +215,7 @@ Agent 不在 bootstrap 时验证 provider 网络可达性；第一次 Turn 的 p
 ```text
 agent → agent-core::{event, llm, loop, model_input, session, tools}
 agent → agent-tools
+agent::log → agent-core::event::{AgentEventRecord, AgentEventRecorder}
 agent ↛ cli
 agent ↛ scheduler
 agent ↛ provider adapter concrete modules
@@ -207,22 +224,69 @@ cli → agent
 agent-core ↛ agent / cli / agent-tools
 ```
 
-`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。
+`ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。Agent Event Log 的 R3 诊断 policy 不进入 `session` 或 `agent-core::event`。
+
+R2 的 snapshot/finalized identity、事件顺序和 fail-open 细节见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
+
+## 8. Platform paths and project settings
+
+`agent::platform` 是宿主共用的跨平台路径 seam，不是包住所有 `std::fs` / `std::path` 的万能 common module。
+
+### 8.1 `ProjectPaths`
+
+```text
+resolve(cwd, sessions_dir?, runs_dir?)
+  → absolute cwd
+  → relative overrides resolve against cwd
+  → missing overrides default to cwd/.moontide/{sessions,runs}
+  → settings_path = cwd/.moontide/settings.json
+```
+
+规则：
+
+- 使用 `PathBuf` / `OsStr`，不把路径转为字符串再处理；
+- 不拼接 `/` 或 `\\`；
+- 不读取环境变量；
+- 不默认调用 `canonicalize`；
+- `cwd` 必须是现有目录；
+- `sessions_dir` / `runs_dir` 可不存在，由宿主 bootstrap 创建和校验；
+- 用户传入的绝对路径不被重定位。
+
+Session/Run/Settings 均为项目本地 `.moontide` 布局；用户级 config/data/cache 目录不属于当前 module。
+
+### 8.2 Settings persistence
+
+设置 schema 由 CLI/frontend 拥有，第一版带显式 `version: 1`。`api_key` 可以持久化在项目设置中；它不进入 Session Item Log 或 Agent Event Log。
+
+API key 优先级：`--api-key` > `DEEPSEEK_API_KEY` > `settings.json` > interactive input。其他设置优先级：显式 CLI 参数 > `settings.json` > 环境变量 > 默认值。CLI 参数必须使用 `Option<T>` 保留“未传入”和“显式传入”的区别。
+
+`write_settings_atomically(path, bytes)` 在目标目录创建临时文件，写入完整 bytes 后以平台可用的替换语义更新目标文件。它不解析 JSON、不合并配置、不实现 concurrent writer；第一版约束一个 workspace 同时只有一个 settings writer。损坏或未知版本的 settings 文件由 frontend 显式报错并保留原文件。
+
+### 8.3 Ownership
+
+```text
+agent::platform  → 路径解析、settings 原子替换
+cli/frontend     → settings schema、JSON 解析、优先级、读写流程
+agent            → AgentConfig 装配
+agent-core       → Session Item Log / AgentLoop，不读取 settings.json
+```
 
 ---
 
-## 8. 错误与生命周期
+## 9. 错误与生命周期
 
 - `create/resume` 失败不产生可运行 Agent；
+- `create/resume/reload` 必须在 Tokio runtime 内调用；
 - `Agent::turn` 错误不回滚已提交 Session facts；
 - Agent 可在 facts 仍可 materialize 时继续下一 Turn；
-- Agent Event Hook/recorder fail-open，不覆盖 Session commit error；
+- Agent Event Hook/worker fail-open，不覆盖 Session commit error；
+- `Agent::reload` 在替换旧 diagnostic worker 前等待 flush；flush 失败则返回错误并保留旧运行时；
 - Agent drop 只释放运行时句柄，Session Item Log 已落盘事实保留；
 - 同一 Agent 串行调用 Turn；并发调用者须自行在更高层协调。
 
 ---
 
-## 9. 决策记录
+## 10. 决策记录
 
 1. agent 是唯一组合根，不把装配逻辑塞入 cli 或 agent-core；
 2. AgentConfig 接收显式解析值，agent 不读取环境变量；
@@ -234,7 +298,7 @@ agent-core ↛ agent / cli / agent-tools
 
 ---
 
-## 10. 单测方向
+## 11. 单测方向
 
 - ProviderConfig → AdapterConfig 映射；
 - create/resume Session identity 与独立 legacy run partition；
@@ -245,3 +309,6 @@ agent-core ↛ agent / cli / agent-tools
 - Agent 多 Turn 复用同一 SessionStore；
 - Agent 不直接 commit_item、不 import scheduler/cli；
 - bootstrap 错误不产生半装配 Agent。
+- ProjectPaths 的相对/绝对路径解析在 macOS、Windows、Linux 保持同一契约；
+- settings 原子写入不留下半个 JSON，目标文件替换失败时返回错误；
+- settings writer 的单写者约束不被伪装成跨进程并发支持。

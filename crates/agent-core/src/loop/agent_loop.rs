@@ -6,9 +6,9 @@ use uuid::Uuid;
 
 use crate::{
     context,
-    event::{EventDispatcher, TurnEvent},
+    event::{EventDispatcher, LlmCallFailureKind, LlmCallOutcome, TurnEvent},
     llm::{
-        protocol::{LlmError, ModelResponse, RequestFailureKind},
+        protocol::{CancelReason, LlmError, ModelResponse, RequestFailureKind},
         run_model_call_with_updates, LLMProvider,
     },
     model_input::compile,
@@ -83,6 +83,8 @@ impl AgentLoop {
                 &self.tools.registry,
             );
             let mut response = None;
+            let mut response_action = None;
+            let mut completed_llm_call_id = None;
             for attempt in 0..=input.policy.max_llm_retries {
                 ensure_not_cancelled(&cancellation)?;
                 let llm_call_id = Uuid::new_v4().to_string();
@@ -110,44 +112,94 @@ impl AgentLoop {
                         );
                     }) => result,
                     _ = cancellation.cancelled() => {
-                        return Err(anyhow::anyhow!("turn cancelled during llm call"));
+                        Err(LlmError::Cancelled {
+                            reason: CancelReason::User,
+                        })
                     }
                 };
 
                 match attempt_result {
                     Ok(result) => {
+                        let action = match classify_response(&result) {
+                            Ok(action) => action,
+                            Err(error) => {
+                                self.events.emit(
+                                    &mut self.session,
+                                    TurnEvent::LlmCallEnded {
+                                        turn,
+                                        step,
+                                        llm_call_id: llm_call_id.clone(),
+                                        outcome: LlmCallOutcome::Failed {
+                                            kind: LlmCallFailureKind::InvalidResponse,
+                                        },
+                                    },
+                                )?;
+                                return Err(error);
+                            }
+                        };
+                        self.events.emit(
+                            &mut self.session,
+                            TurnEvent::LlmCallEnded {
+                                turn,
+                                step,
+                                llm_call_id: llm_call_id.clone(),
+                                outcome: LlmCallOutcome::Succeeded {
+                                    stop_reason: result.stop_reason.clone(),
+                                    usage: result.usage,
+                                },
+                            },
+                        )?;
+                        response = Some(result);
+                        response_action = Some(action);
+                        completed_llm_call_id = Some(llm_call_id);
+                        break;
+                    }
+                    Err(error) => {
+                        let outcome = match &error {
+                            LlmError::RequestFailed { kind, .. } => LlmCallOutcome::Failed {
+                                kind: LlmCallFailureKind::Request(*kind),
+                            },
+                            LlmError::Cancelled { reason } => {
+                                LlmCallOutcome::Cancelled { reason: *reason }
+                            }
+                        };
                         self.events.emit(
                             &mut self.session,
                             TurnEvent::LlmCallEnded {
                                 turn,
                                 step,
                                 llm_call_id,
-                                stop_reason: result.stop_reason.clone(),
-                                usage: result.usage,
+                                outcome,
                             },
                         )?;
-                        response = Some(result);
-                        break;
+
+                        match error {
+                            LlmError::RequestFailed {
+                                kind: RequestFailureKind::Recoverable,
+                                ..
+                            } if attempt < input.policy.max_llm_retries => {
+                                wait_for_retry(&cancellation, retry_delay(attempt)).await?;
+                            }
+                            error => return Err(anyhow::Error::new(error)),
+                        }
                     }
-                    Err(LlmError::RequestFailed {
-                        kind: RequestFailureKind::Recoverable,
-                        ..
-                    }) if attempt < input.policy.max_llm_retries => {
-                        wait_for_retry(&cancellation, retry_delay(attempt)).await?;
-                    }
-                    Err(error) => return Err(anyhow::Error::new(error)),
                 }
             }
 
             let response =
                 response.ok_or_else(|| anyhow::anyhow!("LLM step produced no response"))?;
+            let response_action = response_action
+                .ok_or_else(|| anyhow::anyhow!("LLM step produced no response action"))?;
+            let llm_call_id = completed_llm_call_id
+                .ok_or_else(|| anyhow::anyhow!("LLM step produced no call identity"))?;
 
-            match classify_response(&response)? {
+            match response_action {
                 ResponseAction::Terminal { assistant_blocks } => {
                     self.events.emit(
                         &mut self.session,
                         TurnEvent::AssistantFinalized {
                             turn,
+                            llm_call_id: llm_call_id.clone(),
                             blocks: assistant_blocks,
                         },
                     )?;
@@ -159,15 +211,14 @@ impl AgentLoop {
                     assistant_blocks,
                     calls,
                 } => {
-                    if !assistant_blocks.is_empty() {
-                        self.events.emit(
-                            &mut self.session,
-                            TurnEvent::AssistantFinalized {
-                                turn,
-                                blocks: assistant_blocks,
-                            },
-                        )?;
-                    }
+                    self.events.emit(
+                        &mut self.session,
+                        TurnEvent::AssistantFinalized {
+                            turn,
+                            llm_call_id: llm_call_id.clone(),
+                            blocks: assistant_blocks,
+                        },
+                    )?;
                     for call in &calls {
                         self.events.emit(
                             &mut self.session,

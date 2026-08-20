@@ -12,6 +12,7 @@
 | **R2** | 02–03 | REPL、approval、render、Ctrl-C 与测试 | ~850 行 | ◐ Review |
 | **R3** | 04 | Settings Preflight、InputOwner 与 runtime settings | ~500 行 | ◐ Review |
 | **R4** | 05 | `/settings` overlay、catalog 与 fuzzy filter | ~700 行 | ◐ Review |
+| **R5** | 06 | Progress/diagnostic status consumption | ~180 行 | ◐ Review |
 
 ## TASK 明细
 
@@ -53,11 +54,20 @@
 
 ### TASK-cli-05: `/settings` overlay 与 catalog
 
-- **做什么：** 实现 crossterm alternate-screen settings overlay、逐键 fuzzy filter、setting catalog 与 NextTurn/ReloadAgent/NextLaunch/ReadOnly 生效边界。
+- **做什么：** 实现 crossterm alternate-screen settings overlay、逐键 fuzzy filter、setting catalog 与 NextTurn/ReloadAgent/ReadOnly 生效边界。
 - **依赖：** TASK-cli-04
 - **范围：** `crates/cli/src/fuzzy.rs`、`setting_catalog.rs`、`settings_ui.rs`、`settings.rs`、`repl.rs`、`main.rs`、`tests.rs`
 - **预估 diff：** ~700 行
 - **完成标准：** catalog 排除 session/runs/tools，筛选与 setting cycle 测试通过；always-allow 必须显式输入 `ALLOW`；退出或错误后 raw mode 与 alternate screen 均恢复。
+- **状态：** ◐ Review
+
+### TASK-cli-06: Progress/diagnostic status consumption
+
+- **做什么：** CLI 在 turn/one-shot 完成边界显式 flush Progress，并把 worker 错误、队列丢失和 resync 需求输出到 stderr；Agent Event Log 继续只消费 flush/status，不 tail 诊断文件。
+- **依赖：** TASK-cli-05
+- **范围：** `crates/cli/src/main.rs`、`repl.rs`、`tests.rs`、`README.md`、`DESIGN.md`
+- **预估 diff：** ~180 行
+- **完成标准：** Progress flush 错误与 `resync_required` 不再静默丢失；stdout 仍只包含 assistant final text。
 - **状态：** ◐ Review
 
 ## 实现约束

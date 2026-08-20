@@ -1,6 +1,6 @@
 use std::{future::Future, io};
 
-use agent::{Agent, ModelResponse};
+use agent::{Agent, AgentConfig, ModelResponse};
 use anyhow::{Context, Result};
 use rustyline::error::ReadlineError;
 use tokio_util::sync::CancellationToken;
@@ -8,11 +8,11 @@ use tokio_util::sync::CancellationToken;
 use crate::args::CliArgs;
 use crate::input::InputOwner;
 use crate::render::{write_assistant_stdout, write_diagnostic_stderr};
-use crate::settings::RuntimeSettings;
+use crate::settings::GlobalConfigStore;
 use crate::settings_ui::run_settings_ui;
 
 const PROMPT: &str = "moontide> ";
-const HELP: &str = "/id       show session id\n/settings  open settings overlay\n/help      show this help\n/exit      exit the REPL";
+const HELP: &str = "/id       show active session id\n/settings  open settings overlay\n/help      show this help\n/exit      exit the REPL";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReplCommand {
@@ -39,10 +39,11 @@ pub(crate) fn parse_command(line: String) -> ReplCommand {
 }
 
 pub(crate) async fn run(
-    agent: &mut Agent,
+    agent: &mut Option<Agent>,
+    pending_config: &mut Option<AgentConfig>,
     input_owner: InputOwner,
     args: &CliArgs,
-    settings: &mut RuntimeSettings,
+    settings: &mut GlobalConfigStore,
 ) -> Result<()> {
     loop {
         match input_owner.readline(PROMPT) {
@@ -57,20 +58,59 @@ pub(crate) async fn run(
                     ReplCommand::Help => {
                         write_diagnostic_stderr(HELP).context("write REPL help")?;
                     }
-                    ReplCommand::SessionId => {
-                        write_diagnostic_stderr(&format!("session id: {}", agent.session_id()))
+                    ReplCommand::SessionId => match agent.as_ref() {
+                        Some(active_agent) => {
+                            write_diagnostic_stderr(&format!(
+                                "session id: {}",
+                                active_agent.session_id()
+                            ))
                             .context("write REPL session id")?;
-                    }
-                    ReplCommand::Settings => {
-                        settings.input_owner = Some(input_owner.clone());
-                        tokio::task::block_in_place(|| run_settings_ui(settings, agent, args))?;
-                    }
+                        }
+                        None => write_diagnostic_stderr("no active session")
+                            .context("write REPL session status")?,
+                    },
+                    ReplCommand::Settings => match agent.as_mut() {
+                        Some(active_agent) => {
+                            settings.input_owner = Some(input_owner.clone());
+                            tokio::task::block_in_place(|| {
+                                tokio::runtime::Handle::current().block_on(run_settings_ui(
+                                    settings,
+                                    active_agent,
+                                    args,
+                                ))
+                            })?;
+                        }
+                        None => write_diagnostic_stderr(
+                            "no active session; enter a message before opening /settings",
+                        )
+                        .context("write REPL settings status")?,
+                    },
                     ReplCommand::Turn(text) => {
+                        if agent.is_none() {
+                            let config = pending_config
+                                .take()
+                                .ok_or_else(|| anyhow::anyhow!("pending agent config missing"))?;
+                            let created_agent = Agent::create(config).context("create session")?;
+                            write_diagnostic_stderr(&format!(
+                                "session (create) id: {}",
+                                created_agent.session_id()
+                            ))
+                            .context("write created session id")?;
+                            *agent = Some(created_agent);
+                        }
+                        let active_agent = agent.as_mut().ok_or_else(|| {
+                            anyhow::anyhow!("active agent missing after creation")
+                        })?;
                         let cancellation = CancellationToken::new();
-                        let outcome = await_turn_with_ctrl_c(
-                            agent.turn(text, cancellation.clone()),
-                            cancellation,
-                            tokio::signal::ctrl_c(),
+                        let outcome = super::finalize_turn(
+                            await_turn_with_ctrl_c(
+                                active_agent.turn(text, cancellation.clone()),
+                                cancellation,
+                                tokio::signal::ctrl_c(),
+                            )
+                            .await,
+                            super::flush_progress(active_agent),
+                            super::flush_agent_event_log(active_agent),
                         )
                         .await?;
                         match outcome {

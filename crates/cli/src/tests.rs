@@ -1,5 +1,6 @@
 use std::{
     future, io,
+    io::Write,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -7,15 +8,18 @@ use std::{
     },
 };
 
-use agent::{Agent, ContentBlock, ModelResponse, StopReason};
+use agent::{ContentBlock, ModelResponse, StopReason};
+use tempfile::tempdir;
 
 use crate::{
     approval::{parse_response, truncate_preview},
-    args::{ApprovalPolicyArg, CliArgs, LaunchMode},
+    args::{CliArgs, LaunchMode},
     config::{resolve_agent_config_with, session_mode, validate_prompt},
+    finalize_turn, progress_status_messages,
     render::{assistant_text, write_assistant_stdout},
     repl::{await_turn_with_ctrl_c, parse_command, ReplCommand, TurnOutcome},
-    settings::{ApprovalPolicy, RuntimeSettings, TraceMode},
+    report_progress_diagnostics,
+    settings::{ApprovalPolicy, GlobalConfigStore, TraceMode},
     trace::format_progress_event,
 };
 
@@ -37,8 +41,8 @@ fn args_select_one_shot_without_side_effects() {
     assert_eq!(args.launch_mode(), LaunchMode::OneShot);
     assert_eq!(args.prompt.as_deref(), Some("inspect project"));
     assert_eq!(args.cwd, Some(PathBuf::from("workspace")));
-    assert_eq!(args.model, "custom-model");
-    assert_eq!(args.approval_policy, ApprovalPolicyArg::Always);
+    assert_eq!(args.model.as_deref(), Some("custom-model"));
+    assert_eq!(args.approval_policy, None);
 }
 
 // Scenario: no --prompt is supplied for either a new or resumed Session.
@@ -61,7 +65,8 @@ fn create_and_resume_dispatch_to_repl_seam() {
 #[test]
 fn config_resolution_uses_explicit_inputs() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
-    let cwd = PathBuf::from("project");
+    let directory = tempdir().expect("temporary project directory");
+    let cwd = directory.path().to_owned();
     let config = resolve_agent_config_with(
         &args,
         cwd.clone(),
@@ -85,9 +90,10 @@ fn config_resolution_uses_explicit_inputs() {
 #[test]
 fn always_approval_policy_maps_all_tools_to_ask() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
+    let directory = tempdir().expect("temporary project directory");
     let config = resolve_agent_config_with(
         &args,
-        PathBuf::from("project"),
+        directory.path().to_owned(),
         Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Always),
     )
@@ -105,9 +111,10 @@ fn always_approval_policy_maps_all_tools_to_ask() {
 #[test]
 fn always_allow_policy_maps_all_tools_to_allow() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
+    let directory = tempdir().expect("temporary project directory");
     let config = resolve_agent_config_with(
         &args,
-        PathBuf::from("project"),
+        directory.path().to_owned(),
         Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::AlwaysAllow),
     )
@@ -143,19 +150,18 @@ fn missing_api_key_is_rejected() {
 #[test]
 fn invalid_working_directory_is_rejected_by_agent_boundary() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
-    let config = resolve_agent_config_with(
+    let result = resolve_agent_config_with(
         &args,
         PathBuf::from("missing-working-directory"),
         Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Default),
-    )
-    .expect("CLI config should resolve before Agent path validation");
+    );
 
-    assert!(Agent::create(config).is_err());
+    assert!(result.is_err());
 }
 
-fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSettings {
-    RuntimeSettings {
+fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> GlobalConfigStore {
+    GlobalConfigStore {
         api_key: api_key.into(),
         approval_policy,
         trace_mode: TraceMode::Off,
@@ -164,7 +170,7 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> RuntimeSe
         max_tokens: super::config::DEFAULT_MAX_TOKENS,
         max_steps: super::config::DEFAULT_MAX_STEPS,
         thinking_level: None,
-        quiet_startup: false,
+        persistence: agent::PersistenceConfig::default(),
         input_owner: None,
     }
 }
@@ -314,20 +320,29 @@ async fn completed_turn_wins_pending_ctrl_c() {
 }
 
 // Scenario: trace mode renders semantic progress events for CLI diagnostics.
-// Expected: tool/LLM lifecycle is visible, while thinking text remains opt-in.
+// Expected: tool/LLM lifecycle is visible, while thinking from snapshots remains opt-in.
 // Invariant: trace output is stderr-facing presentation and does not alter final assistant stdout.
 #[test]
 fn trace_mode_renders_events_and_opt_in_thinking() {
     let tool = agent::ProgressEvent::ToolCall {
         turn: 1,
-        name: "bash".into(),
-        tool_use_id: "tool-1".into(),
-        input: "{\"command\":\"pwd\"}".into(),
+        call: agent::ToolCall::new("tool-1", "bash", serde_json::json!({"command": "pwd"}))
+            .expect("tool call should be valid"),
     };
-    let thinking = agent::ProgressEvent::Thinking {
+    let thinking = agent::ProgressEvent::AssistantResponseSnapshot {
         turn: 1,
         step: 0,
-        text: "inspect workspace".into(),
+        llm_call_id: "call-1".into(),
+        update_index: 0,
+        snapshot: agent::ModelResponseSnapshot {
+            content: Vec::new(),
+            pending: Some(agent::PendingBlock::Thinking {
+                thinking: "inspect workspace".into(),
+            }),
+            stop_reason: None,
+            usage: None,
+            model: None,
+        },
     };
 
     assert!(format_progress_event(TraceMode::Events, &tool)
@@ -339,4 +354,94 @@ fn trace_mode_renders_events_and_opt_in_thinking() {
             .expect("thinking event should render")
             .contains("thinking: inspect workspace")
     );
+}
+
+// Scenario: the Progress worker reports dropped events and a degraded state at turn completion.
+// Expected: CLI produces stderr-facing resync and worker diagnostics instead of silently discarding them.
+// Invariant: status formatting does not alter assistant stdout or reconstruct state from Agent Event JSONL.
+#[test]
+fn progress_status_reports_resync_and_worker_error() {
+    let status = agent::ProgressStatus {
+        state: agent::ProgressWorkerState::Degraded,
+        queue_capacity: 256,
+        queue_len: 0,
+        dropped_events: 2,
+        resync_required: true,
+        last_error: Some("observer failed".into()),
+    };
+
+    let messages = progress_status_messages(&status, true);
+    assert_eq!(messages.len(), 2);
+    assert!(messages[0].contains("resync"));
+    assert!(messages[1].contains("dropped_events=2"));
+    assert!(messages[1].contains("observer failed"));
+}
+
+// Scenario: Progress flushing fails while the CLI has a diagnostic sink available.
+// Expected: the flush failure is formatted and written through the diagnostic boundary.
+// Invariant: a worker failure is not silently discarded; only the sink's own I/O error is propagated.
+#[test]
+fn progress_flush_error_is_written_to_diagnostic_sink() {
+    let mut output = Vec::new();
+    report_progress_diagnostics(
+        Err(anyhow::anyhow!("worker stopped")),
+        false,
+        None,
+        |message| writeln!(output, "{message}"),
+    )
+    .expect("diagnostic sink should accept the flush error");
+
+    let output = String::from_utf8(output).expect("diagnostic output should be UTF-8");
+    assert!(output.contains("ERROR: Progress flush failed"));
+    assert!(output.contains("worker stopped"));
+}
+
+// Scenario: Ctrl-C signal handling returns an I/O error after cancelling an in-flight Turn.
+// Expected: shared turn finalization still flushes Progress and Agent Event Log before returning the signal error.
+// Invariant: signal failure cannot bypass either persistence/diagnostic flush boundary.
+#[tokio::test]
+async fn signal_error_still_runs_turn_flushes() {
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+    let turn = async move {
+        release_rx
+            .await
+            .map_err(|_| anyhow::anyhow!("turn release sender dropped"))?;
+        Ok::<_, anyhow::Error>(ModelResponse {
+            content: vec![ContentBlock::Text {
+                text: "ignored".into(),
+            }],
+            stop_reason: StopReason::EndTurn,
+            usage: None,
+            model: None,
+        })
+    };
+    let turn_result = await_turn_with_ctrl_c(turn, cancellation.clone(), async move {
+        release_tx
+            .send(())
+            .map_err(|_| io::Error::other("turn cleanup receiver dropped"))?;
+        Err::<(), _>(io::Error::other("signal failed"))
+    })
+    .await;
+
+    let progress_flushed = Arc::new(AtomicBool::new(false));
+    let progress_flushed_flag = Arc::clone(&progress_flushed);
+    let log_flushed = Arc::new(AtomicBool::new(false));
+    let log_flushed_flag = Arc::clone(&log_flushed);
+    let result = finalize_turn(
+        turn_result,
+        async move {
+            progress_flushed_flag.store(true, Ordering::SeqCst);
+            Ok(())
+        },
+        async move {
+            log_flushed_flag.store(true, Ordering::SeqCst);
+        },
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert!(cancellation.is_cancelled());
+    assert!(progress_flushed.load(Ordering::SeqCst));
+    assert!(log_flushed.load(Ordering::SeqCst));
 }

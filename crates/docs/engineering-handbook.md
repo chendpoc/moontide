@@ -207,7 +207,20 @@ Session Item Log 是整场 session 的 append-only 事实源，负责回答：
 
 ### 5.2 Agent Event Log
 
-Agent Event Log 是由 TurnEvent derive 的观测记录，服务于 UI、诊断、sidecar 和指标。它不是恢复事实源，也不能反向修改 Session Item Log。
+Agent Event Log 是由 `TurnEvent` derive 的观测记录，服务于诊断、sidecar 和后续指标。它不是恢复事实源，也不能反向修改 Session Item Log。
+
+`agent-core::event` 只拥有 `TurnEvent`、derive、`AgentEventRecord` 和
+`AgentEventRecorder` port；`agent::log` 拥有 bounded queue、worker、persistence policy
+和 file recorder。queue 中保留完整 canonical payload，
+只有落盘阶段才允许 JSONL 限制、truncate、preview 或简化。队列溢出只统计
+`dropped_events`，不引入 `dropped_bytes` 或 byte-budget queue。
+
+默认 policy 是 `SessionPersistence::Items + DiagnosticPersistence::Off`：Session
+Item Log 正常写入，默认不注册 Agent Event Hook、不启动 diagnostic worker，也不创建
+runs 文件；当前实时宿主事件由 Progress 提供。启用 `Errors`、`Normal` 或 `Debug` 时，
+`agent::log` 才注册 post-commit hook 并创建 active JSONL。
+完整的三流、路径和 settings 契约见
+[`logging-and-session-design.md`](logging-and-session-design.md)。
 
 ### 5.3 Tool-call round closure
 
@@ -258,7 +271,7 @@ Hook 不能阻断或取消。工具已开始且无法确认写入结果时使用
 对于 tool 调用，推荐并由 event/session 契约守门的顺序是：
 
 ```text
-AssistantFinalized
+AssistantFinalized                    # 每个成功 call 一次；tool-only 可为空 marker
   → ToolCallRecorded { call 0..N }   # 全部 call 先记录
   → for each call in model order:
       input validation / permission / approval
@@ -267,6 +280,8 @@ AssistantFinalized
 ```
 
 执行副作用前必须使整个 round 的 ToolCall 事实可恢复；结果完成后逐条提交 ToolResult。executor 返回基础设施错误时，loop 先提交当前 OutcomeUnknown 和剩余 Parent-cancelled results，再传播原始错误。最后允许 Step 返回 ToolUse 时也必须闭合 round，再返回 step-limit error。
+
+每个 LLM attempt 都必须产生一次 `LlmCallEnded`，其 outcome 使用 typed enum 表达成功、请求失败、无效响应或取消；详细 provider 错误只进入 logger。tool-only response 的 `AssistantFinalized` 空 marker 用于关闭运行时 draft，不写入 Session Item Log；非空 assistant blocks 才形成 `AssistantMessage`。
 
 ---
 
@@ -340,7 +355,7 @@ just check
 | 整场 session 的 append-only 事实源 | **Session Item Log** |
 | log 中的一条记录 | **SessionItem** |
 | 现有 `runId` 分区的观测日志 | **Agent Event Log**（legacy 字段，不是 Run 实体） |
-| 运行事件广播 | **TurnEvent bus** |
+| 运行事件分派 | **TurnEvent dispatch** |
 | turn 配置解析 | `resolveTurnConfig` |
 | turn 上下文解析 | `resolveTurnContext` |
 | 执行层级 | Session → Turn → Step → Tool round（无领域 Run） |
@@ -350,7 +365,7 @@ just check
 - 不用 `Session Event Log`、`SessionLog`、`Item Log` 代替 Session Item Log；
 - 不用 `derive_messages`、`projection`、`restore` 代替 `materialize`；
 - 不用 `compose` 代替 `compile`；
-- 不用 `sink` 指 TurnEvent bus；
+- 不用 `bus` / `sink` 指 TurnEvent dispatch；异步观测使用 `ObserverBridge`，sidecar transport 另行命名；
 - 不用“工具验收网关”描述 tools 的核心职责；模型 offload 验收属于 scheduler。
 
 命名的目标是一词一义，并能对应具体模块、边界或不变量。

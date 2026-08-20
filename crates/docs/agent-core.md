@@ -39,7 +39,7 @@ cli（纯壳）→ agent（组合根）
 | `llm` | MoonTide 协议、provider port、adapter/normalize、request preflight | 基础库 | 已实现 |
 | `session` | Session Item Log 的 create/load/commit/fork 与恢复不变量 | llm/tools 契约 + event commit seam | 已实现；Loop 接缝增量待做 |
 | `tools` | ToolSpec、Tool、冻结 registry、input validation、单次执行 | 基础库 | 已实现 |
-| `event` | TurnEvent、dispatcher、derive、Agent Event recorder | llm/tools 契约 | 当前分期已实现；完整 bus 后置 |
+| `event` | TurnEvent、dispatcher、derive、Agent Event recorder port、observer bridge | llm/tools 契约 | R4 observer bridge 已实现；sidecar 后置 |
 | `model_input` | provider-neutral `ModelRequest` 的纯组装 | llm protocol + tools | R1 已实现并完成测试 |
 | `context` | Session Item Log → model-visible messages 的 `materialize` | session + llm protocol + tools | R1 已实现、测试并通过 Review |
 | `loop` | AgentLoop ownership、Turn/Step/tool round、permission/approval、LLM retry 与 Turn cancellation | 模块 1–6 | R1–R3 + conformance 已实现 |
@@ -73,6 +73,8 @@ Session Item Log ──materialize──► messages ──compile──► Mode
 
 - **Session Item Log** 是可恢复事实源，`session` 是唯一写者；
 - **Agent Event Log** 是由 `TurnEvent` derive 的观测记录，不反向覆盖 session；当前 `runId` 仅为 legacy 分区键，不构成 Run 实体；
+- Agent Event Log 的 queue、worker、persistence policy 和文件 writer 属于 `agent` 组合根的 [`agent::log`](../agent/src/log/README.md)；默认 `Off` 不装配它，`agent-core::event` 只拥有 derive、record 和 recorder port；
+- 项目级路径与 policy 见 [`logging-and-session-design.md`](logging-and-session-design.md)，R2 默认是 `SessionPersistence::Items + DiagnosticPersistence::Off`；
 - **ModelRequest** 是单次模型调用产物，不是事实源，不持久化替代 session；
 - provider adapter 只编码请求，不修改 session/context 语义。
 - `Message` / `ModelRequest` 是 MoonTide 的 canonical provider-neutral 数据格式；`llm::adapter` 负责转换为目标 provider wire request，`context` 不参与该转换。

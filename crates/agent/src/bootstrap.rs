@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use agent_core::{
-    event::{
-        DeriveAgentEventHook, EventDispatcher, FileAgentEventRecorder, PipelineRegistry,
-        TraceContext,
-    },
+    event::{EventDispatcher, PipelineRegistry, TraceContext},
     llm::{
         adapter::{build_provider, AdapterConfig},
         LLMProvider,
@@ -27,7 +24,14 @@ pub(crate) fn resume(config: &AgentConfig, session_id: &str) -> Result<AgentPart
     build(config, Some(session_id))
 }
 
+pub(crate) fn ensure_runtime() -> Result<()> {
+    tokio::runtime::Handle::try_current()
+        .map(|_| ())
+        .context("Agent create/resume/reload requires a Tokio runtime")
+}
+
 fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
+    ensure_runtime()?;
     config.validate_values()?;
     config.ensure_paths()?;
 
@@ -51,13 +55,22 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
     .context("build tool runtime")?;
 
     let run_id = Uuid::new_v4().to_string();
-    let recorder = FileAgentEventRecorder::new(&config.runs_dir, &run_id)
-        .context("create Agent Event recorder")?;
-    let hook = Arc::new(DeriveAgentEventHook::new(recorder));
-    let mut pipeline_builder = PipelineRegistry::builder().hook(hook);
-    if let Some(observer) = config.progress.clone() {
-        pipeline_builder = pipeline_builder.hook(Arc::new(ProgressHook::new(observer)));
-    }
+    let mut pipeline_builder = PipelineRegistry::builder();
+    let agent_event_log_handle =
+        if config.persistence.diagnostic == crate::config::DiagnosticPersistence::Off {
+            None
+        } else {
+            let (hook, handle) = build_agent_event_log(config, &run_id)?;
+            pipeline_builder = pipeline_builder.hook(Arc::new(hook));
+            Some(handle)
+        };
+    let progress_handle = if let Some(observer) = config.progress.clone() {
+        let (hook, handle) = ProgressHook::new(observer)?;
+        pipeline_builder = pipeline_builder.hook(Arc::new(hook));
+        Some(handle)
+    } else {
+        None
+    };
     let pipelines = pipeline_builder
         .build_frozen()
         .context("freeze event hook registry")?;
@@ -83,7 +96,43 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
         loop_,
         session_id: stable_session_id,
         cwd,
+        agent_event_log_handle,
+        progress_handle,
     })
+}
+
+fn build_agent_event_log(
+    config: &AgentConfig,
+    run_id: &str,
+) -> Result<(
+    agent_core::event::DeriveAgentEventHook<crate::log::QueuedAgentEventRecorder>,
+    crate::log::AgentEventLogHandle,
+)> {
+    let (queued, receiver) =
+        crate::log::QueuedAgentEventRecorder::new(config.persistence.diagnostic);
+    let status = queued.status();
+    let recorder = match crate::log::FileAgentEventRecorder::new(&config.runs_dir, run_id) {
+        Ok(recorder) => recorder,
+        Err(error) => {
+            let handle = crate::log::AgentEventLogHandle::failed(
+                &queued,
+                format!("create Agent Event Log recorder: {error:#}"),
+            );
+            return Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle));
+        }
+    };
+    let worker = match crate::log::AgentEventLogWorker::start(receiver, recorder, status) {
+        Ok(worker) => worker,
+        Err(error) => {
+            let handle = crate::log::AgentEventLogHandle::failed(
+                &queued,
+                format!("start Agent Event Log worker: {error:#}"),
+            );
+            return Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle));
+        }
+    };
+    let handle = crate::log::AgentEventLogHandle::new(&queued, worker);
+    Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle))
 }
 
 fn build_tool_registry(config: &AgentConfig) -> Result<ToolRegistry> {

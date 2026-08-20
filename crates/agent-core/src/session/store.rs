@@ -16,6 +16,10 @@ pub struct SessionStore {
 }
 
 impl SessionStore {
+    pub fn latest_session_id(sessions_dir: impl AsRef<Path>) -> Result<Option<String>> {
+        file_store::latest_session_id(sessions_dir.as_ref())
+    }
+
     pub fn create(sessions_dir: impl AsRef<Path>, cwd: PathBuf) -> Result<Self> {
         let session_id = file_store::new_session_id();
         let header = SessionHeader {

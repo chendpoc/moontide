@@ -1,20 +1,15 @@
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
-use tempfile::TempDir;
 
-use super::agent_recorder::{truncate_record, FileAgentEventRecorder, MAX_AGENT_EVENT_BYTES};
-use super::file_writer::FileWriter;
 use crate::event::{
     derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
-    CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, PipelineRegistry,
-    TraceContext, TurnEvent,
+    CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, LlmCallOutcome,
+    ObserverBridge, ObserverEvent, PipelineRegistry, TraceContext, TurnEvent,
 };
 use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
-use crate::session::{SessionItem, SessionStore};
-use crate::tools::{ToolCall, ToolCancellationReason, ToolContent, ToolResult, ToolResultStatus};
+use crate::tools::{ToolCall, ToolContent, ToolResult};
 
 struct MockCommitHandler {
     calls: Arc<AtomicUsize>,
@@ -30,6 +25,14 @@ impl CommitHandler for MockCommitHandler {
     fn commit(&mut self, _event: &TurnEvent) -> Result<Option<String>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(Some("item-1".to_string()))
+    }
+}
+
+struct FailingCommitHandler;
+
+impl CommitHandler for FailingCommitHandler {
+    fn commit(&mut self, _event: &TurnEvent) -> Result<Option<String>> {
+        Err(anyhow!("commit failed"))
     }
 }
 
@@ -71,6 +74,24 @@ impl HookHandler for RecordingHook {
             .lock()
             .map_err(|_| anyhow!("observe lock poisoned"))?
             .push(event.clone());
+        Ok(())
+    }
+}
+
+struct ObserverOrderingHook {
+    receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<ObserverEvent>>>,
+    observed_empty: Arc<AtomicBool>,
+}
+
+impl HookHandler for ObserverOrderingHook {
+    fn on_event(&self, _ctx: &TraceContext, _event: &TurnEvent) -> Result<()> {
+        let queue_was_empty = self
+            .receiver
+            .lock()
+            .map_err(|_| anyhow!("observer receiver lock poisoned"))?
+            .try_recv()
+            .is_err();
+        self.observed_empty.store(queue_was_empty, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -208,7 +229,10 @@ fn hook_fail_open_continues_dispatch() {
 fn committable_runs_hook_after_commit() {
     let commit_calls = Arc::new(AtomicUsize::new(0));
     let observed = Arc::new(Mutex::new(Vec::new()));
-    let mut dispatcher = test_dispatcher(vec![Arc::new(RecordingHook::new(Arc::clone(&observed)))]);
+    let mut dispatcher = test_dispatcher(vec![
+        Arc::new(FailingHook),
+        Arc::new(RecordingHook::new(Arc::clone(&observed))),
+    ]);
     let mut commit = MockCommitHandler::new(Arc::clone(&commit_calls));
 
     dispatcher
@@ -216,6 +240,7 @@ fn committable_runs_hook_after_commit() {
             &mut commit,
             TurnEvent::AssistantFinalized {
                 turn: 1,
+                llm_call_id: "call-1".into(),
                 blocks: vec![ContentBlock::Text {
                     text: "done".to_string(),
                 }],
@@ -227,6 +252,127 @@ fn committable_runs_hook_after_commit() {
     let events = observed.lock().expect("lock");
     assert_eq!(events.len(), 1);
     assert!(matches!(events[0], TurnEvent::AssistantFinalized { .. }));
+}
+
+// 场景：dispatcher 配置 bounded observer bridge，并完成一个 post-commit event。
+// 预期：所有 Hook 完成后，bridge 收到带当前 TraceContext 的不可变事件副本。
+// 不变量/副作用：observer publish 不改变同步 commit 结果，消费端拥有独立事件所有权。
+#[test]
+fn observer_bridge_publishes_after_hooks() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let (bridge, receiver) = ObserverBridge::channel(2).expect("bridge");
+    let receiver = Arc::new(Mutex::new(receiver));
+    let observed_empty = Arc::new(AtomicBool::new(false));
+    let mut dispatcher = test_dispatcher(vec![
+        Arc::new(RecordingHook::new(Arc::clone(&observed))),
+        Arc::new(ObserverOrderingHook {
+            receiver: Arc::clone(&receiver),
+            observed_empty: Arc::clone(&observed_empty),
+        }),
+    ]);
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = MockCommitHandler::new(Arc::new(AtomicUsize::new(0)));
+
+    dispatcher
+        .emit(
+            &mut commit,
+            TurnEvent::ToolCallRecorded {
+                turn: 7,
+                call: ToolCall::new("tool-7", "grep", serde_json::json!({})).expect("tool call"),
+            },
+        )
+        .expect("emit");
+
+    assert!(observed_empty.load(Ordering::SeqCst));
+    let delivered = receiver
+        .lock()
+        .expect("observer receiver")
+        .try_recv()
+        .expect("observer event");
+    assert!(matches!(
+        delivered.event,
+        TurnEvent::ToolCallRecorded { .. }
+    ));
+    assert_eq!(delivered.context.run_id, "run-1");
+    assert_eq!(delivered.context.session_id, "session-1");
+    assert_eq!(delivered.context.turn, 7);
+    assert_eq!(delivered.context.session_item_id.as_deref(), Some("item-1"));
+    assert_eq!(delivered.context.tool_use_id.as_deref(), Some("tool-7"));
+    assert!(delivered.context.llm_call_id.is_none());
+    assert_eq!(observed.lock().expect("hook events").len(), 1);
+}
+
+// 场景：observer bridge 使用零容量配置。
+// 预期：channel 构造失败，而不是创建无法工作的同步边界。
+// 不变量/副作用：有效 bridge 始终具有可表达的 bounded queue。
+#[test]
+fn observer_bridge_rejects_zero_capacity() {
+    assert!(ObserverBridge::channel(0).is_err());
+}
+
+// 场景：observer bridge 队列容量为 1，连续发布两个事件。
+// 预期：第二个事件被非阻塞丢弃，两个 emit 都成功返回。
+// 不变量/副作用：observer backpressure 不传播到 commit 或 AgentLoop。
+#[test]
+fn observer_bridge_full_queue_is_fail_open() {
+    let mut dispatcher = test_dispatcher(vec![]);
+    let (bridge, mut receiver) = ObserverBridge::channel(1).expect("bridge");
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = MockCommitHandler::new(Arc::new(AtomicUsize::new(0)));
+
+    dispatcher
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 1 })
+        .expect("first emit");
+    dispatcher
+        .emit(&mut commit, TurnEvent::TurnEnded { turn: 1 })
+        .expect("second emit");
+
+    assert!(matches!(
+        receiver.try_recv().expect("first observer event"),
+        crate::event::ObserverEvent {
+            event: TurnEvent::TurnStarted { turn: 1 },
+            ..
+        }
+    ));
+    assert!(receiver.try_recv().is_err());
+}
+
+// 场景：observer bridge 的消费端已关闭，dispatcher 继续派发事件。
+// 预期：publish 失败被忽略，emit 仍成功返回。
+// 不变量/副作用：observer 生命周期故障不影响 Session/Turn 正确性路径。
+#[test]
+fn observer_bridge_closed_consumer_is_fail_open() {
+    let mut dispatcher = test_dispatcher(vec![]);
+    let (bridge, receiver) = ObserverBridge::channel(1).expect("bridge");
+    drop(receiver);
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = MockCommitHandler::new(Arc::new(AtomicUsize::new(0)));
+
+    dispatcher
+        .emit(&mut commit, TurnEvent::TurnStarted { turn: 1 })
+        .expect("observer failure must not fail emit");
+}
+
+// 场景：committable event 的 Session commit 失败，同时配置 observer bridge。
+// 预期：emit 返回 commit 错误且 bridge 不收到该事件。
+// 不变量/副作用：observer bridge 只能观察已成功提交的 committable event。
+#[test]
+fn observer_bridge_does_not_publish_when_commit_fails() {
+    let mut dispatcher = test_dispatcher(vec![]);
+    let (bridge, mut receiver) = ObserverBridge::channel(1).expect("bridge");
+    dispatcher = dispatcher.with_observer_bridge(bridge);
+    let mut commit = FailingCommitHandler;
+
+    assert!(dispatcher
+        .emit(
+            &mut commit,
+            TurnEvent::UserPromptCommitted {
+                turn: 1,
+                text: "not committed".into(),
+            },
+        )
+        .is_err());
+    assert!(receiver.try_recv().is_err());
 }
 
 fn test_ctx() -> TraceContext {
@@ -304,17 +450,20 @@ fn derive_llm_call_started_and_ended_maps_trace() {
             turn: 2,
             step: 1,
             llm_call_id: "call-1".to_string(),
-            stop_reason: StopReason::EndTurn,
-            usage: Some(Usage {
-                input_tokens: 10,
-                output_tokens: 5,
-            }),
+            outcome: LlmCallOutcome::Succeeded {
+                stop_reason: StopReason::EndTurn,
+                usage: Some(Usage {
+                    input_tokens: 10,
+                    output_tokens: 5,
+                }),
+            },
         },
     );
     assert_eq!(ended.channel, AgentChannel::Trace);
     assert_eq!(ended.kind, "llm_call");
     assert_eq!(ended.payload["status"], "ended");
-    assert_eq!(ended.payload["usage"]["input_tokens"], 10);
+    assert_eq!(ended.payload["outcome"]["status"], "succeeded");
+    assert_eq!(ended.payload["outcome"]["usage"]["input_tokens"], 10);
 }
 
 // 场景：流式 snapshot 只有 pending text，没有最终 content。
@@ -344,6 +493,8 @@ fn derive_message_update_pending_text_maps_assistant_text() {
     assert_eq!(record.kind, "assistant_text");
     assert_eq!(record.payload["body"], "partial");
     assert_eq!(record.payload["charCount"], 7);
+    assert_eq!(record.payload["snapshot"]["pending"]["kind"], "text");
+    assert_eq!(record.payload["snapshot"]["pending"]["text"], "partial");
 }
 
 // 场景：流式 snapshot 携带尚未提交的 Unicode tool input；预期：使用独立的 trace/tool_use_update schema 并按字符计数；不变量/副作用：流式观测不能冒充已提交的 ToolCall 事实。
@@ -383,6 +534,18 @@ fn derive_message_update_separates_partial_tool_use_from_committed_call() {
             "input": expected_input,
             "llmCallId": "llm-call-1",
             "step": 2,
+            "snapshot": {
+                "content": [],
+                "pending": {
+                    "kind": "tool_use",
+                    "id": "tool-stream-1",
+                    "name": "grep",
+                    "input_json": input_json,
+                },
+                "stop_reason": null,
+                "usage": null,
+                "model": null,
+            },
         })
     );
 }
@@ -415,6 +578,10 @@ fn derive_message_update_counts_persisted_invalid_partial_input() {
     assert_eq!(record.kind, "tool_use_update");
     assert_eq!(record.payload["input"], input_json);
     assert_eq!(record.payload["charCount"], persisted_input.chars().count());
+    assert_eq!(
+        record.payload["snapshot"]["pending"]["input_json"],
+        input_json
+    );
 }
 
 // 场景：流式 snapshot 已形成完整 ToolUse block 但尚未产生 ToolCallRecorded；预期：仍使用 tool_use_update，并输出与 committed schema 区分的 llmCallId/step；不变量/副作用：snapshot 完整不等于调用事实已提交。
@@ -447,6 +614,15 @@ fn derive_message_update_completed_tool_block_remains_update() {
     assert_eq!(record.payload["charCount"], input_json.chars().count());
     assert_eq!(record.payload["llmCallId"], "llm-call-2");
     assert_eq!(record.payload["step"], 3);
+    assert_eq!(
+        record.payload["snapshot"]["content"][0],
+        serde_json::json!({
+            "type": "tool_use",
+            "id": "tool-stream-2",
+            "name": "read_file",
+            "input": input,
+        })
+    );
 }
 
 // 场景：assistant 最终消息包含 text 与 thinking blocks。
@@ -458,6 +634,7 @@ fn derive_assistant_finalized_maps_conversation_final() {
         &ctx,
         &TurnEvent::AssistantFinalized {
             turn: 1,
+            llm_call_id: "call-1".into(),
             blocks: vec![
                 ContentBlock::Text {
                     text: "hello".to_string(),
@@ -472,6 +649,14 @@ fn derive_assistant_finalized_maps_conversation_final() {
     assert_eq!(record.channel, AgentChannel::Conversation);
     assert_eq!(record.kind, "final");
     assert_eq!(record.payload["text"], "hello");
+    assert_eq!(record.payload["llmCallId"], "call-1");
+    assert_eq!(
+        record.payload["blocks"],
+        serde_json::json!([
+            { "type": "text", "text": "hello" },
+            { "type": "thinking", "thinking": "hmm" },
+        ])
+    );
 }
 
 // 场景：ToolResult 携带工具名称、调用 ID、状态和文本结果；预期：trace/tool_result payload 完整保留这些语义；不变量/副作用：观测日志直接读取 ToolResult，不复制另一套结果结构。
@@ -495,6 +680,7 @@ fn derive_tool_result_includes_identity_status_and_content() {
             "toolName": "read_file",
             "toolUseId": "tool-1",
             "status": "succeeded",
+            "content": {"type": "text", "value": "ok"},
             "body": "ok",
             "charCount": 2,
         })
@@ -551,377 +737,4 @@ fn derive_agent_event_hook_forwards_record_without_file_truncation() {
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].truncated, None);
     assert_eq!(records[0].payload["text"].as_str(), Some(text.as_str()));
-}
-
-// 场景：Agent Event payload 达到 64 KiB 边界。
-// 预期：记录被截断且序列化后不超过上限；不变量：保留 original_bytes。
-#[test]
-fn truncate_record_enforces_64kib_limit() {
-    let huge = "x".repeat(MAX_AGENT_EVENT_BYTES);
-    let record = AgentEventRecord {
-        id: "id-1".to_string(),
-        seq: Some(u64::MAX),
-        run_id: "run-1".to_string(),
-        turn: 1,
-        phase: AgentPhase::PreLlm,
-        channel: AgentChannel::Conversation,
-        kind: "user_prompt".to_string(),
-        ts: 1,
-        payload: serde_json::json!({ "text": huge }),
-        preview: Some("preview".to_string()),
-        truncated: None,
-        original_bytes: None,
-    };
-
-    let truncated = truncate_record(record);
-    assert_eq!(truncated.truncated, Some(true));
-    assert!(truncated.original_bytes.unwrap_or(0) > MAX_AGENT_EVENT_BYTES as u64);
-
-    let bytes = serde_json::to_vec(&truncated).expect("serialize");
-    assert!(bytes.len() <= MAX_AGENT_EVENT_BYTES);
-}
-
-// 场景：底层 file writer 直接读取已有 JSONL 行并追加一行文本。
-// 预期：它只维护文件 I/O，不解析 AgentEventRecord；换行由 file writer 统一补齐。
-#[test]
-fn file_writer_owns_only_jsonl_line_io() {
-    let root = TempDir::new().expect("tempdir");
-    let file_writer =
-        FileWriter::open(root.path().join("runs/run-io.active.jsonl")).expect("file writer");
-
-    assert!(file_writer.read_lines().expect("read empty log").is_empty());
-    file_writer
-        .append_line(r#"{"kind":"test"}"#)
-        .expect("append JSONL line");
-    assert_eq!(
-        file_writer.read_lines().expect("read appended log"),
-        vec![r#"{"kind":"test"}"#.to_string()]
-    );
-    assert!(file_writer.append_line("not\njsonl").is_err());
-}
-
-// 场景：事件的 payload 和 preview 异常膨胀，但 identity 字段遵循上游生成契约。
-// 预期：recorder 写出的最终 JSONL 行（含换行）不超过 64 KiB；不变量：identity 字段不被持久化层改写。
-#[test]
-fn agent_recorder_enforces_final_line_limit() {
-    let root = TempDir::new().expect("tempdir");
-    let runs_dir = root.path().join("runs");
-    let recorder = FileAgentEventRecorder::new(&runs_dir, "run-limit").expect("recorder");
-    recorder
-        .append(AgentEventRecord {
-            id: "event-limit".into(),
-            seq: None,
-            run_id: "run-limit".into(),
-            turn: 0,
-            phase: AgentPhase::PreLlm,
-            channel: AgentChannel::Trace,
-            kind: "kind".into(),
-            ts: 1,
-            payload: serde_json::json!({"body": "x".repeat(MAX_AGENT_EVENT_BYTES)}),
-            preview: Some("p".repeat(MAX_AGENT_EVENT_BYTES)),
-            truncated: None,
-            original_bytes: None,
-        })
-        .expect("append bounded event");
-
-    let raw = std::fs::read_to_string(recorder.path()).expect("read event log");
-    let line = raw.lines().next().expect("event line");
-    assert!(line.len() < MAX_AGENT_EVENT_BYTES);
-}
-
-// 场景：调用方把属于另一个 legacy runId 分区的记录交给当前文件 recorder。
-// 预期：append 立即失败且不创建 JSONL 行；不变量：Agent Event recorder 不能混写不同分区 identity。
-#[test]
-fn agent_recorder_rejects_mismatched_run_id_without_writing() {
-    let root = TempDir::new().expect("tempdir");
-    let runs_dir = root.path().join("runs");
-    let recorder = FileAgentEventRecorder::new(&runs_dir, "run-expected").expect("recorder");
-
-    let result = recorder.append(AgentEventRecord {
-        id: "event-mismatch".into(),
-        seq: None,
-        run_id: "run-other".into(),
-        turn: 0,
-        phase: AgentPhase::PreLlm,
-        channel: AgentChannel::Trace,
-        kind: "turn_started".into(),
-        ts: 1,
-        payload: serde_json::json!({"turn": 0}),
-        preview: None,
-        truncated: None,
-        original_bytes: None,
-    });
-
-    assert!(result.is_err());
-    assert!(!recorder.path().exists());
-}
-
-// 场景：recorder 在同一 active JSONL 文件被关闭后重新打开并继续写入。
-// 预期：新 recorder 从已有最大 seq 和最后 turn 恢复后继续；不变量：同一 legacy runId 分区的 seq 单调不重复。
-#[test]
-fn agent_recorder_resumes_sequence_from_existing_file() {
-    let root = TempDir::new().expect("tempdir");
-    let runs_dir = root.path().join("runs");
-    let record = |turn| AgentEventRecord {
-        id: "event-1".into(),
-        seq: None,
-        run_id: "run-seq".into(),
-        turn,
-        phase: AgentPhase::PreLlm,
-        channel: AgentChannel::Trace,
-        kind: "turn_started".into(),
-        ts: 1,
-        payload: serde_json::json!({"turn": 0}),
-        preview: None,
-        truncated: None,
-        original_bytes: None,
-    };
-
-    let first = FileAgentEventRecorder::new(&runs_dir, "run-seq").expect("first recorder");
-    first.append(record(3)).expect("first append");
-    drop(first);
-
-    let second = FileAgentEventRecorder::new(&runs_dir, "run-seq").expect("second recorder");
-    assert_eq!(second.last_turn().expect("read restored turn"), Some(3));
-    second.append(record(4)).expect("second append");
-    assert_eq!(second.last_turn().expect("read current turn"), Some(4));
-
-    let lines = read_agent_event_lines(second.path());
-    assert_eq!(lines.len(), 2);
-    assert_eq!(lines[0]["seq"], 0);
-    assert_eq!(lines[1]["seq"], 1);
-}
-
-fn integration_dirs(root: &TempDir) -> (PathBuf, PathBuf) {
-    let sessions = root.path().join("sessions");
-    let runs = root.path().join("runs");
-    (sessions, runs)
-}
-
-fn integration_dispatcher(
-    runs_dir: &PathBuf,
-    run_id: &str,
-    session_id: &str,
-    store: SessionStore,
-    extra_hooks: Vec<Arc<dyn HookHandler>>,
-) -> (EventDispatcher, SessionStore) {
-    let recorder = FileAgentEventRecorder::new(runs_dir, run_id).expect("recorder");
-    let mut builder =
-        PipelineRegistry::builder().hook(Arc::new(DeriveAgentEventHook::new(recorder)));
-    for hook in extra_hooks {
-        builder = builder.hook(hook);
-    }
-    let registry = builder.build_frozen().expect("registry");
-    (
-        EventDispatcher::new(registry, TraceContext::new(run_id, session_id)),
-        store,
-    )
-}
-
-fn read_agent_event_lines(path: &Path) -> Vec<serde_json::Value> {
-    let raw = std::fs::read_to_string(path).expect("read agent events");
-    raw.lines()
-        .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_str(line).expect("parse agent event line"))
-        .collect()
-}
-
-// 场景：生产 dispatcher 提交用户输入并写 Agent Event Log。
-// 预期：Session Item Log 与观测 JSONL 各产生一条对应事实。
-#[test]
-fn integration_user_prompt_commits_session_and_writes_agent_event() {
-    let root = TempDir::new().expect("tempdir");
-    let (sessions_dir, runs_dir) = integration_dirs(&root);
-    let run_id = "run-user-prompt";
-    let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
-    let session_id = store.header().session_id.clone();
-
-    let (mut dispatcher, mut store) =
-        integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
-
-    dispatcher
-        .emit(
-            &mut store,
-            TurnEvent::UserPromptCommitted {
-                turn: 0,
-                text: "hello integration".into(),
-            },
-        )
-        .expect("emit");
-
-    let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
-    assert_eq!(loaded.items().len(), 1);
-    match &loaded.items()[0] {
-        SessionItem::UserMessage { text, .. } => assert_eq!(text, "hello integration"),
-        other => panic!("expected user message, got {other:?}"),
-    }
-
-    let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
-    let lines = read_agent_event_lines(&event_path);
-    assert_eq!(lines.len(), 1);
-    assert_eq!(lines[0]["channel"], "conversation");
-    assert_eq!(lines[0]["kind"], "user_prompt");
-    assert_eq!(lines[0]["seq"], 0);
-    assert_eq!(lines[0]["runId"], run_id);
-    assert_eq!(lines[0]["payload"]["text"], "hello integration");
-}
-
-// 场景：生产 dispatcher 提交 assistant finalized 事件。
-// 预期：Session 保存 AssistantMessage，观测日志保存 conversation/final。
-#[test]
-fn integration_assistant_finalized_commits_session_and_writes_agent_event() {
-    let root = TempDir::new().expect("tempdir");
-    let (sessions_dir, runs_dir) = integration_dirs(&root);
-    let run_id = "run-assistant";
-    let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
-    let session_id = store.header().session_id.clone();
-
-    let (mut dispatcher, mut store) =
-        integration_dispatcher(&runs_dir, run_id, &session_id, store, vec![]);
-
-    dispatcher
-        .emit(
-            &mut store,
-            TurnEvent::AssistantFinalized {
-                turn: 1,
-                blocks: vec![ContentBlock::Text {
-                    text: "final answer".into(),
-                }],
-            },
-        )
-        .expect("emit");
-
-    let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
-    assert_eq!(loaded.items().len(), 1);
-    match &loaded.items()[0] {
-        SessionItem::AssistantMessage { blocks, .. } => {
-            assert_eq!(blocks.len(), 1);
-        }
-        other => panic!("expected assistant message, got {other:?}"),
-    }
-
-    let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
-    let lines = read_agent_event_lines(&event_path);
-    assert_eq!(lines.len(), 1);
-    assert_eq!(lines[0]["channel"], "conversation");
-    assert_eq!(lines[0]["kind"], "final");
-    assert_eq!(lines[0]["seq"], 0);
-    assert_eq!(lines[0]["payload"]["text"], "final answer");
-}
-
-// 场景：失败、取消和结果未知的 ToolResult 经过 dispatcher 同时进入 Session 与 Agent Event Log；预期：typed status 和 JSON string 内容在两条持久化路径完整保留；不变量/副作用：观测投影不改变 canonical result，Session serde 不混淆 Text 与 Json。
-#[test]
-fn integration_tool_result_preserves_status_and_content_across_both_logs() {
-    let cases = [
-        (
-            "failed",
-            ToolResultStatus::Failed { retryable: true },
-            serde_json::json!({ "failed": { "retryable": true } }),
-        ),
-        (
-            "cancelled",
-            ToolResultStatus::Cancelled {
-                reason: ToolCancellationReason::User,
-            },
-            serde_json::json!({ "cancelled": { "reason": "user" } }),
-        ),
-        (
-            "unknown",
-            ToolResultStatus::OutcomeUnknown,
-            serde_json::json!("outcome_unknown"),
-        ),
-    ];
-
-    for (suffix, status, expected_status) in cases {
-        let root = TempDir::new().expect("tempdir");
-        let (sessions_dir, runs_dir) = integration_dirs(&root);
-        let run_id = format!("run-tool-result-{suffix}");
-        let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
-        let session_id = store.header().session_id.clone();
-        let call = ToolCall::new("tool-integration", "grep", serde_json::json!({}))
-            .expect("create tool call");
-        let result = ToolResult::with_status(
-            &call,
-            status,
-            ToolContent::Json(serde_json::json!("工具结果")),
-        );
-        let (mut dispatcher, mut store) =
-            integration_dispatcher(&runs_dir, &run_id, &session_id, store, vec![]);
-
-        dispatcher
-            .emit(
-                &mut store,
-                TurnEvent::ToolResultRecorded {
-                    turn: 1,
-                    result: result.clone(),
-                },
-            )
-            .expect("emit tool result");
-
-        let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
-        match &loaded.items()[0] {
-            SessionItem::ToolResult {
-                result: stored_result,
-                ..
-            } => assert_eq!(stored_result, &result),
-            other => panic!("expected tool result, got {other:?}"),
-        }
-
-        let partition = chrono::Local::now().format("%Y-%m-%d").to_string();
-        let session_log = std::fs::read_to_string(
-            sessions_dir
-                .join(&partition)
-                .join(format!("{session_id}.log.jsonl")),
-        )
-        .expect("read session log");
-        let session_line: serde_json::Value =
-            serde_json::from_str(session_log.trim()).expect("parse session line");
-        assert_eq!(
-            session_line["content"],
-            serde_json::json!({ "type": "json", "value": "工具结果" })
-        );
-
-        let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
-        let lines = read_agent_event_lines(&event_path);
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0]["kind"], "tool_result");
-        assert_eq!(lines[0]["payload"]["status"], expected_status);
-        assert_eq!(lines[0]["payload"]["body"], r#""工具结果""#);
-        assert_eq!(lines[0]["payload"]["charCount"], 6);
-    }
-}
-
-// 场景：生产 post-commit hook 返回错误。
-// 预期：Session 与 Agent Event Log 仍写入；不变量：观测扩展不能阻断事实提交。
-#[test]
-fn integration_hook_failure_does_not_skip_commit_or_agent_event_write() {
-    let root = TempDir::new().expect("tempdir");
-    let (sessions_dir, runs_dir) = integration_dirs(&root);
-    let run_id = "run-blocked";
-    let store = SessionStore::create(&sessions_dir, PathBuf::from("/tmp")).expect("create");
-    let session_id = store.header().session_id.clone();
-
-    let (mut dispatcher, mut store) = integration_dispatcher(
-        &runs_dir,
-        run_id,
-        &session_id,
-        store,
-        vec![Arc::new(FailingHook)],
-    );
-
-    dispatcher
-        .emit(
-            &mut store,
-            TurnEvent::UserPromptCommitted {
-                turn: 0,
-                text: "blocked".into(),
-            },
-        )
-        .expect("emit");
-
-    let loaded = SessionStore::load(&sessions_dir, &session_id).expect("load session");
-    assert_eq!(loaded.items().len(), 1);
-
-    let event_path = runs_dir.join(format!("{run_id}.active.jsonl"));
-    assert!(event_path.exists(), "agent event log should be written");
 }

@@ -7,20 +7,26 @@ use super::types::{CompactionKind, SessionItem, SessionItemDraft};
 
 /// Maps a committable `TurnEvent` to a `SessionItem` and persists it.
 ///
-/// Non-committable events return an error with a clear message.
+/// Empty `AssistantFinalized` markers are accepted as runtime lifecycle events
+/// and intentionally do not append a Session Item.
 pub fn commit_from_event<'a>(
     store: &'a mut SessionStore,
     event: &TurnEvent,
-) -> Result<&'a SessionItem> {
+) -> Result<Option<&'a SessionItem>> {
     let draft = match event {
         TurnEvent::UserPromptCommitted { turn, text } => SessionItemDraft::UserMessage {
             turn: *turn,
             text: text.clone(),
         },
-        TurnEvent::AssistantFinalized { turn, blocks } => SessionItemDraft::AssistantMessage {
-            turn: *turn,
-            blocks: blocks.clone(),
-        },
+        TurnEvent::AssistantFinalized { turn, blocks, .. } => {
+            if blocks.is_empty() {
+                return Ok(None);
+            }
+            SessionItemDraft::AssistantMessage {
+                turn: *turn,
+                blocks: blocks.clone(),
+            }
+        }
         TurnEvent::ToolCallRecorded { turn, call } => SessionItemDraft::ToolCall {
             turn: *turn,
             call: call.clone(),
@@ -52,7 +58,7 @@ pub fn commit_from_event<'a>(
         }
     };
 
-    store.commit_item(draft)
+    store.commit_item(draft).map(Some)
 }
 
 fn non_committable_label(event: &TurnEvent) -> &'static str {
@@ -86,6 +92,6 @@ impl From<crate::event::TurnCompactionKind> for CompactionKind {
 impl CommitHandler for SessionStore {
     fn commit(&mut self, event: &TurnEvent) -> Result<Option<String>> {
         let item = commit_from_event(self, event)?;
-        Ok(Some(item.base().id.clone()))
+        Ok(item.map(|item| item.base().id.clone()))
     }
 }

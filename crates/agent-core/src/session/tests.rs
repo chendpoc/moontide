@@ -43,6 +43,32 @@ fn create_stores_session_under_date_partition() {
     SessionStore::load(&dir, &session_id).expect("reload partitioned session");
 }
 
+// 场景：sessions 目录不存在，随后创建两个日期分区内的 session。
+// 预期：查询不存在的目录返回 None，随后返回最近修改的 session id；不变量：查询只读，不创建 SessionStore 或文件。
+#[test]
+fn latest_session_id_is_read_only_and_returns_newest_session() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+
+    assert_eq!(
+        SessionStore::latest_session_id(&dir).expect("query missing dir"),
+        None
+    );
+    assert!(!dir.exists());
+
+    let first = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create first");
+    let first_id = first.header().session_id.clone();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let second = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create second");
+    let second_id = second.header().session_id.clone();
+
+    assert_ne!(first_id, second_id);
+    assert_eq!(
+        SessionStore::latest_session_id(&dir).expect("query latest session"),
+        Some(second_id)
+    );
+}
+
 // 场景：创建 v2 session 后写入消息、ToolCall 与 ToolResult，再重新加载；预期：header、顺序、身份、状态和 payload 往返一致；不变量/副作用：seq 连续，Session Item Log 不产生额外的调用模型。
 #[test]
 fn create_commit_load_round_trip() {
@@ -744,7 +770,7 @@ fn commit_from_event_maps_committable_turn_events() {
         },
     )
     .expect("user prompt");
-    match user {
+    match user.expect("user item should exist") {
         SessionItem::UserMessage { text, .. } => assert_eq!(text, "hello"),
         other => panic!("expected user message, got {other:?}"),
     }
@@ -753,13 +779,14 @@ fn commit_from_event_maps_committable_turn_events() {
         &mut store,
         &TurnEvent::AssistantFinalized {
             turn: 0,
+            llm_call_id: "call-0".into(),
             blocks: vec![ContentBlock::Text {
                 text: "reply".into(),
             }],
         },
     )
     .expect("assistant");
-    match assistant {
+    match assistant.expect("assistant item should exist") {
         SessionItem::AssistantMessage { blocks, .. } => {
             assert_eq!(blocks.len(), 1);
         }
@@ -776,7 +803,7 @@ fn commit_from_event_maps_committable_turn_events() {
         },
     )
     .expect("tool call");
-    match recorded_call {
+    match recorded_call.expect("tool call item should exist") {
         SessionItem::ToolCall {
             call: stored_call, ..
         } => {
@@ -794,7 +821,7 @@ fn commit_from_event_maps_committable_turn_events() {
         },
     )
     .expect("tool result");
-    match recorded_result {
+    match recorded_result.expect("tool result item should exist") {
         SessionItem::ToolResult {
             result: stored_result,
             ..
@@ -816,7 +843,7 @@ fn commit_from_event_maps_committable_turn_events() {
         },
     )
     .expect("compaction");
-    match compaction {
+    match compaction.expect("compaction item should exist") {
         SessionItem::Compaction {
             compaction_kind,
             compaction_save_id,
@@ -852,6 +879,31 @@ fn commit_from_event_rejects_non_committable() {
         .expect_err("non-committable");
     assert!(err.to_string().contains("not committable"));
     assert!(err.to_string().contains("TurnStarted"));
+}
+
+// 场景：提交没有 assistant blocks 的 AssistantFinalized 生命周期标记。
+// 预期：commit 成功但不返回 SessionItem；不变量：空 marker 不污染 Session Item Log。
+#[test]
+fn commit_from_event_skips_empty_assistant_finalized_marker() {
+    use crate::event::TurnEvent;
+    use crate::session::commit_from_event;
+
+    let root = TempDir::new().expect("tempdir");
+    let mut store =
+        SessionStore::create(sessions_dir(&root), PathBuf::from("/tmp")).expect("create");
+
+    let committed = commit_from_event(
+        &mut store,
+        &TurnEvent::AssistantFinalized {
+            turn: 0,
+            llm_call_id: "call-tool-only".into(),
+            blocks: Vec::new(),
+        },
+    )
+    .expect("empty finalized marker should be accepted");
+
+    assert!(committed.is_none());
+    assert!(store.items().is_empty());
 }
 
 // 场景：空 Session、已有 Turn 的 Session，以及最后一条 turn 为 u64::MAX 的 Session 查询 next_turn。

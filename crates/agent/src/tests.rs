@@ -26,27 +26,44 @@ fn config(temp: &TempDir) -> AgentConfig {
         permissions: BTreeMap::new(),
         approval: None,
         progress: None,
+        persistence: crate::PersistenceConfig::default(),
     }
 }
 
 // Scenario: a fully resolved minimal config is bootstrapped without network access.
 // Expected: Agent creation succeeds and creates non-empty stable session identity.
 // Invariant: provider construction is local; no API request is made during bootstrap.
-#[test]
-fn create_builds_minimal_agent() {
+#[tokio::test]
+async fn create_builds_minimal_agent() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let agent = Agent::create(config(&temp)).expect("minimal agent should bootstrap");
 
     assert!(!agent.session_id().is_empty());
     assert!(temp.path().join("sessions").is_dir());
     assert!(temp.path().join("runs").is_dir());
+    assert!(fs::read_dir(temp.path().join("runs"))
+        .expect("runs directory should be readable")
+        .next()
+        .is_none());
+}
+
+// Scenario: Agent creation is attempted without a Tokio runtime.
+// Expected: bootstrap fails before constructing providers, sessions, or hooks.
+// Invariant: the host cannot activate a synchronous Progress fallback.
+#[test]
+fn create_requires_tokio_runtime() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let error = Agent::create(config(&temp))
+        .err()
+        .expect("agent creation outside a runtime must fail");
+    assert!(error.to_string().contains("Tokio runtime"));
 }
 
 // Scenario: a created session is reopened through the composition root.
 // Expected: resume returns the same Session identity.
 // Invariant: loading does not create a second session log for the supplied id.
-#[test]
-fn resume_preserves_session_identity() {
+#[tokio::test]
+async fn resume_preserves_session_identity() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let created = Agent::create(config(&temp)).expect("minimal agent should bootstrap");
     let session_id = created.session_id().to_owned();
@@ -59,8 +76,8 @@ fn resume_preserves_session_identity() {
 // Scenario: runtime settings change provider-facing limits without creating a new session.
 // Expected: reload keeps session identity while apply_turn_limits updates per-turn bounds.
 // Invariant: session item log remains tied to the original session id after reload.
-#[test]
-fn reload_preserves_session_and_applies_turn_limits() {
+#[tokio::test]
+async fn reload_preserves_session_and_applies_turn_limits() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent = Agent::create(config(&temp)).expect("minimal agent should bootstrap");
     let session_id = agent.session_id().to_owned();
@@ -71,15 +88,15 @@ fn reload_preserves_session_and_applies_turn_limits() {
 
     let mut updated = config(&temp);
     updated.model = "updated-model".into();
-    agent.reload(updated).expect("agent should reload");
+    agent.reload(updated).await.expect("agent should reload");
     assert_eq!(agent.session_id(), session_id);
 }
 
 // Scenario: config contains a tool name absent from the first-party catalog.
 // Expected: bootstrap fails before constructing a runnable Agent.
 // Invariant: unknown capabilities are rejected at composition time, not on first model call.
-#[test]
-fn unknown_tool_is_rejected_during_bootstrap() {
+#[tokio::test]
+async fn unknown_tool_is_rejected_during_bootstrap() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent_config = config(&temp);
     agent_config.tool_names = vec!["does_not_exist".into()];
@@ -96,8 +113,8 @@ fn unknown_tool_is_rejected_during_bootstrap() {
 // Scenario: selected tools and permissions have different key sets.
 // Expected: ToolRuntime rejects the configuration during bootstrap.
 // Invariant: every model-visible tool has exactly one declared permission.
-#[test]
-fn permission_key_mismatch_is_rejected() {
+#[tokio::test]
+async fn permission_key_mismatch_is_rejected() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent_config = config(&temp);
     agent_config.tool_names = vec!["read".into()];
@@ -111,8 +128,8 @@ fn permission_key_mismatch_is_rejected() {
 // Scenario: an Ask permission is configured without an approval handler.
 // Expected: bootstrap rejects the runtime before any turn can execute.
 // Invariant: no Ask tool is executable without an explicit host approval boundary.
-#[test]
-fn ask_without_handler_is_rejected() {
+#[tokio::test]
+async fn ask_without_handler_is_rejected() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent_config = config(&temp);
     agent_config.tool_names = vec!["read".into()];
@@ -126,11 +143,11 @@ fn ask_without_handler_is_rejected() {
     assert!(format!("{error:#}").contains("approval handler"));
 }
 
-// Scenario: resolved config has an empty model and a non-directory cwd.
+// Scenario: resolved config has invalid model, provider, bounds, or cwd values.
 // Expected: validation fails before provider/session assembly.
 // Invariant: invalid host paths and model bounds cannot produce partial runtime state.
-#[test]
-fn invalid_config_values_are_rejected() {
+#[tokio::test]
+async fn invalid_config_values_are_rejected() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent_config = config(&temp);
     agent_config.model = String::new();
@@ -151,6 +168,28 @@ fn invalid_config_values_are_rejected() {
     let mut agent_config = config(&temp);
     agent_config.cwd = PathBuf::from("missing-working-directory");
     assert!(Agent::create(agent_config).is_err());
+}
+
+// Scenario: a valid Agent enables Normal diagnostic persistence.
+// Expected: the diagnostic worker starts and creates its active JSONL file.
+// Invariant: enabling diagnostics does not change Session ownership or require a second runtime.
+#[tokio::test]
+async fn diagnostic_persistence_starts_worker() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let mut agent_config = config(&temp);
+    agent_config.persistence.diagnostic = crate::DiagnosticPersistence::Normal;
+    let agent = Agent::create(agent_config).expect("normal diagnostic persistence should start");
+    let status = agent
+        .agent_event_log_status()
+        .expect("diagnostic worker status should be exposed");
+    assert_eq!(status.state, crate::AgentEventLogState::Running);
+    assert!(temp
+        .path()
+        .join("runs")
+        .read_dir()
+        .expect("runs")
+        .next()
+        .is_some());
 }
 
 // Scenario: nested project directories contain AGENTS.md files at multiple ancestors.
@@ -247,8 +286,8 @@ fn unreadable_project_instructions_are_rejected() {
 // Scenario: Agent bootstrap sees an unreadable project instruction file.
 // Expected: create fails before returning an Agent facade.
 // Invariant: project policy cannot silently disappear between bootstrap and the first turn.
-#[test]
-fn bootstrap_rejects_unreadable_project_instructions() {
+#[tokio::test]
+async fn bootstrap_rejects_unreadable_project_instructions() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     fs::write(temp.path().join("AGENTS.md"), [0xff, 0xfe])
         .expect("invalid UTF-8 AGENTS.md should be written");

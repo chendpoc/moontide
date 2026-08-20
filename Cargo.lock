@@ -9,8 +9,10 @@ dependencies = [
  "agent-core",
  "agent-tools",
  "anyhow",
+ "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "tokio-util",
  "uuid",
 ]
@@ -321,6 +323,7 @@ dependencies = [
  "clap",
  "crossterm",
  "rustyline",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

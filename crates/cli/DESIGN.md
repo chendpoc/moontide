@@ -1,7 +1,7 @@
 # cli — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** CLI R1/R2/R3 与 R4 `/settings` overlay 已实现并通过测试。
+> **状态：** CLI R1/R2/R3/R4 与 R5 Progress/diagnostic status consumption 已实现；R5 待 Review。
 > **关联：** [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md)
 
 ---
@@ -30,7 +30,7 @@ crates/cli/
   src/
     main.rs              # tokio runtime + exit code
     args.rs              # clap CliArgs
-    config.rs            # args/env/defaults → AgentConfig
+    config.rs            # args/env/settings/defaults → AgentConfig
     repl.rs              # command loop
     approval.rs          # ToolApprovalHandler over stdin/stderr
     settings_ui.rs         # crossterm /settings overlay
@@ -49,19 +49,21 @@ main
   → CliArgs::parse
   → if interactive: InputOwner + Settings Preflight
   → if one-shot: env/config validation
-  → resolve RuntimeSettings → AgentConfig
-  → Agent::create | Agent::resume
-  → print session id to stderr
+  → load GlobalConfigStore → AgentConfig
+  → if interactive without --session: read latest session id only
+  → if explicit --session/one-shot: Agent::resume | Agent::create
   → if prompt: run one-shot
-  → else: run REPL
+  → else: run REPL; create Agent on first ordinary message
 ```
 
 配置优先级：
 
 ```text
-explicit CLI flag > fixed provider default > cwd-based path default
-DEEPSEEK_API_KEY is required environment input
+other settings: explicit CLI flag > settings.json > environment > fixed default
+API key: --api-key > DEEPSEEK_API_KEY > settings.json > interactive input
 ```
+
+`settings.json` 位于 `<cwd>/.moontide/settings.json`，schema 从 `version: 1` 开始。`CliArgs` 对可覆盖字段使用 `Option<T>`，以区分“未传入”和“显式传入”。CLI 负责 JSON schema、读取、版本校验和优先级；`agent::platform` 负责项目路径和设置文件原子替换。
 
 初版 provider 固定为 `AdapterFamily::OpenAiChatCompletions`；`--base-url` 允许替换 endpoint root，但不增加通用 preset registry。
 
@@ -76,9 +78,11 @@ struct CliArgs {
     cwd: Option<PathBuf>,
     sessions_dir: Option<PathBuf>,
     runs_dir: Option<PathBuf>,
-    model: String,
-    base_url: String,
-    approval_policy: ApprovalPolicyArg,
+    api_key: Option<String>,
+    model: Option<String>,
+    base_url: Option<String>,
+    approval_policy: Option<ApprovalPolicyArg>,
+    trace: Option<TraceModeArg>,
 }
 
 fn resolve_agent_config(args: &CliArgs) -> anyhow::Result<AgentConfig>;
@@ -87,16 +91,15 @@ fn resolve_agent_config(args: &CliArgs) -> anyhow::Result<AgentConfig>;
 解析规则：
 
 1. `cwd` 缺省为 `current_dir()`；
-2. sessions/runs 缺省为 cwd 下 `.moontide` 子目录；
-3. model 缺省 `deepseek-chat`；
-4. base URL 缺省 `https://api.deepseek.com`；
-5. API key 只从 `DEEPSEEK_API_KEY` 读取，缺失即配置错误；
-6. 初版固定 `max_tokens`、`max_steps` 为 CLI 内部默认常量，后续再暴露参数；
-7. 工具 names 与 permission map 使用 coding preset 固定值；
-8. approval handler 注入交互式 stdin/stderr 实现；
-9. `AgentConfig.system_prompt` 不由 CLI 拼接，agent 内部解析 Harness + Project Instructions。
+2. sessions/runs 缺省为 cwd 下 `.moontide` 子目录；相对覆盖路径以 resolved cwd 为基准；
+3. settings 文件缺失时 model/base URL/approval/trace 使用固定默认值；
+4. API key 按 `--api-key` > `DEEPSEEK_API_KEY` > settings.json > interactive input 解析；
+5. `max_tokens`、`max_steps` 和 thinking level 从 settings.json 加载，缺失时使用 CLI 默认值；
+6. 工具 names 与 permission map 使用 coding preset 固定值；
+7. approval handler 注入交互式 stdin/stderr 实现；
+8. `AgentConfig.system_prompt` 不由 CLI 拼接，agent 内部解析 Harness + Project Instructions。
 
-interactive Settings Preflight 在 Agent create/resume 之前运行。`DEEPSEEK_API_KEY` 已存在时跳过 key 输入；缺失时隐藏输入。one-shot 不进入 Settings，缺失 key 直接返回配置错误。
+interactive Settings Preflight 在 Agent create/resume 之前运行。CLI、环境或 settings.json 已存在 API key 时跳过 key 输入；缺失时隐藏输入。显式空 key 在读取 settings.json 前直接失败。one-shot 不进入 Settings，缺失 key 直接返回配置错误。
 
 `ApprovalPolicy::Always` 将所有启用工具映射为 `Ask`；`Default` 使用 coding preset；`AlwaysAllow` 将所有启用工具映射为 `Allow` 且不注入 approval handler。`AlwaysAllow` 只在 Settings 输入 `ALLOW` 后生效。策略只属于 CLI runtime settings，不新增 agent-core policy 模块。
 
@@ -107,16 +110,21 @@ interactive Settings Preflight 在 Agent create/resume 之前运行。`DEEPSEEK_
 ## 5. REPL
 
 ```text
-settings = preflight()          # interactive only; no Agent/Session load before confirm
-agent = create_or_resume(settings)
-input_owner = settings.input_owner
+global_config_store = preflight() # settings.json is read at this lifecycle boundary
+if --session:
+  agent = resume(global_config_store, session_id)
+else:
+  print latest persisted session id and resume hint
+  agent = None
+input_owner = global_config_store.input_owner
 
 loop:
   line = input_owner.readline(" > ")
   if line == /exit: break
   if line == /settings: crossterm overlay; continue
-  if line == /id: print Agent::session_id to stderr; continue
+  if line == /id: print Agent::session_id or "no active session"; continue
   if line == /help: print commands; continue
+  if agent is None: agent = Agent::create(global_config_store)
 
   token = CancellationToken::new()
   ctrl_c = tokio::signal::ctrl_c()
@@ -131,10 +139,10 @@ REPL 不把 Ctrl-C 转换为新的 SessionItem；Loop 负责 cleanup 与事实�
 
 - 命令：`/settings`；Pi 风格 hint：`Type to search · ↑↓ select · Enter/Space change · Esc cancel`
 - UI：`crossterm` raw mode + alternate screen；逐键 filter（Pi fuzzy + token 分词）；↑↓ 选择
-- Catalog 仅含用户向 agent 设置：model、base-url、api-key（masked）、approval-policy、trace、thinking-level、max-steps、max-tokens、cwd（只读）、quiet-startup（下次启动）
+- Catalog 仅含用户向 agent 设置：model、base-url、api-key（masked）、approval-policy、trace、thinking-level、max-steps、max-tokens、cwd（只读）
 - 不含 session-id、runs-dir、tools（Session 列表与 plugin 负责）
-- 生效策略：`NextTurn`（max-* / thinking）、`ReloadAgent`（model / provider / approval / trace）、`NextLaunch`（quiet-startup）、`ReadOnly`
-- 持久化：R4 仅进程内 `RuntimeSettings`；`.moontide/settings.json` 后置
+- 生效策略：`NextTurn`（max-* / thinking）、`ReloadAgent`（model / provider / approval / trace）、`ReadOnly`
+- 持久化：运行中的 mutation 同时更新 `GlobalConfigStore` 与 `<cwd>/.moontide/settings.json`；文件带 `version: 1`，使用 `agent::platform` 的同目录临时文件原子替换；JSON 只在 start/reload/restart 边界读取；第一版约束单 workspace 单 writer
 
 ---
 
@@ -190,6 +198,8 @@ CLI 不直接消费 `ModelStreamEvent` 或 `ModelResponseSnapshot`；流式 UI �
 | `/exit` | zero exit | zero exit |
 
 CLI 不对 anyhow error 重新建模；只负责格式化诊断和退出策略。
+Progress flush failure、worker `Degraded`/`Stopped` 和 `resync_required` 必须输出到 stderr；
+resync 只提示宿主需要从 Session/turn result 重建状态，不在 CLI 内读取 Agent Event JSONL。
 
 ---
 

@@ -79,8 +79,17 @@ struct ToolResultTracePayload<'a> {
     tool_name: &'a str,
     tool_use_id: &'a str,
     status: &'a ToolResultStatus,
+    content: &'a ToolContent,
     body: &'a str,
     char_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantFinalizedTracePayload<'a> {
+    llm_call_id: &'a str,
+    blocks: &'a [ContentBlock],
+    text: &'a str,
 }
 
 type EventMapping = (u64, AgentPhase, AgentChannel, String, Value, Option<String>);
@@ -117,14 +126,24 @@ pub fn derive_agent_event(
             json!({ "text": text }),
             Some(truncate_preview(text, 120)),
         ),
-        TurnEvent::AssistantFinalized { turn, blocks } => {
+        TurnEvent::AssistantFinalized {
+            turn,
+            llm_call_id,
+            blocks,
+        } => {
             let text = blocks_text(blocks);
+            let payload = serde_json::to_value(AssistantFinalizedTracePayload {
+                llm_call_id,
+                blocks,
+                text: &text,
+            })
+            .context("serialize assistant finalized trace payload")?;
             (
                 *turn,
                 AgentPhase::PostLlm,
                 AgentChannel::Conversation,
                 "final".to_string(),
-                json!({ "text": &text }),
+                payload,
                 Some(truncate_preview(&text, 120)),
             )
         }
@@ -170,8 +189,7 @@ pub fn derive_agent_event(
             turn,
             step,
             llm_call_id,
-            stop_reason,
-            usage,
+            outcome,
         } => (
             *turn,
             AgentPhase::PostLlm,
@@ -181,8 +199,7 @@ pub fn derive_agent_event(
                 "llmCallId": llm_call_id,
                 "step": step,
                 "status": "ended",
-                "stopReason": stop_reason,
-                "usage": usage,
+                "outcome": outcome,
             }),
             None,
         ),
@@ -312,29 +329,29 @@ fn message_update_mapping(
                 )
             }
         };
-        return Ok(Some(mapping));
+        return with_snapshot(Some(mapping), snapshot);
     }
 
     let Some(last) = snapshot.content.last() else {
         return Ok(None);
     };
-    match last {
-        ContentBlock::Text { text } => Ok(Some((
+    let mapping = match last {
+        ContentBlock::Text { text } => (
             turn,
             AgentPhase::PostLlm,
             AgentChannel::Trace,
             "assistant_text".to_string(),
             json!({ "body": text, "charCount": text.chars().count(), "llmCallId": llm_call_id, "step": step }),
             Some(truncate_preview(text, 120)),
-        ))),
-        ContentBlock::Thinking { thinking } => Ok(Some((
+        ),
+        ContentBlock::Thinking { thinking } => (
             turn,
             AgentPhase::PostLlm,
             AgentChannel::Trace,
             "thinking".to_string(),
             json!({ "body": thinking, "charCount": thinking.chars().count(), "llmCallId": llm_call_id, "step": step }),
             Some(truncate_preview(thinking, 120)),
-        ))),
+        ),
         ContentBlock::ToolUse { id, name, input } => {
             let input_json = serde_json::to_string(input)
                 .context("serialize completed tool use update input")?;
@@ -347,17 +364,35 @@ fn message_update_mapping(
                 step,
             })
             .context("serialize completed tool use update payload")?;
-            Ok(Some((
+            (
                 turn,
                 AgentPhase::PostLlm,
                 AgentChannel::Trace,
                 "tool_use_update".to_string(),
                 payload,
                 Some(name.clone()),
-            )))
+            )
         }
-        ContentBlock::ToolResult { .. } => Ok(None),
-    }
+        ContentBlock::ToolResult { .. } => return Ok(None),
+    };
+    with_snapshot(Some(mapping), snapshot)
+}
+
+fn with_snapshot(
+    mapping: Option<EventMapping>,
+    snapshot: &crate::llm::protocol::ModelResponseSnapshot,
+) -> Result<Option<EventMapping>> {
+    let Some((turn, phase, channel, kind, mut payload, preview)) = mapping else {
+        return Ok(None);
+    };
+    let object = payload
+        .as_object_mut()
+        .context("serialize message update trace payload as object")?;
+    object.insert(
+        "snapshot".to_owned(),
+        serde_json::to_value(snapshot).context("serialize message update snapshot")?,
+    );
+    Ok(Some((turn, phase, channel, kind, payload, preview)))
 }
 
 fn blocks_text(blocks: &[ContentBlock]) -> String {
@@ -389,6 +424,7 @@ fn tool_result_trace_payload(result: &ToolResult) -> Result<(Value, String)> {
         tool_name: result.name(),
         tool_use_id: result.tool_use_id(),
         status: result.status(),
+        content: result.content(),
         body: &body,
         char_count: body.chars().count(),
     })

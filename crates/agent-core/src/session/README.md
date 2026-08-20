@@ -68,6 +68,10 @@ R1 不使用 `Arc<Mutex<SessionStore>>`，也不实现 OS 文件 lease。同一 
 
 ```rust
 impl SessionStore {
+    pub fn latest_session_id(
+        sessions_dir: impl AsRef<Path>,
+    ) -> anyhow::Result<Option<String>>;
+
     pub fn create(
         sessions_dir: impl AsRef<Path>,
         cwd: PathBuf,
@@ -102,6 +106,9 @@ impl event::CommitHandler for SessionStore {
     ) -> anyhow::Result<Option<String>>;
 }
 ```
+
+`latest_session_id()` is a read-only lookup over persisted date partitions. It returns `None`
+when the sessions directory does not exist and never creates a session or modifies the log.
 
 `next_turn()` 是只读 cursor 计算：empty → 0；最后一条 item 的 turn 为 N → checked `N + 1`。它不预占编号；`UserPromptCommitted` 成功 append 后，该编号才不可复用。
 
