@@ -435,6 +435,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "092966b41edc516079bdf31ec78a2e0588d1d0c08f78b91d8307215928642b2b"
 
 [[package]]
+name = "desktop"
+version = "0.1.0"
+dependencies = [
+ "agent",
+ "agent-core",
+ "anyhow",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,16 @@
+[package]
+name = "desktop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+agent.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+
+[dev-dependencies]
+agent-core.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
