@@ -2,6 +2,7 @@
 
 mod commit;
 mod file_store;
+mod query;
 mod store;
 mod types;
 
@@ -9,6 +10,7 @@ mod types;
 mod tests;
 
 pub use commit::commit_from_event;
+pub use query::{SessionQuery, SessionSnapshot, SessionSummary};
 pub use store::SessionStore;
 pub use types::{
     CompactionKind, SessionHeader, SessionItem, SessionItemBase, SessionItemDraft,
