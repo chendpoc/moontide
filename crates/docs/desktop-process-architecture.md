@@ -117,11 +117,12 @@ UI 发送 intent，Host 重新校验并决定是否执行：
 
 ```rust
 pub enum DesktopCommand {
+    Handshake,
     StartSession { selection: SessionSelectionDto },
     SubmitTurn { text: String },
     CancelTurn,
-    Approve { request_id: ApprovalId },
-    Deny { request_id: ApprovalId, reason: String },
+    Approve { approval_id: String },
+    Deny { approval_id: String, reason: String },
     Snapshot,
     Shutdown,
 }
@@ -139,14 +140,15 @@ handle。D1 的内部 command 可以继续使用这些实现机制，但不得�
 pub struct DesktopMessageEnvelope {
     pub protocol_version: u16,
     pub request_id: Option<String>,
-    pub connection_epoch: u64,
+    pub connection_epoch: Option<u64>,
     pub seq: Option<u64>,
     pub payload: DesktopMessage,
 }
 ```
 
-`request_id` 匹配 command response；`seq` 只在当前 `connection_epoch` 内有序。消息
-payload 至少包含 typed command error、`DesktopEvent` 和 `DesktopSnapshot`。
+`request_id` 匹配 command response；握手前 `connection_epoch` 为空，握手建立后
+`seq` 只在当前 `connection_epoch` 内有序。消息 payload 至少包含 typed command error、
+`DesktopEvent` 和 `DesktopSnapshot`。
 
 当前已确认的事件语义：
 

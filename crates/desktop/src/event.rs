@@ -326,6 +326,40 @@ mod tests {
         ));
     }
 
+    // 场景：公开 DesktopEventStream adapter 从 EventBuffer 接收一个事件。
+    // 预期：返回 protocol envelope，并保留 seq、connection_epoch 和语义事件。
+    // 不变量：adapter 不改变事件 delivery identity 或事件顺序。
+    #[tokio::test]
+    async fn recv_protocol_adapts_public_stream() {
+        let buffer = EventBuffer::new(16);
+        buffer.publish(
+            "session",
+            DesktopEvent::StateChanged {
+                state: crate::DesktopRunState::Idle,
+            },
+        );
+
+        let mut stream = DesktopEventStream::new(buffer);
+        let message = stream
+            .recv_protocol(crate::protocol::ConnectionEpoch(9))
+            .await
+            .expect("protocol event");
+
+        assert_eq!(
+            message.connection_epoch,
+            Some(crate::protocol::ConnectionEpoch(9))
+        );
+        assert_eq!(message.seq, Some(crate::protocol::Seq(1)));
+        assert!(matches!(
+            message.payload,
+            crate::protocol::DesktopMessage::Event(
+                crate::protocol::DesktopProtocolEvent::StateChanged {
+                    state: crate::DesktopRunState::Idle
+                }
+            )
+        ));
+    }
+
     // 场景：control event 与 snapshot event 交错发布。
     // 预期：单一 EventBuffer 按接收顺序保持递增 seq；不变量：不存在双 lane 逆序。
     #[tokio::test]
