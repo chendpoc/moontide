@@ -109,6 +109,10 @@ task 完成后把 Agent 返回 actor；UI、ProgressObserver 和 ApprovalBroker 
 
 ```rust
 pub enum DesktopCommandError {
+    ProtocolVersionUnsupported,
+    HandshakeRequired,
+    SessionNotStarted,
+    SessionAlreadyStarted,
     Busy,
     NoActiveTurn,
     ApprovalNotFound,
