@@ -11,6 +11,7 @@
 | [`extension-request-pipeline.md`](extension-request-pipeline.md) | 候选设计 | 插件需求处理链路，尚未实现 |
 | [`extension-sidecar-runtime.md`](extension-sidecar-runtime.md) | 候选设计 | sidecar / MCP 边界，尚未实现 |
 | [`logging-and-session-design.md`](logging-and-session-design.md) | 当前设计 | Session Item Log、Agent Event Log、Progress 与 persistence policy 统一契约 |
+| [`desktop-process-architecture.md`](desktop-process-architecture.md) | 当前目标架构 | Desktop UI、desktop protocol、Agent Host 与未来 daemon 的进程边界 |
 | [`tiered-context-memory.md`](tiered-context-memory.md) | 候选设计 | 分层 Context 与长期记忆，尚未实现 |
 | [`tool-mediated-context-exploration.md`](tool-mediated-context-exploration.md) | 讨论候选 | 基础工具优先、语义工具加速与大内容有界探索，尚未实现 |
 

@@ -49,4 +49,4 @@
 - UI 渲染仍由 CLI/Desktop/headless frontend 自己决定；
 - 不把 snapshot 写入 Session Item Log 或 Agent Event Log；
 - R2 已确认的 `agent-core::TurnEvent` contract 变更必须与 event/loop 设计同步实现；其他公开字段变更仍需回到架构对齐；
-- 不引入 Slint、IPC、Runtime Host、scheduler 或多 session 并发；ProgressWorker 仅限 agent 内部 observer consumer。
+- 不引入具体 UI framework、IPC、Runtime Host、scheduler 或多 session 并发；ProgressWorker 仅限 agent 内部 observer consumer。

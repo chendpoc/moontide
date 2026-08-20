@@ -5,7 +5,7 @@
 
 ## 1. 这是什么
 
-`agent::progress` 将 `agent-core::TurnEvent` 转换为宿主可消费的语义事件。它不负责终端、Slint 或其他 UI 的布局和渲染；宿主收到事件后自行维护 `RenderState`。
+`agent::progress` 将 `agent-core::TurnEvent` 转换为宿主可消费的语义事件。它不负责终端、Desktop 或其他 frontend 的布局和渲染；宿主收到事件后自行维护 `RenderState`。
 
 ```text
 LLM stream
@@ -105,7 +105,7 @@ pub enum ProgressEvent {
 
 ## 4. 不属于本批
 
-- 不直接依赖 Slint、crossterm 或具体 frontend；
+- 不直接依赖 Iced、crossterm 或具体 frontend；
 - 不新增跨进程 IPC、Runtime Host 或 scheduler；ProgressWorker 仅是 agent 内部的异步 observer consumer；
 - 不把 provider 的 `ModelStreamEvent` 暴露给宿主；
 - 不把 snapshot 写入 Session，也不把它当作可恢复事实。
