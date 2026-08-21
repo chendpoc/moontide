@@ -1,7 +1,7 @@
 # agent-tools
 
 > **性质：** 第一方工具库的对外使用说明。
-> **状态：** R1 已实现；静态 catalog 当前包含 `read`、`write`、`edit`、`find`、`grep`、`bash`。
+> **状态：** R1 已实现；静态 catalog 当前包含 `read`、`write`、`edit`、`find`、`grep`、`bash`、`web_search`。
 > **运行时契约：** [`../agent-core/src/tools/README.md`](../agent-core/src/tools/README.md)。
 > **实现细节：** [`DESIGN.md`](DESIGN.md) · **实现批次：** [`TASKS.md`](TASKS.md)。
 
@@ -178,6 +178,57 @@ crates/agent-core/src/tools/registry.rs:47:    pub fn new(mut tools: Vec<Tool>) 
 
 `grep` executor 不生成 `Denied`、`InvalidArguments` 或 `OutcomeUnknown`；这些状态仍归 `agent-core` 调用管线。
 
+### `web_search`
+
+`web_search` 聚合不需要 provider API key 的网页搜索渠道，是第一个网络 builtin：
+
+```json
+{
+  "query": "rust async trait",
+  "max_results": 5
+}
+```
+
+| 字段 | 必填 | 语义 |
+|------|------|------|
+| `query` | 是 | 发送给搜索提供方的查询词；不能为空 |
+| `max_results` | 否 | 最大结果数，默认 5，范围 1–20 |
+
+### 网络边界
+
+- DuckDuckGo 使用固定的 HTML 搜索 endpoint；SearXNG 只使用宿主配置的 `MOONTIDE_SEARXNG_BASE_URL`，未配置时不启用；
+- endpoint 不进入 tool schema，模型只能控制 `query` 与 `max_results`，不暴露任意 URL 抓取，因此本工具没有由模型输入产生的 SSRF 面；
+- 两个 provider 以 best-effort aggregate 方式调用；单个 provider 失败不阻断其他 provider，部分成功仍返回成功结果；
+- HTTP client 在 `build()` 中以 30s 总超时构造，请求走 async，不占 `spawn_blocking` 线程；
+- provider 的传输错误、5xx、408、429 与 timeout 保留 `retryable=true`；配置、4xx 和畸形响应体为 `retryable=false`；
+- `web_search` 不读取 API key，也不保存搜索缓存；`web_fetch` 仍是独立后续能力。
+
+### 输出
+
+成功结果使用 `ToolContent::Text`，格式为编号列表：
+
+```text
+1. Title
+Provider: duckduckgo
+URL: https://example.com/1
+content snippet...
+```
+
+- 每条结果保留 provider attribution；相同 URL 只保留一次；
+- 至少一个 provider 成功但没有结果时返回 `Succeeded("No results found.")`，不是失败；
+- 仅部分 provider 成功时返回结果，并附带简短 provider warning；
+- 结果连同截断标记不超过 32 KiB 文本预算。
+
+### 错误
+
+| 场景 | 表达 |
+|------|------|
+| 所有 provider 传输错误 / 5xx / 408 / 429 / timeout | `ToolResult::failed(call, ..., retryable=true)` |
+| 所有 provider 配置错误、其他 4xx、畸形响应体 | `ToolResult::failed(call, ..., retryable=false)` |
+| typed input 与 schema 漂移 | `Err(anyhow::Error)` |
+
+`web_search` executor 不生成 `Denied`、`InvalidArguments` 或 `OutcomeUnknown`；这些状态仍归 `agent-core` 调用管线。permission（Allow/Ask）由 `agent` 组合根声明，本 crate 不默认授权。
+
 ---
 
 ## 非目标
@@ -188,10 +239,12 @@ crates/agent-core/src/tools/registry.rs:47:    pub fn new(mut tools: Vec<Tool>) 
 - 不提供 scheduler resource claim；
 - 不把 `bash`、`web_fetch` 与 `grep` 塞进一个通用 executor；
 - 不用外部 `rg` 可执行文件作为首版运行时依赖；
-- `web_fetch` 仍未实现；网络工具需要单独定义权限、超时和输出语义。
+- 不接入 Tavily、Brave、Gemini Web 或其他需要 API key / 浏览器登录态的渠道；
+- 不硬编码公共 SearXNG 实例，不实现 provider 健康探测、缓存、自动 retry 或动态配置 reload；
+- `web_fetch`（任意 URL 抓取）仍未实现；它与 `web_search` 的 SSRF 面、超时和输出语义不同，需单独设计确认后再实现。
 
 ---
 
 ## 当前阶段
 
-R1 已按确认后的 [`DESIGN.md`](DESIGN.md) 完成 crate scaffold、静态 catalog、`read` / `write` / `edit` / `find` / `grep` / `bash` spec/executor 与测试。公开接口未扩张；`web_fetch` 仍需单独完成设计确认后再实现。
+R1 与 `web_search` R1.2 已按确认后的 [`DESIGN.md`](DESIGN.md) 完成 crate scaffold、静态 catalog、`read` / `write` / `edit` / `find` / `grep` / `bash` / `web_search` spec/executor 与测试。`web_fetch`（任意 URL 抓取）仍需单独完成设计确认后再实现。

@@ -15,7 +15,7 @@
 2. 用最小 `ToolDefinition` 表达“名称 + build 配方”；
 3. 每次 build 返回 `agent_core::tools::Tool`，复用唯一 runtime contract；
 4. 每个 builtin 保持 spec 与 executor 物理分离；
-5. 用 `read`、`write`、`edit`、`find`、`grep` 与 `bash` 验证 catalog、文件边界、blocking IO 与有界结果。
+5. 用 `read`、`write`、`edit`、`find`、`grep`、`bash` 与 `web_search` 验证 catalog、文件/网络边界、blocking IO 与有界结果。
 
 ### 1.2 不做
 
@@ -51,6 +51,14 @@ crates/agent-tools/
       mod.rs
       spec.rs
       executor.rs
+    web_search/
+      mod.rs
+      spec.rs
+      model.rs
+      aggregator.rs
+      providers/
+        duckduckgo.rs
+        searxng.rs
     tests.rs
 ```
 
@@ -71,7 +79,8 @@ agent-tools
   ├── regex
   ├── globset
   ├── serde / serde_json
-  └── tokio          # spawn_blocking
+  ├── scraper         # DuckDuckGo HTML parsing
+  └── tokio           # async network execution
 ```
 
 `ignore` 使用 0.4 系列，`regex` 与 `globset` 复用 workspace 1.x。首批不引入 `grep-searcher` 或外部 `rg` 进程：`find` 用 `ignore + globset` 做文件发现，`grep` 用 `ignore + regex` 做内容搜索。
@@ -275,7 +284,115 @@ executor 不返回 `OutcomeUnknown`：`grep` 是只读操作，不存在“写�
 
 ---
 
-## 7. 测试设计
+## 7. `web_search` 设计
+
+`web_search` 是无 API key 的网络搜索聚合器。它在 `agent-tools` 内部把 DuckDuckGo HTML 和可选 SearXNG JSON 适配为统一结果，再由 aggregator 完成 best-effort aggregate。模型只控制查询词和结果数量。
+
+### 7.1 结构与配置
+
+```text
+web_search::build
+  → ToolSpec
+  → SearchAggregator
+       ├── DuckDuckGoProvider (固定 endpoint，始终存在)
+       └── SearxngProvider     (MOONTIDE_SEARXNG_BASE_URL 存在时)
+  → Tool
+```
+
+`MOONTIDE_SEARXNG_BASE_URL` 是宿主配置，不是模型输入。它必须是 `http` 或 `https` URL，不能包含 userinfo、query 或 fragment；不配置时 SearXNG provider 不参与调用。首版不硬编码公共实例。
+
+内部类型只在 `agent-tools` crate 可见：
+
+```rust
+pub(crate) struct SearchRequest {
+    pub(crate) query: String,
+    pub(crate) max_results: usize,
+}
+
+pub(crate) struct SearchResult {
+    pub(crate) provider: SearchProviderId,
+    pub(crate) title: String,
+    pub(crate) url: String,
+    pub(crate) snippet: String,
+}
+
+pub(crate) enum SearchProviderId {
+    DuckDuckGo,
+    Searxng,
+}
+
+pub(crate) trait SearchProvider: Send + Sync {
+    fn search<'a>(
+        &'a self,
+        request: &'a SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<SearchResult>, ProviderError>> + Send + 'a>>;
+}
+```
+
+`SearchAggregator` 不进入 `agent-core`，也不创建第二套 tool registry。provider trait 存在的理由是两个独立 wire 协议需要相同测试替身和结果归一化边界；不是为未来 provider 预设通用平台。
+
+### 7.2 请求与响应
+
+DuckDuckGo 使用固定 HTML endpoint，发送 `q`、Accept 和稳定 User-Agent；响应由 HTML parser 根据 `.result`、`.result__a`、`.result__snippet` 提取 title、destination URL 和 snippet。redirect wrapper URL 只接受最终 `http`/`https` destination。
+
+SearXNG 使用宿主配置 base URL 的 `/search` endpoint，发送 `q`、`format=json` 和 `categories=general`；响应读取 `results[].title`、`results[].url`、`results[].content`。若实例关闭 JSON、返回非成功状态或 schema 不匹配，该 provider 失败但不阻断其他 provider。
+
+provider adapter 只负责一次 HTTP 请求和一次格式转换；不读取 Session、不写 Session Item Log、不决定 permission、不实现 retry。
+
+### 7.3 Aggregation
+
+`SearchAggregator::search` 按固定 provider 顺序执行已启用 provider，收集每个成功 provider 的结果，并按 canonical URL 去重。结果顺序首先按 provider 顺序、其次按 provider 返回顺序稳定排列；最终截断到 `max_results`。
+
+这是 best-effort aggregate，不是 all-or-nothing fan-out：
+
+- 任一 provider 成功即视为聚合成功，即使该 provider 返回空结果；
+- provider 失败只进入内部 warning，其他 provider 继续；
+- 全部 provider 成功但没有结果，返回 `No results found.`；
+- 全部 provider 失败，返回失败，并根据失败集合保留 retryable 标志；
+- 已有结果但另一个 provider 失败，成功结果附带 provider warning；
+- 单个 provider 请求共享 30s client timeout，首版不另加 retry、cache、health probe 或 scheduler resource claim。
+
+顺序调用而不是并行 fan-out，避免在 scheduler 尚未实现前引入新的工具级并发语义；后续若实测延迟成为产品问题，再单独评估并发策略。
+
+### 7.4 输出预算与来源
+
+成功文本为：
+
+```text
+1. Title
+Provider: duckduckgo
+URL: https://example.com
+snippet...
+```
+
+每个结果保留 provider attribution。URL 去重使用小写 scheme/host、去掉 fragment、规范化默认端口和末尾 `/`；不做任意页面抓取或内容摘要。最终文本连同截断标记不超过 32 KiB。
+
+### 7.5 schema 与 typed input
+
+```text
+query: string, minLength=1, required
+max_results: integer, minimum=1, maximum=20, optional, default=5
+additionalProperties=false
+```
+
+`WebSearchInput` 用 `deny_unknown_fields` 反序列化同一形状；schema 与 typed input 一致性由 catalog 结构测试与漂移测试守门。
+
+### 7.6 错误映射
+
+| 来源 | 返回 |
+|------|------|
+| 单 provider 传输错误 / 5xx / 408 / 429 / timeout | aggregator 收集并继续其他 provider |
+| 单 provider 其他 4xx / 畸形响应体 / 配置错误 | aggregator 收集并继续其他 provider |
+| 所有 provider 失败且至少一个错误 retryable | `Ok(ToolResult::failed(call, ..., true))` |
+| 所有 provider 失败且无 retryable 错误 | `Ok(ToolResult::failed(call, ..., false))` |
+| 至少一个 provider 成功 | `Ok(ToolResult::succeeded(call, Text))`，必要时附 warning |
+| typed input 与 schema 漂移 | `Err(anyhow::Error)` |
+
+`retryable` 区分瞬态（可重试）与契约/配置（不可重试）失败，与 `agent-core` LLM adapter 对 408/429 判 recoverable 的判断一致。executor 不产生 `Denied` / `InvalidArguments` / `OutcomeUnknown`。
+
+---
+
+## 8. 测试设计
 
 每个测试前按 `AGENTS.md` 写清场景、预期和不变量/副作用。
 
@@ -304,20 +421,32 @@ executor 不返回 `OutcomeUnknown`：`grep` 是只读操作，不存在“写�
 - 无匹配返回成功；
 - 测试只使用 `tempfile`，不读取真实仓库或依赖外部 `rg`。
 
+### Web search
+
+- DuckDuckGo HTML 结果解析、redirect URL 解码和无结果；
+- SearXNG JSON 结果解析、可选配置和非法 endpoint 拒绝；
+- 单 provider 失败不阻断另一个 provider；
+- 结果按 canonical URL 去重并保留 provider attribution；
+- 全部 provider 失败时 retryable 聚合规则正确；
+- 32 KiB 输出限制、超长 query/结果和 malformed response 不 panic；
+- 测试只访问 wiremock，不访问真实搜索服务。
+
 ---
 
-## 8. 实现分期
+## 9. 实现分期
 
 | 批 | 范围 |
 |----|------|
 | **R1** | crate scaffold、`ToolDefinition`、静态 catalog、builtin `read` / `write` / `edit` / `find` / `grep` / `bash` spec/executor、结构与行为测试 |
+| **R1.1** | 历史草案：Tavily-only `web_search` scaffold；不作为当前无 key 契约 |
+| **R1.2** | 无 API key `web_search`：DuckDuckGo HTML + 可选 SearXNG JSON、aggregator、来源归属、去重与 wiremock 测试 |
 | 后续 | `web_fetch` 设计确认后单独一批 |
 
 R1 不同时实现 `bash` / `web_fetch`。这些工具的权限、进程/网络错误和输出语义不同，强行共用首批抽象会降低内聚。
 
 ---
 
-## 9. 决策记录
+## 10. 决策记录
 
 1. `agent-core::tools` 保留 runtime contract，builtins 独立为 `agent-tools` crate；
 2. 依赖只能是 `agent-tools → agent-core`；
@@ -332,3 +461,7 @@ R1 不同时实现 `bash` / `web_fetch`。这些工具的权限、进程/网络�
 11. `grep` 输出受 max results 与 32 KiB 双上限约束；
 12. `find` 使用 `globset` 做路径匹配，不读取文件内容；`grep` 保留正则内容匹配语义。
 13. 不为未来 builtin 预设 ToolLibrary、manifest、build context、宏注册或公共 executor 基类。
+14. `web_search` 当前批次只接入 DuckDuckGo HTML 与可选 SearXNG JSON，不需要 API key。
+15. provider endpoint 由工具固定或宿主配置，模型不控制 endpoint；任意 URL 抓取留给后续 `web_fetch`。
+16. aggregator 使用顺序 best-effort aggregate，单 provider 失败不阻断其他 provider；并发、retry、cache 和 health probe 后置。
+17. provider adapter 只负责 HTTP 和格式转换，统一结果模型与聚合逻辑归 `web_search` 内部，不进入 `agent-core`。
