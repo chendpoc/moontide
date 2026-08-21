@@ -108,7 +108,8 @@ handle.snapshot()
   → clear only transient drafts whose call is no longer active
   → preserve local input draft and UI preferences
   → reset local event baseline
-  → only after snapshot accept events from the new connection_epoch
+  → queue events while snapshot is in flight
+  → replay queued events only after the snapshot baseline is installed
 ```
 
 收到更高 `connection_epoch` 后，RenderState 进入 `awaiting_snapshot`，不消费该 epoch 的
@@ -118,6 +119,10 @@ handle.snapshot()
 `DesktopSnapshot.active_assistant_calls` 只包含 Host 仍能证明有效的
 `(turn, llm_call_id)` identity；RenderState 只保留与这些 identity 匹配的本地 draft，不把
 draft 内容复制进 snapshot。
+
+初始 boot snapshot 也遵守同一 gate：snapshot 完成前到达 UI 的事件暂存，不直接 fold；
+完成后按 seq 顺序重放。若 snapshot response 已包含某个事件的 `last_delivered_seq`，该
+事件在重放时按 stale event 忽略；否则从 snapshot baseline 的下一条 seq 正常应用。
 
 Session Item Log 是已完成消息、tool call/result 和恢复历史的来源；进行中的 assistant
 draft 若没有出现在 Session Item Log，只能显示为当前 host snapshot 的 transient state。

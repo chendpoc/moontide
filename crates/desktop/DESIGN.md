@@ -215,6 +215,11 @@ assistant draft identity，无法证明 active 的 draft 删除并显示可恢�
 和可恢复性；`Stopped` 保留 `ShutdownReport`；`TurnCompleted` 将 UI run state 收敛到
 `Idle`。
 
+UI 在任一 snapshot 请求进行期间暂存收到的 protocol event；snapshot 成为新的 delivery
+baseline 后，按原 seq 顺序重放暂存事件。这样事件可能先于 snapshot response 被 EventBuffer
+消费，也可能晚于 snapshot response 到达 UI，都不会让本地 `last_seq` 回退并制造伪造 gap。
+重放期间再次发现 gap 时停止重放剩余事件，并重新请求 snapshot。
+
 ### 3.5 Iced shell（D3-R2）
 
 Iced 只接收已经启动的 Host，不负责创建 `AgentConfig`、解析 settings 或选择 Session；
@@ -232,7 +237,24 @@ pub fn run_ui(
 Stop 和 approval decision 作为 `Task` 调用 `DesktopHostHandle`。UI-owned `RenderState`
 是唯一 view projection；Iced 不写 Session Item Log，也不把 Iced 类型传入 `agent` 或
 `agent-core`。D3-R2 只提供单窗口的最小 conversation、composer、tool/approval/error
-显示；Session Rail、Inspector、settings 和完整主题验收留在后续 D3/D5 批次。
+显示；Session Rail、settings 和完整主题验收留在后续 D3/D5 批次。
+
+### 3.6 Inspector（D3-R3）
+
+Inspector 是 UI-owned 的局部 detail view，不创建新的 Host 或 protocol state。`UiState`
+只保存是否打开、当前 selection 和 thinking 展开偏好：
+
+```rust
+enum InspectorSelection {
+    Tool { tool_use_id: String },
+    Approval { approval_id: String },
+    Thinking { turn: u64, llm_call_id: String },
+}
+```
+
+Tool、Approval 和 assistant draft 的 canonical payload 继续由 `RenderState` 提供；Inspector
+只读取它们并渲染详情。关闭 Inspector、切换 selection 或展开 thinking 不发送 Host command，
+也不修改 Session Item Log、approval truth 或 protocol envelope。
 
 ## 4. EventBuffer
 
@@ -283,6 +305,10 @@ UI replaces local RenderState and starts a new event baseline
 保留本地 input draft 和偏好设置，但重建 Session、run state、pending approvals；只按
 `DesktopSnapshot.active_assistant_calls` 保留仍可证明有效的 transient assistant draft，
 其余 draft 删除并显示可恢复 notice。
+
+初始 boot snapshot 也遵守同一 gate：snapshot 完成前到达 UI 的事件暂存，不直接 fold；
+完成后按 seq 顺序重放。若 snapshot response 已包含某个事件的 `last_delivered_seq`，该
+事件在重放时按 stale event 忽略；否则从 snapshot baseline 的下一条 seq 正常应用。
 
 ## 5. ApprovalBroker
 
