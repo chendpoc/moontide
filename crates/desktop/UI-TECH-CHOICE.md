@@ -21,7 +21,7 @@ Iced 只属于 Desktop UI 层。`agent-core`、`agent` 和 Host actor 不依赖 
 ```text
 Iced application
   ├── Message → update → view
-  ├── Subscription → DesktopEventStream::recv
+  ├── Subscription → DesktopEventStream::recv_protocol
   └── Task → DesktopHostHandle command
              │
              ▼
@@ -29,8 +29,9 @@ Desktop Host Actor
   └── Tokio runtime + agent::Agent
 ```
 
-UI thread 不执行 provider、tool 或 Session IO。UI 只消费 `DesktopEventEnvelope`，将其
-fold 成自己的 `RenderState`；Host 不知道 Iced widget、theme 或 layout。
+UI thread 不执行 provider、tool 或 Session IO。UI 只消费
+`DesktopMessageEnvelope` 中的 `DesktopProtocolEvent`，将其 fold 成自己的 `RenderState`；
+Host 不知道 Iced widget、theme 或 layout。
 
 ## 3. 被排除的方案
 
@@ -57,7 +58,7 @@ frontend/backend invoke。只有出现真实 Web frontend 或 Web/Desktop 共用
 D3 需要验证：
 
 - 单窗口启动和关闭；
-- `DesktopEventStream` 到 `RenderState` 的 Subscription 接缝；
+- `DesktopEventStream::recv_protocol` 到 `RenderState` 的 Subscription 接缝（D3-R2 已实现）；
 - Conversation 长文本、流式 assistant draft 和 Tool card；
 - Composer 输入、Send、Stop、Approval decision；
 - light/dark theme、键盘操作和三平台构建；

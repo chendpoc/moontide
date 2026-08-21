@@ -1,7 +1,7 @@
 # MoonTide Desktop
 
 > **性质：** Desktop 产品与宿主契约
-> **状态：** v0.1 D1 Host 已实现；D3 Iced 窗口尚未实现
+> **状态：** v0.1 D1 Host、D2 protocol、D3-R1 RenderState 和 D3-R2 Iced shell 已实现；完整 D3 UI 尚未完成
 > **实现设计：** [`DESIGN.md`](DESIGN.md)
 > **UI 状态契约：** [`UI-STATE.md`](UI-STATE.md)
 > **UI 交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
@@ -144,6 +144,15 @@ pub struct DesktopMessageEnvelope {
 `AssistantResponseSnapshot`、`ToolCall`、`ToolResult`、`AssistantFinalized` 和
 `TurnEnded`），不把 `ProgressEvent` wrapper 或 `ModelResponse` 直接暴露给 UI。
 当前稳定的 canonical value payload 可以复用；独立 wire DTO 后置到 D4。
+
+D3-R1 的 `RenderState` 是 UI-owned 的 crate 内部 projection。它只消费
+`DesktopMessageEnvelope` 中的 `DesktopProtocolEvent` 和 `DesktopSnapshot`，负责 draft、
+conversation、tool、approval、notice 和 delivery state；它不拥有 Agent、SessionStore 或
+approval truth，也不写 Session Item Log。
+
+D3-R2 提供 `run_ui(host, events, connection_epoch)`。Host 和 protocol stream 由调用者注入；
+UI 不负责 settings、provider 或 Session bootstrap。当前 shell 只验证协议订阅、conversation、
+composer、Stop、approval 和 error 的最小接缝，完整 Workbench 面板后置。
 
 ## 4. 事件与恢复
 

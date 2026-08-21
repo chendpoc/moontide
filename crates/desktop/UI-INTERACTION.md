@@ -2,7 +2,7 @@
 
 > **性质：** v0.1 UI 与交互验收契约
 > **依赖：** [`README.md`](README.md)、[`DESIGN.md`](DESIGN.md)、[`UI-STATE.md`](UI-STATE.md)
-> **状态：** v0.1 baseline；Iced 已确认，D3 UI 尚未开始
+> **状态：** v0.1 baseline；Iced 已确认，D3-R2 最小 shell 已实现，完整 D3 UI 尚未完成
 
 ## 1. 产品交互方向
 
@@ -75,8 +75,8 @@ Conversation 是唯一默认展开的主要区域，按时间顺序显示：
 - Tool card 的简略状态；
 - 可恢复错误 notice。
 
-历史消息来自 `SessionSnapshot`。运行中 draft 当前来自 `ProgressEvent`，进程拆分后来自
-等价的 `DesktopProtocolEvent`；不能在 resync
+历史消息来自 `SessionSnapshot`。运行中 draft 当前来自 `DesktopMessageEnvelope` 中的
+`DesktopProtocolEvent`；不能在 resync
 时误写成已完成历史。
 
 ### 2.4 Inspector

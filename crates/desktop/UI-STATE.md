@@ -1,20 +1,20 @@
 # Desktop RenderState 契约
 
 > **性质：** UI-owned projection contract
-> **状态：** v0.1 baseline；D1 Host 已实现，D3 Iced UI 尚未开始
-> **输入：** `DesktopEventEnvelope` 与 `DesktopSnapshot`
+> **状态：** v0.1 baseline；D1 Host、D3-R1 RenderState fold、D3-R2 Iced 接缝已实现，完整 D3 UI 尚未完成
+> **输入：** `DesktopMessageEnvelope`（其中的 `DesktopProtocolEvent`）与 `DesktopSnapshot`
 
 ## 1. 目的
 
 RenderState 把 Host 事件折叠成 Iced view state。它不是 Agent 状态机，不
 写 Session Item Log，也不承担 provider stream 的 delta 拼接。当前 D1 通过同进程
-adapter 消费 `ProgressEvent`；进程拆分后消费等价的 `DesktopProtocolEvent` DTO，RenderState
-不随 transport 变化。
+adapter 消费 `DesktopMessageEnvelope` 中的 `DesktopProtocolEvent`；进程拆分后继续消费
+同一顶层协议，RenderState 不随 transport 变化。
 
 ```text
-DesktopEventEnvelope ──fold──► RenderState ──► Iced Message/update/view
-                                      ▲
-                         DesktopSnapshot resync
+DesktopMessageEnvelope(Event) ──fold──► RenderState ──► Iced Message/update/view
+                                             ▲
+                                  DesktopSnapshot resync
 ```
 
 ## 2. 状态结构
@@ -29,6 +29,7 @@ struct RenderState {
     approvals: BTreeMap<String, ApprovalView>,
     notices: Vec<NoticeView>,
     delivery: DeliveryView,
+    stopped_report: Option<ShutdownReport>,
 }
 
 struct AssistantDraftKey {
@@ -44,7 +45,7 @@ Draft key 不是 `step`。`step` 用于展示执行进度；`llm_call_id` 才是
 
 ### 3.1 Assistant snapshot
 
-收到 `ProgressEvent::AssistantResponseSnapshot`：
+收到 `DesktopProtocolEvent::AssistantResponseSnapshot`：
 
 1. 检查 envelope seq 是否已处理；旧 seq 丢弃；
 2. 以 `(turn, llm_call_id)` 查找 draft；
@@ -62,7 +63,7 @@ Hel → Hello → Hello, wor → Hello, world
 
 ### 3.2 Assistant finalized
 
-收到 `ProgressEvent::AssistantFinalized`：
+收到 `DesktopProtocolEvent::AssistantFinalized`：
 
 1. 找到同 turn/call 的 draft；
 2. 删除 draft；
@@ -93,6 +94,7 @@ Hel → Hello → Hello, wor → Hello, world
 触发条件：
 
 - envelope seq 出现 gap；
+- 收到高于当前值的 `connection_epoch`；
 - `ResyncRequired`；
 - Progress status 的 `resync_required`；
 - Desktop 窗口重新激活且本地 RenderState 不可信；
@@ -105,8 +107,13 @@ handle.snapshot()
   → replace SessionView / RunView / pending approvals
   → clear only transient drafts whose call is no longer active
   → preserve local input draft and UI preferences
-  → reset local event baseline and receive new events
+  → reset local event baseline
+  → only after snapshot accept events from the new connection_epoch
 ```
+
+收到更高 `connection_epoch` 后，RenderState 进入 `awaiting_snapshot`，不消费该 epoch 的
+事件；旧 epoch 事件忽略。`DesktopSnapshot` 是新 epoch 的唯一基线，替换完成后才允许从
+该 snapshot 的 delivery seq 继续折叠事件。
 
 Session Item Log 是已完成消息、tool call/result 和恢复历史的来源；进行中的 assistant
 draft 若没有出现在 Session Item Log，只能显示为当前 host snapshot 的 transient state。

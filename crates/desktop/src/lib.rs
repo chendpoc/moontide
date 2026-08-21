@@ -5,7 +5,9 @@ mod command;
 mod event;
 mod host;
 mod protocol;
+mod render_state;
 mod state;
+mod ui;
 
 pub use command::DesktopCommandError;
 pub use event::{DesktopEvent, DesktopEventEnvelope, DesktopEventStream};
@@ -19,5 +21,7 @@ pub use state::{
     DeliveryStatus, DesktopError, DesktopErrorKind, DesktopRunState, DesktopSnapshot, ResyncReason,
     ShutdownReport,
 };
+
+pub use ui::run_ui;
 
 pub use approval::{ApprovalId, ApprovalRequest};
