@@ -60,11 +60,19 @@ pub struct DeliveryStatus {
     pub buffered_events: usize,
 }
 
+/// Identifies an assistant call whose transient response may still be visible.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ActiveAssistantCall {
+    pub turn: u64,
+    pub llm_call_id: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct DesktopSnapshot {
     pub session: agent::SessionSnapshot,
     pub state: DesktopRunState,
     pub pending_approvals: Vec<crate::ApprovalRequest>,
+    pub active_assistant_calls: Vec<ActiveAssistantCall>,
     pub delivery: DeliveryStatus,
 }
 

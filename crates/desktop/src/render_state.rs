@@ -145,6 +145,18 @@ impl RenderState {
 
     pub(crate) fn replace_snapshot(&mut self, snapshot: DesktopSnapshot) {
         let (messages, tools) = project_session(&snapshot.session);
+        let active_calls = snapshot
+            .active_assistant_calls
+            .iter()
+            .map(|call| AssistantDraftKey {
+                turn: call.turn,
+                llm_call_id: call.llm_call_id.clone(),
+            })
+            .collect::<BTreeSet<_>>();
+        let had_dropped_draft = self
+            .assistant_drafts
+            .keys()
+            .any(|key| !active_calls.contains(key));
         self.session = Some(snapshot.session);
         self.run = snapshot.state;
         self.messages = messages;
@@ -154,7 +166,8 @@ impl RenderState {
             .into_iter()
             .map(|request| (request.id.clone(), ApprovalView { request }))
             .collect();
-        self.assistant_drafts.clear();
+        self.assistant_drafts
+            .retain(|key, _| active_calls.contains(key));
         self.finalized_calls.clear();
         self.stopped_report = None;
         self.delivery.last_seq = Some(Seq(snapshot.delivery.last_delivered_seq));
@@ -165,6 +178,14 @@ impl RenderState {
         self.delivery.resync_reason = None;
         self.notices
             .retain(|notice| notice.kind != NoticeKind::Resync);
+        if had_dropped_draft {
+            self.add_notice(NoticeView {
+                kind: NoticeKind::Resync,
+                message: "resync removed an assistant draft whose call was no longer active".into(),
+                recoverable: true,
+                error_kind: None,
+            });
+        }
     }
 
     fn apply_response(
@@ -522,6 +543,7 @@ mod tests {
             },
             state: DesktopRunState::Idle,
             pending_approvals: Vec::new(),
+            active_assistant_calls: Vec::new(),
             delivery: crate::DeliveryStatus {
                 last_delivered_seq: 0,
                 resync_required: true,
@@ -656,8 +678,8 @@ mod tests {
     }
 
     // 场景：Host 返回完整 DesktopSnapshot 作为 resync 基线。
-    // 预期：替换 history/run/approval/delivery，清理旧 transient draft。
-    // 不变量：snapshot 成为新的 UI 基线，不 replay 旧 draft。
+    // 预期：替换 history/run/approval/delivery，只保留仍 active 的 transient draft。
+    // 不变量：snapshot 成为新的 UI 基线，不 replay 已无法证明 active 的旧 draft。
     #[test]
     fn snapshot_replaces_render_baseline() {
         let mut state = RenderState::default();
@@ -703,6 +725,56 @@ mod tests {
             RenderFoldResult::Applied
         );
         assert_eq!(state.stopped_report, Some(report));
+    }
+
+    // 场景：resync 时本地有两个 transient draft，但 Host 只确认其中一个 call 仍 active。
+    // 预期：保留 active draft，删除无法证明 active 的 draft，并显示可恢复 notice。
+    // 不变量：snapshot 不把未知 transient 内容重新写入 Session history。
+    #[test]
+    fn snapshot_preserves_only_active_drafts() {
+        let mut state = RenderState::default();
+        for (seq, call_id) in [(1, "call-1"), (2, "call-2")] {
+            assert_eq!(
+                state.apply_message(event(
+                    seq,
+                    DesktopProtocolEvent::AssistantResponseSnapshot {
+                        turn: 1,
+                        step: 0,
+                        llm_call_id: call_id.into(),
+                        update_index: 0,
+                        snapshot: snapshot(call_id),
+                    },
+                )),
+                RenderFoldResult::Applied
+            );
+        }
+
+        let mut baseline = desktop_snapshot();
+        baseline.active_assistant_calls = vec![crate::ActiveAssistantCall {
+            turn: 1,
+            llm_call_id: "call-1".into(),
+        }];
+        let result = state.apply_message(DesktopMessageEnvelope {
+            protocol_version: DESKTOP_PROTOCOL_VERSION,
+            connection_epoch: Some(ConnectionEpoch(1)),
+            request_id: None,
+            seq: None,
+            payload: DesktopMessage::Response(DesktopResponse::Snapshot { snapshot: baseline }),
+        });
+
+        assert_eq!(result, RenderFoldResult::Applied);
+        assert!(state.assistant_drafts.contains_key(&AssistantDraftKey {
+            turn: 1,
+            llm_call_id: "call-1".into(),
+        }));
+        assert!(!state.assistant_drafts.contains_key(&AssistantDraftKey {
+            turn: 1,
+            llm_call_id: "call-2".into(),
+        }));
+        assert!(state
+            .notices
+            .iter()
+            .any(|notice| notice.kind == NoticeKind::Resync && notice.recoverable));
     }
 
     // 场景：已有连接收到更高 connection_epoch 的事件，但新连接尚未发送 snapshot。

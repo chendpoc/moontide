@@ -6,7 +6,7 @@ use iced::widget::{button, column, container, row, scrollable, text, text_input}
 use iced::{Element, Fill, Subscription, Task, Theme};
 
 use crate::protocol::{ConnectionEpoch, DesktopMessageEnvelope};
-use crate::render_state::{MessageView, RenderFoldResult, RenderState};
+use crate::render_state::{MessageView, RenderFoldResult, RenderState, ToolView};
 use crate::{DesktopCommandError, DesktopEventStream, DesktopHostHandle, DesktopSnapshot};
 
 /// Runs the injected Desktop UI shell. Agent configuration and Host startup stay outside D3.
@@ -19,7 +19,10 @@ pub fn run_ui(
     let event_source = ProtocolSource::new(events, connection_epoch);
 
     iced::application(
-        move || UiState::new(Arc::clone(&host), event_source.clone()),
+        move || {
+            let state = UiState::new(Arc::clone(&host), event_source.clone());
+            (state, snapshot_task(Arc::clone(&host)))
+        },
         update,
         view,
     )
@@ -64,7 +67,7 @@ impl UiState {
             event_source,
             render_state: RenderState::default(),
             input: String::new(),
-            snapshot_in_flight: false,
+            snapshot_in_flight: true,
         }
     }
 }
@@ -246,6 +249,25 @@ fn view(state: &UiState) -> Element<'_, UiMessage> {
         .into()
     }));
 
+    let historical_tool_ids = state
+        .render_state
+        .messages
+        .iter()
+        .filter_map(|message| match message {
+            MessageView::ToolCall { call, .. } => Some(call.tool_use_id().to_owned()),
+            MessageView::ToolResult { result, .. } => Some(result.tool_use_id().to_owned()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    messages.extend(
+        state
+            .render_state
+            .tools
+            .values()
+            .filter(|tool| !historical_tool_ids.contains(tool.call.tool_use_id()))
+            .map(tool_view),
+    );
+
     let approvals = state
         .render_state
         .approvals
@@ -302,6 +324,23 @@ fn message_view(message: &MessageView) -> Element<'static, UiMessage> {
     text(label).into()
 }
 
+fn tool_view(tool: &ToolView) -> Element<'static, UiMessage> {
+    text(tool_label(tool)).into()
+}
+
+fn tool_label(tool: &ToolView) -> String {
+    let result = match &tool.result {
+        Some(result) => format!("result={:?}: {:?}", result.status(), result.content()),
+        None => "running".into(),
+    };
+    format!(
+        "tool: {} ({}) input={:?}",
+        tool.call.name(),
+        result,
+        tool.call.input()
+    )
+}
+
 fn blocks_text(blocks: &[agent::ContentBlock]) -> String {
     blocks
         .iter()
@@ -356,5 +395,27 @@ mod tests {
 
         assert!(source.take_stream().is_some());
         assert!(source.take_stream().is_none());
+    }
+
+    // 场景：UI 读取 RenderState 中尚未出现在 Session history 的 live tool。
+    // 预期：工具名称、运行状态和输入都进入最小工具卡片文本。
+    // 不变量：helper 只读取 canonical ToolCall/ToolResult，不修改 Host 或 Session。
+    #[test]
+    fn tool_label_includes_live_call_state() {
+        let call = agent::ToolCall::new("call-1", "grep", serde_json::json!({"pattern": "hello"}))
+            .expect("valid tool call");
+        let tool = ToolView {
+            turn: 1,
+            call: call.clone(),
+            result: Some(agent::ToolResult::succeeded(
+                &call,
+                agent_core::tools::ToolContent::Text("ok".into()),
+            )),
+        };
+
+        let label = tool_label(&tool);
+        assert!(label.contains("tool: grep"));
+        assert!(label.contains("Succeeded"));
+        assert!(label.contains("hello"));
     }
 }

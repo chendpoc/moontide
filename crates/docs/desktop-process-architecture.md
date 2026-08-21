@@ -167,7 +167,8 @@ pub struct DesktopMessageEnvelope {
 - Host lifecycle state；
 - pending approvals；
 - delivery/resync status；
-- 当前仍可证明有效的 transient assistant draft（若存在）。
+- 当前仍可证明有效的 transient assistant draft identity（`turn` + `llm_call_id`，若存在）；
+  draft 内容仍由 UI 本地 RenderState 持有。
 
 Session Item Log 是历史事实源；Progress、EventBuffer 和 RenderState 都不能替代它。
 

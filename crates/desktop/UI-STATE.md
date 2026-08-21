@@ -115,6 +115,10 @@ handle.snapshot()
 事件；旧 epoch 事件忽略。`DesktopSnapshot` 是新 epoch 的唯一基线，替换完成后才允许从
 该 snapshot 的 delivery seq 继续折叠事件。
 
+`DesktopSnapshot.active_assistant_calls` 只包含 Host 仍能证明有效的
+`(turn, llm_call_id)` identity；RenderState 只保留与这些 identity 匹配的本地 draft，不把
+draft 内容复制进 snapshot。
+
 Session Item Log 是已完成消息、tool call/result 和恢复历史的来源；进行中的 assistant
 draft 若没有出现在 Session Item Log，只能显示为当前 host snapshot 的 transient state。
 如果 resync 无法证明 draft 仍属于 active call，删除它并显示可恢复 notice。`last_delivered_seq`

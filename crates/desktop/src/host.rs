@@ -456,6 +456,7 @@ impl HostActor {
             session,
             state,
             pending_approvals: self.broker.pending_requests(),
+            active_assistant_calls: self.buffer.active_assistant_calls(),
             delivery,
         })
     }

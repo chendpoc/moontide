@@ -185,8 +185,18 @@ delivery order；snapshot coalesce 和 resync 不改变“不 replay 旧 seq”�
 当 snapshot 丢失、worker degraded 或 buffer 无法继续接收时，设置 `resync_required`。
 UI 调用 `snapshot()`，以返回的完整状态作为新的基线；不承诺从旧 seq replay。
 
-`DesktopSnapshot` 包含 Session view、host lifecycle state、pending approvals 和
-`DeliveryStatus`：
+`DesktopSnapshot` 包含 Session view、host lifecycle state、pending approvals、仍可能有
+transient assistant draft 的 `(turn, llm_call_id)` identity 和 `DeliveryStatus`。它不复制
+draft 内容；UI 只用 identity 判断本地 draft 是否可以跨 resync 保留：
+
+```rust
+pub struct ActiveAssistantCall {
+    pub turn: u64,
+    pub llm_call_id: String,
+}
+```
+
+`DeliveryStatus` 结构如下：
 
 ```rust
 pub struct DeliveryStatus {

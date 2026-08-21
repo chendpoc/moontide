@@ -1,11 +1,11 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use agent::ProgressEvent;
 use tokio::sync::Notify;
 
 use crate::{
-    state::{DeliveryStatus, ResyncReason, ShutdownReport},
+    state::{ActiveAssistantCall, DeliveryStatus, ResyncReason, ShutdownReport},
     ApprovalRequest,
 };
 
@@ -60,6 +60,7 @@ struct BufferState {
     marker_queued: bool,
     session_id: String,
     closed: bool,
+    active_assistant_calls: BTreeSet<ActiveAssistantCall>,
 }
 
 /// One ordered bounded buffer. Snapshot events are replaceable; control events retain priority.
@@ -81,6 +82,7 @@ impl EventBuffer {
                 marker_queued: false,
                 session_id: String::new(),
                 closed: false,
+                active_assistant_calls: BTreeSet::new(),
             }),
             notify: Notify::new(),
         })
@@ -93,6 +95,7 @@ impl EventBuffer {
             return false;
         }
         state.session_id = session_id.to_owned();
+        update_active_assistant_calls(&mut state, &payload);
 
         if let Some(key) = snapshot_key.as_ref() {
             if let Some(existing) = state
@@ -216,6 +219,11 @@ impl EventBuffer {
         state.resync_required = false;
     }
 
+    pub(crate) fn active_assistant_calls(&self) -> Vec<ActiveAssistantCall> {
+        let state = lock_state(&self.state);
+        state.active_assistant_calls.iter().cloned().collect()
+    }
+
     pub(crate) fn close(&self) {
         let mut state = lock_state(&self.state);
         state.closed = true;
@@ -257,6 +265,43 @@ fn snapshot_key(payload: &DesktopEvent) -> Option<(u64, String)> {
                 },
         } => Some((*turn, llm_call_id.clone())),
         _ => None,
+    }
+}
+
+fn update_active_assistant_calls(state: &mut BufferState, payload: &DesktopEvent) {
+    let DesktopEvent::Progress { event } = payload else {
+        return;
+    };
+
+    match event {
+        agent::ProgressEvent::AssistantResponseSnapshot {
+            turn, llm_call_id, ..
+        } => {
+            state.active_assistant_calls.insert(ActiveAssistantCall {
+                turn: *turn,
+                llm_call_id: llm_call_id.clone(),
+            });
+        }
+        agent::ProgressEvent::LlmCallEnded {
+            turn,
+            llm_call_id,
+            outcome: agent::LlmCallOutcome::Failed { .. } | agent::LlmCallOutcome::Cancelled { .. },
+            ..
+        }
+        | agent::ProgressEvent::AssistantFinalized {
+            turn, llm_call_id, ..
+        } => {
+            state.active_assistant_calls.remove(&ActiveAssistantCall {
+                turn: *turn,
+                llm_call_id: llm_call_id.clone(),
+            });
+        }
+        agent::ProgressEvent::LlmCallStarted { .. }
+        | agent::ProgressEvent::LlmCallEnded { .. }
+        | agent::ProgressEvent::TurnStarted { .. }
+        | agent::ProgressEvent::ToolCall { .. }
+        | agent::ProgressEvent::ToolResult { .. }
+        | agent::ProgressEvent::TurnEnded { .. } => {}
     }
 }
 
@@ -324,6 +369,61 @@ mod tests {
                 }
             }
         ));
+    }
+
+    // 场景：EventBuffer 观察到 assistant snapshot、成功结束和 finalized 生命周期。
+    // 预期：成功 call 在 finalized 前仍被标记 active，finalized 后从 snapshot metadata 移除。
+    // 不变量：DesktopSnapshot 只暴露 transient draft 的最小 identity，不复制 draft 内容。
+    #[tokio::test]
+    async fn active_assistant_calls_follow_progress_lifecycle() {
+        let buffer = EventBuffer::new(16);
+        buffer.publish(
+            "session",
+            DesktopEvent::Progress {
+                event: ProgressEvent::AssistantResponseSnapshot {
+                    turn: 1,
+                    step: 0,
+                    llm_call_id: "call-1".into(),
+                    update_index: 0,
+                    snapshot: snapshot("partial"),
+                },
+            },
+        );
+        assert_eq!(
+            buffer.active_assistant_calls(),
+            vec![crate::ActiveAssistantCall {
+                turn: 1,
+                llm_call_id: "call-1".into(),
+            }]
+        );
+
+        buffer.publish(
+            "session",
+            DesktopEvent::Progress {
+                event: ProgressEvent::LlmCallEnded {
+                    turn: 1,
+                    step: 0,
+                    llm_call_id: "call-1".into(),
+                    outcome: agent::LlmCallOutcome::Succeeded {
+                        stop_reason: agent::StopReason::EndTurn,
+                        usage: None,
+                    },
+                },
+            },
+        );
+        assert_eq!(buffer.active_assistant_calls().len(), 1);
+
+        buffer.publish(
+            "session",
+            DesktopEvent::Progress {
+                event: ProgressEvent::AssistantFinalized {
+                    turn: 1,
+                    llm_call_id: "call-1".into(),
+                    blocks: vec![],
+                },
+            },
+        );
+        assert!(buffer.active_assistant_calls().is_empty());
     }
 
     // 场景：公开 DesktopEventStream adapter 从 EventBuffer 接收一个事件。

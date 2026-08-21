@@ -42,6 +42,7 @@
 - [ ] Iced Message/update/view 与 RenderState 单向绑定，并按 [`UI-INTERACTION.md`](UI-INTERACTION.md) 验收布局和状态；
 - [ ] 实现 `AssistantDraftKey(turn, llm_call_id)` 替换、`AssistantFinalized` 清理和 conversation fold；
 - [ ] 实现 ToolCall/ToolResult/approval/error 的 projection；
+- [x] 启动时加载 `DesktopSnapshot`，渲染 live tool projection，并按 active assistant-call identity 安全保留 draft；
 - [ ] 保留输入 draft，不把 transient snapshot 写入 Session；
 - [ ] approval card、tool detail、error notice、cancel/close affordance；
 - [x] `ApprovalBroker` 的唯一决策和 cancellation cleanup；
