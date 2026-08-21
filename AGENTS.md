@@ -27,6 +27,16 @@
 
 ---
 
+## 架构协作
+
+- 用户主导并提出产品目标、架构方向、范围和取舍；Agent 负责独立 review、补全边界、说明风险、记录设计并实施已确认的方案。
+- 中大型模块或跨模块改动必须先完成架构对齐：确认职责、所有权、生命周期、公开类型与函数签名、依赖边界、错误语义和验收标准后，才能进入实现。
+- Agent 不得静默改变产品目标、公开契约、所有权、依赖方向、持久化格式或批次范围；发现此类变化时必须暂停并请求用户确认。
+- 实现完成后必须提供可复现的验证证据，并经过独立的 Standards / Spec review 和用户 diff review；未经用户明确说 `commit` 不得提交。
+- 详细的模块推进、Work Packet、Review 批和双轨协作流程以 MoonTide 相关 skill 为准。
+
+---
+
 ## 命令
 
 - 代码变更后（文档除外）：`just check`（= `cargo fmt --all --check` + `cargo clippy --workspace --all-targets` + `cargo test --workspace`），修完所有 fmt/clippy/test 再提交

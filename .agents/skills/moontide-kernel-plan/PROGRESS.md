@@ -24,6 +24,7 @@
 - 2026-08-19：Desktop D0 baseline 文档完成，新增 `crates/desktop/{README,DESIGN,UI-STATE,UI-INTERACTION,UI-TECH-CHOICE,TASKS}.md`；架构 review 后收敛为单一 ordered EventBuffer、SessionQuery facade、typed command error 和 resync 新基线语义。
 - 2026-08-20：用户确认 Iced 为 Desktop UI framework；Electron/内置 Chromium 排除，Tauri 后置，Slint 不进入实现合约。Desktop D1 Host actor、SessionQuery facade、ApprovalBroker、EventBuffer 和测试完成；完整 Iced 窗口进入 D3。
 - 2026-08-20：用户确认 Desktop 进程化目标架构：Iced UI process → `desktop-protocol` → `agent-host` runtime process；AgentLoop 保持 Host 内 Tokio task，subagent 先做逻辑 actor，daemon 后置为独立 sibling/service。当前先保留 D1 同进程基线，后续抽 protocol DTO 与 in-process transport adapter。
+- 2026-08-21：`agent-tools` `web_search` R1.2 完成：DuckDuckGo HTML + 可选 SearXNG JSON、顺序 best-effort 聚合、canonical URL 去重、provider attribution、retryable 错误聚合与 wiremock 行为测试；`web_fetch` 仍后置。
 
 ## 变更记录
 
