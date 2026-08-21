@@ -3,7 +3,7 @@
 > **对外契约：** [`README.md`](README.md)
 > **UI projection：** [`UI-STATE.md`](UI-STATE.md)
 > **进程化目标架构：** [`../docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)
-> **状态：** D1 Host actor、SessionQuery facade 和 EventBuffer 已实现；D3 Iced UI 后置
+> **状态：** D1 Host actor、D2 protocol、D3-R1 RenderState fold 已实现；D3 Iced UI 后置
 
 ## 1. 职责与边界
 
@@ -42,6 +42,8 @@ crates/desktop/src/
   command.rs   # commands and typed errors
   event.rs     # envelope and EventBuffer
   protocol.rs  # top-level protocol DTO and in-process event adapter
+  render_state.rs # UI-owned protocol fold and view projection
+  ui.rs        # injected Iced shell and protocol subscription
   approval.rs  # ApprovalBroker and request identity
   state.rs     # host state and snapshot
 ```
@@ -146,6 +148,88 @@ pub enum DesktopRunState {
 
 Host state 是生命周期摘要，不替代 `ProgressEvent` 的 canonical payload。失败不会
 回滚已提交的 Session fact；下一 Turn 可以从 `Failed` 恢复到 `Thinking`。
+
+### 3.4 RenderState fold（D3-R1）
+
+`RenderState` 是 `desktop` crate 内部的 UI-owned projection。它只读取 protocol event 和
+snapshot，不拥有 Agent、SessionStore 或 approval truth：
+
+```rust
+pub(crate) struct RenderState {
+    pub(crate) session: Option<agent::SessionSnapshot>,
+    pub(crate) run: DesktopRunState,
+    pub(crate) messages: Vec<MessageView>,
+    pub(crate) assistant_drafts: BTreeMap<AssistantDraftKey, AssistantDraftView>,
+    pub(crate) tools: BTreeMap<String, ToolView>,
+    pub(crate) approvals: BTreeMap<String, ApprovalView>,
+    pub(crate) notices: Vec<NoticeView>,
+    pub(crate) delivery: DeliveryView,
+    pub(crate) stopped_report: Option<ShutdownReport>,
+    finalized_calls: BTreeSet<AssistantDraftKey>,
+}
+
+impl RenderState {
+    pub(crate) fn apply_message(
+        &mut self,
+        envelope: DesktopMessageEnvelope,
+    ) -> RenderFoldResult;
+    pub(crate) fn replace_snapshot(&mut self, snapshot: DesktopSnapshot);
+}
+
+pub(crate) enum RenderFoldResult {
+    Applied,
+    Ignored,
+    ResyncRequired,
+}
+```
+
+`NoticeView` 和 `DeliveryView` 是上述 projection 的内部辅助值，不是新的协议类型：
+
+```rust
+pub(crate) struct NoticeView {
+    pub(crate) kind: NoticeKind,
+    pub(crate) message: String,
+    pub(crate) recoverable: bool,
+    pub(crate) error_kind: Option<DesktopErrorKind>,
+}
+
+pub(crate) struct DeliveryView {
+    pub(crate) connection_epoch: Option<ConnectionEpoch>,
+    pub(crate) last_seq: Option<Seq>,
+    pub(crate) awaiting_snapshot: bool,
+    pub(crate) resync_required: bool,
+    pub(crate) dropped_snapshots: u64,
+    pub(crate) buffered_events: usize,
+    pub(crate) resync_reason: Option<ResyncReason>,
+}
+```
+
+事件只接受当前 epoch 内严格递增的 seq；旧 seq 忽略，gap 或缺失 seq 设置 resync marker
+并停止猜测后续状态。发现更高 epoch 时先进入 `awaiting_snapshot`，在 snapshot 替换
+baseline 前不消费该 epoch 的事件。snapshot 替换 Session history、host state、approval 和
+delivery baseline，同时清理 transient assistant draft。`AssistantResponseSnapshot` 按
+`(turn, llm_call_id)` 替换，`AssistantFinalized` 删除 draft 并只追加一次历史消息；没有
+对应 ToolCall 的 ToolResult 请求 resync，不创建孤立工具卡片。`TurnFailed` 保留错误类别
+和可恢复性；`Stopped` 保留 `ShutdownReport`；`TurnCompleted` 将 UI run state 收敛到
+`Idle`。
+
+### 3.5 Iced shell（D3-R2）
+
+Iced 只接收已经启动的 Host，不负责创建 `AgentConfig`、解析 settings 或选择 Session：
+
+```rust
+pub fn run_ui(
+    host: DesktopHostHandle,
+    events: DesktopEventStream,
+    connection_epoch: ConnectionEpoch,
+) -> iced::Result;
+```
+
+`run_ui` 将 `DesktopEventStream::recv_protocol` 作为 Iced `Subscription`，将用户输入、
+Stop 和 approval decision 作为 `Task` 调用 `DesktopHostHandle`。UI-owned `RenderState`
+是唯一 view projection；Iced 不写 Session Item Log，也不把 Iced 类型传入 `agent` 或
+`agent-core`。D3-R2 只提供单窗口的最小 conversation、composer、tool/approval/error
+显示；Session Rail、Inspector、settings 和完整主题验收留在后续 D3/D5 批次。
 
 ## 4. EventBuffer
 

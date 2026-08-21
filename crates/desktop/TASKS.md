@@ -12,6 +12,8 @@
 | D1 | Host actor、ordered EventBuffer、single active turn | ☑ | `cargo test -p desktop` + host lifecycle tests |
 | D2 | Desktop protocol 顶层 contract、identity/resync 语义、in-process transport adapter | ☑ | contract + adapter tests；不要求全量 payload 搬迁 |
 | D3 | RenderState fold、Iced single-window shell、conversation/input/tool panels | ☐ | fold tests + desktop build + UI smoke |
+| D3-R1 | Protocol-fed RenderState fold and baseline resync | ◐ | pure fold tests；不引入 Iced |
+| D3-R2 | Injected Iced shell and protocol subscription seam | ◐ | `cargo check -p desktop` + headless UI helper tests；不引入 settings/IPC |
 | D4 | `agent-host` process、framed transport、disconnect/resync | ☐ | process lifecycle + reconnect acceptance |
 | D5 | Session picker、resume、settings/key injection | ☐ | query/recovery/settings tests |
 | D6 | provider smoke、cross-platform build/package | ☐ | macOS/Windows/Linux build matrix and smoke report |
@@ -50,6 +52,22 @@
 - [ ] `.moontide/settings.json` 解析、API key 注入和 workspace switching；
 - [ ] macOS、Windows、Linux 的平台编译和打包接缝；
 - [ ] 至少一个真实 provider 流式 smoke test。
+
+## D3-R1 细项
+
+- [ ] 将 UI 输入边界统一为 `DesktopMessageEnvelope` / `DesktopProtocolEvent`；
+- [ ] 实现 UI-owned `RenderState`、draft replacement、conversation/tool/approval projection；
+- [ ] 实现 seq stale/gap、epoch reset 和 snapshot baseline replacement；
+- [ ] 覆盖 orphan ToolResult、重复 finalized 和 resync notice；
+- [ ] 不引入 Iced、窗口、settings 或 transport。
+
+## D3-R2 细项
+
+- [ ] 注入式 `run_ui(host, events, connection_epoch)`，不负责 Agent/settings bootstrap；
+- [ ] `recv_protocol` → Iced `Subscription` → `RenderState`；
+- [ ] Iced `Message/update/view` 接入最小 conversation、composer、Stop、approval/error；
+- [ ] 覆盖协议事件源单消费者和 assistant block view helper；
+- [ ] 不引入 Session picker、完整 Inspector、D4 IPC 或 D5 settings。
 
 ## 后置，不进入 v0.1
 
