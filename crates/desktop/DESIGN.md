@@ -207,7 +207,9 @@ pub(crate) struct DeliveryView {
 事件只接受当前 epoch 内严格递增的 seq；旧 seq 忽略，gap 或缺失 seq 设置 resync marker
 并停止猜测后续状态。发现更高 epoch 时先进入 `awaiting_snapshot`，在 snapshot 替换
 baseline 前不消费该 epoch 的事件。snapshot 替换 Session history、host state、approval 和
-delivery baseline，同时清理 transient assistant draft。`AssistantResponseSnapshot` 按
+delivery baseline；`DesktopSnapshot.active_assistant_calls` 只保留仍 active 的 transient
+assistant draft identity，无法证明 active 的 draft 删除并显示可恢复 notice。它不复制 draft
+内容。`AssistantResponseSnapshot` 按
 `(turn, llm_call_id)` 替换，`AssistantFinalized` 删除 draft 并只追加一次历史消息；没有
 对应 ToolCall 的 ToolResult 请求 resync，不创建孤立工具卡片。`TurnFailed` 保留错误类别
 和可恢复性；`Stopped` 保留 `ShutdownReport`；`TurnCompleted` 将 UI run state 收敛到
@@ -215,7 +217,8 @@ delivery baseline，同时清理 transient assistant draft。`AssistantResponseS
 
 ### 3.5 Iced shell（D3-R2）
 
-Iced 只接收已经启动的 Host，不负责创建 `AgentConfig`、解析 settings 或选择 Session：
+Iced 只接收已经启动的 Host，不负责创建 `AgentConfig`、解析 settings 或选择 Session；
+启动 boot 会先请求一次 `DesktopSnapshot`，避免恢复 Session 只显示空 RenderState：
 
 ```rust
 pub fn run_ui(
@@ -277,8 +280,9 @@ UI replaces local RenderState and starts a new event baseline
 ```
 
 `last_delivered_seq` 只用于诊断和当前 delivery 状态。resync 后不从旧 seq replay；UI
-保留本地 input draft 和偏好设置，但重建 Session、run state、pending approvals 和
-transient assistant draft。
+保留本地 input draft 和偏好设置，但重建 Session、run state、pending approvals；只按
+`DesktopSnapshot.active_assistant_calls` 保留仍可证明有效的 transient assistant draft，
+其余 draft 删除并显示可恢复 notice。
 
 ## 5. ApprovalBroker
 

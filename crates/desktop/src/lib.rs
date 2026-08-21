@@ -18,8 +18,8 @@ pub use protocol::{
     DESKTOP_PROTOCOL_VERSION,
 };
 pub use state::{
-    DeliveryStatus, DesktopError, DesktopErrorKind, DesktopRunState, DesktopSnapshot, ResyncReason,
-    ShutdownReport,
+    ActiveAssistantCall, DeliveryStatus, DesktopError, DesktopErrorKind, DesktopRunState,
+    DesktopSnapshot, ResyncReason, ShutdownReport,
 };
 
 pub use ui::run_ui;
