@@ -31,7 +31,7 @@ cli → agent
 - 单窗口；
 - 单活跃 Session；
 - Turn 串行；
-- 本地 Rust + Slint；
+- Tauri + 轻量 Web 前端（推荐 Svelte + TypeScript）；
 - Session Item Log 作为恢复事实源；
 - Agent Event Log 和宿主 UI 事件作为观测流。
 

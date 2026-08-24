@@ -12,10 +12,16 @@ daemon 或多 Agent，只冻结 owner、依赖方向、消息语义和演进顺�
 ```text
 ┌──────────────────────────────────────┐
 │ moontide-desktop                     │
-│ Iced UI + RenderState + protocol     │
-│ client                               │
+│ Tauri shell + Svelte/TS WebView      │
+│ RenderState + protocol client        │
 └──────────────────┬───────────────────┘
-                   │ Desktop protocol
+                   │ Tauri bridge
+                   ▼
+┌──────────────────────────────────────┐
+│ Tauri Rust desktop shell             │
+│ window + invoke/event adapter        │
+└──────────────────┬───────────────────┘
+                   │ versioned desktop protocol
                    ▼
 ┌──────────────────────────────────────┐
 │ moontide-agent-host                  │
@@ -27,7 +33,7 @@ daemon 或多 Agent，只冻结 owner、依赖方向、消息语义和演进顺�
 
 目标边界是两个进程，而不是每个逻辑对象一个进程：
 
-- `moontide-desktop` 是 UI 进程，只负责 Iced window、RenderState 和用户 intent；
+- `moontide-desktop` 是 Tauri UI 进程：WebView 前端负责 RenderState 和用户 intent，Tauri Rust shell 负责 window、bridge 和 protocol client；
 - `moontide-agent-host` 是 Agent runtime 进程，独占 `Agent`、SessionStore、approval
   和运行生命周期；
 - AgentLoop 初期仍是 Agent Host 内的 Tokio task，不默认拆成 OS process；
@@ -49,15 +55,15 @@ agent::ProgressEvent
         │ adapt / serialize
         ▼
 DesktopProtocolEvent
-        │ fold
+        │ Tauri bridge / frontend fold
         ▼
-Iced RenderState
+Web frontend RenderState
 ```
 
 ### 2.1 `TurnEvent`
 
 `agent-core` 的 canonical runtime facts。它服务于 Session commit、Agent Event derive、
-permission、approval、retry 和 cancellation，不知道 Desktop、Iced 或 IPC。
+permission、approval、retry 和 cancellation，不知道 Desktop、Tauri 或 IPC。
 
 ### 2.2 `ProgressEvent`
 
@@ -78,20 +84,20 @@ Desktop UI 的稳定 DTO，负责表达：
 
 Desktop protocol 不直接公开 Agent runtime 的 ownership / implementation 类型，例如
 `agent::ProgressEvent`、`agent::ModelResponse`、`Agent`、`SessionStore` 或 observer/task
-handle。这个规则是最终跨进程 wire boundary 的约束，不要求 D1/D3 立即复制所有
-canonical value payload；in-process adapter 可以继续复用已经稳定的 `ToolCall`、
-`ToolResult`、`ContentBlock` 和 `ModelResponseSnapshot`。只有在 D4 有真实 framed
-transport、独立版本或非 Rust consumer 时，才抽取必要的独立 payload DTO。
+handle。Tauri WebView 是非 Rust consumer，因此 D3 前必须抽取独立 wire DTO，并提供
+TypeScript types/fixtures conformance；不能继续把 in-process canonical Rust value types
+当成最终前端 contract。
 
 ## 3. Owner 与依赖方向
 
 | Owner | 拥有 | 不拥有 |
 |---|---|---|
-| `agent-core` | TurnEvent、Session Item Log、AgentLoop 事实语义 | Desktop event、Iced、IPC |
+| `agent-core` | TurnEvent、Session Item Log、AgentLoop 事实语义 | Desktop event、Tauri、IPC |
 | `agent` | Agent 装配、Progress、Agent Event Log、provider/tool preset | UI lifecycle、window、protocol transport |
-| `agent-host` | Agent、SessionStore、ApprovalBroker、runtime lifecycle | RenderState、Iced widget |
+| `agent-host` | Agent、SessionStore、ApprovalBroker、runtime lifecycle | RenderState、WebView widget |
 | `desktop-protocol` | command/event/snapshot/error DTO 与版本 | Agent 执行、Session IO、UI layout |
-| `desktop` | Iced window、RenderState、用户 intent、连接状态 | Agent、SessionStore、approval truth |
+| `desktop` / Tauri shell | window、bridge、protocol client、连接状态 | Agent、SessionStore、approval truth、Web RenderState |
+| Web frontend | RenderState、组件、用户输入 draft、UI 偏好 | Agent、SessionStore、approval truth、Tauri Rust state |
 | future daemon | 独立 runtime lifecycle、多客户端/后台任务 | 单个 UI window 的状态 |
 
 目标 crate 依赖方向：
@@ -104,10 +110,9 @@ agent ─────────────────► agent-core + agent-
 desktop-protocol ──────► serde / protocol dependencies only
 ```
 
-最终的 `desktop-protocol` 不依赖 Iced、`agent` 或 `agent-core`，避免 wire contract 被
-实现层反向污染。当前 D1/D3 可以暂时由 `desktop` 内部实现顶层 contract，并通过
-in-process adapter 复用 canonical value payload；D4 进程拆分前，再按实际 transport
-需求抽出必要的共享 payload DTO。
+最终的 `desktop-protocol` 不依赖 Tauri、前端框架、`agent` 或 `agent-core`，避免 wire
+contract 被实现层反向污染。当前 D1 的 in-process adapter 只能作为 Host 测试接缝；
+Tauri 前端必须消费独立 wire DTO。
 
 ## 4. Desktop protocol
 
@@ -131,8 +136,9 @@ pub enum DesktopCommand {
 `ApprovalId`、turn identity、Session identity 和权限事实由 Host 产生或校验，UI 不得
 自行构造执行事实。
 
-`DesktopCommand` 在最终协议中是纯数据 DTO，不包含 oneshot、Tokio channel 或 Host
-handle。D1 的内部 command 可以继续使用这些实现机制，但不得把它们提升为协议 API。
+`DesktopCommand` 在最终协议中是纯数据 DTO，不包含 oneshot、Tokio channel、Tauri
+`AppHandle` 或 Host handle。D1 的内部 command 和 Tauri command 可以继续使用这些实现
+机制，但不得把它们提升为协议 API。
 
 ### 4.2 Response 与 event
 
@@ -182,7 +188,7 @@ Desktop start
   → protocol handshake
   → StartSession / ResumeSession
   → receive Ready + Snapshot
-  → Iced starts normal rendering
+  → frontend starts normal rendering
 ```
 
 Host handshake 失败、protocol version 不匹配或 Session 恢复失败时，UI 显示 typed
@@ -262,8 +268,8 @@ daemon 后置到出现后台运行、多客户端、UI 崩溃后重连或多 Ses
 | 阶段 | 内容 | 进程边界 |
 |---|---|---|
 | D1 当前 | Host actor、EventBuffer、Snapshot、Approval | UI/Host 同进程 |
-| D2 | 冻结顶层 `desktop-protocol` contract，定义 identity/resync 语义，增加 in-process transport adapter | 仍同进程；不强制复制全部 canonical payload |
-| D3 | Iced single-window UI + RenderState | UI 仍可使用 in-process adapter |
+| D2 replan | 冻结可被 WebView 消费的 `desktop-protocol` wire DTO、TS types/fixtures、identity/resync 语义 | 仍可同进程；前端先经 Tauri bridge |
+| D3 | Tauri single-window shell + 轻量 Web frontend + RenderState | WebView 与 Tauri Rust shell 同进程，Host 可先同进程 |
 | D4 | `agent-host` library + binary，Desktop 通过 framed stdio/pipe 连接 | UI 与 Agent Host 两进程 |
 | D5 后置 | standalone runtime daemon、重连、多客户端、多 Session | daemon 独立生命周期 |
 
@@ -272,8 +278,10 @@ D4 之前不实现 TCP loopback、daemon、multi-agent scheduler 或 AgentLoop w
 ## 8. 验收边界
 
 - Desktop 不直接依赖 `agent-core` 读取文件；
-- UI 不拥有 Agent、SessionStore 或 Approval pending truth；
-- protocol contract 不暴露 Iced 或 Agent runtime ownership 类型；D1/D3 可以复用稳定的 canonical value payload；
+- Web frontend 不拥有 Agent、SessionStore 或 Approval pending truth；
+- protocol contract 不暴露 Tauri、前端框架或 Agent runtime ownership 类型；
+- Tauri command/event bridge 不绕过 versioned protocol；
+- 前端类型与 wire DTO 有可重复的 fixture/conformance 检查；
 - 每个 command 有明确 response/request correlation；
 - event 顺序仅在 connection epoch 内保证；
 - resync 使用 snapshot 建立新基线，不要求旧事件 replay；
@@ -283,7 +291,7 @@ D4 之前不实现 TCP loopback、daemon、multi-agent scheduler 或 AgentLoop w
 ## 9. 明确不做
 
 - 不为 UI、Host、AgentLoop、subagent、daemon 各自创建一个进程；
-- 不让 Desktop 直接执行 AgentLoop；
-- 不让 UI 写 Session Item Log 或 Agent Event Log；
+- 不让 Tauri bridge 或 Web frontend 直接执行 AgentLoop；
+- 不让 Web frontend 写 Session Item Log 或 Agent Event Log；
 - 不用 Agent Event Log 或 Progress 恢复 Session；
 - 不在本阶段实现 daemon、server、远程 worker、TCP RPC 或多 Session scheduler。

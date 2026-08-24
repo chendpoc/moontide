@@ -3,7 +3,7 @@
 > **对外契约：** [`README.md`](README.md)
 > **UI projection：** [`UI-STATE.md`](UI-STATE.md)
 > **进程化目标架构：** [`../docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)
-> **状态：** D1 Host actor、D2 protocol、D3-R1 RenderState fold 已实现；D3 Iced UI 后置
+> **状态：** D1 Host actor、D2 protocol、D3-R1 RenderState fold 已实现；Iced 路线已放弃，Tauri/Web 前端迁移待实现
 
 ## 1. 职责与边界
 
@@ -11,13 +11,17 @@
 command 转换为 Agent 调用，把 Progress、approval 和 lifecycle 转换为 DesktopEvent。
 它不拥有 Session Item Log 的第二份副本，也不参与 Turn 内部决策。
 
-目标架构将 Iced UI 与 Agent Host 拆成两个进程：UI 只拥有 RenderState 和 protocol
-client；Agent Host 独占 Agent、SessionStore、ApprovalBroker 和 runtime lifecycle。
+目标架构由 Tauri UI process 与 Agent Host process 组成：Web 前端只拥有 RenderState 和
+用户 intent，Tauri Rust shell 拥有窗口、bridge 和 protocol client；Agent Host 独占
+Agent、SessionStore、ApprovalBroker 和 runtime lifecycle。
 当前 D1 的 in-process Host contract 必须保持可由未来 transport adapter 替换。
 
 ```text
-Iced UI（D3）
-       │ Desktop protocol / in-process adapter
+Svelte WebView（D3）
+       │ Tauri invoke / event bridge
+       ▼
+Tauri Rust desktop shell
+       │ versioned Desktop protocol / transport adapter
        ▼
 DesktopHostActor（目标：agent-host process） ───► DesktopEventStream
     │ owns one Agent                  │ one ordered EventBuffer
@@ -26,24 +30,29 @@ DesktopHostActor（目标：agent-host process） ───► DesktopEventStrea
     └── SessionQuery
 ```
 
-Host crate 不依赖 Iced。Iced 只负责未来的 window、Message/update/view 和
-Subscription/Task；Host contract 可以被 CLI、headless test 或未来 Desktop adapter 使用。
-跨进程前应把顶层 command/response/event/snapshot contract 收敛为独立的
-`desktop-protocol`。但 D1/D3 不做无消费者的全量 payload 搬迁：in-process adapter 可以
-复用稳定的 canonical value types；D4 有真实 framed transport、独立版本或非 Rust
-consumer 时，再抽取必要的 wire DTO。Agent runtime ownership 类型始终不进入协议 API。
+Host crate 不依赖 Tauri 或前端框架。Tauri shell 只负责 window、command bridge、event
+subscription 和 protocol client；Host contract 可以被 CLI、headless test 或未来 Desktop
+adapter 使用。由于 Tauri WebView 是非 Rust consumer，D3 前必须冻结独立的
+`desktop-protocol` wire DTO，并提供 TypeScript 类型/fixture conformance；不能继续把
+in-process canonical Rust value types 当成最终前端 contract。Agent runtime ownership
+类型始终不进入协议 API。
 
 ## 2. 模块结构
 
 ```text
 crates/desktop/src/
   lib.rs       # public exports
-  host.rs      # DesktopHost、HostActor、lifecycle
+  host.rs      # DesktopHost、配置与启动 lifecycle
+  host/        # HostActor、handle command、ProgressSink、tests
   command.rs   # commands and typed errors
   event.rs     # envelope and EventBuffer
+  event/       # EventBuffer tests
   protocol.rs  # top-level protocol DTO and in-process event adapter
-  render_state.rs # UI-owned protocol fold and view projection
-  ui.rs        # injected Iced shell and protocol subscription
+  render_state.rs # RenderState module wiring and internal re-exports
+  render_state/  # model、fold、projection、tests
+  ui.rs        # Tauri bridge bootstrap and protocol subscription seam
+  ui/          # legacy Iced shell; migration target is frontend/ RenderState
+  frontend/    # Svelte + TypeScript app (D3 migration target)
   approval.rs  # ApprovalBroker and request identity
   state.rs     # host state and snapshot
 ```
@@ -220,24 +229,29 @@ baseline 后，按原 seq 顺序重放暂存事件。这样事件可能先于 sn
 消费，也可能晚于 snapshot response 到达 UI，都不会让本地 `last_seq` 回退并制造伪造 gap。
 重放期间再次发现 gap 时停止重放剩余事件，并重新请求 snapshot。
 
-### 3.5 Iced shell（D3-R2）
+### 3.5 Tauri/Web shell（D3-R2 replan）
 
-Iced 只接收已经启动的 Host，不负责创建 `AgentConfig`、解析 settings 或选择 Session；
-启动 boot 会先请求一次 `DesktopSnapshot`，避免恢复 Session 只显示空 RenderState：
+Tauri Rust shell 只接收已经启动的 Host 或 protocol client，不负责创建 `AgentConfig`、
+解析 settings 或选择 Session；启动 boot 会先请求一次 `DesktopSnapshot`，避免恢复
+Session 只显示空 RenderState：
 
 ```rust
-pub fn run_ui(
-    host: DesktopHostHandle,
-    events: DesktopEventStream,
-    connection_epoch: ConnectionEpoch,
-) -> iced::Result;
+pub async fn start_tauri_shell(
+    client: DesktopProtocolClient,
+) -> anyhow::Result<TauriAppHandle>;
 ```
 
-`run_ui` 将 `DesktopEventStream::recv_protocol` 作为 Iced `Subscription`，将用户输入、
-Stop 和 approval decision 作为 `Task` 调用 `DesktopHostHandle`。UI-owned `RenderState`
-是唯一 view projection；Iced 不写 Session Item Log，也不把 Iced 类型传入 `agent` 或
-`agent-core`。D3-R2 只提供单窗口的最小 conversation、composer、tool/approval/error
+前端 protocol client 订阅 Tauri bridge 的 `DesktopMessageEnvelope`，将多行 composer 编辑、
+键盘快捷键、Stop 和 approval decision 转换为 `DesktopCommand`。普通 Enter 保留换行，
+Cmd/Ctrl+Enter 生成 Submit，Escape 在 active Turn 时生成 cancel，否则关闭 Inspector。
+前端 `RenderState` 是唯一 view projection；Tauri、Svelte 和 TypeScript 类型不进入
+`agent` 或 `agent-core`。D3-R2 只提供单窗口的最小 conversation、composer、tool/approval/error
 显示；Session Rail、settings 和完整主题验收留在后续 D3/D5 批次。
+
+前端组件只负责布局组合，Conversation、Approval、Inspector 和 Composer 分别负责局部 view；
+组件只读取 `RenderState` 子投影并生成 intent，不拥有 Host 或 Session 事实。Tauri command
+capability 采用最小 allowlist；Tauri event 只发送 protocol envelope，不直接发送任意
+Rust object。
 
 ### 3.6 Inspector（D3-R3）
 

@@ -2,7 +2,7 @@
 
 > **性质：** v0.1 UI 与交互验收契约
 > **依赖：** [`README.md`](README.md)、[`DESIGN.md`](DESIGN.md)、[`UI-STATE.md`](UI-STATE.md)
-> **状态：** v0.1 baseline；Iced 已确认，D3-R2 最小 shell 已实现，完整 D3 UI 尚未完成
+> **状态：** v0.1 baseline；Iced 路线已放弃，Tauri + 轻量 Web 前端接缝待实现，完整 D3 UI 尚未完成
 
 ## 1. 产品交互方向
 
@@ -280,7 +280,7 @@ v0.1 采用稳定、低干扰的开发者工作台风格：
 - approval、error、cancellation 使用清晰但克制的强调色；
 - 流式更新只使用轻微 opacity/cursor 变化，不使用阻塞式动画；
 - 所有核心操作可用键盘完成；
-- focus ring、最小对比度和可调整字号由 Iced view state 与组件样式保持一致；
+- focus ring、最小对比度和可调整字号由前端 view state 与组件样式保持一致；
 - 不把透明、虚化、多窗口和复杂动效作为 v0.1 交付条件。
 
 ## 10. D3 UI 验收场景

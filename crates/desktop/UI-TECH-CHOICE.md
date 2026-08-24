@@ -1,67 +1,103 @@
 # Desktop UI 技术决策
 
-> **状态：** 已确认
-> **决策：** MoonTide Desktop v0.1 使用 Iced
+> **状态：** 方向已确认；进入 Tauri 迁移设计，前端框架以 Svelte + TypeScript 为推荐默认，尚未冻结具体版本与依赖清单
+> **决策：** MoonTide Desktop v0.1 放弃 Iced，采用 Tauri 2 + 轻量 Web 前端
 > **目标平台：** macOS / Windows / Linux
 
 ## 1. 决策
 
-Iced 是 Desktop 的唯一 UI framework。选择依据：
+Desktop UI 采用 Tauri shell 承载轻量 Web 前端。推荐前端组合是 Svelte + TypeScript：
+组件和状态边界足够直接，适合当前单窗口、单活跃 Session、单活跃 Turn 的 Workbench，
+同时保留未来 Web frontend 共用 UI projection 的可能性。当前不引入大型状态管理框架；
+`RenderState` 和 protocol client 由前端自己的小型模块拥有。
 
-- Rust-native，不携带 bundled Chromium；
-- message/update/view 模型与 `RenderState` 天然匹配；
-- Desktop Host、Agent 和 UI 的 ownership 可以保持显式；
-- 不需要 WebView、JavaScript 或 frontend/backend invoke；
-- 适合后续系统窗口组件、小组件和键盘交互方向。
+Tauri 只属于 Desktop shell 层。`agent-core`、`agent`、Agent Host 和
+`desktop-protocol` 不依赖 Tauri、Svelte、TypeScript 或 WebView。
 
-Iced 只属于 Desktop UI 层。`agent-core`、`agent` 和 Host actor 不依赖 Iced。
+选择依据：
+
+- Tauri 使用系统 WebView，不打包 bundled Chromium；
+- Web 前端适合对话流式展示、Tool card、Inspector、主题和文本交互；
+- Tauri Rust bridge 可以把窗口生命周期、权限能力和 protocol client 留在 Rust 边界；
+- 前端可以作为独立 Web consumer 验证，迫使 `desktop-protocol` 真正成为跨语言 contract；
+- `agent-core` 与 Agent Host 的 ownership、Session Item Log 和错误语义不随 UI 技术变化。
+
+这不是把业务事实搬到 JavaScript。前端只拥有 view projection、用户输入 draft、窗口偏好
+和连接状态；Rust Host 仍拥有 Agent、SessionStore、ApprovalBroker、取消和关闭清理。
 
 ## 2. 运行时边界
 
 ```text
-Iced application
-  ├── Message → update → view
-  ├── Subscription → DesktopEventStream::recv_protocol
-  └── Task → DesktopHostHandle command
+Svelte + TypeScript WebView
+  ├── RenderState / view projection
+  ├── protocol client
+  └── Tauri invoke / event adapter
              │
              ▼
-Desktop Host Actor
-  └── Tokio runtime + agent::Agent
+Tauri Rust desktop shell
+  ├── window lifecycle
+  ├── typed command bridge
+  ├── protocol client / reconnect
+  └── no SessionStore ownership
+             │ versioned desktop-protocol
+             ▼
+moontide-agent-host
+  └── Agent + SessionStore + ApprovalBroker + lifecycle
 ```
 
-UI thread 不执行 provider、tool 或 Session IO。UI 只消费
-`DesktopMessageEnvelope` 中的 `DesktopProtocolEvent`，将其 fold 成自己的 `RenderState`；
-Host 不知道 Iced widget、theme 或 layout。
+Tauri command 只负责前端 intent 到 `DesktopCommand` 的边界转换；它不能直接调用
+`Agent::turn`、绕过 Host，或把 `SessionItem` 暴露给 WebView。Host 推送的事件必须是
+`DesktopProtocolEvent`，而不是 `TurnEvent`、`ProgressEvent` 或 runtime ownership type。
 
-## 3. 被排除的方案
+Tauri event 只承载已经合并、可丢失且可 resync 的 Desktop protocol message。它不是
+Session Item Log，也不是 Agent Event Log。高频 assistant snapshot 的合并、seq、epoch、
+resync 和 cleanup 继续由 Host/EventBuffer/协议层决定。
+
+## 3. 前端框架边界
+
+推荐默认：Svelte + TypeScript。以下内容暂不冻结：
+
+- SvelteKit、路由框架和服务端渲染；
+- 全局状态管理库；
+- UI 组件库和 CSS utility；
+- 前端持久化 Session 或缓存 Agent facts。
+
+v0.1 前端采用单页面应用即可。`RenderState`、protocol client 和 view component 分成
+清晰模块，但不先抽通用 design-system 或跨产品 frontend package。若后续确实需要 Web
+版，再从 UI projection 中抽出可复用部分。
+
+## 4. 被排除的方案
+
+### Iced
+
+放弃作为 MoonTide Desktop 正式 UI 实现。现有 Iced shell 仅作为未提交迁移前的工作区
+代码保留，不再扩展新的产品契约；Tauri 垂直切片通过后再删除对应依赖和代码。
 
 ### Electron
 
-排除 bundled Chromium、Node runtime、体积和空载资源开销，不进入产品架构。
-
-### Tauri
-
-不是当前默认方案。它依赖 system WebView，仍会引入 HTML/CSS/JavaScript、WebView 和
-frontend/backend invoke。只有出现真实 Web frontend 或 Web/Desktop 共用需求时重新评估。
+不采用 bundled Chromium、Node runtime 和更重的桌面运行时形态。Tauri 的 system WebView
+并不意味着前端资源、WebView 行为或平台差异免费；这些会进入 D3 验收。
 
 ### Slint
 
-保留为历史调研候选，但不是实现目标。`.slint`、`ModelRc`、
-`invoke_from_event_loop` 和 Slint license/attribution 不进入 MoonTide Desktop 合约。
+保留为历史调研候选，不进入当前实现合约。
 
 ### egui / eframe
 
 保留为快速原型或内部诊断工具候选，不作为正式 Desktop UI。
 
-## 4. Iced D3 验收边界
+## 5. D3 验收边界
 
-D3 需要验证：
+D3 的第一条可用切片必须验证：
 
-- 单窗口启动和关闭；
-- `DesktopEventStream::recv_protocol` 到 `RenderState` 的 Subscription 接缝（D3-R2 已实现）；
-- Conversation 长文本、流式 assistant draft 和 Tool card；
-- Composer 输入、Send、Stop、Approval decision；
-- light/dark theme、键盘操作和三平台构建；
-- 不把 UI state 或 Iced 类型泄漏到 `agent` / `agent-core`。
+- Tauri 单窗口启动和关闭；
+- Rust bridge 的 command/response 与 protocol event subscription；
+- 前端 `RenderState` 对 conversation、assistant snapshot、Tool card、approval、error 的 fold；
+- Cmd/Ctrl+Enter、Escape、Stop、approval decision 和关闭取消；
+- snapshot/resync、`connection_epoch`、`seq` 和断线提示；
+- macOS / Windows / Linux 的 system WebView 启动与文本渲染；
+- Tauri API capability 最小化，未授权 command 默认不可调用；
+- 不把 UI state、Tauri 类型或 TypeScript 类型泄漏到 `agent` / `agent-core`。
 
-固定内存、磁盘和启动数字必须通过 Iced-only 实测，不把其他框架的数字当作工程事实。
+固定内存、磁盘、启动和渲染数字必须通过同一前端实现的可复现实测获得，不能用 Iced、
+Electron 或 Tauri 的宣传数字替代 MoonTide 的验收证据。

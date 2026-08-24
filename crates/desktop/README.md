@@ -1,7 +1,7 @@
 # MoonTide Desktop
 
 > **性质：** Desktop 产品与宿主契约
-> **状态：** v0.1 D1 Host、D2 protocol、D3-R1 RenderState 和 D3-R2 Iced shell 已实现；完整 D3 UI 尚未完成
+> **状态：** v0.1 D1 Host、D2 protocol、D3-R1 RenderState 已实现；Iced 路线已放弃，Tauri + 轻量 Web 前端迁移尚未实现
 > **实现设计：** [`DESIGN.md`](DESIGN.md)
 > **UI 状态契约：** [`UI-STATE.md`](UI-STATE.md)
 > **UI 交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
@@ -11,15 +11,18 @@
 ## 1. 这是什么
 
 `desktop` 当前是本地桌面产品的 Host contract 与 D1 Host actor crate。它把一个可恢复的
-`agent::Agent` 暴露给未来的 Iced UI，但不复制 AgentLoop，也不把 UI 策略放进
-`agent-core`。目标架构会把 Iced UI 与 Agent Host 拆为两个进程，中间经独立的
-`desktop-protocol` 顶层 contract 通信。当前 D1/D3 不要求立即复制全部嵌套 payload；
-in-process adapter 可以复用稳定的 canonical value types，必要的独立 wire DTO 在
-D4 有真实 transport 需求时再抽取。
+`agent::Agent` 暴露给 Desktop Host，但不复制 AgentLoop，也不把 UI 策略放进
+`agent-core`。新的目标架构由 Tauri shell 承载轻量 Web 前端；前端通过 Tauri bridge
+消费 versioned `desktop-protocol`，再由 `agent-host` 进程拥有 Agent runtime。由于
+前端是非 Rust consumer，独立 wire DTO 和 TypeScript 类型边界现在属于 Tauri 垂直切片
+的前置工作，不再延后到未来某个抽象的 D4。
 
 ```text
-Iced UI（D3，目标为独立 UI process）
-    │ Desktop protocol / in-process adapter
+Svelte + TypeScript WebView（Tauri UI process）
+    │ Tauri invoke / event bridge
+    ▼
+Tauri Rust desktop shell
+    │ versioned Desktop protocol / transport adapter
     ▼
 Desktop Host Actor（当前同进程；目标为 agent-host process）
     │ owns exactly one Agent
@@ -39,9 +42,10 @@ v0.1 D1 的实现边界是：单窗口、单活跃 Session、单活跃 Turn、�
 
 | 调用者 | 使用 | 禁止 |
 |---|---|---|
-| Iced UI | `DesktopHostHandle`、`DesktopEventStream`、`DesktopSnapshot` | 调用 `Agent::turn`、读取 JSONL、访问 `agent-core` 内部模块 |
+| Web 前端 | protocol client、`RenderState`、Tauri command wrapper | 调用 `Agent::turn`、读取 JSONL、访问 `agent-core` 内部模块 |
+| Tauri Rust shell | window lifecycle、bridge、protocol client | 拥有 Agent、SessionStore、Approval truth、UI RenderState |
 | Desktop Host | `agent::Agent`、`ProgressObserver`、`ToolApprovalHandler`、`SessionQuery` | 把 RenderState 写回 Session Item Log |
-| `agent` | Agent 装配、Progress、approval 和 Session query facade | 依赖 Iced 或窗口生命周期 |
+| `agent` | Agent 装配、Progress、approval 和 Session query facade | 依赖 Tauri、Svelte 或窗口生命周期 |
 | `agent-core` | Turn、Session、LLM、Tool 和 Event 事实语义 | 依赖 Desktop、发送 UI 命令 |
 | 平台接缝 | `agent::platform` 和 Desktop 的极少量窗口/进程 API | 复制 `fs` / `path` 抽象或手写分隔符 |
 
@@ -150,9 +154,10 @@ D3-R1 的 `RenderState` 是 UI-owned 的 crate 内部 projection。它只消费
 conversation、tool、approval、notice 和 delivery state；它不拥有 Agent、SessionStore 或
 approval truth，也不写 Session Item Log。
 
-D3-R2 提供 `run_ui(host, events, connection_epoch)`。Host 和 protocol stream 由调用者注入；
-UI 不负责 settings、provider 或 Session bootstrap。当前 shell 只验证协议订阅、conversation、
-composer、Stop、approval 和 error 的最小接缝，完整 Workbench 面板后置。
+D3-R2 不再扩展 Iced shell。新的 Tauri slice 提供 Rust bridge、前端 protocol client 和
+前端 `RenderState` 的最小接缝；Host 和 protocol stream 由调用者注入，前端不负责 provider
+或 Session bootstrap。第一条 slice 只验证协议订阅、conversation、composer、Stop、approval
+和 error，完整 Workbench 面板后置。
 
 ## 4. 事件与恢复
 
@@ -238,7 +243,8 @@ Approval UI event 保留完整 `ToolCall`，用于展示和用户决策。它只
 生命周期。D2 先冻结 command/response/event/snapshot 的顶层语义，以及
 `connection_epoch`、`request_id`、`seq` 的规则，并提供 in-process adapter。D1/D3
 可以复用稳定的 canonical value types；只有 D4 真正拆进程、需要独立版本或出现非 Rust
-consumer 时，才抽出不依赖 Iced、`agent` 和 `agent-core` 的必要 wire DTO。
+consumer 时，才抽出不依赖 Tauri、`agent` 和 `agent-core` 的必要 wire DTO；当前 Tauri
+WebView 已是该 consumer，因此这项工作提前到 D2 replan。
 
 AgentLoop 初期仍是 Agent Host 内的 Tokio task；subagent 先是逻辑 runtime/actor；daemon
 是未来独立生命周期的 sibling/service，不作为 Agent 子进程。
@@ -248,12 +254,12 @@ AgentLoop 初期仍是 Agent Host 内的 Tokio task；subagent 先是逻辑 runt
 
 ## 8. 非目标
 
-- D1 不实现完整 Iced 窗口、Conversation、Session Rail、Inspector 和 Composer；
+- D1 不实现完整 Tauri 窗口、Conversation、Session Rail、Inspector 和 Composer；
 - 多 Session 并发、多 Agent、后台队列和 scheduler；
 - D1 当前不实现 daemon、server、IPC、sidecar 和跨设备同步；IPC 作为 D4 进程拆分目标，
   daemon 仍以后置独立 runtime 为边界；
 - Desktop 直接实现 Session fork、diff 或文件索引；
-- 在 `agent-core` 中引入 Iced、窗口状态或 UI render object；
+- 在 `agent-core` 中引入 Tauri、WebView、窗口状态或 UI render object；
 - 为每个操作系统复制一套 filesystem/path common library。
 
 详细 ownership、状态机、事件缓冲和关闭顺序见 [`DESIGN.md`](DESIGN.md)。
