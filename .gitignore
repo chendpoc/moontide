@@ -14,5 +14,5 @@ __pycache__/
 .moontide/
 
 news_items/
-
+/docs
 crates/moontide-ui/target/

@@ -4,4 +4,8 @@
 
 Guide 的状态只表示流程是否可执行；当前没有 Rust Desktop 或评测 Guide，不能把 notes/archive 中的历史命令当作当前工作流。
 
-当前无活跃 Guide：TS 时代的工程手册与 eval 流程均已归档至 [`../archive/`](../archive/)，Rust 时代的 Guide 待实现后重建。
+| Guide | 用途 |
+|-------|------|
+| [`pi-llm-provider-study-checklist.md`](pi-llm-provider-study-checklist.md) | 研读 Pi `packages/ai` + agent loop，建立 Rust/Tauri LLM 对接心智模型（可勾选进度） |
+
+TS 时代的工程手册与 eval 流程均已归档至 [`../archive/`](../archive/)。

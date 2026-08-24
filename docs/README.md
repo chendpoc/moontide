@@ -67,7 +67,7 @@ docs/
 
 ### 修改 LLM Provider / API 适配层
 
-[`crates/agent-core/src/llm/README.md`](../crates/agent-core/src/llm/README.md) → [`crates/agent-core/src/llm/DESIGN.md`](../crates/agent-core/src/llm/DESIGN.md) → [`notes/llm/edge-local-models.md`](notes/llm/edge-local-models.md)
+[`guides/pi-llm-provider-study-checklist.md`](guides/pi-llm-provider-study-checklist.md) → [`crates/agent-core/src/llm/README.md`](../crates/agent-core/src/llm/README.md) → [`crates/agent-core/src/llm/DESIGN.md`](../crates/agent-core/src/llm/DESIGN.md) → [`notes/llm/edge-local-models.md`](notes/llm/edge-local-models.md)
 
 ### 修改 Plugin / MCP / Sidecar
 

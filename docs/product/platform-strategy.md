@@ -41,7 +41,7 @@
 | **用户-facing CLI 用 Rust 单 binary** | 冷启动、体积、分发简单；与 Codex 同属 native camp |
 | **不把 Node SEA / Bun `--compile` 作为主路径** | 产物仍含 V8/JS 运行时，与「无 embedded runtime」目标冲突 |
 | **TypeScript 仓库保留** | dev harness、conformance tests、Node sidecar 参考实现 |
-| **Slint UI 继续 Rust** | 与 [`runtime-multilang.md`](../notes/runtime/runtime-multilang.md) 中 Rust Host 一致 |
+| **Tauri + 轻量 Web UI** | WebView 前端负责 RenderState，Rust bridge 保持 Host / protocol ownership；推荐 Svelte + TypeScript |
 
 ### 3.2 目标架构
 
@@ -105,7 +105,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | 默认安装 | **零 Node** 可 ping + builtins + LLM | MCP stdio 需用户自备 Node 或改用 HTTP MCP |
 | Session compose | **增量读 log**，非全量 sync read | C1b 后 Rust/TS 均须满足 |
 | Sidecar | **可选**；未安装时 MVP 完整 | 见 [`runtime-multilang.md` §9](../notes/runtime/runtime-multilang.md) |
-| Desktop 主 Bundle | **≤ 20MB**（Slint + Rust Host，**不含 Node**） | Node runtime pack 按需下载 |
+| Desktop 主 Bundle | 以 Tauri + 前端实际构建和 system WebView 测量为准 | 不把宣传数字当作验收事实；Node runtime pack 仍按需下载 |
 
 当前实现仍为 **TypeScript + `node dist/main.js`**；上表为 **Rust release 验收门槛**。
 
@@ -130,7 +130,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 
 - 用户厌倦超大 agent CLI → **小 binary** 传播点
 - MCP 标准化 → L1 不必自建工具生态
-- Desktop：Slint + Rust Host 比 Electron+Node 更省
+- Desktop：Tauri system WebView + Rust Host 避免 bundled Chromium，但前端资源和平台 WebView 差异必须实测
 
 ### Threats
 
@@ -171,7 +171,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | **R1** | 体积/启动 benchmark；Session 增量读；Composer 读 Session（C1b invariant） |
 | **R2** | MCP client；配置形态对齐 Codex 文档习惯 |
 | **R3** | 可选 Node sidecar pack + **MoonTide Plugin SDK**（非 OpenCode 兼容承诺） |
-| **R4** | Rust Host 监管 sidecar + Slint desktop（对齐 runtime-multilang Phase 1–2） |
+| **R4** | Rust Host 监管 sidecar + Tauri desktop（对齐 runtime-multilang Phase 1–2） |
 
 **TS 仓库角色：** R0 之前与并行期 — 参考实现、测试金标准、sidecar 宿主；release 二进制以 Rust 为准。
 

@@ -78,6 +78,7 @@ cwd 可能有多 agent 并行；勿碰其他会话未暂存文件。
 5. **Conformance 守门** — 注册表与边界变更须有结构测试守门（Rust 侧待重建，TS 版见 archive）；不变量写测试，热路径不加 runtime assert。
 6. **简单冗余** — 不为省行数抽泛型；相似 store 可各写一份。
 7. **显式决策** — Hook 仅作 post-commit、fail-open 扩展 callback，不得 Block、Approve、Cancel、Retry 或改变 loop 决策；这些能力使用显式 API。
+8. **配置所有权** — 可配置策略使用声明式规则或 policy 作为配置入口；启动时解析、校验并生成 runtime map。不要只通过扩大局部常量作用域暴露配置，也不要把 host policy 固化进能力契约（如 `ToolSpec`）。
 
 详表与示例：Rust handbook §1–§7（分层部分以上表为准）。
 

@@ -39,7 +39,7 @@ Permission 当前不是独立模块：`agent` 组合根声明 `tool_name → All
 
 推进顺序与 checklist：[`crates/agent-core/README.md`](crates/agent-core/README.md)。
 
-后置：本地模型 daemon、多 agent、Slint 桌面壳、Go 后台服务。卖点是隐私 / 离线 / 确定性，不打并行。
+后置：本地模型 daemon、多 agent、Go 后台服务。Desktop 当前采用 Tauri + 轻量 Web 前端；卖点是隐私 / 离线 / 确定性，不打并行。
 
 ## 项目结构
 
