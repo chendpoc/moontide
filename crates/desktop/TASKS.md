@@ -10,19 +10,18 @@
 | D0 | README、DESIGN、UI-STATE、UI-INTERACTION、TASKS baseline | ☑ | 架构与 UI review 完成 |
 | D0.5 | UI 技术选型、布局、组件状态、快捷键和异常交互 review | ☑ | Tauri + 轻量 Web 前端方向确认；推荐 Svelte + TypeScript；Electron/Iced 排除 |
 | D1 | Host actor、ordered EventBuffer、single active turn | ☑ | `cargo test -p desktop` + host lifecycle tests |
-| D2 | Desktop protocol 顶层 contract、identity/resync 语义、in-process transport adapter | ◐ replan | 现有 Rust contract 保留；Tauri 前置要求独立 wire DTO、TS types/fixtures conformance |
-| D3 | RenderState fold、Tauri single-window shell、conversation/input/tool panels | ☐ | fold tests + Tauri build + UI smoke |
-| D3-R1 | Protocol-fed RenderState fold and baseline resync | ☑ | Rust-side pure fold tests；不绑定 UI framework |
-| D3-R2 | Tauri bridge、轻量 Web 前端和 protocol subscription seam | ☐ | bridge tests + frontend tests + Tauri smoke；不引入 settings/IPC beyond bridge |
+| D2 | Desktop protocol 顶层 contract、identity/resync 语义、in-process transport adapter | ☑ | 独立 wire DTO、Rust fixtures、TypeScript runtime conformance |
+| D3 | RenderState fold、Tauri single-window shell、conversation/input/tool panels | ◐ | D3-PF 最小 vertical slice 完成；完整 Workbench 交互后置 |
+| D3-R1 | Protocol-fed RenderState fold and baseline resync | ☑ | TypeScript pure fold、Rust parity matrix、bounded resync tests |
+| D3-R2 | Tauri bridge、轻量 Web 前端和 protocol subscription seam | ☑ | bridge/frontend/build/smoke evidence；不引入 settings/IPC beyond bridge |
 | D3-R3 | Inspector、Tool/Approval/Thinking detail and local selection | ☐ | frontend state/component tests；不引入 Host/protocol API |
 | D4 | `agent-host` process、framed transport、disconnect/resync | ☐ | process lifecycle + reconnect acceptance |
 | D5 | Session picker、resume、settings/key injection | ☐ | query/recovery/settings tests |
 | D6 | provider smoke、cross-platform build/package | ☐ | macOS/Windows/Linux system WebView build matrix and smoke report |
 
-> **Replan note（2026-08-21）：** 用户确认放弃 Iced，Desktop UI 改为 Tauri + 轻量 Web 前端。
-> 当前工作区的未提交 Iced shell 改动不在本次架构文档批次中删除；它们不是新的验收证据，
-> 也不得继续扩展。下一批先完成 protocol wire DTO / TypeScript conformance，再实现 Tauri
-> vertical slice，之后删除 Iced 依赖和对应代码。
+> **D3-PF result（2026-08-25）：** Tauri + Svelte/TypeScript vertical slice 已经过冻结的
+> `desktop-protocol` v1；TypeScript 拥有唯一 product RenderState。平行 Rust protocol graph、
+> Rust RenderState、Iced shell 与依赖已删除。D4 仅负责独立 `agent-host` process transport。
 
 ## D1 细项
 
@@ -41,7 +40,7 @@
 - [x] 保留当前单一有序 EventBuffer 和 snapshot baseline resync 语义；
 - [x] 提供 in-process transport adapter，使 D3 不依赖具体 IPC；
 - [x] 明确协议不暴露 Agent runtime ownership 类型，不写 Session、不持有 approval truth、不携带 API key；
-- [ ] 为 Tauri 非 Rust consumer 冻结独立 wire DTO，并生成/校验 TypeScript types 与 fixtures；
+- [x] 为 Tauri 非 Rust consumer 冻结独立 wire DTO，并生成/校验 TypeScript types 与 fixtures；
 - [x] 保留稳定的 identity/resync 语义；原先“D4 才抽取 wire DTO”的假设因 Tauri frontend consumer 出现而失效。
 
 ## D3–D6 细项
@@ -73,12 +72,12 @@
 
 ## D3-R2 细项（Tauri replan）
 
-- [ ] Tauri Rust shell 注入 protocol client，不负责 Agent/settings bootstrap；
-- [ ] `DesktopMessageEnvelope` → Tauri bridge → frontend protocol client → `RenderState`；
-- [ ] 轻量 Web frontend 接入最小 conversation、composer、Stop、approval/error；
-- [ ] 覆盖 command/response correlation、event subscription、单消费者和 assistant snapshot fold；
-- [ ] 不引入 Session picker、完整 Inspector、D5 settings 或 daemon；
-- [ ] 为 Tauri capability 建立最小 allowlist，未经授权的 command 不可调用。
+- [x] Tauri Rust shell 注入 protocol client，不负责 Agent/settings bootstrap；
+- [x] `DesktopMessageEnvelope` → Tauri bridge → frontend protocol client → `RenderState`；
+- [x] 轻量 Web frontend 接入最小 conversation、composer、Stop、approval/error；
+- [x] 覆盖 command/response correlation、event subscription、单消费者和 assistant snapshot fold；
+- [x] 不引入 Session picker、完整 Inspector、D5 settings 或 daemon；
+- [x] 为 Tauri capability 建立最小 allowlist，未经授权的 command 不可调用。
 
 ## D3-R3 细项
 

@@ -9,7 +9,6 @@ agent.workspace = true
 agent-core.workspace = true
 anyhow.workspace = true
 desktop-protocol = { path = "../desktop-protocol" }
-iced.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 

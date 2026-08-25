@@ -2,7 +2,7 @@
 
 > **性质：** v0.1 UI 与交互验收契约
 > **依赖：** [`README.md`](README.md)、[`DESIGN.md`](DESIGN.md)、[`UI-STATE.md`](UI-STATE.md)
-> **状态：** v0.1 baseline；Iced 路线已放弃，Tauri + 轻量 Web 前端接缝待实现，完整 D3 UI 尚未完成
+> **状态：** v0.1 D3-PF 最小 Svelte UI 已实现；完整 Workbench 交互仍按本契约后置推进
 
 ## 1. 产品交互方向
 

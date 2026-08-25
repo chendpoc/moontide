@@ -6,7 +6,8 @@
 
 ## 使用者
 
-- `agent-host` 将 `agent` 的 canonical runtime values 转换为这里的 DTO；
+- 当前同进程 Desktop Host 的私有 adapter 将 canonical runtime values 转换为这里的 DTO；
+- D4 的独立 `agent-host` 将复用同一 DTO 与转换所有权；
 - Tauri Rust shell 通过本地 transport 发送和接收 envelope；
 - Web frontend 使用同一 JSON shape 生成 TypeScript 类型或 fixture。
 
