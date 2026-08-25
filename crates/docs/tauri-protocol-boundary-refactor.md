@@ -4,8 +4,8 @@
 > **Mode:** Review-batch implementation with architecture alignment gates
 > **Version goal:** D3-PF — protocol-first、同进程 Host 的 Tauri vertical slice
 > **Base snapshot:** `feat/assistant-host/r2` at `2cdf850`
-> **Implementation status:** R1/R2/R3 committed; R4 implementation verified; independent review
-> passed; commit authorized
+> **Implementation status:** R1/R2/R3/R4 committed; R5 implementation and independent review
+> passed; user diff review pending
 > **Task tracking:** [`tauri-protocol-boundary-refactor-TASKS.md`](tauri-protocol-boundary-refactor-TASKS.md)
 
 ## 1. Problem Statement

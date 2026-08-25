@@ -31,9 +31,24 @@ export interface DesktopViewState {
 
 type Subscriber = (state: DesktopViewState) => void;
 
+interface SnapshotReplayResult {
+  replayRequiresResync: boolean;
+  terminalRefreshRequired: boolean;
+}
+
+export interface DesktopControllerPort {
+  readonly state: DesktopViewState;
+  subscribe(subscriber: Subscriber): () => void;
+  start(
+    selection?: Extract<DesktopCommand, { kind: "start_session" }>["selection"],
+  ): Promise<void>;
+  send(command: DesktopCommand): Promise<DesktopResponse>;
+  dispose(): Promise<void>;
+}
+
 const DEFAULT_EVENT_BUFFER_CAPACITY = 256;
 
-export class DesktopController {
+export class DesktopController implements DesktopControllerPort {
   readonly #bridge: DesktopBridge;
   readonly #eventBufferCapacity: number;
   readonly #subscribers = new Set<Subscriber>();
@@ -87,9 +102,11 @@ export class DesktopController {
 
       const ready = await this.#request({ kind: "start_session", selection });
       this.#expectResponse(ready, "session_ready");
-      const replayRequiresResync = this.#establishSnapshot(ready);
-      if (replayRequiresResync) {
+      const replay = this.#establishSnapshot(ready);
+      if (replay.replayRequiresResync) {
         await this.#beginResync();
+      } else if (replay.terminalRefreshRequired) {
+        await this.#beginTerminalRefresh();
       }
       if (this.#view.connection.kind === "starting") {
         this.#view = { ...this.#view, connection: { kind: "ready" } };
@@ -160,6 +177,14 @@ export class DesktopController {
       return;
     }
 
+    if (isTerminalTurnEvent(envelope)) {
+      if (!this.#bufferEvent(envelope)) {
+        return;
+      }
+      void this.#beginTerminalRefresh();
+      return;
+    }
+
     const output = reduceEnvelope(this.#view.render, envelope);
     this.#view = { ...this.#view, render: output.state };
     this.#notify();
@@ -206,6 +231,14 @@ export class DesktopController {
   }
 
   async #beginResync(): Promise<void> {
+    return this.#beginSnapshot("resync");
+  }
+
+  async #beginTerminalRefresh(): Promise<void> {
+    return this.#beginSnapshot("terminal refresh");
+  }
+
+  async #beginSnapshot(reason: "resync" | "terminal refresh"): Promise<void> {
     if (this.#view.connection.kind === "disconnected") {
       return;
     }
@@ -215,30 +248,39 @@ export class DesktopController {
 
     this.#snapshotPending = true;
     const task = (async () => {
+      let terminalRefreshRequired = false;
       try {
         const snapshot = await this.#request({ kind: "snapshot" });
         this.#expectResponse(snapshot, "snapshot");
-        const replayRequiresResync = this.#establishSnapshot(snapshot);
-        if (replayRequiresResync) {
-          this.#disconnect("Desktop resync baseline did not close the delivery gap");
+        const replay = this.#establishSnapshot(snapshot);
+        terminalRefreshRequired = replay.terminalRefreshRequired;
+        if (replay.replayRequiresResync) {
+          this.#disconnect(`Desktop ${reason} baseline did not close the delivery gap`);
         }
       } catch (error) {
-        this.#disconnect(`Desktop resync failed: ${errorMessage(error)}`);
+        this.#disconnect(`Desktop ${reason} failed: ${errorMessage(error)}`);
       } finally {
         this.#resyncTask = null;
+      }
+      if (
+        terminalRefreshRequired &&
+        this.#view.connection.kind !== "disconnected"
+      ) {
+        await this.#beginTerminalRefresh();
       }
     })();
     this.#resyncTask = task;
     return task;
   }
 
-  #establishSnapshot(envelope: DesktopMessageEnvelope): boolean {
+  #establishSnapshot(envelope: DesktopMessageEnvelope): SnapshotReplayResult {
     this.#applyEnvelope(envelope);
     const buffered = this.#bufferedEvents;
     this.#bufferedEvents = [];
     this.#snapshotPending = false;
 
     let requiresResync = false;
+    let terminalRefreshRequired = false;
     for (const event of buffered) {
       const output = reduceEnvelope(this.#view.render, event);
       this.#view = { ...this.#view, render: output.state };
@@ -246,9 +288,15 @@ export class DesktopController {
         requiresResync = true;
         break;
       }
+      if (output.result === "applied" && isTerminalTurnEvent(event)) {
+        terminalRefreshRequired = true;
+      }
     }
     this.#notify();
-    return requiresResync;
+    return {
+      replayRequiresResync: requiresResync,
+      terminalRefreshRequired,
+    };
   }
 
   #applyEnvelope(envelope: DesktopMessageEnvelope): void {
@@ -289,6 +337,14 @@ export class DesktopController {
       subscriber(this.#view);
     }
   }
+}
+
+function isTerminalTurnEvent(envelope: DesktopMessageEnvelope): boolean {
+  return (
+    envelope.payload.kind === "event" &&
+    (envelope.payload.event.kind === "turn_completed" ||
+      envelope.payload.event.kind === "turn_failed")
+  );
 }
 
 function errorMessage(error: unknown): string {

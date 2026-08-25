@@ -20,10 +20,19 @@
 body {
   margin: 0;
   min-height: 100vh;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
   background: var(--bg);
   color: var(--text);
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+#app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
 }
 
 .topbar {
@@ -40,9 +49,18 @@ body {
 }
 
 .run-state,
-.session-id {
+.session-id,
+.connection-state {
   color: var(--muted);
   font-size: 0.875rem;
+}
+
+.session-id {
+  margin-left: auto;
+}
+
+.connection-alert {
+  color: var(--error);
 }
 
 .layout {
@@ -75,6 +93,20 @@ body {
   line-height: 1.5;
 }
 
+.message p {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+}
+
+.message-role,
+.composer label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .message.user {
   background: var(--user);
 }
@@ -93,9 +125,10 @@ body {
   font-size: 0.875rem;
 }
 
-.approval-card button {
-  margin-right: 0.5rem;
-  margin-top: 0.5rem;
+.approval-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .notice.error {
@@ -119,7 +152,10 @@ textarea {
   background: #0b0d12;
   color: var(--text);
   padding: 0.75rem;
-  font: inherit;
+}
+
+textarea:disabled {
+  opacity: 0.7;
 }
 
 .composer-actions {
@@ -146,4 +182,30 @@ button.primary {
   background: var(--accent);
   color: #081018;
   border-color: transparent;
+}
+
+button.danger {
+  border-color: #7f1d1d;
+  color: #fecaca;
+}
+
+.empty-state {
+  color: var(--muted);
+  margin: auto;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .notices {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    max-height: 9rem;
+  }
+
+  .session-id {
+    display: none;
+  }
 }
