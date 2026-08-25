@@ -13,8 +13,12 @@ Tauri 2 shell for the MoonTide protocol-first Desktop vertical slice.
 From repository root:
 
 ```bash
-cargo tauri dev --manifest-path crates/moontide-desktop/src-tauri/Cargo.toml
+cd crates/moontide-desktop/src-tauri
+cargo tauri dev
 ```
+
+`cargo tauri dev` does not accept Cargo's `--manifest-path` option. Run it from the directory that
+contains `tauri.conf.json`; Cargo still resolves the package through the workspace root.
 
 If `cargo tauri` is unavailable, install the CLI once:
 
