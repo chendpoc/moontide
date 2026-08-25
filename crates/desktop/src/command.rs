@@ -55,7 +55,7 @@ pub(crate) enum HostCommand {
         reply: oneshot::Sender<Result<u64, DesktopCommandError>>,
     },
     CancelTurn {
-        reply: oneshot::Sender<Result<(), DesktopCommandError>>,
+        reply: oneshot::Sender<Result<u64, DesktopCommandError>>,
     },
     Approve {
         request_id: String,

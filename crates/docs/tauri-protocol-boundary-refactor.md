@@ -1,10 +1,10 @@
 # Tauri Protocol Boundary Refactor
 
 > **Status:** Architecture approved on 2026-08-25
-> **Mode:** Architecture Alignment / Task Document First
+> **Mode:** Review-batch implementation with architecture alignment gates
 > **Version goal:** D3-PF — protocol-first、同进程 Host 的 Tauri vertical slice
-> **Base snapshot:** `feat/assistant-host/r2` at `614ab7f`
-> **Implementation status:** R1 Tidewatch passed; awaiting user diff review; no commit is authorized
+> **Base snapshot:** `feat/assistant-host/r2` at `2cdf850`
+> **Implementation status:** R1 committed; R2 review passed and commit gate satisfied
 > **Task tracking:** [`tauri-protocol-boundary-refactor-TASKS.md`](tauri-protocol-boundary-refactor-TASKS.md)
 
 ## 1. Problem Statement

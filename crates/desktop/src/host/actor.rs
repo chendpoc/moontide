@@ -77,15 +77,16 @@ impl HostActor {
             HostCommand::CancelTurn { reply } => {
                 let result = match self.active.as_ref() {
                     Some(active) => {
+                        let turn = active.turn;
                         active.cancellation.cancel();
-                        self.update_state(DesktopRunState::Cancelling { turn: active.turn });
+                        self.update_state(DesktopRunState::Cancelling { turn });
                         let _ = self.buffer.publish(
                             &self.session_id,
                             DesktopEvent::StateChanged {
                                 state: self.state.clone(),
                             },
                         );
-                        Ok(())
+                        Ok(turn)
                     }
                     None => Err(DesktopCommandError::NoActiveTurn),
                 };

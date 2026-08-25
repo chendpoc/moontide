@@ -16,6 +16,10 @@ impl DesktopHostHandle {
     }
 
     pub async fn cancel_turn(&self) -> Result<(), DesktopCommandError> {
+        self.cancel_turn_with_identity().await.map(|_| ())
+    }
+
+    pub(crate) async fn cancel_turn_with_identity(&self) -> Result<u64, DesktopCommandError> {
         let (reply, result) = oneshot_reply();
         self.sender
             .send(HostCommand::CancelTurn { reply })

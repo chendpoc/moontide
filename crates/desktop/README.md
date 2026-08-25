@@ -110,7 +110,8 @@ approval 注入点，调用方不得同时安装另一个同类 handler。
 
 ### 3.1 D2 protocol contract
 
-D2 增加不携带 Host channel 或 reply handle 的顶层协议类型：
+D2 的跨进程/跨语言契约由独立 `desktop-protocol` crate 定义，不携带 Host channel、reply
+handle、`Agent` 或 `agent-core` runtime ownership 类型：
 
 ```rust
 pub enum DesktopCommand {
@@ -147,7 +148,75 @@ pub struct DesktopMessageEnvelope {
 `DesktopProtocolEvent` 将 `ProgressEvent` 映射为稳定的语义事件（例如
 `AssistantResponseSnapshot`、`ToolCall`、`ToolResult`、`AssistantFinalized` 和
 `TurnEnded`），不把 `ProgressEvent` wrapper 或 `ModelResponse` 直接暴露给 UI。
-当前稳定的 canonical value payload 可以复用；独立 wire DTO 后置到 D4。
+Rust 和 TypeScript consumer 都必须符合 `desktop-protocol/tests/fixtures/**` 冻结的 v1 JSON，
+不得把 `desktop` crate 内部的同名 graph 当作 wire source of truth。
+
+已有 Tauri tracer bullet 暂时使用隐藏的 `desktop::wire` mapper；它不是新 consumer API。
+R3 将 Tauri 改接 protocol client 后不再需要该 mapper，R6 连同平行 graph 一并删除。
+
+### 3.2 D3-PF Host protocol server（R2 contract）
+
+R2 在 `desktop` crate 增加 Host-side protocol adapter。该 adapter 是纯 Rust in-process
+boundary，不依赖 Tauri；R3 的 in-process transport 和未来进程 transport 都消费同一
+envelope seam：
+
+```rust
+pub struct DesktopProtocolConfig {
+    pub agent: agent::AgentConfig,
+    pub event_capacity: usize,
+}
+
+pub struct DesktopProtocolServer;
+pub struct DesktopProtocolServerHandle;
+pub struct DesktopProtocolEventStream;
+
+impl DesktopProtocolServer {
+    pub fn start(
+        config: DesktopProtocolConfig,
+    ) -> anyhow::Result<(
+        DesktopProtocolServerHandle,
+        DesktopProtocolEventStream,
+    )>;
+}
+
+impl DesktopProtocolServerHandle {
+    pub async fn request(
+        &self,
+        envelope: desktop_protocol::DesktopMessageEnvelope,
+    ) -> anyhow::Result<desktop_protocol::DesktopMessageEnvelope>;
+}
+
+impl DesktopProtocolEventStream {
+    pub async fn recv(
+        &mut self,
+    ) -> Option<desktop_protocol::DesktopMessageEnvelope>;
+}
+```
+
+`DesktopProtocolServerHandle` 可 clone，但所有 clone 都连接同一个 server actor；它们不会
+创建第二个 Host 或第二个 Agent。`start` 只验证 adapter 配置并启动 server actor，不创建
+Session；调用时必须已有 Tokio runtime。server 状态按
+`Unhandshaken → Ready → Running → Stopped` 单向推进：
+
+- `Handshake` 不携带 epoch；server 分配 connection epoch 并返回同 request ID 的
+  `HandshakeAccepted`；同一 connection 上的重复 handshake 幂等返回原 epoch，不重置
+  Session 或 Host；
+- 第一条有效 `StartSession` 消耗 one-shot `AgentConfig`，调用一次 `DesktopHost::start`，
+  成功后返回 `SessionReady`；
+- Host 启动失败返回同 request ID 的 `Rejected(Internal)`，server 随后关闭。R2 不引入
+  config factory，也不在同一 server 内暗中重试并创建另一个 Agent；
+- 其余 command 只在当前 epoch 与正确 lifecycle state 下路由。合法的 domain rejection
+  仍是 protocol response；无法安全关联的结构错误由 `request` 返回 infrastructure error；
+- `CancelTurn` 的 accepted turn identity 由 Host actor 原子返回给 crate-private adapter
+  method，不通过 `snapshot()` 推断；D1 的 public `cancel_turn() -> Result<(), _>` 不变；
+- `Approve` 与 `Deny` 都用 `ApprovalAccepted` 表示“该 decision 已被 Host 接受”，不表示
+  decision 一定是 allow；
+- `Shutdown` 先让 Host 发布并排空 `Stopped` event，再返回 `ShutdownCompleted`，随后关闭
+  server command/event channels。若 event receiver 停止消费导致 forwarder 在 2 秒内无法
+  drain，server abort forwarder、返回 infrastructure error 并关闭连接，不伪造成功 response。
+
+所有 response 保留 command `request_id`，不携带 `seq`；所有 event 不携带 `request_id`，
+使用 handshake 建立的 epoch 和 EventBuffer 已分配的严格递增 `seq`。R2 不改变 v1 JSON。
 
 D3-R1 的 `RenderState` 是 UI-owned 的 crate 内部 projection。它只消费
 `DesktopMessageEnvelope` 中的 `DesktopProtocolEvent` 和 `DesktopSnapshot`，负责 draft、
