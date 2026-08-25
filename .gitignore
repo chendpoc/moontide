@@ -3,6 +3,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 /target/
+crates/moontide-desktop/src-tauri/gen/schemas/
 .venv/
 __pycache__/
 *.py[cod]

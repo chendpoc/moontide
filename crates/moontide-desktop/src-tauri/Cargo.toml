@@ -1,0 +1,35 @@
+[package]
+name = "moontide-desktop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "MoonTide Desktop shell (Tauri + WebView)"
+
+[lib]
+name = "moontide_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "moontide-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+agent.workspace = true
+anyhow.workspace = true
+desktop = { path = "../../desktop" }
+desktop-protocol = { path = "../../desktop-protocol" }
+dotenvy.workspace = true
+serde.workspace = true
+tauri = { version = "2", features = [] }
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock = "0.6"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

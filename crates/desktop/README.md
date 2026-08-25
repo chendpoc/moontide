@@ -1,7 +1,7 @@
 # MoonTide Desktop
 
 > **性质：** Desktop 产品与宿主契约
-> **状态：** v0.1 D1 Host、D2 protocol、D3-R1 RenderState 已实现；Iced 路线已放弃，Tauri + 轻量 Web 前端迁移尚未实现
+> **状态：** v0.1 D1 Host、D2 protocol、D3-R1 RenderState、D3-PF Rust client/transport 已实现；Tauri Web RenderState 迁移进行中
 > **实现设计：** [`DESIGN.md`](DESIGN.md)
 > **UI 状态契约：** [`UI-STATE.md`](UI-STATE.md)
 > **UI 交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
@@ -151,8 +151,9 @@ pub struct DesktopMessageEnvelope {
 Rust 和 TypeScript consumer 都必须符合 `desktop-protocol/tests/fixtures/**` 冻结的 v1 JSON，
 不得把 `desktop` crate 内部的同名 graph 当作 wire source of truth。
 
-已有 Tauri tracer bullet 暂时使用隐藏的 `desktop::wire` mapper；它不是新 consumer API。
-R3 将 Tauri 改接 protocol client 后不再需要该 mapper，R6 连同平行 graph 一并删除。
+Tauri 已改接 protocol client；隐藏的 `desktop::wire` mapper 仅因当前 `desktop` Host adapter
+仍复用其中的 canonical-to-wire 转换而暂时保留，不是 consumer API。R6 将转换收敛到最窄
+Host boundary，并连同平行 graph 删除。
 
 ### 3.2 D3-PF Host protocol server（R2 contract）
 
@@ -223,10 +224,10 @@ D3-R1 的 `RenderState` 是 UI-owned 的 crate 内部 projection。它只消费
 conversation、tool、approval、notice 和 delivery state；它不拥有 Agent、SessionStore 或
 approval truth，也不写 Session Item Log。
 
-D3-R2 不再扩展 Iced shell。新的 Tauri slice 提供 Rust bridge、前端 protocol client 和
-前端 `RenderState` 的最小接缝；Host 和 protocol stream 由调用者注入，前端不负责 provider
-或 Session bootstrap。第一条 slice 只验证协议订阅、conversation、composer、Stop、approval
-和 error，完整 Workbench 面板后置。
+D3-R2 不再扩展 Iced shell。Tauri slice 已提供 Rust protocol client、bounded in-process
+transport、单一 bridge 和 listener-first boot；Host 和 protocol stream 由 composition root
+注入，frontend 只发送 protocol intent，不负责 provider bootstrap。TypeScript `RenderState`
+与 Svelte UI 属于下一批；完整 Workbench 面板后置。
 
 ## 4. 事件与恢复
 

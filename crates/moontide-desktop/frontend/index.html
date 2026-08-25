@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MoonTide</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">MoonTide</div>
+      <div id="run-state" class="run-state">Starting</div>
+      <div id="session-id" class="session-id"></div>
+    </header>
+
+    <main class="layout">
+      <section id="conversation" class="conversation" aria-live="polite"></section>
+      <aside id="notices" class="notices"></aside>
+    </main>
+
+    <footer class="composer">
+      <textarea
+        id="prompt"
+        rows="4"
+        placeholder="Ask MoonTide… (Cmd/Ctrl+Enter to send, Esc to stop)"
+      ></textarea>
+      <div class="composer-actions">
+        <button id="stop" type="button" disabled>Stop</button>
+        <button id="send" type="button">Send</button>
+      </div>
+    </footer>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

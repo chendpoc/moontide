@@ -3,7 +3,7 @@
 > **对外契约：** [`README.md`](README.md)
 > **UI projection：** [`UI-STATE.md`](UI-STATE.md)
 > **进程化目标架构：** [`../docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)
-> **状态：** D1 Host actor、D2 protocol、D3-R1 RenderState fold 已实现；Iced 路线已放弃，Tauri/Web 前端迁移待实现
+> **状态：** D1 Host actor、D2 protocol、D3-R1 RenderState fold、D3-PF client/transport 已实现；Web RenderState 迁移待完成
 
 ## 1. 职责与边界
 
@@ -280,24 +280,37 @@ baseline 后，按原 seq 顺序重放暂存事件。这样事件可能先于 sn
 消费，也可能晚于 snapshot response 到达 UI，都不会让本地 `last_seq` 回退并制造伪造 gap。
 重放期间再次发现 gap 时停止重放剩余事件，并重新请求 snapshot。
 
-### 3.6 Tauri/Web shell（D3-R2 replan）
+### 3.6 Tauri/Web shell（D3-PF）
 
-Tauri Rust shell 只接收已经启动的 Host 或 protocol client，不负责创建 `AgentConfig`、
-解析 settings 或选择 Session；启动 boot 会先请求一次 `DesktopSnapshot`，避免恢复
-Session 只显示空 RenderState：
+`moontide-desktop` 内部的 Rust client 由一个 actor 拥有 request counter、pending map、
+handshake epoch 和 disconnect cleanup。调用者只传 `DesktopCommand`：
 
 ```rust
-pub async fn start_tauri_shell(
-    client: DesktopProtocolClient,
-) -> anyhow::Result<TauriAppHandle>;
+DesktopProtocolClient::start(ClientTransport, event_capacity)
+    -> (DesktopProtocolClient, DesktopProtocolClientEventStream);
+
+DesktopProtocolClient::request(DesktopCommand)
+    -> anyhow::Result<DesktopMessageEnvelope>;
 ```
 
-前端 protocol client 订阅 Tauri bridge 的 `DesktopMessageEnvelope`，将多行 composer 编辑、
-键盘快捷键、Stop 和 approval decision 转换为 `DesktopCommand`。普通 Enter 保留换行，
-Cmd/Ctrl+Enter 生成 Submit，Escape 在 active Turn 时生成 cancel，否则关闭 Inspector。
-前端 `RenderState` 是唯一 view projection；Tauri、Svelte 和 TypeScript 类型不进入
-`agent` 或 `agent-core`。D3-R2 只提供单窗口的最小 conversation、composer、tool/approval/error
-显示；Session Rail、settings 和完整主题验收留在后续 D3/D5 批次。
+`ClientTransport` 是 bounded outgoing/incoming envelope channel pair；fake transport 与 D3
+in-process transport 使用同一 client seam。in-process pump 并发执行 R2 server request，使用
+event-first merge 保持已经由 Host 入队的 `Stopped` 先于 `ShutdownCompleted` 交付。D4 只需
+把 channel peer 改接 framed child-process IO，不修改 client、bridge 或 frontend contract。
+
+应用 composition root 保留当前环境/provider/tool preset，装配
+`DesktopProtocolServer → in-process transport → client` 后再把 client/event stream 注入 shell。
+Tauri setup、command handler 与 window handler不 import `AgentConfig`、Session selection 或
+Host handle。WebView 先监听 `desktop-envelope`/`desktop-connection`，再通过唯一
+`desktop_request(DesktopCommand)` bridge 完成 Handshake 和 StartSession。Rust client 分配
+request ID 并注入 epoch；domain rejection 保持完整 response envelope，bridge error 只表示
+client/transport failure。
+
+窗口 close 首先阻止默认 close，最多等待三秒的 protocol Shutdown；只在收到
+`ShutdownCompleted` 时记为 clean，其余 timeout/transport/domain result 记为 degraded evidence，
+随后使用不重复触发 close event 的 window destroy。普通 Enter、Cmd/Ctrl+Enter、Escape 和
+approval intent 的当前用户行为由 plain-JavaScript call seam 暂时保留；TypeScript
+`RenderState`、Svelte 和完整 resync orchestration 属于下一 Review 批。
 
 前端组件只负责布局组合，Conversation、Approval、Inspector 和 Composer 分别负责局部 view；
 组件只读取 `RenderState` 子投影并生成 intent，不拥有 Host 或 Session 事实。Tauri command

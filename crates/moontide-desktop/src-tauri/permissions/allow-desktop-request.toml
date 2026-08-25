@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-desktop-request"
+description = "Allow the single MoonTide Desktop protocol request bridge"
+commands.allow = ["desktop_request"]
