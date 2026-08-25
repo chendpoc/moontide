@@ -1,0 +1,231 @@
+[
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 1,
+    "payload": {
+      "kind": "event",
+      "event": { "kind": "turn_started", "turn": 0 }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 2,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "llm_call_started",
+        "turn": 0,
+        "step": 0,
+        "llm_call_id": "llm-1"
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 3,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "assistant_response_snapshot",
+        "turn": 0,
+        "step": 0,
+        "llm_call_id": "llm-1",
+        "update_index": 1,
+        "snapshot": {
+          "content": [
+            { "kind": "text", "text": "partial" },
+            { "kind": "thinking", "thinking": "checking" }
+          ],
+          "pending": { "kind": "text", "text": " response" },
+          "stop_reason": null,
+          "usage": null,
+          "model": "test-model"
+        }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 4,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "tool_call",
+        "turn": 0,
+        "call": {
+          "tool_use_id": "tool-1",
+          "name": "read",
+          "input": { "path": "README.md" }
+        }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 5,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "tool_result",
+        "turn": 0,
+        "result": {
+          "tool_use_id": "tool-1",
+          "name": "read",
+          "status": "succeeded",
+          "content": { "text": "MoonTide" }
+        }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 6,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "llm_call_ended",
+        "turn": 0,
+        "step": 0,
+        "llm_call_id": "llm-1",
+        "outcome": {
+          "succeeded": {
+            "stop_reason": "end_turn",
+            "usage": {
+              "input_tokens": 10,
+              "output_tokens": 4
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 7,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "assistant_finalized",
+        "turn": 0,
+        "llm_call_id": "llm-1",
+        "blocks": [
+          { "kind": "text", "text": "done" }
+        ]
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 8,
+    "payload": {
+      "kind": "event",
+      "event": { "kind": "turn_ended", "turn": 0 }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 9,
+    "payload": {
+      "kind": "event",
+      "event": { "kind": "state_changed", "state": "idle" }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 10,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "approval_requested",
+        "request": {
+          "id": "approval-1",
+          "turn": 0,
+          "call": {
+            "tool_use_id": "tool-2",
+            "name": "write",
+            "input": { "path": "notes.md", "content": "draft" }
+          },
+          "working_dir": "."
+        }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 11,
+    "payload": {
+      "kind": "event",
+      "event": { "kind": "turn_completed", "turn": 0 }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 12,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "turn_failed",
+        "turn": 1,
+        "error": {
+          "kind": "tool",
+          "message": "tool failed",
+          "recoverable": true
+        }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 13,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "resync_required",
+        "reason": "event_gap"
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": null,
+    "seq": 14,
+    "payload": {
+      "kind": "event",
+      "event": {
+        "kind": "stopped",
+        "report": {
+          "cancelled_turn": null,
+          "progress_flushed": true,
+          "diagnostic_log_flushed": true
+        }
+      }
+    }
+  }
+]
