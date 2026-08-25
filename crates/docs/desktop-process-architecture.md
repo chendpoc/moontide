@@ -1,6 +1,6 @@
 # MoonTide Desktop 进程化架构
 
-> **状态：** 已确认的目标架构；当前 D1 仍为同进程 Host 基线，IPC 与进程拆分尚未实现。
+> **状态：** D3-PF protocol-first 同进程 vertical slice 已实现；D4 IPC 与 Agent Host 进程拆分尚未实现。
 > **当前实现：** [`crates/desktop/DESIGN.md`](../desktop/DESIGN.md)
 > **UI 契约：** [`../desktop/UI-STATE.md`](../desktop/UI-STATE.md)
 
@@ -25,7 +25,7 @@ daemon 或多 Agent，只冻结 owner、依赖方向、消息语义和演进顺�
                    ▼
 ┌──────────────────────────────────────┐
 │ moontide-agent-host                  │
-│ protocol server + HostSupervisor     │
+│ protocol server + ProcessSupervisor  │
 │ AgentSessionRuntime                  │
 │   └── AgentLoop Tokio task           │
 └──────────────────────────────────────┘
@@ -40,8 +40,10 @@ daemon 或多 Agent，只冻结 owner、依赖方向、消息语义和演进顺�
 - Tool 只有在需要权限隔离时才启动受控 subprocess；
 - daemon 不是 Agent 的子进程，未来应是独立生命周期的 sibling/service。
 
-当前 D1 的 `crates/desktop` 同时包含 Host contract 和 Host actor，运行在同一进程。
-这是实现基线，不是最终的 UI/runtime 进程边界。
+当前 D3-PF 由 composition root 在 Tauri binary 内装配
+`DesktopProtocolServer → bounded in-process transport → DesktopProtocolClient`。Web intent、
+response 和 event 已全部经过 versioned protocol，但 Host actor 仍与 UI shell 同进程。
+D4 只替换 transport 并把 Host 移入独立进程，不改变 protocol/client/RenderState contract。
 
 ## 2. 三层事件语义
 
@@ -96,23 +98,24 @@ TypeScript types/fixtures conformance；不能继续把 in-process canonical Rus
 | `agent` | Agent 装配、Progress、Agent Event Log、provider/tool preset | UI lifecycle、window、protocol transport |
 | `agent-host` | Agent、SessionStore、ApprovalBroker、runtime lifecycle | RenderState、WebView widget |
 | `desktop-protocol` | command/event/snapshot/error DTO 与版本 | Agent 执行、Session IO、UI layout |
-| `desktop` / Tauri shell | window、bridge、protocol client、连接状态 | Agent、SessionStore、approval truth、Web RenderState |
+| `desktop` Host | Host actor、EventBuffer、protocol server adapter、Agent runtime ownership | window、Web RenderState |
+| Tauri shell | window、bridge、protocol client、连接状态 | Agent、SessionStore、approval truth、Web RenderState |
 | Web frontend | RenderState、组件、用户输入 draft、UI 偏好 | Agent、SessionStore、approval truth、Tauri Rust state |
 | future daemon | 独立 runtime lifecycle、多客户端/后台任务 | 单个 UI window 的状态 |
 
-目标 crate 依赖方向：
+当前 D3-PF 与 D4 目标的依赖方向：
 
 ```text
-desktop ───────────────► desktop-protocol
-agent-host ────────────► desktop-protocol
-agent-host ────────────► agent
+moontide-desktop ──────► desktop + desktop-protocol + Tauri
+desktop ───────────────► agent + agent-core + desktop-protocol
+agent-host (D4) ───────► desktop + desktop-protocol
 agent ─────────────────► agent-core + agent-tools
 desktop-protocol ──────► serde / protocol dependencies only
 ```
 
-最终的 `desktop-protocol` 不依赖 Tauri、前端框架、`agent` 或 `agent-core`，避免 wire
-contract 被实现层反向污染。当前 D1 的 in-process adapter 只能作为 Host 测试接缝；
-Tauri 前端必须消费独立 wire DTO。
+`desktop-protocol` 不依赖 Tauri、前端框架、`agent` 或 `agent-core`，避免 wire contract
+被实现层反向污染。当前 bounded in-process transport 是 D3-PF 产品路径和测试接缝；Tauri
+前端消费独立 wire DTO。D4 将该 transport 替换为 framed child-process IO。
 
 ## 4. Desktop protocol
 
@@ -136,9 +139,9 @@ pub enum DesktopCommand {
 `ApprovalId`、turn identity、Session identity 和权限事实由 Host 产生或校验，UI 不得
 自行构造执行事实。
 
-`DesktopCommand` 在最终协议中是纯数据 DTO，不包含 oneshot、Tokio channel、Tauri
-`AppHandle` 或 Host handle。D1 的内部 command 和 Tauri command 可以继续使用这些实现
-机制，但不得把它们提升为协议 API。
+`DesktopCommand` 是纯数据 DTO，不包含 oneshot、Tokio channel、Tauri `AppHandle` 或 Host
+handle。Host actor 内部 command 可以继续使用 oneshot/channel 实现机制；Tauri 只有一个
+typed protocol-command bridge，不得新增绕过 protocol client 的业务 command。
 
 ### 4.2 Response 与 event
 
@@ -181,6 +184,20 @@ Session Item Log 是历史事实源；Progress、EventBuffer 和 RenderState 都
 ## 5. 进程生命周期
 
 ### 5.1 Desktop 启动
+
+当前 D3-PF：
+
+```text
+Desktop start
+  → construct in-process Host protocol server + client
+  → subscribe bridge
+  → protocol handshake
+  → StartSession / ResumeSession
+  → receive Ready + Snapshot
+  → frontend starts normal rendering
+```
+
+D4 将第一步替换为：
 
 ```text
 Desktop start
@@ -267,9 +284,9 @@ daemon 后置到出现后台运行、多客户端、UI 崩溃后重连或多 Ses
 
 | 阶段 | 内容 | 进程边界 |
 |---|---|---|
-| D1 当前 | Host actor、EventBuffer、Snapshot、Approval | UI/Host 同进程 |
-| D2 replan | 冻结可被 WebView 消费的 `desktop-protocol` wire DTO、TS types/fixtures、identity/resync 语义 | 仍可同进程；前端先经 Tauri bridge |
-| D3 | Tauri single-window shell + 轻量 Web frontend + RenderState | WebView 与 Tauri Rust shell 同进程，Host 可先同进程 |
+| D1 完成 | Host actor、EventBuffer、Snapshot、Approval | UI/Host 同进程 |
+| D2 完成 | 冻结可被 WebView 消费的 `desktop-protocol` wire DTO、TS types/fixtures、identity/resync 语义 | 同进程；前端经 Tauri bridge |
+| D3-PF 当前 | Tauri single-window shell + Svelte/TypeScript RenderState + protocol client + bounded in-process transport | WebView、Tauri Rust shell 与 Host 同进程，协议边界真实生效 |
 | D4 | `agent-host` library + binary，Desktop 通过 framed stdio/pipe 连接 | UI 与 Agent Host 两进程 |
 | D5 后置 | standalone runtime daemon、重连、多客户端、多 Session | daemon 独立生命周期 |
 
@@ -286,7 +303,8 @@ D4 之前不实现 TCP loopback、daemon、multi-agent scheduler 或 AgentLoop w
 - event 顺序仅在 connection epoch 内保证；
 - resync 使用 snapshot 建立新基线，不要求旧事件 replay；
 - Host 崩溃、UI 断线和 tool cancellation 都有明确 cleanup/恢复语义；
-- 当前 D1 同进程实现可以被 transport adapter 替换，而无需改变 RenderState 契约。
+- 当前 D3-PF 同进程 transport 可以被 framed process transport 替换，而无需改变 protocol
+  client、Tauri bridge 或 RenderState 契约。
 
 ## 9. 明确不做
 

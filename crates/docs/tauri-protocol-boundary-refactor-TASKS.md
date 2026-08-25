@@ -3,8 +3,7 @@
 > **Feature document:** [`tauri-protocol-boundary-refactor.md`](tauri-protocol-boundary-refactor.md)
 > **Version goal:** D3-PF
 > **Status:** R1 committed as `2cdf850`; R2 committed as `19b36d7`; R3 committed as `9a8320e`;
-> R4 committed as `500c183`; R5 implementation and independent review passed; user diff review
-> pending
+> R4 committed as `500c183`; R5 committed as `375731e`; R6 complete and commit authorized
 
 ## Review batches
 
@@ -14,8 +13,8 @@
 | R2 | 04–08 | Host-side protocol adapter | ~1,300 | Committed (`19b36d7`) |
 | R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Committed (`9a8320e`) |
 | R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Committed (`500c183`) |
-| R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | User review pending |
-| R6 | 20–24 | Transitional deletion, dependency cleanup and final evidence | ~1,500 | Pending |
+| R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | Committed (`375731e`) |
+| R6 | 20–24 | Transitional deletion, dependency cleanup and final evidence | ~1,500 | Complete; Tidewatch passed |
 
 ## Work Packet: D3-PF / R0 (Review Batch R1)
 
@@ -417,6 +416,101 @@
   terminal snapshot refresh, compositional regression coverage and competing-resync race guard
   were added, the final independent Standards/Spec re-review passed with no findings.
 
+## Work Packet: D3-PF / R6 (Review Batch R6)
+
+- **Base:** `feat/assistant-host/r2` at `375731e`; worktree clean at batch start.
+- **Mode:** Implementation; live deletion discovery is complete and found no architecture-level
+  stop condition.
+- **Goal:** Leave one public Desktop wire graph and one product `RenderState`, remove the legacy
+  Iced path and transitional exports/dependencies, and close D3-PF with auditable evidence.
+- **Current hypothesis:** the active Host protocol server already consumes `desktop-protocol`
+  directly. The retained half of the transitional `wire.rs` can become a private
+  `host_protocol` adapter; the parallel protocol graph, Rust projection and Iced UI can then be
+  deleted without changing Host lifecycle, protocol v1 or the Tauri/frontend path.
+- **Source of truth:** TASK-20–24 and completion criteria in
+  `tauri-protocol-boundary-refactor.md`; `desktop`/`desktop-protocol`/`moontide-desktop` README and
+  DESIGN documents; current manifests, exports, source imports and R4/R5 parity/review evidence.
+- **Confirmed decisions:** `desktop-protocol` remains the only public wire contract; Web frontend
+  owns the only product `RenderState`; `DesktopHost`/`EventBuffer` facts and tests remain; the
+  Host-side adapter alone converts canonical Agent values to wire DTOs. No compatibility shim is
+  added for the explicitly approved legacy public Rust graph deletion.
+- **Open questions:** None. The direct `desktop → agent-core` dependency remains necessary inside
+  the private adapter for nested Session/Tool value conversion. Expanding the `agent` public
+  facade only to hide that dependency would increase coupling without changing ownership.
+- **Evidence:** workspace source search found no consumer of the legacy protocol exports,
+  `recv_protocol`, `run_ui` or Rust `RenderState` outside `desktop` itself. Tauri imports only the
+  `DesktopProtocolServer` seam. Root/workspace Iced usage is confined to the legacy UI. R4/R5
+  independently verified TypeScript protocol parsing, projection parity, snapshot ordering,
+  product rendering and terminal authoritative refresh.
+- **Scope:** `crates/desktop/src/{lib,event,host_protocol}` and private adapter/tests; delete
+  `protocol.rs`, `render_state*` and `ui*`; root/desktop manifests and lockfile; affected Desktop,
+  Tauri, protocol and feature/task documentation.
+- **Non-goals:** protocol v1 shape/version changes, D4 process transport or supervisor wiring,
+  settings/Session Rail/provider behavior, Host lifecycle changes, visual redesign or compatibility
+  wrappers for removed transitional exports.
+- **Agent Task:** first isolate the direct Host-to-wire adapter, then delete the parallel graph and
+  Rust UI/projection, remove Iced, run source/dependency audits, synchronize docs, execute focused
+  and workspace gates, and produce Implementation Evidence.
+- **Reviewer:** Tidewatch in an independent context after implementation evidence is complete.
+- **User Parallel Task:** trace `DesktopEvent → host_protocol::adapter → DesktopProtocolEvent` for
+  one streaming or tool event and confirm that the deleted `desktop::protocol` graph is not on the
+  active path. Do not modify the R6 scoped files while implementation is active.
+- **Shared Acceptance:** one public wire graph and one product `RenderState`; Host/EventBuffer and
+  Tauri lifecycle behavior remain covered; no Iced dependency remains; Tauri frontend still passes
+  fixture/check/test/build; focused Rust tests and `just check` pass; documentation distinguishes
+  current in-process D3-PF from future D4 transport replacement.
+- **Decision changes:** retain the direct `agent-core` production dependency because the sole
+  private wire adapter must map canonical nested Session/Tool payloads not exposed by `agent`.
+  Re-exporting those implementation types would widen a stable public facade only to alter the
+  manifest graph.
+- **Next smallest experiment:** move only the retained direct conversion functions under
+  `host_protocol`, compile the Host protocol tests, then delete the now-unreferenced parallel graph.
+- **Stop conditions:** any external real consumer of removed Rust exports; required protocol v1,
+  Agent/Session/Approval ownership or persistence change; lost Host/EventBuffer invariant; D4,
+  settings or UI product expansion; concurrent changes in scoped files.
+
+### R6 Implementation Evidence
+
+- **Changed files:** private Host canonical-to-wire adapter; Host protocol imports and public
+  exports; removal of the parallel Rust protocol graph, Rust product projection and Iced UI;
+  workspace/desktop manifests and lockfile; synchronized Desktop/protocol/Tauri architecture docs.
+- **Pre-review implementation snapshot:** 37 files, 916 insertions and 6,287 deletions, including
+  the new 510-line private
+  adapter that is not represented by an unstaged `git diff --shortstat`. Most deletion is the Iced dependency
+  lock graph and the approved legacy Rust UI/projection/protocol implementation.
+- **Protocol and ownership audit:** workspace source search finds public `DesktopCommand`,
+  `DesktopResponse`, `DesktopProtocolEvent` and `DesktopMessageEnvelope` only in
+  `desktop-protocol`. The remaining `desktop::DesktopCommandError` and
+  `DesktopProtocolEventStream` are Host domain/server seams, not a second wire graph. Tauri shell
+  modules do not import `DesktopHostHandle`, `AgentConfig` or `SessionSelection`.
+- **Projection and dependency audit:** the only product `RenderState` definition is
+  `frontend/src/renderState.ts`. No Iced manifest/lock entry remains. `cargo tree -p desktop -e
+  normal --depth 1` contains only `agent`, `agent-core`, `desktop-protocol`, `anyhow`, `tokio` and
+  `tokio-util`; direct `agent-core` ownership is limited to the private adapter's nested canonical
+  value mapping.
+- **Focused Rust validation:** `cargo test -p desktop-protocol` passed 6 tests;
+  `cargo test -p desktop` passed 21 tests; `cargo test -p moontide-desktop` passed 12 tests. Tests
+  using wiremock required loopback permission in the managed sandbox; reruns with that permission
+  passed without code changes.
+- **Frontend validation:** `npm run check` passed with zero errors/warnings; `npm test` passed 34
+  tests in six files; `npm run build` produced the production bundle successfully.
+- **Workspace validation:** `just check` passed `cargo fmt --all --check`, workspace/all-target
+  clippy and the full workspace test suite. `git diff --check` passed.
+- **Smoke evidence:** the automated in-process vertical-slice test passed Handshake, Session boot,
+  protocol request/event flow and shutdown through the same server/client/transport seams used by
+  Tauri. R5's real WebView smoke remains the UI integration evidence because R6 changes no Tauri
+  or frontend runtime source; credentialed provider smoke remains D6 scope.
+- **Contract result:** protocol v1 JSON, Agent/Session/Approval ownership, Session Item Log,
+  Host lifecycle and public D1 Host methods are unchanged. D3-PF remains same-process and
+  protocol-first; D4 remains a transport/process-supervision replacement only.
+- **Residual risk:** removal of the approved transitional Rust exports is intentionally breaking
+  for an undiscovered external consumer; workspace/source discovery found none, so no compatibility
+  shim was added. Cross-platform packaging and real-provider smoke remain D6 work.
+- **Tidewatch:** independent Standards/Spec review passed with no remaining findings after stale
+  RenderState, process-architecture, diff-accounting and bounded-resync documentation were aligned
+  with live source. The reviewer independently passed `just check`, frontend check/test/build and
+  the source/dependency audits; the 510-line untracked adapter was included in review.
+
 ## Task details
 
 ### TASK-01: Establish task control
@@ -594,7 +688,7 @@
 - **Scope:** Svelte components and UI integration tests/smoke checklist.
 - **Estimated diff:** ~900 lines.
 - **Completion:** Minimal Desktop smoke scenarios work through the envelope bridge.
-- **Status:** Complete; Tidewatch passed; user review pending.
+- **Status:** Complete; Tidewatch passed; committed in R5 (`375731e`).
 
 ### TASK-19: Apply the security baseline
 
@@ -603,7 +697,7 @@
 - **Scope:** Tauri config/capabilities and frontend rendering.
 - **Estimated diff:** ~300 lines.
 - **Completion:** Security static checks and Desktop smoke pass.
-- **Status:** Complete; Tidewatch passed; user review pending.
+- **Status:** Complete; Tidewatch passed; committed in R5 (`375731e`).
 
 ### TASK-20: Remove duplicate public protocol graph
 
@@ -613,7 +707,7 @@
 - **Scope:** `crates/desktop` protocol exports, adapter and tests.
 - **Estimated diff:** ~500 lines changed.
 - **Completion:** Workspace source search finds one public wire graph.
-- **Status:** Pending.
+- **Status:** Complete; one public wire graph remains.
 
 ### TASK-21: Remove legacy Rust UI and RenderState
 
@@ -623,7 +717,7 @@
 - **Scope:** Legacy desktop UI/projection modules and dependencies.
 - **Estimated diff:** ~900 lines deleted.
 - **Completion:** No Iced dependency or second product RenderState remains.
-- **Status:** Pending.
+- **Status:** Complete; TypeScript parity/review preceded deletion.
 
 ### TASK-22: Tighten dependency direction
 
@@ -633,7 +727,7 @@
 - **Scope:** Desktop/Tauri/workspace manifests and module exports.
 - **Estimated diff:** ~150 lines changed.
 - **Completion:** Dependency tree matches the approved ownership model.
-- **Status:** Pending.
+- **Status:** Complete; conversion is private to `host_protocol` and Iced dependencies are gone.
 
 ### TASK-23: Synchronize architecture documentation
 
@@ -643,7 +737,7 @@
 - **Scope:** Desktop/Tauri/protocol README and DESIGN documents.
 - **Estimated diff:** ~250 lines changed.
 - **Completion:** Documentation matches live imports and runtime path.
-- **Status:** Pending.
+- **Status:** Complete; live crate and feature documents distinguish D3-PF from D4.
 
 ### TASK-24: Produce completion evidence
 
@@ -653,4 +747,4 @@
 - **Scope:** Tests, evidence sections and final review report.
 - **Estimated diff:** ~100 lines documentation.
 - **Completion:** The feature document completion definition is fully evidenced.
-- **Status:** Pending.
+- **Status:** Complete; focused/workspace evidence and independent review passed; user authorized commit.

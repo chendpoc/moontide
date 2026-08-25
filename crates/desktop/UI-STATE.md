@@ -1,15 +1,15 @@
 # Desktop RenderState 契约
 
 > **性质：** UI-owned projection contract
-> **状态：** v0.1 baseline；D1 Host、D3-R1 RenderState fold 已实现；Tauri/Web 前端接缝待迁移
+> **状态：** v0.1 D3-PF 已实现；Svelte/TypeScript 是唯一产品 RenderState owner
 > **输入：** `DesktopMessageEnvelope`（其中的 `DesktopProtocolEvent`）与 `DesktopSnapshot`
 
 ## 1. 目的
 
 RenderState 把 Host 事件折叠成前端 view state。它不是 Agent 状态机，不
-写 Session Item Log，也不承担 provider stream 的 delta 拼接。当前 D1 通过同进程
-adapter 消费 `DesktopMessageEnvelope` 中的 `DesktopProtocolEvent`；Tauri bridge 和进程
-拆分后继续消费同一顶层协议，RenderState 不随 transport 变化。
+写 Session Item Log，也不承担 provider stream 的 delta 拼接。当前 TypeScript projection
+通过 Tauri bridge 消费 `DesktopMessageEnvelope`；D4 进程拆分后继续消费同一顶层协议，
+RenderState 不随 transport 变化。本文中的结构是语言无关的契约示意，不是第二份 Rust 类型。
 
 ```text
 DesktopMessageEnvelope(Event) ──fold──► RenderState ──► Svelte component view
@@ -19,7 +19,7 @@ DesktopMessageEnvelope(Event) ──fold──► RenderState ──► Svelte c
 
 ## 2. 状态结构
 
-```rust
+```text
 struct RenderState {
     session: SessionView,
     run: RunView,

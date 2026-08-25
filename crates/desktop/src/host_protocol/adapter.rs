@@ -1,7 +1,7 @@
-//! Transitional conversion seam for the pre-R3 Tauri tracer bullet.
+//! Private adapter from Host canonical values to the frozen Desktop protocol DTOs.
 //!
-//! New Host consumers use [`crate::DesktopProtocolServer`]. This module remains public only until
-//! the Tauri bridge moves to the protocol client; R6 removes the parallel in-process graph.
+//! This is the only runtime-to-wire conversion boundary. It is not a second protocol graph and
+//! is intentionally scoped to the Host protocol server.
 
 use agent_core::{
     llm::protocol::{ContentBlock, PendingBlock, StopReason, Usage},
@@ -12,27 +12,11 @@ use desktop_protocol as wire;
 
 use crate::{
     event::{DesktopEvent, DesktopEventEnvelope},
-    protocol::{DesktopMessage, DesktopMessageEnvelope, DesktopProtocolEvent},
     ApprovalRequest, DesktopCommandError, DesktopError, DesktopErrorKind, DesktopRunState,
     DesktopSnapshot, ResyncReason, ShutdownReport,
 };
 
-pub fn envelope_to_wire(envelope: &DesktopMessageEnvelope) -> wire::DesktopMessageEnvelope {
-    wire::DesktopMessageEnvelope {
-        protocol_version: wire::ProtocolVersion(envelope.protocol_version.0),
-        connection_epoch: envelope
-            .connection_epoch
-            .map(|epoch| wire::ConnectionEpoch(epoch.0)),
-        request_id: envelope
-            .request_id
-            .as_ref()
-            .map(|id| wire::RequestId(id.0.clone())),
-        seq: envelope.seq.map(|seq| wire::Seq(seq.0)),
-        payload: message_to_wire(&envelope.payload),
-    }
-}
-
-pub(crate) fn event_envelope_to_wire(
+pub(super) fn event_envelope_to_wire(
     envelope: &DesktopEventEnvelope,
     connection_epoch: wire::ConnectionEpoch,
 ) -> wire::DesktopMessageEnvelope {
@@ -47,7 +31,7 @@ pub(crate) fn event_envelope_to_wire(
     }
 }
 
-pub fn snapshot_to_wire(snapshot: &DesktopSnapshot) -> wire::DesktopSnapshotDto {
+pub(super) fn snapshot_to_wire(snapshot: &DesktopSnapshot) -> wire::DesktopSnapshotDto {
     wire::DesktopSnapshotDto {
         session: session_snapshot_to_wire(&snapshot.session),
         state: run_state_to_wire(&snapshot.state),
@@ -73,7 +57,7 @@ pub fn snapshot_to_wire(snapshot: &DesktopSnapshot) -> wire::DesktopSnapshotDto 
     }
 }
 
-pub fn command_error_to_wire(error: &DesktopCommandError) -> wire::DesktopCommandErrorDto {
+pub(super) fn command_error_to_wire(error: &DesktopCommandError) -> wire::DesktopCommandErrorDto {
     wire::DesktopCommandErrorDto {
         code: match error {
             DesktopCommandError::ProtocolVersionUnsupported => {
@@ -105,181 +89,6 @@ pub fn command_error_to_wire(error: &DesktopCommandError) -> wire::DesktopComman
             DesktopCommandError::Internal(_) => wire::DesktopCommandErrorCode::Internal,
         },
         message: error.to_string(),
-    }
-}
-
-fn message_to_wire(message: &DesktopMessage) -> wire::DesktopMessage {
-    match message {
-        DesktopMessage::Command(command) => wire::DesktopMessage::Command {
-            command: command_to_wire(command),
-        },
-        DesktopMessage::Response(response) => wire::DesktopMessage::Response {
-            response: response_to_wire(response),
-        },
-        DesktopMessage::Event(event) => wire::DesktopMessage::Event {
-            event: protocol_event_to_wire(event),
-        },
-    }
-}
-
-fn command_to_wire(command: &crate::protocol::DesktopCommand) -> wire::DesktopCommand {
-    match command {
-        crate::protocol::DesktopCommand::Handshake => wire::DesktopCommand::Handshake,
-        crate::protocol::DesktopCommand::StartSession { selection } => {
-            wire::DesktopCommand::StartSession {
-                selection: match selection {
-                    crate::protocol::SessionSelectionDto::New => wire::SessionSelectionDto::New,
-                    crate::protocol::SessionSelectionDto::Existing(session_id) => {
-                        wire::SessionSelectionDto::Existing {
-                            session_id: session_id.clone(),
-                        }
-                    }
-                },
-            }
-        }
-        crate::protocol::DesktopCommand::SubmitTurn { text } => {
-            wire::DesktopCommand::SubmitTurn { text: text.clone() }
-        }
-        crate::protocol::DesktopCommand::CancelTurn => wire::DesktopCommand::CancelTurn,
-        crate::protocol::DesktopCommand::Approve { approval_id } => wire::DesktopCommand::Approve {
-            approval_id: approval_id.clone(),
-        },
-        crate::protocol::DesktopCommand::Deny {
-            approval_id,
-            reason,
-        } => wire::DesktopCommand::Deny {
-            approval_id: approval_id.clone(),
-            reason: reason.clone(),
-        },
-        crate::protocol::DesktopCommand::Snapshot => wire::DesktopCommand::Snapshot,
-        crate::protocol::DesktopCommand::Shutdown => wire::DesktopCommand::Shutdown,
-    }
-}
-
-fn response_to_wire(response: &crate::protocol::DesktopResponse) -> wire::DesktopResponse {
-    match response {
-        crate::protocol::DesktopResponse::HandshakeAccepted { protocol_version } => {
-            wire::DesktopResponse::HandshakeAccepted {
-                protocol_version: wire::ProtocolVersion(protocol_version.0),
-            }
-        }
-        crate::protocol::DesktopResponse::SessionReady { snapshot } => {
-            wire::DesktopResponse::SessionReady {
-                snapshot: snapshot_to_wire(snapshot),
-            }
-        }
-        crate::protocol::DesktopResponse::TurnAccepted { turn } => {
-            wire::DesktopResponse::TurnAccepted { turn: *turn }
-        }
-        crate::protocol::DesktopResponse::CancellationAccepted { turn } => {
-            wire::DesktopResponse::CancellationAccepted { turn: *turn }
-        }
-        crate::protocol::DesktopResponse::ApprovalAccepted { approval_id } => {
-            wire::DesktopResponse::ApprovalAccepted {
-                approval_id: approval_id.clone(),
-            }
-        }
-        crate::protocol::DesktopResponse::Snapshot { snapshot } => {
-            wire::DesktopResponse::Snapshot {
-                snapshot: snapshot_to_wire(snapshot),
-            }
-        }
-        crate::protocol::DesktopResponse::ShutdownCompleted { report } => {
-            wire::DesktopResponse::ShutdownCompleted {
-                report: shutdown_to_wire(report),
-            }
-        }
-        crate::protocol::DesktopResponse::Rejected { error } => wire::DesktopResponse::Rejected {
-            error: command_error_to_wire(error),
-        },
-    }
-}
-
-fn protocol_event_to_wire(event: &DesktopProtocolEvent) -> wire::DesktopProtocolEvent {
-    match event {
-        DesktopProtocolEvent::TurnStarted { turn } => {
-            wire::DesktopProtocolEvent::TurnStarted { turn: *turn }
-        }
-        DesktopProtocolEvent::LlmCallStarted {
-            turn,
-            step,
-            llm_call_id,
-        } => wire::DesktopProtocolEvent::LlmCallStarted {
-            turn: *turn,
-            step: *step,
-            llm_call_id: llm_call_id.clone(),
-        },
-        DesktopProtocolEvent::AssistantResponseSnapshot {
-            turn,
-            step,
-            llm_call_id,
-            update_index,
-            snapshot,
-        } => wire::DesktopProtocolEvent::AssistantResponseSnapshot {
-            turn: *turn,
-            step: *step,
-            llm_call_id: llm_call_id.clone(),
-            update_index: *update_index,
-            snapshot: model_snapshot_to_wire(snapshot),
-        },
-        DesktopProtocolEvent::ToolCall { turn, call } => wire::DesktopProtocolEvent::ToolCall {
-            turn: *turn,
-            call: tool_call_to_wire(call),
-        },
-        DesktopProtocolEvent::ToolResult { turn, result } => {
-            wire::DesktopProtocolEvent::ToolResult {
-                turn: *turn,
-                result: tool_result_to_wire(result),
-            }
-        }
-        DesktopProtocolEvent::LlmCallEnded {
-            turn,
-            step,
-            llm_call_id,
-            outcome,
-        } => wire::DesktopProtocolEvent::LlmCallEnded {
-            turn: *turn,
-            step: *step,
-            llm_call_id: llm_call_id.clone(),
-            outcome: llm_outcome_to_wire(outcome),
-        },
-        DesktopProtocolEvent::AssistantFinalized {
-            turn,
-            llm_call_id,
-            blocks,
-        } => wire::DesktopProtocolEvent::AssistantFinalized {
-            turn: *turn,
-            llm_call_id: llm_call_id.clone(),
-            blocks: blocks.iter().map(content_block_to_wire).collect(),
-        },
-        DesktopProtocolEvent::TurnEnded { turn } => {
-            wire::DesktopProtocolEvent::TurnEnded { turn: *turn }
-        }
-        DesktopProtocolEvent::StateChanged { state } => wire::DesktopProtocolEvent::StateChanged {
-            state: run_state_to_wire(state),
-        },
-        DesktopProtocolEvent::ApprovalRequested { request } => {
-            wire::DesktopProtocolEvent::ApprovalRequested {
-                request: approval_to_wire(request),
-            }
-        }
-        DesktopProtocolEvent::TurnCompleted { turn } => {
-            wire::DesktopProtocolEvent::TurnCompleted { turn: *turn }
-        }
-        DesktopProtocolEvent::TurnFailed { turn, error } => {
-            wire::DesktopProtocolEvent::TurnFailed {
-                turn: *turn,
-                error: desktop_error_to_wire(error),
-            }
-        }
-        DesktopProtocolEvent::ResyncRequired { reason } => {
-            wire::DesktopProtocolEvent::ResyncRequired {
-                reason: resync_reason_to_wire(reason),
-            }
-        }
-        DesktopProtocolEvent::Stopped { report } => wire::DesktopProtocolEvent::Stopped {
-            report: shutdown_to_wire(report),
-        },
     }
 }
 
@@ -502,7 +311,7 @@ fn resync_reason_to_wire(reason: &ResyncReason) -> wire::ResyncReasonDto {
     }
 }
 
-pub(crate) fn shutdown_to_wire(report: &ShutdownReport) -> wire::ShutdownReportDto {
+pub(super) fn shutdown_to_wire(report: &ShutdownReport) -> wire::ShutdownReportDto {
     wire::ShutdownReportDto {
         cancelled_turn: report.cancelled_turn,
         progress_flushed: report.progress_flushed,
@@ -668,37 +477,11 @@ fn llm_outcome_to_wire(outcome: &agent::LlmCallOutcome) -> wire::LlmCallOutcomeD
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::{ConnectionEpoch, DesktopMessage, Seq, DESKTOP_PROTOCOL_VERSION};
-
     use super::*;
-
-    // 场景：idle 状态 event envelope 转成 wire JSON。
-    // 预期：protocol version、seq 和 event kind 在 JSON 中保留。
-    // 不变量：wire 模块不引入 runtime ownership 类型。
-    #[test]
-    fn idle_state_event_serializes_for_frontend() {
-        let envelope = DesktopMessageEnvelope {
-            protocol_version: DESKTOP_PROTOCOL_VERSION,
-            connection_epoch: Some(ConnectionEpoch(1)),
-            request_id: None,
-            seq: Some(Seq(3)),
-            payload: DesktopMessage::Event(DesktopProtocolEvent::StateChanged {
-                state: DesktopRunState::Idle,
-            }),
-        };
-
-        let wire_envelope = envelope_to_wire(&envelope);
-        let json = serde_json::to_value(wire_envelope).expect("wire envelope should serialize");
-
-        assert_eq!(json["protocol_version"], 1);
-        assert_eq!(json["seq"], 3);
-        assert_eq!(json["payload"]["kind"], "event");
-        assert_eq!(json["payload"]["event"]["kind"], "state_changed");
-    }
 
     // 场景：Host EventBuffer 的 Progress event 直接进入 independent wire envelope。
     // 预期：adapter 保留 buffer seq、注入 wire epoch，并输出语义 TurnStarted event。
-    // 不变量：active Host path 不经过 desktop::protocol 的平行 event envelope。
+    // 不变量：active Host path 只经过 desktop-protocol 的唯一 wire graph。
     #[test]
     fn host_event_maps_directly_to_independent_wire_graph() {
         let envelope = DesktopEventEnvelope {

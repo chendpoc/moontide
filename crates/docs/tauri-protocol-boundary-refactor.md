@@ -1,11 +1,10 @@
 # Tauri Protocol Boundary Refactor
 
-> **Status:** Architecture approved on 2026-08-25
+> **Status:** D3-PF implementation complete on 2026-08-25; D4 remains a separate transport/process batch
 > **Mode:** Review-batch implementation with architecture alignment gates
 > **Version goal:** D3-PF — protocol-first、同进程 Host 的 Tauri vertical slice
 > **Base snapshot:** `feat/assistant-host/r2` at `2cdf850`
-> **Implementation status:** R1/R2/R3/R4 committed; R5 implementation and independent review
-> passed; user diff review pending
+> **Implementation status:** R1–R5 committed; R6 implementation, validation and independent review passed
 > **Task tracking:** [`tauri-protocol-boundary-refactor-TASKS.md`](tauri-protocol-boundary-refactor-TASKS.md)
 
 ## 1. Problem Statement
@@ -471,10 +470,12 @@ message 在实施时按 `{feat,fix,docs}[(scope)]: …` 生成；以下是逻辑
 - `desktop-protocol` 已有 JSON round-trip、streaming snapshot 和 frame-size tests；
 - `desktop::event` 已覆盖 snapshot coalescing、control order、overflow 和 resync marker；
 - `desktop::host` 已覆盖 start/snapshot/shutdown 和 Busy；
-- Rust `desktop::render_state` 已覆盖 seq gap、new epoch、snapshot baseline、assistant
-  finalize、orphan ToolResult、approval、failure 和 recoverability。
+- 已删除的 Rust `desktop::render_state` 曾覆盖 seq gap、new epoch、snapshot baseline、assistant
+  finalize、orphan ToolResult、approval、failure 和 recoverability；这些场景已在删除前迁移为
+  TypeScript parity tests。
 
-这些测试是迁移证据，不应在 TypeScript parity 之前删除。
+前三类 Rust tests 继续作为 runtime 回归守门；已删除 projection 的行为由 TypeScript parity
+matrix 和冻结 fixtures 持续守门。
 
 ### 8.3 Required new test matrix
 

@@ -47,6 +47,5 @@ cargo clippy -p moontide-desktop --all-targets -- -D warnings
 
 ## Next steps
 
-- Replace plain JS with Svelte + TypeScript `RenderState`
-- Add TypeScript conformance for all `desktop-protocol` fixtures
 - Split `agent-host` process (D4)
+- Complete deferred Workbench panels and settings in their own aligned batches

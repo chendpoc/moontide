@@ -1,7 +1,7 @@
 # MoonTide Desktop
 
 > **性质：** Desktop 产品与宿主契约
-> **状态：** v0.1 D1 Host、D2 protocol、D3-R1 RenderState、D3-PF Rust client/transport 已实现；Tauri Web RenderState 迁移进行中
+> **状态：** v0.1 D3-PF 已实现：protocol-first 同进程 Host、Svelte/TypeScript RenderState；D4 进程拆分待实现
 > **实现设计：** [`DESIGN.md`](DESIGN.md)
 > **UI 状态契约：** [`UI-STATE.md`](UI-STATE.md)
 > **UI 交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
@@ -13,7 +13,8 @@
 `desktop` 当前是本地桌面产品的 Host contract 与 D1 Host actor crate。它把一个可恢复的
 `agent::Agent` 暴露给 Desktop Host，但不复制 AgentLoop，也不把 UI 策略放进
 `agent-core`。新的目标架构由 Tauri shell 承载轻量 Web 前端；前端通过 Tauri bridge
-消费 versioned `desktop-protocol`，再由 `agent-host` 进程拥有 Agent runtime。由于
+消费 versioned `desktop-protocol`，当前由同进程 Desktop Host 拥有 Agent runtime；D4 才
+替换为独立 `agent-host` 进程。由于
 前端是非 Rust consumer，独立 wire DTO 和 TypeScript 类型边界现在属于 Tauri 垂直切片
 的前置工作，不再延后到未来某个抽象的 D4。
 
@@ -149,11 +150,11 @@ pub struct DesktopMessageEnvelope {
 `AssistantResponseSnapshot`、`ToolCall`、`ToolResult`、`AssistantFinalized` 和
 `TurnEnded`），不把 `ProgressEvent` wrapper 或 `ModelResponse` 直接暴露给 UI。
 Rust 和 TypeScript consumer 都必须符合 `desktop-protocol/tests/fixtures/**` 冻结的 v1 JSON，
-不得把 `desktop` crate 内部的同名 graph 当作 wire source of truth。
+不得从 Host domain types 或 frontend projection 生成第二套 wire contract。
 
-Tauri 已改接 protocol client；隐藏的 `desktop::wire` mapper 仅因当前 `desktop` Host adapter
-仍复用其中的 canonical-to-wire 转换而暂时保留，不是 consumer API。R6 将转换收敛到最窄
-Host boundary，并连同平行 graph 删除。
+`desktop-protocol` 是唯一公开 wire graph。Host canonical values 只在私有
+`host_protocol::adapter` 边界转换为 DTO；`desktop` 不再公开平行 command、response、event
+或 envelope graph。
 
 ### 3.2 D3-PF Host protocol server（R2 contract）
 
@@ -219,15 +220,14 @@ Session；调用时必须已有 Tokio runtime。server 状态按
 所有 response 保留 command `request_id`，不携带 `seq`；所有 event 不携带 `request_id`，
 使用 handshake 建立的 epoch 和 EventBuffer 已分配的严格递增 `seq`。R2 不改变 v1 JSON。
 
-D3-R1 的 `RenderState` 是 UI-owned 的 crate 内部 projection。它只消费
-`DesktopMessageEnvelope` 中的 `DesktopProtocolEvent` 和 `DesktopSnapshot`，负责 draft、
-conversation、tool、approval、notice 和 delivery state；它不拥有 Agent、SessionStore 或
-approval truth，也不写 Session Item Log。
+D3-PF 的 TypeScript `RenderState` 是唯一产品 UI projection。它只消费
+`DesktopMessageEnvelope` 中的 response、event 和 snapshot，负责 draft、conversation、
+tool、approval、notice 和 delivery state；它不拥有 Agent、SessionStore 或 approval truth，
+也不写 Session Item Log。原 Rust projection 与 Iced UI 已删除。
 
-D3-R2 不再扩展 Iced shell。Tauri slice 已提供 Rust protocol client、bounded in-process
+Tauri slice 已提供 Rust protocol client、bounded in-process
 transport、单一 bridge 和 listener-first boot；Host 和 protocol stream 由 composition root
-注入，frontend 只发送 protocol intent，不负责 provider bootstrap。TypeScript `RenderState`
-与 Svelte UI 属于下一批；完整 Workbench 面板后置。
+注入，frontend 只发送 protocol intent，不负责 provider bootstrap。完整 Workbench 面板后置。
 
 ## 4. 事件与恢复
 
@@ -243,16 +243,8 @@ pub struct DesktopEventEnvelope {
 }
 ```
 
-D2 提供 in-process adapter：
-
-```rust
-impl DesktopEventStream {
-    pub async fn recv_protocol(
-        &mut self,
-        connection_epoch: ConnectionEpoch,
-    ) -> Option<DesktopMessageEnvelope>;
-}
-```
+D3-PF 的私有 Host protocol adapter 直接把该 envelope 转为 `desktop-protocol` event；不经过
+第二套公开 protocol graph。
 
 `request_id` 只匹配 command/response；`seq` 只表示当前 `connection_epoch` 内的 Host
 delivery order；snapshot coalesce 和 resync 不改变“不 replay 旧 seq”的语义。
@@ -309,12 +301,10 @@ Approval UI event 保留完整 `ToolCall`，用于展示和用户决策。它只
 
 ## 7. 进程化演进
 
-当前 D1 保持 Host actor 与未来 UI 同进程，便于先验证 RenderState、EventBuffer 和
-生命周期。D2 先冻结 command/response/event/snapshot 的顶层语义，以及
-`connection_epoch`、`request_id`、`seq` 的规则，并提供 in-process adapter。D1/D3
-可以复用稳定的 canonical value types；只有 D4 真正拆进程、需要独立版本或出现非 Rust
-consumer 时，才抽出不依赖 Tauri、`agent` 和 `agent-core` 的必要 wire DTO；当前 Tauri
-WebView 已是该 consumer，因此这项工作提前到 D2 replan。
+当前 D3-PF 保持 Host actor 与 Tauri shell 同进程，但 Web intent、response 和 event 全部经过
+冻结的 `desktop-protocol` v1 envelope。`connection_epoch`、`request_id` 和 `seq` 的 owner
+与 D4 相同。D4 只把 bounded in-process transport 换成 framed child-process transport，
+不得重写 shell、frontend projection 或 Agent ownership。
 
 AgentLoop 初期仍是 Agent Host 内的 Tokio task；subagent 先是逻辑 runtime/actor；daemon
 是未来独立生命周期的 sibling/service，不作为 Agent 子进程。
@@ -324,9 +314,9 @@ AgentLoop 初期仍是 Agent Host 内的 Tokio task；subagent 先是逻辑 runt
 
 ## 8. 非目标
 
-- D1 不实现完整 Tauri 窗口、Conversation、Session Rail、Inspector 和 Composer；
+- D3-PF 不实现完整 Session Rail、Inspector、settings 和 workspace switching；
 - 多 Session 并发、多 Agent、后台队列和 scheduler；
-- D1 当前不实现 daemon、server、IPC、sidecar 和跨设备同步；IPC 作为 D4 进程拆分目标，
+- D3-PF 不实现 daemon、server、IPC、sidecar 和跨设备同步；IPC 作为 D4 进程拆分目标，
   daemon 仍以后置独立 runtime 为边界；
 - Desktop 直接实现 Session fork、diff 或文件索引；
 - 在 `agent-core` 中引入 Tauri、WebView、窗口状态或 UI render object；

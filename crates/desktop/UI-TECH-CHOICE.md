@@ -1,6 +1,6 @@
 # Desktop UI 技术决策
 
-> **状态：** 方向已确认；进入 Tauri 迁移设计，前端框架以 Svelte + TypeScript 为推荐默认，尚未冻结具体版本与依赖清单
+> **状态：** D3-PF 已落地；Tauri 2 + Svelte + TypeScript 版本由 frontend lockfile 冻结
 > **决策：** MoonTide Desktop v0.1 放弃 Iced，采用 Tauri 2 + 轻量 Web 前端
 > **目标平台：** macOS / Windows / Linux
 
@@ -55,7 +55,7 @@ resync 和 cleanup 继续由 Host/EventBuffer/协议层决定。
 
 ## 3. 前端框架边界
 
-推荐默认：Svelte + TypeScript。以下内容暂不冻结：
+已采用：Svelte + TypeScript。以下内容仍不进入当前边界：
 
 - SvelteKit、路由框架和服务端渲染；
 - 全局状态管理库；
@@ -70,8 +70,8 @@ v0.1 前端采用单页面应用即可。`RenderState`、protocol client 和 vie
 
 ### Iced
 
-放弃作为 MoonTide Desktop 正式 UI 实现。现有 Iced shell 仅作为未提交迁移前的工作区
-代码保留，不再扩展新的产品契约；Tauri 垂直切片通过后再删除对应依赖和代码。
+放弃作为 MoonTide Desktop 正式 UI 实现。R6 已删除 Iced shell、Rust product RenderState
+及 workspace 依赖，不保留兼容层。
 
 ### Electron
 

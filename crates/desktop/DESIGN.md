@@ -3,7 +3,7 @@
 > **对外契约：** [`README.md`](README.md)
 > **UI projection：** [`UI-STATE.md`](UI-STATE.md)
 > **进程化目标架构：** [`../docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)
-> **状态：** D1 Host actor、D2 protocol、D3-R1 RenderState fold、D3-PF client/transport 已实现；Web RenderState 迁移待完成
+> **状态：** D3-PF 已实现：单一 wire graph、Svelte/TypeScript RenderState、同进程 Host；D4 process transport 待实现
 
 ## 1. 职责与边界
 
@@ -14,7 +14,7 @@ command 转换为 Agent 调用，把 Progress、approval 和 lifecycle 转换为
 目标架构由 Tauri UI process 与 Agent Host process 组成：Web 前端只拥有 RenderState 和
 用户 intent，Tauri Rust shell 拥有窗口、bridge 和 protocol client；Agent Host 独占
 Agent、SessionStore、ApprovalBroker 和 runtime lifecycle。
-当前 D1 的 in-process Host contract 必须保持可由未来 transport adapter 替换。
+D1 建立的 in-process Host contract 必须保持可由未来 transport adapter 替换。
 
 ```text
 Svelte WebView（D3）
@@ -45,16 +45,10 @@ crates/desktop/src/
   host.rs      # DesktopHost、配置与启动 lifecycle
   host/        # HostActor、handle command、ProgressSink、tests
   host_protocol.rs  # independent wire envelope server boundary
-  host_protocol/    # validation、routing、lifecycle and tests
+  host_protocol/    # private canonical-to-wire adapter、validation、routing、tests
   command.rs   # commands and typed errors
   event.rs     # envelope and EventBuffer
   event/       # EventBuffer tests
-  protocol.rs  # top-level protocol DTO and in-process event adapter
-  render_state.rs # RenderState module wiring and internal re-exports
-  render_state/  # model、fold、projection、tests
-  ui.rs        # Tauri bridge bootstrap and protocol subscription seam
-  ui/          # legacy Iced shell; migration target is frontend/ RenderState
-  frontend/    # Svelte + TypeScript app (D3 migration target)
   approval.rs  # ApprovalBroker and request identity
   state.rs     # host state and snapshot
 ```
@@ -81,9 +75,8 @@ D1 in-process host contract，不等于最终 wire API。独立 `desktop-protoco
 类型。R2 的 active path 必须在 Host boundary 直接接收和发出 independent envelope，不能
 要求 Tauri 或 TypeScript consumer 经过 `desktop::protocol` 的平行 graph。
 
-`DesktopEventStream::recv_protocol(connection_epoch)` 与 `desktop::protocol` 暂时保留给
-已有 D1/RenderState 测试；它们不是 R2 server 的 active path，并在 TypeScript parity 后
-由 R6 删除。
+R6 已删除 `DesktopEventStream::recv_protocol` 与 `desktop::protocol` 平行 graph。唯一转换
+发生在私有 `host_protocol::adapter`，其输出直接是 `desktop-protocol` DTO。
 
 ### 3.1 Host protocol server（R2）
 
@@ -135,9 +128,8 @@ Shutdown 必须保持 `Stopped` event 先于 `ShutdownCompleted` response 的可
 event forwarder 的 drain 等待上限为 2 秒；若 receiver 不消费或 task 无法收束，server abort
 forwarder、让 request 返回 infrastructure error 并关闭连接，不发送 `ShutdownCompleted`。
 
-现有 Tauri tracer bullet 仍临时调用 `#[doc(hidden)] desktop::wire`，因此 R2 不在未改 Tauri
-consumer 的情况下收窄该模块可见性。R3 rewiring 后不再新增调用方，R6 删除 mapper 与平行
-`desktop::protocol` graph。
+Tauri consumer 只依赖 Host protocol server seam。canonical-to-wire mapper 已收窄为
+`host_protocol` 私有模块，不是 consumer API，也不维护平行 DTO。
 
 ### 3.2 配置和生命周期
 
@@ -209,60 +201,16 @@ pub enum DesktopRunState {
 Host state 是生命周期摘要，不替代 `ProgressEvent` 的 canonical payload。失败不会
 回滚已提交的 Session fact；下一 Turn 可以从 `Failed` 恢复到 `Thinking`。
 
-### 3.5 RenderState fold（D3-R1）
+### 3.5 RenderState fold（D3-PF）
 
-`RenderState` 是 `desktop` crate 内部的 UI-owned projection。它只读取 protocol event 和
-snapshot，不拥有 Agent、SessionStore 或 approval truth：
+`RenderState` 由 `crates/moontide-desktop/frontend/src/renderState.ts` 唯一定义。它只读取
+经过 runtime schema 校验的 protocol response、event 和 snapshot，不拥有 Agent、
+SessionStore 或 approval truth。`reduceEnvelope` 是纯 fold；`DesktopController` 拥有
+listener-first boot、snapshot-in-flight buffer、bounded resync 和 connection state。
 
-```rust
-pub(crate) struct RenderState {
-    pub(crate) session: Option<agent::SessionSnapshot>,
-    pub(crate) run: DesktopRunState,
-    pub(crate) messages: Vec<MessageView>,
-    pub(crate) assistant_drafts: BTreeMap<AssistantDraftKey, AssistantDraftView>,
-    pub(crate) tools: BTreeMap<String, ToolView>,
-    pub(crate) approvals: BTreeMap<String, ApprovalView>,
-    pub(crate) notices: Vec<NoticeView>,
-    pub(crate) delivery: DeliveryView,
-    pub(crate) stopped_report: Option<ShutdownReport>,
-    finalized_calls: BTreeSet<AssistantDraftKey>,
-}
-
-impl RenderState {
-    pub(crate) fn apply_message(
-        &mut self,
-        envelope: DesktopMessageEnvelope,
-    ) -> RenderFoldResult;
-    pub(crate) fn replace_snapshot(&mut self, snapshot: DesktopSnapshot);
-}
-
-pub(crate) enum RenderFoldResult {
-    Applied,
-    Ignored,
-    ResyncRequired,
-}
-```
-
-`NoticeView` 和 `DeliveryView` 是上述 projection 的内部辅助值，不是新的协议类型：
-
-```rust
-pub(crate) struct NoticeView {
-    pub(crate) kind: NoticeKind,
-    pub(crate) message: String,
-    pub(crate) recoverable: bool,
-    pub(crate) error_kind: Option<DesktopErrorKind>,
-}
-
-pub(crate) struct DeliveryView {
-    pub(crate) connection_epoch: Option<ConnectionEpoch>,
-    pub(crate) last_seq: Option<Seq>,
-    pub(crate) awaiting_snapshot: bool,
-    pub(crate) resync_required: bool,
-    pub(crate) dropped_snapshots: u64,
-    pub(crate) buffered_events: usize,
-    pub(crate) resync_reason: Option<ResyncReason>,
-}
-```
+conversation、assistant drafts、tools、approvals、notices、delivery 与 stopped report 都是
+frontend projection 字段，不是 wire DTO 或 Rust Host state。原 `desktop::render_state`
+模块只作为迁移 oracle 存在过；R4/R5 完成 TypeScript parity 与独立 review 后已由 R6 删除。
 
 事件只接受当前 epoch 内严格递增的 seq；旧 seq 忽略，gap 或缺失 seq 设置 resync marker
 并停止猜测后续状态。发现更高 epoch 时先进入 `awaiting_snapshot`，在 snapshot 替换
@@ -278,7 +226,8 @@ assistant draft identity，无法证明 active 的 draft 删除并显示可恢�
 UI 在任一 snapshot 请求进行期间暂存收到的 protocol event；snapshot 成为新的 delivery
 baseline 后，按原 seq 顺序重放暂存事件。这样事件可能先于 snapshot response 被 EventBuffer
 消费，也可能晚于 snapshot response 到达 UI，都不会让本地 `last_seq` 回退并制造伪造 gap。
-重放期间再次发现 gap 时停止重放剩余事件，并重新请求 snapshot。
+重放期间再次发现 gap 时停止重放剩余事件并进入 `Disconnected`；同一 degradation episode
+不发起第二次 snapshot，避免无界 resync retry。
 
 ### 3.6 Tauri/Web shell（D3-PF）
 
@@ -308,9 +257,9 @@ client/transport failure。
 
 窗口 close 首先阻止默认 close，最多等待三秒的 protocol Shutdown；只在收到
 `ShutdownCompleted` 时记为 clean，其余 timeout/transport/domain result 记为 degraded evidence，
-随后使用不重复触发 close event 的 window destroy。普通 Enter、Cmd/Ctrl+Enter、Escape 和
-approval intent 的当前用户行为由 plain-JavaScript call seam 暂时保留；TypeScript
-`RenderState`、Svelte 和完整 resync orchestration 属于下一 Review 批。
+随后使用不重复触发 close event 的 window destroy。Svelte/TypeScript frontend 拥有唯一
+产品 `RenderState`、listener-first boot、snapshot/event buffering、bounded resync 和用户 intent。
+Rust 不再维护第二份 product projection。
 
 前端组件只负责布局组合，Conversation、Approval、Inspector 和 Composer 分别负责局部 view；
 组件只读取 `RenderState` 子投影并生成 intent，不拥有 Host 或 Session 事实。Tauri command
@@ -319,16 +268,9 @@ Rust object。
 
 ### 3.7 Inspector（D3-R3）
 
-Inspector 是 UI-owned 的局部 detail view，不创建新的 Host 或 protocol state。`UiState`
-只保存是否打开、当前 selection 和 thinking 展开偏好：
-
-```rust
-enum InspectorSelection {
-    Tool { tool_use_id: String },
-    Approval { approval_id: String },
-    Thinking { turn: u64, llm_call_id: String },
-}
-```
+Inspector 是 UI-owned 的局部 detail view，不创建新的 Host 或 protocol state。frontend local
+UI state 只保存是否打开、当前 selection 和 thinking 展开偏好；具体 TypeScript shape 由
+前端模块拥有，不进入 Rust Host 或 wire contract。
 
 Tool、Approval 和 assistant draft 的 canonical payload 继续由 `RenderState` 提供；Inspector
 只读取它们并渲染详情。关闭 Inspector、切换 selection 或展开 thinking 不发送 Host command，

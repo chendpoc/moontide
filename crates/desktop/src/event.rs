@@ -247,16 +247,6 @@ impl DesktopEventStream {
     pub async fn recv(&mut self) -> Option<DesktopEventEnvelope> {
         self.buffer.recv().await
     }
-
-    /// Adapts the D1 in-process event stream to the top-level protocol envelope.
-    pub async fn recv_protocol(
-        &mut self,
-        connection_epoch: crate::protocol::ConnectionEpoch,
-    ) -> Option<crate::protocol::DesktopMessageEnvelope> {
-        self.recv().await.map(|event| {
-            crate::protocol::DesktopMessageEnvelope::from_event_envelope(event, connection_epoch)
-        })
-    }
 }
 
 fn snapshot_key(payload: &DesktopEvent) -> Option<(u64, String)> {

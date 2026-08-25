@@ -14,6 +14,7 @@ use crate::{
     SessionSelection,
 };
 
+mod adapter;
 #[cfg(test)]
 mod tests;
 
@@ -169,7 +170,7 @@ impl ProtocolServerActor {
                 validated.request_id,
                 self.response_epoch(),
                 wire::DesktopResponse::Rejected {
-                    error: crate::wire::command_error_to_wire(
+                    error: adapter::command_error_to_wire(
                         &DesktopCommandError::ProtocolVersionUnsupported,
                     ),
                 },
@@ -316,7 +317,7 @@ impl ProtocolServerActor {
                     host.snapshot()
                         .await
                         .map(|snapshot| wire::DesktopResponse::Snapshot {
-                            snapshot: crate::wire::snapshot_to_wire(&snapshot),
+                            snapshot: adapter::snapshot_to_wire(&snapshot),
                         });
                 RequestOutcome::keep_running(Ok(self.domain_response(
                     request_id,
@@ -404,7 +405,7 @@ impl ProtocolServerActor {
             request_id,
             Some(connection_epoch),
             wire::DesktopResponse::SessionReady {
-                snapshot: crate::wire::snapshot_to_wire(&snapshot),
+                snapshot: adapter::snapshot_to_wire(&snapshot),
             },
         )))
     }
@@ -436,7 +437,7 @@ impl ProtocolServerActor {
             request_id,
             Some(connection_epoch),
             wire::DesktopResponse::ShutdownCompleted {
-                report: crate::wire::shutdown_to_wire(&report),
+                report: adapter::shutdown_to_wire(&report),
             },
         )))
     }
@@ -450,7 +451,7 @@ impl ProtocolServerActor {
         let response = match response {
             Ok(response) => response,
             Err(error) => wire::DesktopResponse::Rejected {
-                error: crate::wire::command_error_to_wire(&error),
+                error: adapter::command_error_to_wire(&error),
             },
         };
         response_envelope(request_id, Some(connection_epoch), response)
@@ -465,7 +466,7 @@ impl ProtocolServerActor {
             request_id,
             self.response_epoch(),
             wire::DesktopResponse::Rejected {
-                error: crate::wire::command_error_to_wire(&error),
+                error: adapter::command_error_to_wire(&error),
             },
         )
     }
@@ -506,10 +507,7 @@ async fn forward_events(
 ) -> Result<()> {
     while let Some(event) = stream.recv().await {
         sender
-            .send(crate::wire::event_envelope_to_wire(
-                &event,
-                connection_epoch,
-            ))
+            .send(adapter::event_envelope_to_wire(&event, connection_epoch))
             .await
             .context("Desktop protocol event receiver is closed")?;
     }
