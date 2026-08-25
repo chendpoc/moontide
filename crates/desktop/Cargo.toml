@@ -6,12 +6,14 @@ authors.workspace = true
 
 [dependencies]
 agent.workspace = true
+agent-core.workspace = true
 anyhow.workspace = true
+desktop-protocol = { path = "../desktop-protocol" }
 iced.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 
 [dev-dependencies]
-agent-core.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+wiremock = "0.6"

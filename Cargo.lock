@@ -994,11 +994,13 @@ dependencies = [
  "agent",
  "agent-core",
  "anyhow",
+ "desktop-protocol",
  "iced",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",
+ "wiremock",
 ]
 
 [[package]]

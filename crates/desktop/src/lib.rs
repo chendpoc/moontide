@@ -4,14 +4,21 @@ mod approval;
 mod command;
 mod event;
 mod host;
+mod host_protocol;
 mod protocol;
 mod render_state;
 mod state;
 mod ui;
+#[doc(hidden)]
+pub mod wire;
 
 pub use command::DesktopCommandError;
 pub use event::{DesktopEvent, DesktopEventEnvelope, DesktopEventStream};
 pub use host::{DesktopConfig, DesktopHost, DesktopHostHandle, SessionSelection};
+pub use host_protocol::{
+    DesktopProtocolConfig, DesktopProtocolEventStream, DesktopProtocolServer,
+    DesktopProtocolServerHandle,
+};
 pub use protocol::{
     ConnectionEpoch, DesktopCommand, DesktopMessage, DesktopMessageEnvelope, DesktopProtocolEvent,
     DesktopResponse, ProtocolVersion, RequestId, Seq, SessionSelectionDto,

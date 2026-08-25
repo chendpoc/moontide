@@ -44,6 +44,8 @@ crates/desktop/src/
   lib.rs       # public exports
   host.rs      # DesktopHost、配置与启动 lifecycle
   host/        # HostActor、handle command、ProgressSink、tests
+  host_protocol.rs  # independent wire envelope server boundary
+  host_protocol/    # validation、routing、lifecycle and tests
   command.rs   # commands and typed errors
   event.rs     # envelope and EventBuffer
   event/       # EventBuffer tests
@@ -66,29 +68,78 @@ OS-specific window、close 和 packaging 接缝留到 D3/D6，并复用 `agent::
 ### 3.0 Protocol extraction boundary
 
 当前 `DesktopHostHandle`、`DesktopEventStream` 和带 oneshot reply 的内部 command 是
-D1 in-process host contract，不等于最终 wire API。D2 只冻结以下跨边界语义：
+D1 in-process host contract，不等于最终 wire API。独立 `desktop-protocol` crate 冻结以下
+跨边界语义：
 
 - `DesktopCommand`、`DesktopResponse`、`DesktopProtocolEvent`、`DesktopSnapshot` 的顶层职责；
 - `DesktopCommandError` 的稳定匹配语义；
 - `DesktopMessageEnvelope` 的版本、request correlation、connection epoch 和 event order；
 - Snapshot resync 不 replay 旧事件。
 
-不在 D2 强制复制 `agent-core` 的所有 canonical value payload。若某个 payload 的现有
-类型已经是稳定、provider-neutral 的值对象，可以由 in-process adapter 直接复用；不得
-复用 Agent、SessionStore、ProgressWorker、observer、task handle 等 runtime ownership
-类型。
+`desktop-protocol` 不复用 `agent-core` canonical value payload；所有 v1 DTO 都是独立、
+可 serde 的 wire value。`DesktopEvent` 和带 oneshot 的 `HostCommand` 仍是 D1 内部实现
+类型。R2 的 active path 必须在 Host boundary 直接接收和发出 independent envelope，不能
+要求 Tauri 或 TypeScript consumer 经过 `desktop::protocol` 的平行 graph。
 
-R1 的 `DesktopProtocolEvent` 将内部 `ProgressEvent` 展开为语义事件；`ToolCall`、
-`ToolResult`、`ContentBlock` 和 `ModelResponseSnapshot` 等稳定 canonical payload 暂时
-复用，`agent::ModelResponse` 不进入 protocol event。`DesktopEvent` 和带 oneshot 的
-`HostCommand` 仍是 D1 内部实现类型。
+`DesktopEventStream::recv_protocol(connection_epoch)` 与 `desktop::protocol` 暂时保留给
+已有 D1/RenderState 测试；它们不是 R2 server 的 active path，并在 TypeScript parity 后
+由 R6 删除。
 
-`DesktopEventStream::recv_protocol(connection_epoch)` 是当前 in-process adapter。它为
-事件设置当前 protocol version、epoch 和 seq，request_id 保持为空；command/response
-transport 尚未在 R1 实现。原有 `DesktopEvent` / `DesktopEventEnvelope` 仍作为 D1
-in-process host API 保留，但不是最终 wire event contract。
+### 3.1 Host protocol server（R2）
 
-### 3.1 配置和生命周期
+R2 增加单 connection、单 Session、单 Host 的 protocol server actor：
+
+```text
+Unhandshaken { AgentConfig }
+    │ Handshake / allocate connection_epoch
+    ▼
+Ready { AgentConfig, connection_epoch }
+    │ first valid StartSession / consume AgentConfig
+    ├── start succeeds ──► Running { DesktopHostHandle, DesktopEventStream }
+    └── start fails ─────► Stopped
+                              ▲
+Running ── Shutdown / channel failure ──┘
+```
+
+公开 seam 由 `DesktopProtocolServer::start(DesktopProtocolConfig)`、cloneable
+`DesktopProtocolServerHandle::request(DesktopMessageEnvelope)` 与
+`DesktopProtocolEventStream::recv()` 组成，精确签名以 `README.md` 为准。server actor 是
+protocol connection/lifecycle owner；D1 Host 在成功 `StartSession` 后仍是唯一 Agent owner。
+
+验证顺序固定：
+
+1. payload 必须是 command，且 envelope 必须满足 v1 command identity；
+2. `Handshake` 校验 version，分配非零 epoch，并返回相同 request ID；
+3. 其他 command 必须携带当前 epoch，且只能在允许的 lifecycle state 执行；
+4. domain acceptance/rejection 被编码为相同 request ID 的 response envelope；缺少 request
+   ID、伪造 seq、错误 payload kind 或 epoch mismatch 等不可安全继续的 framing error 由
+   `request` 返回 infrastructure error，R3 transport 将其视为连接失败；
+5. Host event 在 adapter 内直接转为 wire event，沿用 EventBuffer 的 seq，并附加当前 epoch。
+
+同一 server 上重复 `Handshake` 幂等返回已分配 epoch，不建立第二个 connection generation，
+也不重置 Ready/Running lifecycle。新的 epoch 只能由 composition root 创建新 server 获得。
+
+首次有效 `StartSession` 是 one-shot boot。`AgentConfig` 不 clone；启动成功或失败后都不再
+允许该 server 创建第二个 Agent。失败返回 `Rejected(Internal)` 后关闭 command/event
+channels。需要用户修改 settings 后重试时，composition root 必须显式创建新的 server，
+不能在 adapter 内加入隐藏 config factory。
+
+`CancelTurn` 需要在 accept cancellation 的同一 actor transition 中取得 active turn ID。
+内部 `HostCommand::CancelTurn` reply 因此返回 `u64`；现有 public
+`DesktopHostHandle::cancel_turn() -> Result<(), DesktopCommandError>` 丢弃该 ID，新的
+crate-private adapter method 将它编码为 `CancellationAccepted { turn }`。禁止通过 boot
+snapshot 推断 active turn，因为该读取与 cancel transition 之间存在 race。
+
+Shutdown 必须保持 `Stopped` event 先于 `ShutdownCompleted` response 的可观察顺序。server
+取得 D1 shutdown report 后排空 Host event stream，再回复 request，随后关闭两个公开 channel。
+event forwarder 的 drain 等待上限为 2 秒；若 receiver 不消费或 task 无法收束，server abort
+forwarder、让 request 返回 infrastructure error 并关闭连接，不发送 `ShutdownCompleted`。
+
+现有 Tauri tracer bullet 仍临时调用 `#[doc(hidden)] desktop::wire`，因此 R2 不在未改 Tauri
+consumer 的情况下收窄该模块可见性。R3 rewiring 后不再新增调用方，R6 删除 mapper 与平行
+`desktop::protocol` graph。
+
+### 3.2 配置和生命周期
 
 ```rust
 pub struct DesktopConfig {
@@ -116,7 +167,7 @@ Host 永远只保存一个 `Agent` 值。active Turn 期间该值暂时由唯一
 task 完成后把 Agent 返回 actor；UI、ProgressObserver 和 ApprovalBroker 都不能取得
 `&mut Agent`。
 
-### 3.2 Command 与 typed error
+### 3.3 Command 与 typed error
 
 ```rust
 pub enum DesktopCommandError {
@@ -139,7 +190,7 @@ pub enum DesktopCommandError {
 command 使用 bounded Tokio channel 和 oneshot reply。`Busy` 是类型语义，不依赖错误
 字符串。第二个 active Turn 不排队；空文本在 host 边界拒绝。
 
-### 3.3 Host state
+### 3.4 Host state
 
 ```rust
 pub enum DesktopRunState {
@@ -158,7 +209,7 @@ pub enum DesktopRunState {
 Host state 是生命周期摘要，不替代 `ProgressEvent` 的 canonical payload。失败不会
 回滚已提交的 Session fact；下一 Turn 可以从 `Failed` 恢复到 `Thinking`。
 
-### 3.4 RenderState fold（D3-R1）
+### 3.5 RenderState fold（D3-R1）
 
 `RenderState` 是 `desktop` crate 内部的 UI-owned projection。它只读取 protocol event 和
 snapshot，不拥有 Agent、SessionStore 或 approval truth：
@@ -229,7 +280,7 @@ baseline 后，按原 seq 顺序重放暂存事件。这样事件可能先于 sn
 消费，也可能晚于 snapshot response 到达 UI，都不会让本地 `last_seq` 回退并制造伪造 gap。
 重放期间再次发现 gap 时停止重放剩余事件，并重新请求 snapshot。
 
-### 3.5 Tauri/Web shell（D3-R2 replan）
+### 3.6 Tauri/Web shell（D3-R2 replan）
 
 Tauri Rust shell 只接收已经启动的 Host 或 protocol client，不负责创建 `AgentConfig`、
 解析 settings 或选择 Session；启动 boot 会先请求一次 `DesktopSnapshot`，避免恢复
@@ -253,7 +304,7 @@ Cmd/Ctrl+Enter 生成 Submit，Escape 在 active Turn 时生成 cancel，否则�
 capability 采用最小 allowlist；Tauri event 只发送 protocol envelope，不直接发送任意
 Rust object。
 
-### 3.6 Inspector（D3-R3）
+### 3.7 Inspector（D3-R3）
 
 Inspector 是 UI-owned 的局部 detail view，不创建新的 Host 或 protocol state。`UiState`
 只保存是否打开、当前 selection 和 thinking 展开偏好：

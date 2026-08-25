@@ -18,7 +18,7 @@ use actor::HostActor;
 use progress::ProgressSink;
 
 const COMMAND_CAPACITY: usize = 32;
-const MIN_EVENT_CAPACITY: usize = 16;
+pub(crate) const MIN_EVENT_CAPACITY: usize = 16;
 
 pub struct DesktopConfig {
     pub agent: agent::AgentConfig,

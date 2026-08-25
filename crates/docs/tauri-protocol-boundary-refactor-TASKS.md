@@ -2,14 +2,14 @@
 
 > **Feature document:** [`tauri-protocol-boundary-refactor.md`](tauri-protocol-boundary-refactor.md)
 > **Version goal:** D3-PF
-> **Status:** R1 Tidewatch passed; awaiting user diff review
+> **Status:** R1 committed as `2cdf850`; R2 review passed and commit gate satisfied
 
 ## Review batches
 
 | Review batch | Feature tasks | Theme | Estimated diff | Status |
 |---|---|---|---:|---|
-| R1 | 01–03 | Protocol v1 evidence and validation rules | ~700 | Tidewatch passed; user review pending |
-| R2 | 04–08 | Host-side protocol adapter | ~1,300 | Pending |
+| R1 | 01–03 | Protocol v1 evidence and validation rules | ~700 | Committed (`2cdf850`) |
+| R2 | 04–08 | Host-side protocol adapter | ~1,300 | Review passed; commit gate satisfied |
 | R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Pending |
 | R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Pending |
 | R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | Pending |
@@ -62,6 +62,83 @@
 - **Unverified:** real WebView consumption is intentionally deferred to R4/R5.
 - **Tidewatch:** independent Standards/Spec re-review passed with no findings after correlation,
   epoch, evidence-count and Work Packet naming corrections.
+- **Commit:** `2cdf850 feat(desktop-protocol): freeze v1 wire contract`.
+
+## Work Packet: D3-PF / R1 (Review Batch R2)
+
+- **Base:** `feat/assistant-host/r2` at `2cdf850`; the pre-existing Desktop/Tauri tracer-bullet
+  work remains dirty and must be preserved.
+- **Mode:** Implementation; public seam confirmed by the user on 2026-08-25.
+- **Goal:** Make one Host-side adapter the only active command/response/event boundary between
+  `desktop-protocol` envelopes and the D1 `DesktopHost` actor.
+- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Source of truth:** `AGENTS.md`, the feature document, `desktop-protocol` v1 fixtures, the current
+  D1 Host contract and current lifecycle tests.
+- **Confirmed decisions:** the adapter does not depend on Tauri; it owns protocol connection state
+  but not a second Agent; valid domain rejection stays inside a correlated wire response; the
+  Session Item Log remains recovery truth.
+- **Confirmed public seam:** `DesktopProtocolServer::start(DesktopProtocolConfig)` returns a cloneable
+  `DesktopProtocolServerHandle` plus `DesktopProtocolEventStream`; `request` accepts and returns
+  independent `desktop_protocol::DesktopMessageEnvelope` values; events are emitted in the same
+  independent envelope graph.
+- **Confirmed lifecycle:** `Unhandshaken → Ready → Running → Stopped`. The server allocates the
+  connection epoch on handshake. The first `StartSession` consumes the one-shot `AgentConfig` and
+  starts exactly one D1 Host. A failed start returns a correlated `Internal` rejection and closes
+  the server; it is not silently retried with another Agent.
+- **Confirmed cancellation seam:** keep the current public `DesktopHostHandle::cancel_turn() ->
+  Result<(), _>` contract. The actor returns the accepted turn identity through a crate-private
+  method so the adapter can emit `CancellationAccepted { turn }` without a snapshot race.
+- **Open questions:** None. The public seam and one-shot failed-start behavior are confirmed.
+- **Scope:** `crates/desktop/src/host_protocol/**`, minimal Host actor support, direct wire event
+  conversion, public exports, focused tests and synchronized Desktop design documentation.
+- **Non-goals:** Tauri command wiring, protocol client, frontend types, process transport, settings,
+  wire-shape changes, multiple simultaneous connections or retrying a failed Host boot in place.
+- **Agent Task:** Complete TASK-04 through TASK-08 after confirmation, then produce focused and
+  workspace verification evidence.
+- **Reviewer:** Tidewatch in an independent context after implementation evidence is ready.
+- **User Parallel Task:** Trace the owner of `AgentConfig`, `connection_epoch`, active Turn identity
+  and shutdown state through the proposed lifecycle table; do not modify `crates/desktop/**`.
+- **Shared Acceptance:** all eight v1 commands are routed or rejected deterministically; every
+  response preserves its command request ID; events use one epoch and strictly increasing buffer
+  seq; no Tauri dependency enters `desktop`; `cargo test -p desktop` and `just check` pass.
+- **Decision changes:** adds a public in-process protocol-server seam but does not change v1 JSON or
+  the D1 Host public signatures.
+- **Next smallest experiment:** prove handshake identity and pre-session rejection using the R1
+  fixtures against the proposed server handle.
+- **Stop conditions:** wire-shape/version change, need for multiple Agent owners, retryable boot
+  requiring a config factory, Tauri dependency in Host, or overlap that would overwrite unrelated
+  dirty tracer-bullet work.
+
+### R2 Implementation Evidence
+
+- **Changed files:** new `host_protocol` server actor and tests; minimal Host cancellation reply
+  identity support; public exports; direct `DesktopEventEnvelope → desktop-protocol` conversion;
+  Desktop README/DESIGN and this control document. `wire.rs` and its production dependencies began
+  as preserved untracked tracer-bullet work; R2 extends and adopts that mapper at the Host boundary.
+- **Diff size:** approximately 1,800 attributable inserted/changed lines: 1,378 new server/test
+  lines, about 138 direct-wire mapper/test lines and about 285 tracked Host/docs/Cargo lines. The
+  full untracked `wire.rs` is 727 lines, of which 589 predated R2. Existing untracked Tauri files and
+  root Tauri Cargo/Cargo.lock changes are not R2 work and remain unstaged.
+- **Focused validation:** `cargo test -p desktop` passed 46 tests, including delayed provider and
+  real pending-approval flows run with loopback permission.
+- **Workspace validation:** `just check` passed: format check, workspace/all-target clippy and 319
+  workspace tests. Loopback permission was provided for existing and new mock-server tests.
+- **Contract result:** all eight v1 commands reach either their D1 Host operation or a deterministic
+  lifecycle/domain rejection; response request IDs are preserved; handshake owns a nonzero epoch;
+  Host events preserve EventBuffer seq and carry no request ID.
+- **Lifecycle result:** boot is lazy and one-shot; new/resume preserve Session identity; failed boot
+  closes the server; cancel response gets turn identity atomically from Host actor; Stopped is
+  enqueued before ShutdownCompleted and both channels close afterward.
+- **Documentation:** confirmed public signatures, state machine, validation order, repeated-handshake
+  semantics and one-shot failure behavior are synchronized in Desktop README/DESIGN.
+- **Backpressure result:** graceful shutdown waits at most two seconds for the bounded event
+  forwarder to drain. A stalled receiver aborts the forwarder, closes the server and returns
+  infrastructure failure instead of hanging or emitting `ShutdownCompleted`; R3 surfaces this as
+  degraded close.
+- **Unverified:** Tauri bridge and frontend do not consume this server yet; that is R3/R4 scope.
+- **Tidewatch:** Independent Standards/Spec review passed with no open findings after the epoch
+  allocation, bounded shutdown, unexpected event-stream closure and response-correlation evidence
+  were corrected. Tauri/client/frontend/process framing remain explicit R3/R4 scope.
 
 ## Task details
 
@@ -102,7 +179,7 @@
 - **Scope:** `crates/desktop/src/host_protocol/**` and module wiring.
 - **Estimated diff:** ~300 lines.
 - **Completion:** Focused handshake and invalid-envelope tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-05: Route Session boot and snapshot
 
@@ -112,7 +189,7 @@
 - **Scope:** Host protocol adapter and focused tests.
 - **Estimated diff:** ~300 lines.
 - **Completion:** New/resume boot and snapshot tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-06: Route turn, cancellation and approval
 
@@ -122,7 +199,7 @@
 - **Scope:** Host protocol adapter and focused tests.
 - **Estimated diff:** ~300 lines.
 - **Completion:** Success, Busy, NoActiveTurn and approval error tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-07: Route shutdown and connection closure
 
@@ -132,7 +209,7 @@
 - **Scope:** Host protocol adapter and lifecycle tests.
 - **Estimated diff:** ~200 lines.
 - **Completion:** Graceful and abnormal closure tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-08: Emit wire events directly
 
@@ -142,7 +219,7 @@
 - **Scope:** Host event adapter, conversion code and tests.
 - **Estimated diff:** ~300 lines.
 - **Completion:** Event identity, coalescing and resync tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-09: Add the protocol client
 
