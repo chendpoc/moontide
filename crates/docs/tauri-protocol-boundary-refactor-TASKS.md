@@ -2,8 +2,8 @@
 
 > **Feature document:** [`tauri-protocol-boundary-refactor.md`](tauri-protocol-boundary-refactor.md)
 > **Version goal:** D3-PF
-> **Status:** R1 committed as `2cdf850`; R2 committed as `19b36d7`; R3 review passed,
-> user diff review pending
+> **Status:** R1 committed as `2cdf850`; R2 committed as `19b36d7`; R3 committed as `9a8320e`;
+> R4 implementation verified; independent review passed; commit authorized
 
 ## Review batches
 
@@ -11,8 +11,8 @@
 |---|---|---|---:|---|
 | R1 | 01–03 | Protocol v1 evidence and validation rules | ~700 | Committed (`2cdf850`) |
 | R2 | 04–08 | Host-side protocol adapter | ~1,300 | Committed (`19b36d7`) |
-| R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Review passed; user diff review pending |
-| R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Pending |
+| R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Committed (`9a8320e`) |
+| R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Review passed; commit authorized |
 | R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | Pending |
 | R6 | 20–24 | Transitional deletion, dependency cleanup and final evidence | ~1,500 | Pending |
 
@@ -229,6 +229,93 @@
 - **Tidewatch:** independent Standards/Spec review passed with no remaining findings after the
   initial unbounded in-flight/order finding was corrected using a 64-request client pending limit,
   single-flight in-process server admission and executable bound coverage.
+- **Commit:** `9a8320e feat(desktop): route Tauri through protocol client`.
+
+## Work Packet: D3-PF / R3 (Review Batch R4)
+
+- **Base:** `feat/assistant-host/r2` at `9a8320e`; worktree clean at batch start.
+- **Mode:** Implementation; no new public Rust or wire contract.
+- **Goal:** Make TypeScript the future single owner of Desktop product projection by establishing a
+  fixture-conformant v1 schema, a pure RenderState fold and bounded boot/resync orchestration before
+  any Svelte UI migration.
+- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Source of truth:** `desktop-protocol/src/lib.rs`, all three committed v1 fixture bundles, the
+  nine Rust `render_state` behavior tests and the R3 one-command Tauri bridge.
+- **Confirmed decisions:** npm is the frontend package manager because the repository has no
+  existing frontend manager and the local Node/npm toolchain is available; its lockfile is
+  committed. One runtime TypeScript schema graph is the validation/type source and parses the Rust
+  fixtures; the recursive ContentBlock algebra is explicitly checked against that schema rather
+  than duplicated as an unchecked cast.
+- **Confirmed projection seam:** protocol parsing, RenderState model/fold and orchestration are
+  framework-independent TypeScript modules. The fold consumes complete response/event envelopes,
+  returns `applied | ignored | resync_required`, and never imports Tauri, Svelte or DOM APIs.
+- **Confirmed orchestration seam:** one controller owns listener-first boot, snapshot-in-flight
+  state, a bounded 256-event buffer, epoch/seq replay and one automatic resync attempt per
+  degradation episode. Failure becomes an explicit disconnected state; it never retries without
+  bound. The bridge continues to accept only `DesktopCommand` intent.
+- **Open questions:** None. Package versions are implementation inputs, not protocol decisions.
+- **Scope:** `crates/moontide-desktop/frontend/**`, R4 status and Implementation Evidence in the
+  feature/task documents. The Tauri product path remains on the transitional static entry until R5.
+- **Non-goals:** porting the product UI to Svelte, changing visible layout, CSP/global-Tauri
+  tightening, deleting Rust RenderState/UI, process transport, settings or protocol v1 changes.
+- **Agent Task:** Complete TASK-14 through TASK-17, run frontend focused gates plus Rust/workspace
+  regression gates, and produce Implementation Evidence.
+- **Reviewer:** Tidewatch in an independent context after implementation evidence is ready.
+- **User Parallel Task:** Compare the nine Rust RenderState scenarios with the TypeScript parity
+  matrix; do not modify `crates/moontide-desktop/frontend/**` during this batch.
+- **Shared Acceptance:** `check`, fixture conformance tests and production build pass; all Rust fold
+  invariants have named TypeScript coverage; boot subscribes before handshake; events are buffered
+  during snapshot; stale/gap/new-epoch/explicit/orphan-result paths are deterministic; resync
+  failure is bounded and observable; `just check` remains green.
+- **Decision changes:** none. TypeScript types describe the already-frozen v1 JSON; they do not
+  change identity ownership or introduce a second wire contract. Discovery showed that pointing
+  `frontendDist` at ignored build output makes direct Cargo checks fail on a clean checkout, so the
+  runtime path switch is deferred to R5 where build orchestration and UI ownership change together.
+- **Next smallest experiment:** parse all 30 top-level fixture envelopes with one schema and assert
+  command/response/event identity before implementing the fold.
+- **Stop conditions:** required v1 shape/version change, a Rust product-state consumer that blocks
+  later deletion, need for a shared frontend/client crate, unbounded retry/buffering, framework or
+  DOM dependency in the fold, or package installation that overwrites unrelated work.
+
+### R4 Implementation Evidence
+
+- **Changed files:** locked npm/Svelte/TypeScript/Vite/Vitest baseline; strict runtime protocol
+  schema and fixture tests; pure RenderState model/fold and Rust-parity tests; framework-neutral
+  Desktop controller and delivery-orchestration tests; synchronized feature/task status.
+- **Diff size:** 1,979 TypeScript/Svelte source and test lines plus 70 package/config lines. The npm
+  lockfile adds 1,594 mechanical lines for 101 resolved non-root package entries.
+- **Frontend validation:** `npm run check` passed with zero errors/warnings; `npm test` passed 23
+  tests in four files; `npm run build` produced a bounded production bundle successfully.
+- **Rust regression validation:** `cargo test -p moontide-desktop` passed 12 tests. `just check`
+  passed format, workspace/all-target clippy and all 331 Rust tests after the frontend work.
+- **Contract result:** one strict Zod graph validates runtime input and supplies TypeScript types,
+  with its recursive ContentBlock algebra type-checked explicitly. It round-trips the committed 8
+  command, 8 response and 14 event fixtures, rejects invalid correlation/delivery identities and
+  represents Rust externally tagged nested enums explicitly.
+- **Projection result:** the pure fold has named parity coverage for all nine Rust RenderState
+  scenarios: draft replacement/stale update/gap, finalized calls, orphan ToolResult, snapshot
+  baseline, active-draft retention, new epoch, TurnCompleted, tool/approval/failure and command
+  error recoverability. It imports no Svelte, Tauri or DOM API.
+- **Orchestration result:** the controller subscribes before Handshake, buffers the triggering and
+  subsequent events during snapshot, ignores stale baseline-covered events, replays seq in arrival
+  order, handles new epoch/explicit/orphan/gap degradation, caps the buffer at 256 and performs at
+  most one snapshot attempt per degradation episode before observable disconnection. Typed domain
+  rejection remains a response; malformed bridge data disconnects; degraded close evidence remains
+  an explicit connection state.
+- **Build-path discovery:** pointing Tauri `frontendDist` directly at ignored `dist/` made clean
+  Cargo checks fail before npm build. The experiment was reverted; R4 keeps the transitional static
+  runtime entry, while R5 must switch UI ownership and Tauri build orchestration together.
+- **Toolchain result:** npm initially selected unsupported TypeScript 7 for ordinary
+  `svelte-check`; the lockfile now pins supported TypeScript 6 rather than enabling experimental
+  dual-compiler `tsgo` behavior.
+- **Deferred by scope:** the current product entry still uses the R3 plain-JavaScript projection.
+  Svelte component integration, real WebView smoke, CSP/global-Tauri tightening and removal of
+  dynamic HTML are TASK-18/19 in R5; legacy Rust projection remains until that parity is reviewed.
+- **Tidewatch:** independent Standards/Spec review passed with no findings. The final review
+  verified strict parsing and identity coverage for all 30 fixtures, parity coverage for all nine
+  Rust projection scenarios, listener-first and bounded resync behavior, framework-independent
+  protocol/fold/controller modules, and accurate implementation evidence. Real WebView integration
+  remains intentionally deferred to R5.
 
 ## Task details
 
@@ -368,7 +455,7 @@
 - **Scope:** `crates/moontide-desktop/frontend/**` and Tauri frontend configuration.
 - **Estimated diff:** ~350 lines.
 - **Completion:** Frontend check, test and build scripts pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-15: Consume protocol fixtures in TypeScript
 
@@ -377,7 +464,7 @@
 - **Scope:** Frontend protocol types and conformance tests.
 - **Estimated diff:** ~350 lines.
 - **Completion:** Every fixture variant passes TypeScript validation/tests.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-16: Port the pure RenderState fold
 
@@ -387,7 +474,7 @@
 - **Scope:** Frontend state model/fold and unit tests.
 - **Estimated diff:** ~650 lines.
 - **Completion:** Rust parity matrix passes for state, assistant, tool, approval and failure paths.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-17: Add boot and resync orchestration
 
@@ -397,7 +484,7 @@
 - **Scope:** Frontend protocol client orchestration and tests.
 - **Estimated diff:** ~450 lines.
 - **Completion:** Race, gap, new-epoch and resync-failure tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-18: Port the minimal conversation UI
 
