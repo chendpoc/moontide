@@ -12,6 +12,7 @@
 | [`extension-sidecar-runtime.md`](extension-sidecar-runtime.md) | 候选设计 | sidecar / MCP 边界，尚未实现 |
 | [`logging-and-session-design.md`](logging-and-session-design.md) | 当前设计 | Session Item Log、Agent Event Log、Progress 与 persistence policy 统一契约 |
 | [`desktop-process-architecture.md`](desktop-process-architecture.md) | 当前目标架构 | Desktop UI、desktop protocol、Agent Host 与未来 daemon 的进程边界 |
+| [`tauri-protocol-boundary-refactor.md`](tauri-protocol-boundary-refactor.md) | 已确认计划 | 将当前 Tauri tracer bullet 收敛为 protocol-first D3 的模块重构计划 |
 | [`tiered-context-memory.md`](tiered-context-memory.md) | 候选设计 | 分层 Context 与长期记忆，尚未实现 |
 | [`tool-mediated-context-exploration.md`](tool-mediated-context-exploration.md) | 讨论候选 | 基础工具优先、语义工具加速与大内容有界探索，尚未实现 |
 

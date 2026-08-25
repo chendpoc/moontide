@@ -1,0 +1,95 @@
+[
+  {
+    "protocol_version": 1,
+    "connection_epoch": null,
+    "request_id": "req-handshake",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": { "kind": "handshake" }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-start-new",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": {
+        "kind": "start_session",
+        "selection": { "kind": "new" }
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-submit",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": {
+        "kind": "submit_turn",
+        "text": "inspect the workspace"
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-cancel",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": { "kind": "cancel_turn" }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-approve",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": {
+        "kind": "approve",
+        "approval_id": "approval-1"
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-deny",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": {
+        "kind": "deny",
+        "approval_id": "approval-2",
+        "reason": "not allowed"
+      }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-snapshot",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": { "kind": "snapshot" }
+    }
+  },
+  {
+    "protocol_version": 1,
+    "connection_epoch": 1,
+    "request_id": "req-shutdown",
+    "seq": null,
+    "payload": {
+      "kind": "command",
+      "command": { "kind": "shutdown" }
+    }
+  }
+]
