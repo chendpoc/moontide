@@ -2,7 +2,7 @@
 
 > **状态：** 已确认，作为下一阶段开发基线
 > **范围：** Desktop Shell、`agent` 宿主接缝和 `agent-core` 稳定边界
-> **不属于本文：** Slint 视觉稿、具体 UI 组件实现、scheduler 设计、产品商业化
+> **不属于本文：** 具体 Web UI 视觉稿、组件实现、scheduler 设计、产品商业化
 
 ## 1. 结论
 
@@ -22,8 +22,9 @@
 ## 2. 当前架构基线
 
 ```text
-Slint Desktop Shell
-        │
+Tauri Desktop Shell
+  ├── Svelte + TypeScript WebView
+  └── Rust bridge / Desktop protocol client
         │ Agent API + UI event observer + approval + cancellation
         ▼
 agent（组合根）
@@ -60,7 +61,8 @@ agent（组合根）
 - 一个活跃 Session；
 - 一个活跃 Turn；
 - 同一 Session 内串行执行；
-- 本地 Rust + Slint，同进程调用 `agent`；
+- Tauri + 轻量 Web 前端；当前推荐 Svelte + TypeScript；
+- D1 同进程调用 `agent`，后续由 Tauri shell 连接 `agent-host`；
 - UI 通过宿主事件接缝观察运行状态，不直接访问 `agent-core` 内部状态。
 
 这不是能力上的永久限制，而是与当前 `AgentLoop` 的 ownership 和 Session writer 约束一致的第一版产品边界。
@@ -132,10 +134,10 @@ LLM SSE
 | Turn / Step / Tool round 顺序 | `agent-core::loop` | Desktop |
 | Session 事实写入 | `agent-core::session` / Loop commit seam | Desktop |
 | Provider 流式 fold | `agent-core::llm` | Desktop |
-| Host-facing progress / snapshot | `agent` | `agent-core` 直接依赖 Slint |
+| Host-facing progress / snapshot | `agent` | `agent-core` 直接依赖 Tauri/Web 前端 |
 | approval UI | Desktop | Hook / event derive |
 | Session 列表和只读历史查询 | `agent` 宿主 API | Desktop 直接解析内部 JSONL |
-| UI 状态、窗口生命周期、渲染 | Desktop | `agent-core` |
+| UI 状态、窗口生命周期、渲染 | Tauri shell + Web frontend | `agent-core` |
 | 多 Agent、队列、资源调度 | 后置 scheduler / 组合层 | v0.1 Desktop |
 
 ## 7. Desktop v0.1 验收路径
@@ -192,4 +194,4 @@ LLM SSE
 6. 再做 diff、Session fork、工作目录切换等 P1 功能；
 7. 只有出现真实并发/队列需求时，重新启动 scheduler 架构对齐。
 
-本文件是已确认的产品方向基线；实现前仍需为 Desktop 模块补齐 README、DESIGN 和分批 TASK，不直接把整份清单一次性实现。
+本文件是已确认的产品方向基线；实现前仍需为 Desktop 模块补齐 README、DESIGN 和分批 TASK，不直接把整份清单一次性实现。Tauri 前端作为非 Rust consumer，wire DTO、TypeScript 类型和 conformance fixtures 是进入 D3 的前置验收。

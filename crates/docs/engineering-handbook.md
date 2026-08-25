@@ -161,6 +161,26 @@ ModelRequest.tools 中由 ToolSpec 映射的 schema
 
 `ToolCall` 与 `ToolResult` 是单次调用生命周期仅有的两个结构体建模。executor 直接返回 `ToolResult`；event/session 只包装它们，不复制 id/name/input/status/content 字段组。`ToolResultStatus` 是 host 侧规范状态，`Failed { retryable }` 不得丢失；LLM `ContentBlock::ToolResult` 仍只承载模型可见 content，控制流不得从 content 反推 status。结构化结果统一使用 `ToolContent::Json`，不重复维护 host-only 载荷。`ToolContent` 的持久化必须带显式 `type` tag，不能用会混淆 Text 与 JSON string 的 untagged 表示。
 
+### 配置所有权与 runtime 解析
+
+可配置策略必须有明确的声明式配置入口，不应通过扩大局部常量作用域来“暴露配置”。权限策略推荐分为两层：
+
+```text
+声明式 Policy / Rules
+  → 启动时解析与校验
+  → ToolPermissionMap
+  → ToolRuntime 按工具名查询
+```
+
+声明层可以使用规则数组或高层 policy，例如 `Default`、`AlwaysAsk`、
+`AlwaysAllow`、`AllowList`；runtime 层使用确定性的
+`BTreeMap<tool_name, Allow | Ask>`。resolver 必须校验规则无重复、工具集合
+完全匹配，且不能因为 `AlwaysAllow` 跳过工具存在性或 input schema 校验。
+
+`ToolSpec` 描述工具能力，不固化当前宿主、入口或用户的最终 permission；
+同一个工具可以在 CLI、Desktop、自动化或只读模式下拥有不同策略。高层
+policy 应在组合根解析，`ToolRuntime` 只应用最终的 `Allow` / `Ask` 决策。
+
 canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定的 JSON Schema Draft 2020-12；R1 只保留 `input_schema`，其顶层 JSON 值必须是 object，object 内的 schema 文档在注册时校验，调用 input 在执行前校验。`output_schema` 等出现明确结构化消费者后再设计。
 
 详见 [`agent-core/src/tools/README.md`](../agent-core/src/tools/README.md) 与 [`agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。

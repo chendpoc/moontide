@@ -18,7 +18,7 @@
     └── {session_id}.log.jsonl     # 每行一条 SessionItem
 ```
 
-**一句话：** session 负责事实的 create/load/append/fork；不负责模型输入 shaping（`context`）、Turn 状态机（`loop`）或观测日志（`event`）。
+**一句话：** session 负责事实的 create/load/append/fork 和只读查询；不负责模型输入 shaping（`context`）、Turn 状态机（`loop`）或观测日志（`event`）。
 
 ---
 
@@ -105,7 +105,30 @@ impl event::CommitHandler for SessionStore {
         event: &TurnEvent,
     ) -> anyhow::Result<Option<String>>;
 }
+
+pub struct SessionSummary {
+    pub session_id: String,
+    pub cwd: PathBuf,
+    pub last_turn: Option<u64>,
+    pub item_count: usize,
+}
+
+pub struct SessionSnapshot {
+    pub summary: SessionSummary,
+    pub items: Vec<SessionItem>,
+}
+
+pub struct SessionQuery;
+
+impl SessionQuery {
+    pub fn new(sessions_dir: PathBuf) -> Self;
+    pub fn list(&self) -> anyhow::Result<Vec<SessionSummary>>;
+    pub fn load(&self, session_id: &str) -> anyhow::Result<SessionSnapshot>;
+}
 ```
+
+`SessionQuery` 只读打开和校验已有 log，不创建 writer、不追加文件；`list` 按
+`session_id` 确定性排序。
 
 `latest_session_id()` is a read-only lookup over persisted date partitions. It returns `None`
 when the sessions directory does not exist and never creates a session or modifies the log.

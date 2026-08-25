@@ -27,7 +27,15 @@ fn catalog_is_stable_unique_and_builds_runtime_tools() -> Result<()> {
     }
 
     let registry = ToolRegistry::new(tools)?;
-    for name in ["bash", "edit", "find", "grep", "read", "write"] {
+    for name in [
+        "bash",
+        "edit",
+        "find",
+        "grep",
+        "read",
+        "web_search",
+        "write",
+    ] {
         ensure!(registry.resolve(name).is_some());
     }
     Ok(())
@@ -153,6 +161,27 @@ fn grep_schema_matches_the_typed_input_contract() -> Result<()> {
     ensure!(schema.pointer("/properties/max_results/default") == Some(&json!(100)));
     ensure!(schema.pointer("/properties/max_results/minimum") == Some(&json!(1)));
     ensure!(schema.pointer("/properties/max_results/maximum") == Some(&json!(1000)));
+
+    ToolRegistry::new(vec![tool])?;
+    Ok(())
+}
+
+// 测试场景：读取 web_search 的模型可见 schema；预期 query/max_results 的约束、默认值和禁止额外字段与 executor typed input 一致；不变量/副作用：只构造 HTTP client 与 ToolSpec，不发网络请求。
+#[test]
+fn web_search_schema_matches_the_typed_input_contract() -> Result<()> {
+    let tool = crate::web_search::build()?;
+    let schema = tool.spec().input_schema();
+
+    ensure!(tool.spec().name() == "web_search");
+    ensure!(schema.pointer("/type") == Some(&json!("object")));
+    ensure!(schema.pointer("/required") == Some(&json!(["query"])));
+    ensure!(schema.pointer("/additionalProperties") == Some(&json!(false)));
+    ensure!(schema.pointer("/properties/query/type") == Some(&json!("string")));
+    ensure!(schema.pointer("/properties/query/minLength") == Some(&json!(1)));
+    ensure!(schema.pointer("/properties/max_results/type") == Some(&json!("integer")));
+    ensure!(schema.pointer("/properties/max_results/default") == Some(&json!(5)));
+    ensure!(schema.pointer("/properties/max_results/minimum") == Some(&json!(1)));
+    ensure!(schema.pointer("/properties/max_results/maximum") == Some(&json!(20)));
 
     ToolRegistry::new(vec![tool])?;
     Ok(())

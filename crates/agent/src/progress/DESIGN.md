@@ -9,7 +9,7 @@
 
 | 做 | 不做 |
 |---|---|
-| 传播 assistant 全量 snapshot | 渲染 stdout、终端或 Slint |
+| 传播 assistant 全量 snapshot | 渲染 stdout、终端或 Desktop frontend |
 | 添加 turn/step/call/update identity | 修改 AgentLoop 决策 |
 | 在 commit 后传播 finalized | 写 Session 或 Agent Event |
 | 传播完整 ToolCall / ToolResult payload | 暴露完整 provider wire event |
@@ -209,4 +209,4 @@ crates/agent/src/tests.rs           # 宿主接缝集成测试
 
 ## 7. 实现分期
 
-R2 只实现上述 host projection 和 agent 内部 ProgressWorker。Desktop crate、Slint renderer、IPC、事件回放和多 session 并发属于后续消费者，不在本批扩展。
+R2 只实现上述 host projection 和 agent 内部 ProgressWorker。Desktop crate 的具体 Iced 窗口、IPC、事件回放和多 session 并发属于后续消费者，不在本批扩展。

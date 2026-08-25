@@ -1,8 +1,12 @@
 .env
 node_modules/
 dist/
+!crates/moontide-desktop/frontend/dist/
+crates/moontide-desktop/frontend/dist/*
+!crates/moontide-desktop/frontend/dist/.gitkeep
 *.tsbuildinfo
 /target/
+crates/moontide-desktop/src-tauri/gen/schemas/
 .venv/
 __pycache__/
 *.py[cod]
@@ -14,5 +18,5 @@ __pycache__/
 .moontide/
 
 news_items/
-
+/docs
 crates/moontide-ui/target/

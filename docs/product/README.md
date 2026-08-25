@@ -12,6 +12,8 @@
 | [`spark.md`](spark.md) | Spark 移动端产品边界及与 MoonTide Runtime 的关系 |
 | [`desktop-development-direction.md`](desktop-development-direction.md) | Desktop Shell 下一阶段能力清单与 `agent-core` 完成度判断（已确认基线） |
 | [`mature-product-direction.md`](mature-product-direction.md) | 成熟产品能力地图，以及 Remote Compute / Model Runtime 演进方向 |
+| [`competitor-solution-matrix.md`](competitor-solution-matrix.md) | Agent CLI 竞品的问题、能力、调用机制和产品取舍研究 |
+| [`moontide-capability-model.md`](moontide-capability-model.md) | MoonTide 自有能力模型，以及从能力到功能、架构和验收的推导规则 |
 | [`future-directions.md`](future-directions.md) | 从历史 TODO 提炼的产品候选方向，不属于当前承诺 |
 
 产品方向需要落地为系统契约时，在 [`../spec/`](../spec/) 建立或更新对应 Spec；未进入实现的技术候选放入 [`../notes/`](../notes/)。

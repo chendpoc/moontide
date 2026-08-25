@@ -4,7 +4,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::llm::protocol::ContentBlock;
-use crate::session::{CompactionKind, SessionItemDraft, SessionStore};
+use crate::session::{CompactionKind, SessionItem, SessionItemDraft, SessionQuery, SessionStore};
 use crate::tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus};
 
 fn sessions_dir(root: &TempDir) -> PathBuf {
@@ -66,6 +66,84 @@ fn latest_session_id_is_read_only_and_returns_newest_session() {
     assert_eq!(
         SessionStore::latest_session_id(&dir).expect("query latest session"),
         Some(second_id)
+    );
+}
+
+// 场景：查询不存在的 sessions 目录。
+// 预期：返回空列表且不创建目录；不变量：只读查询没有文件系统副作用。
+#[test]
+fn session_query_list_missing_directory_is_empty_and_read_only() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let query = SessionQuery::new(&dir);
+
+    assert!(query
+        .list()
+        .expect("list missing sessions directory")
+        .is_empty());
+    assert!(!dir.exists());
+}
+
+// 场景：创建两个 session 并写入不同数量的事实条目。
+// 预期：list 返回确定性排序和正确 summary；不变量：查询不创建第二个 writer。
+#[test]
+fn session_query_lists_stable_summaries() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut first = SessionStore::create(&dir, PathBuf::from("/workspace/first")).expect("create");
+    let first_id = first.header().session_id.clone();
+    first
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 0,
+            text: "first".into(),
+        })
+        .expect("commit first item");
+    let second = SessionStore::create(&dir, PathBuf::from("/workspace/second")).expect("create");
+    let second_id = second.header().session_id.clone();
+
+    let summaries = SessionQuery::new(&dir).list().expect("list sessions");
+    assert_eq!(summaries.len(), 2);
+    assert!(summaries[0].session_id < summaries[1].session_id);
+    let first_summary = summaries
+        .iter()
+        .find(|summary| summary.session_id == first_id)
+        .expect("first summary");
+    assert_eq!(first_summary.cwd, PathBuf::from("/workspace/first"));
+    assert_eq!(first_summary.last_turn, Some(0));
+    assert_eq!(first_summary.item_count, 1);
+    assert_ne!(first_id, second_id);
+}
+
+// 场景：加载包含 canonical SessionItem 的 session。
+// 预期：返回 header summary 和完整 item payload；不变量：load 只读，不追加日志。
+#[test]
+fn session_query_load_returns_snapshot_without_mutation() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut store =
+        SessionStore::create(&dir, PathBuf::from("/workspace/moontide")).expect("create");
+    let session_id = store.header().session_id.clone();
+    store
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 0,
+            text: "hello".into(),
+        })
+        .expect("commit user item");
+    let log_path = session_log_path(&dir, &session_id);
+    let before = std::fs::read_to_string(&log_path).expect("read log before query");
+
+    let snapshot = SessionQuery::new(&dir)
+        .load(&session_id)
+        .expect("load snapshot");
+    assert_eq!(snapshot.summary.session_id, session_id);
+    assert_eq!(snapshot.summary.item_count, 1);
+    assert!(matches!(
+        snapshot.items.first(),
+        Some(SessionItem::UserMessage { .. })
+    ));
+    assert_eq!(
+        std::fs::read_to_string(log_path).expect("read log after query"),
+        before
     );
 }
 

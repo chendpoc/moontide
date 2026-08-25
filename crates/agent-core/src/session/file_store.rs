@@ -243,6 +243,60 @@ pub(crate) fn latest_session_id(sessions_dir: &Path) -> Result<Option<String>> {
     Ok(latest.map(|(_, session_id)| session_id))
 }
 
+pub(crate) fn session_ids(sessions_dir: &Path) -> Result<Vec<String>> {
+    let entries = match fs::read_dir(sessions_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("read sessions dir {}", sessions_dir.display()))
+        }
+    };
+
+    let mut session_ids = Vec::new();
+    for entry in entries {
+        let entry = entry
+            .with_context(|| format!("read sessions dir entry in {}", sessions_dir.display()))?;
+        let storage_dir = entry.path();
+        if !storage_dir.is_dir() {
+            continue;
+        }
+        let partition = entry.file_name();
+        let Some(partition) = partition.to_str() else {
+            continue;
+        };
+        if !is_date_partition(partition) {
+            continue;
+        }
+
+        for file in fs::read_dir(&storage_dir)
+            .with_context(|| format!("read session partition {}", storage_dir.display()))?
+        {
+            let file = file.with_context(|| {
+                format!("read session partition entry in {}", storage_dir.display())
+            })?;
+            let path = file.path();
+            let Some(name) = file.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            let Some(session_id) = name.strip_suffix(".meta.json") else {
+                continue;
+            };
+            if !path.is_file() || validate_session_id(session_id).is_err() {
+                continue;
+            }
+            let (_, log_path) = session_file_paths(&storage_dir, session_id);
+            if log_path.is_file() {
+                session_ids.push(session_id.to_owned());
+            }
+        }
+    }
+
+    session_ids.sort();
+    session_ids.dedup();
+    Ok(session_ids)
+}
+
 fn newest_modified_time(meta_path: &Path, log_path: &Path) -> Result<SystemTime> {
     let meta_time = fs::metadata(meta_path)
         .with_context(|| format!("read session meta metadata {}", meta_path.display()))?

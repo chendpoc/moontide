@@ -5,6 +5,10 @@ members = [
     "crates/agent-tools",
     "crates/agent",
     "crates/cli",
+    "crates/desktop",
+    "crates/desktop-protocol",
+    "crates/desktop-supervisor",
+    "crates/moontide-desktop/src-tauri",
 ]
 
 [workspace.package]

@@ -19,8 +19,12 @@
 - 模块 1–4 `llm` / `session` / `tools` / `event`：**设计、实现与测试完成**；event sidecar 后置。
 - `tools` 完成单次调用 runtime contract；`agent-tools` R1 完成静态 catalog 与 `grep` tracer bullet。permission 查表和 executor `Err` 配对顺序归后续 `loop`，不作为 tools 遗留项。
 - 当前推进：模块 7 `loop` 已完成；`scheduler` 暂缓，等待真实资源调度需求，不进入当前实现轨道。
-- 当前推进：`agent::log` R3 与 event R4 observer bridge 已完成；当前推进 CLI 对 log/event/progress 的宿主消费，再进入 Desktop Shell。
+- 当前推进：`agent::log` R3 与 event R4 observer bridge 已完成；CLI 宿主消费已完成当前批，Desktop D1 Host actor、SessionQuery facade 和 ordered EventBuffer 已实现；Iced 路线已放弃，下一阶段先完成可被 WebView 消费的 desktop-protocol wire DTO、TypeScript conformance，再进入 Tauri/Web RenderState 与 agent-host 拆分。
 - 2026-08-19：日志架构完成 R3 落地：`TurnEvent dispatch → Session Item Log + Progress` 仍是默认路径；按 `DiagnosticPersistence` 启用时，`agent::log` 以 bounded queue、Tokio worker 和 buffered JSONL writer 持久化 Agent Event Log。
+- 2026-08-19：Desktop D0 baseline 文档完成，新增 `crates/desktop/{README,DESIGN,UI-STATE,UI-INTERACTION,UI-TECH-CHOICE,TASKS}.md`；架构 review 后收敛为单一 ordered EventBuffer、SessionQuery facade、typed command error 和 resync 新基线语义。
+- 2026-08-21：用户撤回 Iced 方向，确认 Desktop 改为 Tauri 2 + 轻量 Web 前端，推荐 Svelte + TypeScript；Electron/Slint 不进入当前实现合约。现有未提交 Iced shell 保留为迁移残留，不再扩展，待 Tauri vertical slice 通过后删除。
+- 2026-08-20：用户确认 Desktop 进程化目标架构；2026-08-21 更新为：Tauri WebView/frontend → Tauri Rust bridge → versioned `desktop-protocol` → `agent-host` runtime process。AgentLoop 保持 Host 内 Tokio task，subagent 先做逻辑 actor，daemon 后置为独立 sibling/service。由于 WebView 是非 Rust consumer，wire DTO 与 TypeScript conformance 前置到 D2 replan。
+- 2026-08-21：`agent-tools` `web_search` R1.2 完成：DuckDuckGo HTML + 可选 SearXNG JSON、顺序 best-effort 聚合、canonical URL 去重、provider attribution、retryable 错误聚合与 wiremock 行为测试；`web_fetch` 仍后置。
 
 ## 变更记录
 

@@ -1,0 +1,320 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  parseDesktopMessageEnvelope,
+  type DesktopProtocolEvent,
+  type DesktopResponse,
+  type DesktopSnapshot,
+  type ModelResponseSnapshot,
+  type ToolCall,
+  type ToolResult,
+} from "./protocol";
+import { createRenderState, reduceEnvelope, type RenderState } from "./renderState";
+
+function event(seq: number, payload: DesktopProtocolEvent, epoch = 1) {
+  return parseDesktopMessageEnvelope({
+    protocol_version: 1,
+    connection_epoch: epoch,
+    request_id: null,
+    seq,
+    payload: { kind: "event", event: payload },
+  });
+}
+
+function response(payload: DesktopResponse, epoch = 1) {
+  return parseDesktopMessageEnvelope({
+    protocol_version: 1,
+    connection_epoch: epoch,
+    request_id: "request-test",
+    seq: null,
+    payload: { kind: "response", response: payload },
+  });
+}
+
+function modelSnapshot(text: string): ModelResponseSnapshot {
+  return {
+    content: [{ kind: "text", text }],
+    pending: null,
+    stop_reason: null,
+    usage: null,
+    model: null,
+  };
+}
+
+function desktopSnapshot(): DesktopSnapshot {
+  return {
+    session: {
+      summary: {
+        session_id: "session-1",
+        cwd: ".",
+        last_turn: null,
+        item_count: 0,
+      },
+      items: [],
+    },
+    state: "idle",
+    pending_approvals: [],
+    active_assistant_calls: [],
+    delivery: {
+      last_delivered_seq: 0,
+      resync_required: true,
+      dropped_snapshots: 1,
+      buffered_events: 0,
+    },
+  };
+}
+
+function call(id: string): ToolCall {
+  return { tool_use_id: id, name: "grep", input: { pattern: "hello" } };
+}
+
+function result(toolCall: ToolCall): ToolResult {
+  return {
+    tool_use_id: toolCall.tool_use_id,
+    name: toolCall.name,
+    status: "succeeded",
+    content: { text: "ok" },
+  };
+}
+
+function apply(state: RenderState, envelope: ReturnType<typeof event>): RenderState {
+  return reduceEnvelope(state, envelope).state;
+}
+
+describe("RenderState Rust parity", () => {
+  it("replaces snapshots by call identity and requests resync on a sequence gap", () => {
+    const initial = createRenderState();
+    const first = reduceEnvelope(
+      initial,
+      event(1, {
+        kind: "assistant_response_snapshot",
+        turn: 1,
+        step: 0,
+        llm_call_id: "call-1",
+        update_index: 1,
+        snapshot: modelSnapshot("Hello"),
+      }),
+    );
+    expect(first.result).toBe("applied");
+    expect(first.state.assistantDrafts["1:call-1"]?.snapshot.content).toEqual(
+      modelSnapshot("Hello").content,
+    );
+    expect(initial.assistantDrafts).toEqual({});
+
+    const stale = reduceEnvelope(
+      first.state,
+      event(2, {
+        kind: "assistant_response_snapshot",
+        turn: 1,
+        step: 0,
+        llm_call_id: "call-1",
+        update_index: 0,
+        snapshot: modelSnapshot("stale"),
+      }),
+    );
+    expect(stale.result).toBe("ignored");
+    expect(stale.state.assistantDrafts["1:call-1"]?.snapshot.content).toEqual(
+      modelSnapshot("Hello").content,
+    );
+
+    const gap = reduceEnvelope(stale.state, event(4, { kind: "turn_ended", turn: 1 }));
+    expect(gap.result).toBe("resync_required");
+    expect(gap.state.delivery.resyncRequired).toBe(true);
+  });
+
+  it("removes a finalized draft and never reopens the same call", () => {
+    let state = apply(
+      createRenderState(),
+      event(1, {
+        kind: "assistant_response_snapshot",
+        turn: 1,
+        step: 0,
+        llm_call_id: "call-1",
+        update_index: 1,
+        snapshot: modelSnapshot("done"),
+      }),
+    );
+    state = apply(
+      state,
+      event(2, {
+        kind: "assistant_finalized",
+        turn: 1,
+        llm_call_id: "call-1",
+        blocks: [{ kind: "text", text: "done" }],
+      }),
+    );
+    const reopened = reduceEnvelope(
+      state,
+      event(3, {
+        kind: "assistant_response_snapshot",
+        turn: 1,
+        step: 0,
+        llm_call_id: "call-1",
+        update_index: 2,
+        snapshot: modelSnapshot("again"),
+      }),
+    );
+
+    expect(reopened.result).toBe("ignored");
+    expect(reopened.state.assistantDrafts).toEqual({});
+    expect(reopened.state.messages).toHaveLength(1);
+  });
+
+  it("requests resync for an orphan or mismatched ToolResult", () => {
+    const toolCall = call("call-1");
+    const orphan = reduceEnvelope(
+      createRenderState(),
+      event(1, { kind: "tool_result", turn: 1, result: result(toolCall) }),
+    );
+    expect(orphan.result).toBe("resync_required");
+    expect(orphan.state.tools).toEqual({});
+  });
+
+  it("replaces the snapshot baseline and then projects Stopped", () => {
+    let state = apply(
+      createRenderState(),
+      event(1, {
+        kind: "assistant_response_snapshot",
+        turn: 1,
+        step: 0,
+        llm_call_id: "call-1",
+        update_index: 1,
+        snapshot: modelSnapshot("transient"),
+      }),
+    );
+    const baseline = reduceEnvelope(
+      state,
+      response({ kind: "snapshot", snapshot: desktopSnapshot() }),
+    );
+    expect(baseline.state.session).not.toBeNull();
+    expect(baseline.state.assistantDrafts).toEqual({});
+    expect(baseline.state.run).toBe("idle");
+    expect(baseline.state.delivery.lastSeq).toBe(0);
+    expect(baseline.state.delivery.resyncRequired).toBe(false);
+
+    const report = {
+      cancelled_turn: 1,
+      progress_flushed: true,
+      diagnostic_log_flushed: true,
+    };
+    state = apply(baseline.state, event(1, { kind: "stopped", report }));
+    expect(state.stoppedReport).toEqual(report);
+  });
+
+  it("preserves only drafts confirmed active by a snapshot", () => {
+    let state = createRenderState();
+    for (const [seq, callId] of [
+      [1, "call-1"],
+      [2, "call-2"],
+    ] as const) {
+      state = apply(
+        state,
+        event(seq, {
+          kind: "assistant_response_snapshot",
+          turn: 1,
+          step: 0,
+          llm_call_id: callId,
+          update_index: 0,
+          snapshot: modelSnapshot(callId),
+        }),
+      );
+    }
+    const snapshot = desktopSnapshot();
+    snapshot.active_assistant_calls = [{ turn: 1, llm_call_id: "call-1" }];
+    state = reduceEnvelope(state, response({ kind: "snapshot", snapshot })).state;
+
+    expect(state.assistantDrafts["1:call-1"]).toBeDefined();
+    expect(state.assistantDrafts["1:call-2"]).toBeUndefined();
+    expect(state.notices.some((notice) => notice.kind === "resync")).toBe(true);
+  });
+
+  it("requires a snapshot before accepting events from a new epoch", () => {
+    let state = apply(createRenderState(), event(1, { kind: "turn_started", turn: 1 }));
+    const changed = reduceEnvelope(state, event(1, { kind: "turn_started", turn: 2 }, 2));
+    expect(changed.result).toBe("resync_required");
+    expect(changed.state.run).toEqual({ thinking: { turn: 1, step: 0 } });
+    expect(changed.state.delivery.awaitingSnapshot).toBe(true);
+
+    state = reduceEnvelope(
+      changed.state,
+      response({ kind: "snapshot", snapshot: desktopSnapshot() }, 2),
+    ).state;
+    const accepted = reduceEnvelope(state, event(1, { kind: "turn_started", turn: 2 }, 2));
+    expect(accepted.result).toBe("applied");
+    expect(accepted.state.run).toEqual({ thinking: { turn: 2, step: 0 } });
+  });
+
+  it("returns to idle when TurnCompleted has no following StateChanged", () => {
+    let state = apply(
+      createRenderState(),
+      event(1, { kind: "state_changed", state: { thinking: { turn: 1, step: 0 } } }),
+    );
+    state = apply(state, event(2, { kind: "turn_completed", turn: 1 }));
+    expect(state.run).toBe("idle");
+  });
+
+  it("projects tool, approval, result, and failure facts by canonical identity", () => {
+    const toolCall = call("call-1");
+    let state = apply(
+      createRenderState(),
+      event(1, { kind: "tool_call", turn: 1, call: toolCall }),
+    );
+    state = apply(
+      state,
+      event(2, {
+        kind: "approval_requested",
+        request: { id: "approval-1", turn: 1, call: toolCall, working_dir: "." },
+      }),
+    );
+    expect(state.approvals["approval-1"]).toBeDefined();
+    expect(state.run).toEqual({
+      waiting_approval: { turn: 1, request_id: "approval-1" },
+    });
+
+    state = reduceEnvelope(
+      state,
+      response({ kind: "approval_accepted", approval_id: "approval-1" }),
+    ).state;
+    expect(state.approvals).toEqual({});
+    state = apply(
+      state,
+      event(3, { kind: "tool_result", turn: 1, result: result(toolCall) }),
+    );
+    expect(state.tools["call-1"]?.result).not.toBeNull();
+
+    state = apply(
+      state,
+      event(4, {
+        kind: "turn_failed",
+        turn: 1,
+        error: { kind: "tool", message: "tool failed after approval", recoverable: true },
+      }),
+    );
+    expect(state.run).toEqual({
+      failed: {
+        turn: 1,
+        error: { kind: "tool", message: "tool failed after approval", recoverable: true },
+      },
+    });
+    expect(state.notices.some((notice) => notice.errorKind === "tool")).toBe(true);
+  });
+
+  it("preserves command-error recoverability without changing run facts", () => {
+    let state = reduceEnvelope(
+      createRenderState(),
+      response({
+        kind: "rejected",
+        error: { code: "invalid_input", message: "empty" },
+      }),
+    ).state;
+    state = reduceEnvelope(
+      state,
+      response({ kind: "rejected", error: { code: "stopped", message: "stopped" } }),
+    ).state;
+    expect(state.notices).toEqual([
+      { kind: "error", message: "empty", recoverable: true, errorKind: null },
+      { kind: "error", message: "stopped", recoverable: false, errorKind: null },
+    ]);
+    expect(state.run).toBe("starting");
+  });
+});

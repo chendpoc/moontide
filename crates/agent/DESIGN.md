@@ -138,6 +138,10 @@ config.tool_names
 
 ### 4.3 Session 与 events
 
+`agent::SessionQuery` 是面向 CLI/Desktop 的只读 facade，底层调用
+`agent-core::session::SessionQuery`。它只能读取和校验现有 Session Item Log，不取得
+AgentLoop 的 SessionStore ownership，不创建第二 writer，也不改变 Agent resume 路径。
+
 ```text
 create: SessionStore::create(sessions_dir, cwd)
 resume: SessionStore::load(sessions_dir, session_id)
