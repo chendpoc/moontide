@@ -4,7 +4,8 @@
 > **Mode:** Review-batch implementation with architecture alignment gates
 > **Version goal:** D3-PF — protocol-first、同进程 Host 的 Tauri vertical slice
 > **Base snapshot:** `feat/assistant-host/r2` at `2cdf850`
-> **Implementation status:** R1 committed; R2 review passed and commit gate satisfied
+> **Implementation status:** R1/R2 committed; R3 Standards/Spec review passed, user diff review
+> pending
 > **Task tracking:** [`tauri-protocol-boundary-refactor-TASKS.md`](tauri-protocol-boundary-refactor-TASKS.md)
 
 ## 1. Problem Statement
@@ -230,9 +231,15 @@ window close intent → protocol Shutdown → reject new commands
 
 ### D9. Tauri bridge 只有一个业务入口
 
-Web frontend 只向 Tauri 发送完整、已类型化的 protocol command envelope；Tauri 只转发
-envelope 并返回/发布 protocol envelope。`submit_turn`、`cancel_turn`、`approve`、`deny`、
+Web frontend 只向 Tauri 发送已类型化的 `DesktopCommand` intent，不构造 request ID、epoch、
+seq 或 command envelope。Rust protocol client 分配唯一 `request_id`，按自身 handshake state
+注入 epoch，并将完整 command envelope 交给 transport；Tauri bridge 返回完整 response
+envelope，event pump 发布完整 event envelope。`submit_turn`、`cancel_turn`、`approve`、`deny`、
 `fetch_snapshot` 等独立业务 command 不再作为 bridge API。
+
+该澄清于 2026-08-25 经用户确认：D9 中“typed protocol command”指
+`desktop_protocol::DesktopCommand` value，而非 UI 自行构造的 `DesktopMessageEnvelope`。
+因此 D2/D6 的 identity ownership 保持不变，WebView 无法伪造 connection identity。
 
 Tauri capability 只允许该入口、必要的 event subscription 和 window close。WebView 不获得
 通用 event emit、任意 process spawn、filesystem 或 shell 权限。

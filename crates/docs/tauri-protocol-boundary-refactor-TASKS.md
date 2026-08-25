@@ -2,15 +2,16 @@
 
 > **Feature document:** [`tauri-protocol-boundary-refactor.md`](tauri-protocol-boundary-refactor.md)
 > **Version goal:** D3-PF
-> **Status:** R1 committed as `2cdf850`; R2 review passed and commit gate satisfied
+> **Status:** R1 committed as `2cdf850`; R2 committed as `19b36d7`; R3 review passed,
+> user diff review pending
 
 ## Review batches
 
 | Review batch | Feature tasks | Theme | Estimated diff | Status |
 |---|---|---|---:|---|
 | R1 | 01–03 | Protocol v1 evidence and validation rules | ~700 | Committed (`2cdf850`) |
-| R2 | 04–08 | Host-side protocol adapter | ~1,300 | Review passed; commit gate satisfied |
-| R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Pending |
+| R2 | 04–08 | Host-side protocol adapter | ~1,300 | Committed (`19b36d7`) |
+| R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Review passed; user diff review pending |
 | R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Pending |
 | R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | Pending |
 | R6 | 20–24 | Transitional deletion, dependency cleanup and final evidence | ~1,500 | Pending |
@@ -139,6 +140,95 @@
 - **Tidewatch:** Independent Standards/Spec review passed with no open findings after the epoch
   allocation, bounded shutdown, unexpected event-stream closure and response-correlation evidence
   were corrected. Tauri/client/frontend/process framing remain explicit R3/R4 scope.
+- **Commit:** `19b36d7 feat(desktop): add host protocol adapter`.
+
+## Work Packet: D3-PF / R2 (Review Batch R3)
+
+- **Base:** `feat/assistant-host/r2` at `19b36d7`; the existing untracked Tauri tracer and its root
+  Cargo/Cargo.lock changes are adopted only where this batch replaces their direct Host path.
+- **Mode:** Implementation; request-identity ownership confirmed by the user on 2026-08-25.
+- **Goal:** Make the Tauri vertical slice protocol-first through one transport-neutral Rust client
+  and an in-process envelope transport that D4 can replace without changing the shell contract.
+- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Source of truth:** `AGENTS.md`, the feature document, R1 fixtures, the committed R2 Host protocol
+  server, current Tauri tracer source and current Tauri capability files.
+- **Confirmed decisions:** Web sends a typed `DesktopCommand` intent, never an envelope identity;
+  Rust client allocates `request_id`, injects its negotiated epoch and returns the full response
+  envelope. Transport moves complete envelopes over bounded channels and owns no domain decisions.
+- **Confirmed client seam:** an internal cloneable client handle exposes
+  `request(DesktopCommand) -> anyhow::Result<DesktopMessageEnvelope>` plus one event/connection
+  stream. Its actor owns request allocation, pending correlation, handshake epoch and disconnect
+  cleanup. The Tauri bridge has one business command accepting `DesktopCommand` and returning the
+  complete response envelope.
+- **Confirmed lifecycle:** frontend subscribes before requesting Handshake; Handshake establishes
+  the epoch; StartSession establishes the initial snapshot baseline. Unknown responses, identity
+  mismatch or transport close fail all pending requests and close the client connection. Domain
+  rejection remains an `Ok` response envelope.
+- **Open questions:** None. A required v1 shape or ownership change is a stop condition.
+- **Scope:** Tauri pure-Rust client/transport/composition/shell modules and tests; replacement of the
+  five direct handlers/capability entries; minimal plain-JavaScript call-seam rewiring; root/Tauri
+  manifests required to make the already-present shell a buildable workspace member; synchronized
+  feature/task evidence.
+- **Non-goals:** Svelte/TypeScript migration, product RenderState parity, settings behavior changes,
+  `ProcessSupervisor`, process framing, auto-reconnect, CSP/global-Tauri tightening or UI redesign.
+- **Agent Task:** Complete TASK-09 through TASK-13, run focused Tauri/Desktop and workspace gates,
+  and produce Implementation Evidence.
+- **Reviewer:** Tidewatch in an independent context after implementation evidence is ready.
+- **User Parallel Task:** Trace `DesktopCommand intent → client request ID/epoch → transport
+  envelope → Host response/event → bridge` and verify that no frontend/Tauri shell path owns
+  `DesktopHostHandle`, `AgentConfig` or Session facts.
+- **Shared Acceptance:** one business bridge entry; unique correlated responses; event identity
+  preserved; disconnect fails pending work; Tauri shell has no direct Host handle/config/session
+  imports; graceful close attempts protocol Shutdown; `cargo test -p moontide-desktop` and
+  `just check` pass.
+- **Decision changes:** D9 is clarified: “typed command” means the protocol `DesktopCommand` value,
+  not a client-constructed envelope. This resolves the earlier conflict with D2/D6 ownership.
+- **Next smallest experiment:** drive two concurrent fake-transport requests and return responses in
+  reverse order to prove pending correlation without exposing envelope identity to the caller.
+- **Stop conditions:** v1 JSON/version change, frontend-owned request/epoch identity, new public
+  shared client crate, Host handle in shell state, D4 process lifecycle, settings redesign or an
+  unsafe overlap with unrelated dirty work.
+
+### R3 Implementation Evidence
+
+- **Changed files:** the existing Tauri tracer is adopted as a workspace member and split into
+  protocol client, in-process transport, bootstrap and shell modules; the direct Host handlers are
+  replaced by one `desktop_request` bridge; capability, frontend call seam, Desktop design docs,
+  root manifests and this task-control document are synchronized.
+- **Diff size:** the current Tauri shell contains 2,093 non-generated lines, including the
+  pre-existing tracer that Git cannot separate from R3 because the directory was untracked.
+  Locally generated Tauri schemas are excluded from version control. Tracked non-lock changes are
+  limited to the ignore/workspace manifests plus synchronized design/evidence docs; `Cargo.lock`
+  contains the mechanical Tauri dependency graph.
+- **Focused validation:** `cargo test -p moontide-desktop` passed 12 tests and
+  `cargo clippy -p moontide-desktop --all-targets -- -D warnings` passed. `node --check` passed for
+  the transitional plain-JavaScript frontend.
+- **Workspace validation:** `just check` passed: format, workspace/all-target clippy and 331 tests.
+  Loopback permission was provided for wiremock-based provider tests.
+- **Client result:** the Rust client alone allocates monotonic request IDs, injects the negotiated
+  epoch, correlates reversed concurrent responses, validates response/event identity and fails all
+  pending work on unknown responses or transport closure. Its pending map has an executable
+  64-request bound. Domain `Rejected` responses remain correlated successful envelopes.
+- **Transport result:** one bounded in-process envelope pump connects the client to the committed
+  R2 server without domain decisions. It admits one server request at a time so the bounded channel
+  remains authoritative and command order cannot race Shutdown. Its real-server test covers
+  handshake, new Session snapshot, delayed Submit, Cancel, Shutdown, ordered `Stopped` delivery and
+  graceful channel close.
+- **Shell result:** Tauri stores only the client and close state; the frontend invokes only
+  `desktop_request`; capabilities allow the single business bridge plus the listen/unlisten and
+  close lifecycle primitives. Static checks find no `DesktopHostHandle`, `DesktopHost` or
+  `SessionSelection` in the shell modules, and `AgentConfig` appears only in bootstrap/tests.
+- **Close result:** window close is intercepted once, awaits protocol Shutdown for at most three
+  seconds, treats only `ShutdownCompleted` as clean and emits bounded degraded evidence before
+  destroying the window on timeout, rejection or transport failure.
+- **Known risk:** the window lifecycle has deterministic unit coverage but no manual WebView smoke
+  evidence in this batch. The third-party `block 0.1.6` future-incompatibility warning remains an
+  upstream dependency warning, not a failed gate.
+- **Deferred by scope:** TypeScript fixture conformance, product RenderState/resync behavior and a
+  real WebView smoke are R4; Svelte, CSP, global-Tauri removal and DOM-safety cleanup are R5.
+- **Tidewatch:** independent Standards/Spec review passed with no remaining findings after the
+  initial unbounded in-flight/order finding was corrected using a 64-request client pending limit,
+  single-flight in-process server admission and executable bound coverage.
 
 ## Task details
 
@@ -229,7 +319,7 @@
 - **Scope:** Tauri crate pure Rust client module and tests.
 - **Estimated diff:** ~400 lines.
 - **Completion:** Fake-transport client tests pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-10: Add in-process transport
 
@@ -239,7 +329,7 @@
 - **Scope:** Composition/transport modules and end-to-end tests.
 - **Estimated diff:** ~350 lines.
 - **Completion:** Boot, command, event and shutdown flow passes end to end.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-11: Separate application composition
 
@@ -249,7 +339,7 @@
 - **Scope:** Tauri binary composition and bootstrap modules.
 - **Estimated diff:** ~250 lines.
 - **Completion:** Shell modules no longer construct AgentConfig or store Host handles.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-12: Replace direct Tauri commands
 
@@ -259,7 +349,7 @@
 - **Scope:** Tauri bridge, permissions and frontend call seam.
 - **Estimated diff:** ~350 lines.
 - **Completion:** Static search and bridge tests show no direct Host command path.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-13: Add graceful window close
 
@@ -269,7 +359,7 @@
 - **Scope:** Tauri window lifecycle and tests/checklist.
 - **Estimated diff:** ~200 lines.
 - **Completion:** Close-path test/smoke evidence is recorded.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed.
 
 ### TASK-14: Add Svelte and TypeScript baseline
 
