@@ -32,6 +32,33 @@ function snapshot(lastSeq = 0): DesktopSnapshot {
   };
 }
 
+function completedSnapshot(lastSeq: number, text: string): DesktopSnapshot {
+  return {
+    ...snapshot(lastSeq),
+    session: {
+      summary: {
+        session_id: "session-1",
+        cwd: ".",
+        last_turn: 0,
+        item_count: 1,
+      },
+      items: [
+        {
+          kind: "user_message",
+          base: {
+            id: "item-1",
+            seq: 0,
+            session_id: "session-1",
+            turn: 0,
+            at: "2026-08-25T00:00:00Z",
+          },
+          text,
+        },
+      ],
+    },
+  };
+}
+
 function response(payload: DesktopResponse, epoch = 1): unknown {
   return {
     protocol_version: 1,
@@ -142,6 +169,7 @@ describe("DesktopController delivery orchestration", () => {
   it("buffers the triggering and subsequent events while a gap snapshot is pending", async () => {
     const bridge = new FakeBridge();
     const pendingSnapshot = deferred<unknown>();
+    let snapshotRequests = 0;
     bridge.requestHandler = async (command) => {
       if (command.kind === "handshake") {
         return response({ kind: "handshake_accepted", protocol_version: 1 });
@@ -150,7 +178,10 @@ describe("DesktopController delivery orchestration", () => {
         return response({ kind: "session_ready", snapshot: snapshot() });
       }
       if (command.kind === "snapshot") {
-        return pendingSnapshot.promise;
+        snapshotRequests += 1;
+        return snapshotRequests === 1
+          ? pendingSnapshot.promise
+          : response({ kind: "snapshot", snapshot: snapshot(4) });
       }
       throw new Error(`unexpected command ${command.kind}`);
     };
@@ -166,7 +197,7 @@ describe("DesktopController delivery orchestration", () => {
     expect(controller.state.connection).toEqual({ kind: "ready" });
     expect(controller.state.render.delivery.lastSeq).toBe(4);
     expect(controller.state.render.run).toBe("idle");
-    expect(bridge.commands.filter((command) => command.kind === "snapshot")).toHaveLength(1);
+    expect(bridge.commands.filter((command) => command.kind === "snapshot")).toHaveLength(2);
   });
 
   it("establishes a new-epoch baseline before replaying its triggering event", async () => {
@@ -254,6 +285,114 @@ describe("DesktopController delivery orchestration", () => {
 
     expect(controller.state.connection).toEqual({ kind: "ready" });
     expect(controller.state.render.delivery.lastSeq).toBe(1);
+    expect(bridge.commands.filter((command) => command.kind === "snapshot")).toHaveLength(1);
+  });
+
+  it("refreshes the authoritative Session Item Log at turn completion and replays buffered events", async () => {
+    const bridge = new FakeBridge();
+    const pendingSnapshot = deferred<unknown>();
+    bridge.requestHandler = async (command) => {
+      if (command.kind === "handshake") {
+        return response({ kind: "handshake_accepted", protocol_version: 1 });
+      }
+      if (command.kind === "start_session") {
+        return response({ kind: "session_ready", snapshot: snapshot() });
+      }
+      if (command.kind === "submit_turn") {
+        return response({ kind: "turn_accepted", turn: 0 });
+      }
+      if (command.kind === "snapshot") {
+        return pendingSnapshot.promise;
+      }
+      throw new Error(`unexpected command ${command.kind}`);
+    };
+    const controller = new DesktopController(bridge);
+    await controller.start();
+
+    await controller.send({ kind: "submit_turn", text: "hello" });
+    bridge.emitEnvelope(event(1, { kind: "turn_completed", turn: 0 }));
+    bridge.emitEnvelope(event(2, { kind: "state_changed", state: "idle" }));
+    pendingSnapshot.resolve(
+      response({ kind: "snapshot", snapshot: completedSnapshot(2, "hello") }),
+    );
+    await controller.whenSettled();
+
+    expect(controller.state.connection).toEqual({ kind: "ready" });
+    expect(controller.state.render.messages).toEqual([
+      { kind: "user", turn: 0, text: "hello" },
+    ]);
+    expect(controller.state.render.delivery.lastSeq).toBe(2);
+    expect(bridge.commands.filter((command) => command.kind === "snapshot")).toHaveLength(1);
+  });
+
+  it("takes a follow-up terminal snapshot when completion races an existing resync", async () => {
+    const bridge = new FakeBridge();
+    const firstSnapshot = deferred<unknown>();
+    let snapshotRequests = 0;
+    bridge.requestHandler = async (command) => {
+      if (command.kind === "handshake") {
+        return response({ kind: "handshake_accepted", protocol_version: 1 });
+      }
+      if (command.kind === "start_session") {
+        return response({ kind: "session_ready", snapshot: snapshot() });
+      }
+      if (command.kind === "snapshot") {
+        snapshotRequests += 1;
+        if (snapshotRequests === 1) {
+          return firstSnapshot.promise;
+        }
+        return response({
+          kind: "snapshot",
+          snapshot: completedSnapshot(3, "raced message"),
+        });
+      }
+      throw new Error(`unexpected command ${command.kind}`);
+    };
+    const controller = new DesktopController(bridge);
+    await controller.start();
+
+    bridge.emitEnvelope(event(2, { kind: "turn_started", turn: 0 }));
+    bridge.emitEnvelope(event(3, { kind: "turn_completed", turn: 0 }));
+    firstSnapshot.resolve(response({ kind: "snapshot", snapshot: snapshot(2) }));
+    await controller.whenSettled();
+
+    expect(controller.state.connection).toEqual({ kind: "ready" });
+    expect(controller.state.render.messages).toEqual([
+      { kind: "user", turn: 0, text: "raced message" },
+    ]);
+    expect(snapshotRequests).toBe(2);
+  });
+
+  it("disconnects when the terminal authoritative snapshot cannot be loaded", async () => {
+    const bridge = new FakeBridge();
+    bridge.requestHandler = async (command) => {
+      if (command.kind === "handshake") {
+        return response({ kind: "handshake_accepted", protocol_version: 1 });
+      }
+      if (command.kind === "start_session") {
+        return response({ kind: "session_ready", snapshot: snapshot() });
+      }
+      if (command.kind === "snapshot") {
+        throw new Error("session unavailable");
+      }
+      throw new Error(`unexpected command ${command.kind}`);
+    };
+    const controller = new DesktopController(bridge);
+    await controller.start();
+
+    bridge.emitEnvelope(
+      event(1, {
+        kind: "turn_failed",
+        turn: 0,
+        error: { kind: "provider", message: "provider failed", recoverable: true },
+      }),
+    );
+    await controller.whenSettled();
+
+    expect(controller.state.connection).toEqual({
+      kind: "disconnected",
+      message: "Desktop terminal refresh failed: session unavailable",
+    });
     expect(bridge.commands.filter((command) => command.kind === "snapshot")).toHaveLength(1);
   });
 

@@ -3,7 +3,8 @@
 > **Feature document:** [`tauri-protocol-boundary-refactor.md`](tauri-protocol-boundary-refactor.md)
 > **Version goal:** D3-PF
 > **Status:** R1 committed as `2cdf850`; R2 committed as `19b36d7`; R3 committed as `9a8320e`;
-> R4 implementation verified; independent review passed; commit authorized
+> R4 committed as `500c183`; R5 implementation and independent review passed; user diff review
+> pending
 
 ## Review batches
 
@@ -12,8 +13,8 @@
 | R1 | 01–03 | Protocol v1 evidence and validation rules | ~700 | Committed (`2cdf850`) |
 | R2 | 04–08 | Host-side protocol adapter | ~1,300 | Committed (`19b36d7`) |
 | R3 | 09–13 | Protocol client, in-process transport and Tauri bridge | ~1,600 | Committed (`9a8320e`) |
-| R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Review passed; commit authorized |
-| R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | Pending |
+| R4 | 14–17 | TypeScript contract, RenderState and resync orchestration | ~1,800 | Committed (`500c183`) |
+| R5 | 18–19 | Minimal Svelte UI and security baseline | ~1,400 | User review pending |
 | R6 | 20–24 | Transitional deletion, dependency cleanup and final evidence | ~1,500 | Pending |
 
 ## Work Packet: D3-PF / R0 (Review Batch R1)
@@ -317,6 +318,105 @@
   protocol/fold/controller modules, and accurate implementation evidence. Real WebView integration
   remains intentionally deferred to R5.
 
+## Work Packet: D3-PF / R5 (Review Batch R5)
+
+- **Base:** `feat/assistant-host/r2` at `500c183`; worktree clean at batch start.
+- **Mode:** Implementation; the protocol v1 graph and Rust public contracts remain unchanged.
+- **Goal:** Replace the transitional plain-JavaScript product projection with a minimal Svelte UI
+  that renders only the R4 TypeScript `RenderState`, sends intent only through
+  `DesktopController`, and runs under a minimized Tauri capability/CSP configuration.
+- **Current hypothesis:** a small root component plus pure presentation helpers is sufficient to
+  preserve the existing conversation, composer, streaming assistant, tool/approval, notice,
+  cancel and connection-state behavior. The bundled `@tauri-apps/api` imports can replace
+  `window.__TAURI__`, allowing `withGlobalTauri` to be disabled without adding another bridge.
+- **Source of truth:** TASK-18/19 in `tauri-protocol-boundary-refactor.md`; R4
+  `protocol.ts`/`renderState.ts`/`controller.ts`; the transitional `index.html`/`main.js` visible
+  behavior; Tauri v2 config/capability schemas; current shell static guards and tests.
+- **Confirmed decisions:** Web frontend owns render state, input draft, UI preferences and
+  connection state; Tauri Rust owns the single `desktop_request` capability, event delivery and
+  window close lifecycle. Components consume state and emit typed intent; they do not parse
+  envelopes, request snapshots, own boot/resync, or call multiple business commands directly.
+  Protocol-derived text is rendered as escaped text; dynamic `innerHTML`/`{@html}` is forbidden.
+- **Open questions:** None at the architecture level. Implementation evidence confirmed the
+  minimal bundled IPC CSP and the tracked empty build-output marker required by clean Cargo checks.
+- **Evidence:** R4 supplies strict fixture parsing, nine-case projection parity and bounded
+  listener-first orchestration. Live R5 discovery confirms the remaining product entry still uses
+  `window.__TAURI__`, duplicate local projection and one dynamic `innerHTML`; Tauri config still
+  has `withGlobalTauri: true`, `csp: null` and an unused JavaScript window-close permission.
+- **Scope:** `crates/moontide-desktop/frontend/**`, the root ignore exception needed to retain an
+  empty build-output marker, Tauri frontend build configuration, `capabilities/default.json`,
+  shell security/static tests and R5 status/evidence in these two architecture documents.
+- **Non-goals:** visual redesign, Session Rail/settings/Inspector, provider/bootstrap changes,
+  process transport, protocol v1 changes, and R6 deletion of Rust UI/RenderState or duplicate
+  public protocol types.
+- **Agent Task:** complete TASK-18/19; add component/presentation and bridge evidence; wire Vite
+  into Tauri dev/build; enforce CSP/global/capability/no-dynamic-HTML guards; run frontend, focused
+  Tauri, workspace and real-WebView smoke where the local environment permits.
+- **Reviewer:** Tidewatch in an independent context after Implementation Evidence is complete.
+- **User Parallel Task:** Trace one user action (`Submit`, `Cancel` or approval) from the Svelte
+  handler through `DesktopController.send` to `desktop_request`, and verify that no component owns
+  request IDs, epochs, sequence numbers or snapshot recovery. Do not modify the scoped files while
+  R5 is active.
+- **Shared Acceptance:** the product entry is Svelte; visible state is derived from TypeScript
+  `RenderState`; all user commands flow through one controller and one bridge; streaming, tools,
+  approvals, errors, cancel, resync/disconnect and close have automated or reproducible smoke
+  evidence; frontend check/test/build, focused Tauri tests and `just check` pass; CSP is non-empty,
+  global Tauri is off, capabilities are minimal and no dynamic HTML rendering remains.
+- **Decision changes:** L1 build-path evidence required a tracked `dist/.gitkeep` plus a scoped
+  prebuild cleaner because `tauri::generate_context!` rejects a missing `frontendDist` before the
+  Tauri CLI can run `beforeBuildCommand`. The existing PNG replaced the non-bundleable SVG icon.
+  Independent review also exposed that terminal events did not refresh conversation history;
+  `DesktopController` now buffers `TurnCompleted`/`TurnFailed`, loads the authoritative Session
+  snapshot, and then replays later events. These changes do not affect protocol v1, component
+  ownership or R6 scope.
+- **Next smallest experiment:** Tidewatch inspects the complete R5 diff and reruns the frontend,
+  Tauri security and build-path gates before user diff review.
+- **Stop conditions:** any required protocol shape/version change; UI ownership of runtime facts;
+  a second Tauri business command; need for settings/Session picker/provider behavior; CSP or build
+  changes that cannot preserve clean Cargo checks; or unrelated concurrent modifications in scope.
+
+### R5 Implementation Evidence
+
+- **Changed files:** Svelte product entry/component and presentation helpers; injected
+  `DesktopControllerPort`; module-based Tauri bridge; DOM/intent/bridge tests; Vite/Tauri build
+  handoff and tracked empty output marker; CSP/capability/static guards; deletion of the duplicate
+  plain-JavaScript projection and temporary toolchain probe; synchronized architecture status.
+- **Diff size:** 1,623 reviewable product/config/test line changes before these final evidence edits
+  (1,275 additions, 348 deletions), plus 823 mechanical lockfile lines. The lock now records 163
+  non-root package entries. TASK-18/19 remain one UI/security ownership switch despite the total
+  diff being slightly above the ~2,000-line soft budget when the lockfile is counted.
+- **Frontend validation:** clean `npm ci` installed 139 packages from the lock; `npm run check`
+  passed with zero errors/warnings; `npm test` passed 34 tests in six files; `npm run build` produced
+  a 134.86 kB JavaScript and 2.52 kB CSS production bundle.
+- **UI result:** the Svelte component reads only `DesktopViewState`, renders conversation/history,
+  assistant drafts, live tools, approvals, notices, delivery/connection evidence and composer
+  modes, and sends typed submit/cancel/approve/deny intents only through `DesktopController.send`.
+  Thinking remains hidden from the conversation. DOM evidence proves protocol text is escaped.
+  A real controller/component composition test proves a submitted user message enters the visible
+  conversation only after a terminal authoritative snapshot; controller tests cover buffered event
+  ordering and terminal-snapshot failure without making the component own Session facts.
+- **Security result:** `window.__TAURI__`, dynamic `innerHTML`/`{@html}`, direct business invokes and
+  the JavaScript close permission are absent. The frontend imports `invoke`/`listen` from the
+  official Tauri API; capability scope contains only event listen/unlisten and `desktop_request`;
+  `withGlobalTauri` is false and production CSP is non-empty and local/IPC-scoped.
+- **Build-path result:** with generated bundle assets moved aside and only tracked `.gitkeep`
+  present, `cargo check -p moontide-desktop` passed. The prebuild cleaner preserves the marker while
+  deleting stale generated assets before each Vite build. A normal debug `.app` bundle completed
+  after switching the committed icon from unsupported SVG to the existing PNG.
+- **Runtime smoke:** the bundled macOS app launched with a non-secret placeholder key and no model
+  request; the WebView reached Idle/Connected, created a new Session, rendered the Svelte UI,
+  enabled Send after a local draft, and exited cleanly through the native close button. Streaming,
+  cancel, approval and resync are covered by DOM/controller/transport automation rather than a
+  live provider smoke, which would require external credentials and network side effects.
+- **Rust regression validation:** `cargo test -p moontide-desktop` passed all 12 tests; `just check`
+  passed format, workspace/all-target clippy and all 331 Rust tests.
+- **Residual warning:** Tauri warns that the existing bundle identifier `dev.moontide.app` ends in
+  `.app`. Changing installed-app identity is outside this batch and remains an explicit later
+  product decision; it did not block the debug bundle or runtime smoke.
+- **Tidewatch:** first review found one P1 conversation-history gap. After the controller-owned
+  terminal snapshot refresh, compositional regression coverage and competing-resync race guard
+  were added, the final independent Standards/Spec re-review passed with no findings.
+
 ## Task details
 
 ### TASK-01: Establish task control
@@ -494,7 +594,7 @@
 - **Scope:** Svelte components and UI integration tests/smoke checklist.
 - **Estimated diff:** ~900 lines.
 - **Completion:** Minimal Desktop smoke scenarios work through the envelope bridge.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed; user review pending.
 
 ### TASK-19: Apply the security baseline
 
@@ -503,7 +603,7 @@
 - **Scope:** Tauri config/capabilities and frontend rendering.
 - **Estimated diff:** ~300 lines.
 - **Completion:** Security static checks and Desktop smoke pass.
-- **Status:** Pending.
+- **Status:** Complete; Tidewatch passed; user review pending.
 
 ### TASK-20: Remove duplicate public protocol graph
 

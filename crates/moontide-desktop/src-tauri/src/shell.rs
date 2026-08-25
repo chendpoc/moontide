@@ -143,17 +143,53 @@ mod tests {
     use super::*;
     use crate::transport::transport_pair;
 
-    // 场景：Tauri permission 与 frontend source 完成单一 bridge 入口迁移。
-    // 预期：只允许 desktop_request，旧五个 direct Host invoke name 均不存在。
-    // 不变量：Web intent 无法绕过 protocol client 直接调用 Host operation。
+    // 场景：Svelte 产品入口、Tauri permission 和安全配置完成 R5 收敛。
+    // 预期：只允许 receive-only events 与 desktop_request，禁用 global API/CSP 空值和动态 HTML。
+    // 不变量：Web intent 无法绕过 protocol client，也无法取得 process/filesystem/shell authority。
     #[test]
-    fn source_and_capability_expose_only_the_protocol_request_bridge() {
+    fn frontend_and_capability_enforce_the_security_baseline() {
         let permission = include_str!("../permissions/allow-desktop-request.toml");
         let capability = include_str!("../capabilities/default.json");
-        let frontend = include_str!("../../frontend/main.js");
+        let config = include_str!("../tauri.conf.json");
+        let bridge = include_str!("../../frontend/src/tauriBridge.ts");
+        let app = include_str!("../../frontend/src/App.svelte");
+        let frontend = [
+            include_str!("../../frontend/index.html"),
+            include_str!("../../frontend/src/main.ts"),
+            app,
+            bridge,
+        ]
+        .join("\n");
+
         assert!(permission.contains("desktop_request"));
         assert!(!capability.contains("core:default"));
         assert!(!capability.contains("allow-emit"));
+        assert!(!capability.contains("core:window"));
+        assert!(capability.contains("core:event:allow-listen"));
+        assert!(capability.contains("core:event:allow-unlisten"));
+        for forbidden_capability in ["shell:", "fs:", "process:"] {
+            assert!(!capability.contains(forbidden_capability));
+        }
+        assert!(config.contains("\"withGlobalTauri\": false"));
+        assert!(!config.contains("\"csp\": null"));
+        assert!(config.contains("\"capabilities\": [\"default\"]"));
+        assert!(config.contains("\"frontendDist\": \"../frontend/dist\""));
+        assert!(config.contains("\"icon\": [\"icons/icon.png\"]"));
+        assert!(bridge.contains("@tauri-apps/api/core"));
+        assert!(bridge.contains("@tauri-apps/api/event"));
+        assert!(bridge.contains("desktop_request"));
+        assert_eq!(bridge.matches("invoke<unknown>").count(), 1);
+        for forbidden_component_owner in [
+            "@tauri-apps",
+            "DesktopMessageEnvelope",
+            "parseDesktopMessageEnvelope",
+            "reduceEnvelope",
+        ] {
+            assert!(!app.contains(forbidden_component_owner));
+        }
+        for unsafe_frontend_pattern in ["window.__TAURI__", "innerHTML", "{@html"] {
+            assert!(!frontend.contains(unsafe_frontend_pattern));
+        }
         for legacy_handler in [
             "fetch_snapshot",
             "submit_turn",
