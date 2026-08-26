@@ -1,6 +1,6 @@
 //! Versioned, framework-independent wire contract for MoonTide Desktop.
 //!
-//! This crate deliberately contains no Agent, Tauri, Tokio, or frontend types.
+//! This module deliberately contains no Agent, Tauri, Tokio, or frontend types.
 //! Runtime adapters convert their owned values to these DTOs at the process
 //! boundary.
 

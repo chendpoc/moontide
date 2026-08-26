@@ -5,6 +5,7 @@ mod command;
 mod event;
 mod host;
 mod host_protocol;
+pub mod protocol;
 mod state;
 
 pub use command::DesktopCommandError;

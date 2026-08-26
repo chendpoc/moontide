@@ -33,7 +33,7 @@ DesktopHostActor（目标：agent-host process） ───► DesktopEventStrea
 Host crate 不依赖 Tauri 或前端框架。Tauri shell 只负责 window、command bridge、event
 subscription 和 protocol client；Host contract 可以被 CLI、headless test 或未来 Desktop
 adapter 使用。由于 Tauri WebView 是非 Rust consumer，D3 前必须冻结独立的
-`desktop-protocol` wire DTO，并提供 TypeScript 类型/fixture conformance；不能继续把
+`desktop::protocol` wire DTO，并提供 TypeScript 类型/fixture conformance；不能继续把
 in-process canonical Rust value types 当成最终前端 contract。Agent runtime ownership
 类型始终不进入协议 API。
 
@@ -44,6 +44,7 @@ crates/desktop/src/
   lib.rs       # public exports
   host.rs      # DesktopHost、配置与启动 lifecycle
   host/        # HostActor、handle command、ProgressSink、tests
+  protocol/         # wire DTO module (`desktop::protocol`)
   host_protocol.rs  # independent wire envelope server boundary
   host_protocol/    # private canonical-to-wire adapter、validation、routing、tests
   command.rs   # commands and typed errors
@@ -62,7 +63,7 @@ OS-specific window、close 和 packaging 接缝留到 D3/D6，并复用 `agent::
 ### 3.0 Protocol extraction boundary
 
 当前 `DesktopHostHandle`、`DesktopEventStream` 和带 oneshot reply 的内部 command 是
-D1 in-process host contract，不等于最终 wire API。独立 `desktop-protocol` crate 冻结以下
+D1 in-process host contract，不等于最终 wire API。`desktop::protocol` 模块冻结以下
 跨边界语义：
 
 - `DesktopCommand`、`DesktopResponse`、`DesktopProtocolEvent`、`DesktopSnapshot` 的顶层职责；
@@ -70,13 +71,12 @@ D1 in-process host contract，不等于最终 wire API。独立 `desktop-protoco
 - `DesktopMessageEnvelope` 的版本、request correlation、connection epoch 和 event order；
 - Snapshot resync 不 replay 旧事件。
 
-`desktop-protocol` 不复用 `agent-core` canonical value payload；所有 v1 DTO 都是独立、
+`desktop::protocol` 不复用 `agent-core` canonical value payload；所有 v1 DTO 都是独立、
 可 serde 的 wire value。`DesktopEvent` 和带 oneshot 的 `HostCommand` 仍是 D1 内部实现
-类型。R2 的 active path 必须在 Host boundary 直接接收和发出 independent envelope，不能
-要求 Tauri 或 TypeScript consumer 经过 `desktop::protocol` 的平行 graph。
+类型。R2 的 active path 必须在 Host boundary 直接接收和发出 independent envelope。
 
-R6 已删除 `DesktopEventStream::recv_protocol` 与 `desktop::protocol` 平行 graph。唯一转换
-发生在私有 `host_protocol::adapter`，其输出直接是 `desktop-protocol` DTO。
+R6 已删除 `DesktopEventStream::recv_protocol` 与平行 in-process protocol graph。唯一转换
+发生在私有 `host_protocol::adapter`，其输出直接是 `desktop::protocol` DTO。
 
 ### 3.1 Host protocol server（R2）
 
@@ -405,3 +405,53 @@ any ──Shutdown──────────────────► Stop
 - approval 唯一 decision、完整 ToolCall event 和 cancellation；
 - Host create/resume、shutdown、flush 和单 active Turn；
 - provider/tool/cancellation 终态由后续真实 provider smoke 补齐。
+
+## 10. Protocol 模块（`desktop::protocol`）
+
+Wire DTO 位于 `desktop::protocol` 模块（原独立 `desktop-protocol` crate，已合并）。
+该模块只拥有 wire shape 和版本常量；不读取 Session Item Log，不创建 Agent，不决定
+permission，也不管理连接。
+
+```text
+agent / agent-host canonical values
+        │ host_protocol::adapter
+        ▼
+desktop::protocol DTO
+        │ JSON frame
+        ▼
+Tauri Rust shell / Web frontend
+```
+
+### Envelope
+
+`DesktopMessageEnvelope` 包含四类跨边界 identity：
+
+- `protocol_version`：顶层协议版本；
+- `request_id`：command 与 response 的匹配键；
+- `connection_epoch`：连接生成；
+- `seq`：当前 epoch 内的 event 顺序。
+
+没有 `request_id` 的 event 不能被前端当成 response；没有 `seq` 的 command/response
+不能参与 event gap 判断。
+
+v1 consumer 必须在进入 domain command 或 `RenderState` 之前按 payload kind 校验 identity：
+
+| Payload | `request_id` | `connection_epoch` | `seq` |
+|---|---|---|---|
+| Handshake command | 必须存在且非空 | 必须为空 | 必须为空 |
+| 其他 command | 必须存在且非空 | 必须存在 | 必须为空 |
+| Response | 必须存在且非空，并回显 command identity | handshake accepted 后必须存在 | 必须为空 |
+| Event | 必须为空 | 必须存在 | 必须存在且在当前 epoch 内严格递增 |
+
+`request_id` 只匹配一次 terminal response。Session Item 的 `seq` 是持久化事实顺序，
+不参与 delivery gap 判断。
+
+### DTO 边界与失败语义
+
+`SessionSnapshotDto`、`ModelResponseSnapshotDto`、`ToolCallDto`、`ToolResultDto` 和
+`ApprovalRequestDto` 是独立 DTO，不通过类型依赖共享 agent-core canonical 类型。
+`MAX_FRAME_LENGTH` 为 16 MiB。协议 DTO 不携带 API key、Host handle、Tokio channel 或
+task handle。
+
+JSON fixtures 位于 `crates/desktop/tests/protocol/fixtures/`；验收命令为
+`cargo test -p desktop`。

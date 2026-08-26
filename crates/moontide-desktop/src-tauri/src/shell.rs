@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use desktop_protocol as wire;
+use desktop::protocol as wire;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State, WindowEvent};
 use tokio::time::timeout;

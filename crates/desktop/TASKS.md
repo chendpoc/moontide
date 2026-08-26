@@ -18,9 +18,11 @@
 | D4 | `agent-host` process、framed transport、disconnect/resync | ☐ | process lifecycle + reconnect acceptance |
 | D5 | Session picker、resume、settings/key injection | ☐ | query/recovery/settings tests |
 | D6 | provider smoke、cross-platform build/package | ☐ | macOS/Windows/Linux system WebView build matrix and smoke report |
+| R0 | v0.1 UI Scope 定稿（[`UI-V0.1-SCOPE.md`](UI-V0.1-SCOPE.md)） | ☐ | Session Rail / Inspector / Settings 方案确认 |
+| R-simplify | wire 合并 + Panel Host + v0.1.0 Workbench | ☐ | 见 [`../docs/desktop-stack-simplification-refactor.md`](../docs/desktop-stack-simplification-refactor.md) |
 
 > **D3-PF result（2026-08-25）：** Tauri + Svelte/TypeScript vertical slice 已经过冻结的
-> `desktop-protocol` v1；TypeScript 拥有唯一 product RenderState。平行 Rust protocol graph、
+> `desktop::protocol` v1；TypeScript 拥有唯一 product RenderState。平行 Rust protocol graph、
 > Rust RenderState、Iced shell 与依赖已删除。D4 仅负责独立 `agent-host` process transport。
 
 ## D1 细项

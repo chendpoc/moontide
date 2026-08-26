@@ -97,7 +97,7 @@ TypeScript types/fixtures conformance；不能继续把 in-process canonical Rus
 | `agent-core` | TurnEvent、Session Item Log、AgentLoop 事实语义 | Desktop event、Tauri、IPC |
 | `agent` | Agent 装配、Progress、Agent Event Log、provider/tool preset | UI lifecycle、window、protocol transport |
 | `agent-host` | Agent、SessionStore、ApprovalBroker、runtime lifecycle | RenderState、WebView widget |
-| `desktop-protocol` | command/event/snapshot/error DTO 与版本 | Agent 执行、Session IO、UI layout |
+| `desktop::protocol` | command/event/snapshot/error DTO 与版本 | Agent 执行、Session IO、UI layout |
 | `desktop` Host | Host actor、EventBuffer、protocol server adapter、Agent runtime ownership | window、Web RenderState |
 | Tauri shell | window、bridge、protocol client、连接状态 | Agent、SessionStore、approval truth、Web RenderState |
 | Web frontend | RenderState、组件、用户输入 draft、UI 偏好 | Agent、SessionStore、approval truth、Tauri Rust state |
@@ -106,14 +106,13 @@ TypeScript types/fixtures conformance；不能继续把 in-process canonical Rus
 当前 D3-PF 与 D4 目标的依赖方向：
 
 ```text
-moontide-desktop ──────► desktop + desktop-protocol + Tauri
-desktop ───────────────► agent + agent-core + desktop-protocol
-agent-host (D4) ───────► desktop + desktop-protocol
+moontide-desktop ──────► desktop + Tauri
+desktop ───────────────► agent + agent-core（含 `desktop::protocol` wire 模块）
+agent-host (D4) ───────► desktop
 agent ─────────────────► agent-core + agent-tools
-desktop-protocol ──────► serde / protocol dependencies only
 ```
 
-`desktop-protocol` 不依赖 Tauri、前端框架、`agent` 或 `agent-core`，避免 wire contract
+`desktop::protocol` 模块不 import Tauri、前端框架、`agent` 或 `agent-core`，避免 wire contract
 被实现层反向污染。当前 bounded in-process transport 是 D3-PF 产品路径和测试接缝；Tauri
 前端消费独立 wire DTO。D4 将该 transport 替换为 framed child-process IO。
 
@@ -285,7 +284,7 @@ daemon 后置到出现后台运行、多客户端、UI 崩溃后重连或多 Ses
 | 阶段 | 内容 | 进程边界 |
 |---|---|---|
 | D1 完成 | Host actor、EventBuffer、Snapshot、Approval | UI/Host 同进程 |
-| D2 完成 | 冻结可被 WebView 消费的 `desktop-protocol` wire DTO、TS types/fixtures、identity/resync 语义 | 同进程；前端经 Tauri bridge |
+| D2 完成 | 冻结可被 WebView 消费的 `desktop::protocol` wire DTO、TS types/fixtures、identity/resync 语义 | 同进程；前端经 Tauri bridge |
 | D3-PF 当前 | Tauri single-window shell + Svelte/TypeScript RenderState + protocol client + bounded in-process transport | WebView、Tauri Rust shell 与 Host 同进程，协议边界真实生效 |
 | D4 | `agent-host` library + binary，Desktop 通过 framed stdio/pipe 连接 | UI 与 Agent Host 两进程 |
 | D5 后置 | standalone runtime daemon、重连、多客户端、多 Session | daemon 独立生命周期 |

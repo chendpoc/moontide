@@ -37,7 +37,7 @@ frontend typed DesktopCommand intent
 ```
 
 The frontend subscribes to `desktop-envelope` before Handshake and StartSession. Responses and
-events use the frozen `desktop-protocol` v1 JSON shape; transport failures use the separate
+events use the frozen `desktop::protocol` v1 JSON shape; transport failures use the separate
 `desktop-connection` lifecycle notification. The Tauri shell owns only window lifecycle, the
 allowlisted bridge and the injected protocol client. `bootstrap.rs` is the D3 composition root and
 is the only Tauri-crate module that builds the current `AgentConfig`.

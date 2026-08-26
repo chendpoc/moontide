@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
-use desktop_protocol::{
+use desktop::protocol::{
     DesktopCommand, DesktopMessage, DesktopMessageEnvelope, DesktopProtocolEvent, DesktopResponse,
     DESKTOP_PROTOCOL_VERSION,
 };
 use serde_json::Value;
 
-const COMMAND_FIXTURES: &str = include_str!("fixtures/commands.json");
-const RESPONSE_FIXTURES: &str = include_str!("fixtures/responses.json");
-const EVENT_FIXTURES: &str = include_str!("fixtures/events.json");
+const COMMAND_FIXTURES: &str = include_str!("protocol/fixtures/commands.json");
+const RESPONSE_FIXTURES: &str = include_str!("protocol/fixtures/responses.json");
+const EVENT_FIXTURES: &str = include_str!("protocol/fixtures/events.json");
 
 fn decode_fixtures(source: &str) -> (Value, Vec<DesktopMessageEnvelope>) {
     let json: Value = serde_json::from_str(source).expect("fixture file should contain valid JSON");

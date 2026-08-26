@@ -1,10 +1,10 @@
 use std::time::Duration;
 
+use crate::protocol as wire;
 use agent_core::{
     llm::{adapter::AdapterFamily, protocol::ThinkingLevel},
     r#loop::{ToolPermission, ToolPermissionMap},
 };
-use desktop_protocol as wire;
 use tempfile::TempDir;
 use tokio::time::timeout;
 use wiremock::matchers::{method, path};
@@ -247,10 +247,9 @@ async fn handshake_fixture_establishes_epoch_before_session_commands() {
         wire::DesktopCommandErrorCode::HandshakeRequired
     );
 
-    let fixtures: Vec<wire::DesktopMessageEnvelope> = serde_json::from_str(include_str!(
-        "../../../desktop-protocol/tests/fixtures/commands.json"
-    ))
-    .expect("command fixtures");
+    let fixtures: Vec<wire::DesktopMessageEnvelope> =
+        serde_json::from_str(include_str!("../../tests/protocol/fixtures/commands.json"))
+            .expect("command fixtures");
     let handshake_fixture = fixtures
         .into_iter()
         .find(|envelope| {

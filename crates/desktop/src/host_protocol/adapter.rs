@@ -3,12 +3,12 @@
 //! This is the only runtime-to-wire conversion boundary. It is not a second protocol graph and
 //! is intentionally scoped to the Host protocol server.
 
+use crate::protocol as wire;
 use agent_core::{
     llm::protocol::{ContentBlock, PendingBlock, StopReason, Usage},
     session::{CompactionKind, SessionItem, SessionItemBase},
     tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus},
 };
-use desktop_protocol as wire;
 
 use crate::{
     event::{DesktopEvent, DesktopEventEnvelope},
@@ -481,7 +481,7 @@ mod tests {
 
     // 场景：Host EventBuffer 的 Progress event 直接进入 independent wire envelope。
     // 预期：adapter 保留 buffer seq、注入 wire epoch，并输出语义 TurnStarted event。
-    // 不变量：active Host path 只经过 desktop-protocol 的唯一 wire graph。
+    // 不变量：active Host path 只经过 desktop::protocol 的唯一 wire graph。
     #[test]
     fn host_event_maps_directly_to_independent_wire_graph() {
         let envelope = DesktopEventEnvelope {

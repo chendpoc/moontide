@@ -12,14 +12,14 @@ Desktop UI 采用 Tauri shell 承载轻量 Web 前端。推荐前端组合是 Sv
 `RenderState` 和 protocol client 由前端自己的小型模块拥有。
 
 Tauri 只属于 Desktop shell 层。`agent-core`、`agent`、Agent Host 和
-`desktop-protocol` 不依赖 Tauri、Svelte、TypeScript 或 WebView。
+`desktop::protocol` 不依赖 Tauri、Svelte、TypeScript 或 WebView。
 
 选择依据：
 
 - Tauri 使用系统 WebView，不打包 bundled Chromium；
 - Web 前端适合对话流式展示、Tool card、Inspector、主题和文本交互；
 - Tauri Rust bridge 可以把窗口生命周期、权限能力和 protocol client 留在 Rust 边界；
-- 前端可以作为独立 Web consumer 验证，迫使 `desktop-protocol` 真正成为跨语言 contract；
+- 前端可以作为独立 Web consumer 验证，迫使 `desktop::protocol` 真正成为跨语言 contract；
 - `agent-core` 与 Agent Host 的 ownership、Session Item Log 和错误语义不随 UI 技术变化。
 
 这不是把业务事实搬到 JavaScript。前端只拥有 view projection、用户输入 draft、窗口偏好
@@ -39,7 +39,7 @@ Tauri Rust desktop shell
   ├── typed command bridge
   ├── protocol client / reconnect
   └── no SessionStore ownership
-             │ versioned desktop-protocol
+             │ versioned desktop::protocol
              ▼
 moontide-agent-host
   └── Agent + SessionStore + ApprovalBroker + lifecycle

@@ -919,20 +919,12 @@ dependencies = [
  "agent",
  "agent-core",
  "anyhow",
- "desktop-protocol",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",
  "wiremock",
-]
-
-[[package]]
-name = "desktop-protocol"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -2509,7 +2501,6 @@ dependencies = [
  "agent",
  "anyhow",
  "desktop",
- "desktop-protocol",
  "dotenvy",
  "serde",
  "tauri",

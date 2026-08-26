@@ -4,6 +4,7 @@
 > **Version goal:** D3-PF
 > **Status:** R1 committed as `2cdf850`; R2 committed as `19b36d7`; R3 committed as `9a8320e`;
 > R4 committed as `500c183`; R5 committed as `375731e`; R6 complete and commit authorized
+> **Note (2026-08-26):** 原 `desktop-protocol` crate 已合并为 `desktop::protocol` 模块。历史 Work Packet 中的 crate 路径与 `cargo test -p desktop-protocol` 命令保留批次语境；现行验收为 `cargo test -p desktop`。
 
 ## Review batches
 

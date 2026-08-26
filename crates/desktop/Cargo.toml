@@ -8,11 +8,11 @@ authors.workspace = true
 agent.workspace = true
 agent-core.workspace = true
 anyhow.workspace = true
-desktop-protocol = { path = "../desktop-protocol" }
+serde.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 tempfile.workspace = true
 wiremock = "0.6"

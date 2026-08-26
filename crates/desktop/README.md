@@ -5,7 +5,9 @@
 > **实现设计：** [`DESIGN.md`](DESIGN.md)
 > **UI 状态契约：** [`UI-STATE.md`](UI-STATE.md)
 > **UI 交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
+> **v0.1 Scope 定稿：** [`UI-V0.1-SCOPE.md`](UI-V0.1-SCOPE.md)
 > **UI 技术决策：** [`UI-TECH-CHOICE.md`](UI-TECH-CHOICE.md)
+> **栈精简计划：** [`../docs/desktop-stack-simplification-refactor.md`](../docs/desktop-stack-simplification-refactor.md)
 > **进程化目标架构：** [`../docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)
 
 ## 1. 这是什么
@@ -13,7 +15,7 @@
 `desktop` 当前是本地桌面产品的 Host contract 与 D1 Host actor crate。它把一个可恢复的
 `agent::Agent` 暴露给 Desktop Host，但不复制 AgentLoop，也不把 UI 策略放进
 `agent-core`。新的目标架构由 Tauri shell 承载轻量 Web 前端；前端通过 Tauri bridge
-消费 versioned `desktop-protocol`，当前由同进程 Desktop Host 拥有 Agent runtime；D4 才
+消费 versioned `desktop::protocol`，当前由同进程 Desktop Host 拥有 Agent runtime；D4 才
 替换为独立 `agent-host` 进程。由于
 前端是非 Rust consumer，独立 wire DTO 和 TypeScript 类型边界现在属于 Tauri 垂直切片
 的前置工作，不再延后到未来某个抽象的 D4。
@@ -111,7 +113,7 @@ approval 注入点，调用方不得同时安装另一个同类 handler。
 
 ### 3.1 D2 protocol contract
 
-D2 的跨进程/跨语言契约由独立 `desktop-protocol` crate 定义，不携带 Host channel、reply
+D2 的跨进程/跨语言契约由 `desktop::protocol` 模块定义，不携带 Host channel、reply
 handle、`Agent` 或 `agent-core` runtime ownership 类型：
 
 ```rust
@@ -149,10 +151,10 @@ pub struct DesktopMessageEnvelope {
 `DesktopProtocolEvent` 将 `ProgressEvent` 映射为稳定的语义事件（例如
 `AssistantResponseSnapshot`、`ToolCall`、`ToolResult`、`AssistantFinalized` 和
 `TurnEnded`），不把 `ProgressEvent` wrapper 或 `ModelResponse` 直接暴露给 UI。
-Rust 和 TypeScript consumer 都必须符合 `desktop-protocol/tests/fixtures/**` 冻结的 v1 JSON，
+Rust 和 TypeScript consumer 都必须符合 `desktop/tests/protocol/fixtures/**` 冻结的 v1 JSON，
 不得从 Host domain types 或 frontend projection 生成第二套 wire contract。
 
-`desktop-protocol` 是唯一公开 wire graph。Host canonical values 只在私有
+`desktop::protocol` 是唯一公开 wire graph。Host canonical values 只在私有
 `host_protocol::adapter` 边界转换为 DTO；`desktop` 不再公开平行 command、response、event
 或 envelope graph。
 
@@ -184,14 +186,14 @@ impl DesktopProtocolServer {
 impl DesktopProtocolServerHandle {
     pub async fn request(
         &self,
-        envelope: desktop_protocol::DesktopMessageEnvelope,
-    ) -> anyhow::Result<desktop_protocol::DesktopMessageEnvelope>;
+        envelope: desktop::protocol::DesktopMessageEnvelope,
+    ) -> anyhow::Result<desktop::protocol::DesktopMessageEnvelope>;
 }
 
 impl DesktopProtocolEventStream {
     pub async fn recv(
         &mut self,
-    ) -> Option<desktop_protocol::DesktopMessageEnvelope>;
+    ) -> Option<desktop::protocol::DesktopMessageEnvelope>;
 }
 ```
 
@@ -243,7 +245,7 @@ pub struct DesktopEventEnvelope {
 }
 ```
 
-D3-PF 的私有 Host protocol adapter 直接把该 envelope 转为 `desktop-protocol` event；不经过
+D3-PF 的私有 Host protocol adapter 直接把该 envelope 转为 `desktop::protocol` event；不经过
 第二套公开 protocol graph。
 
 `request_id` 只匹配 command/response；`seq` 只表示当前 `connection_epoch` 内的 Host
@@ -302,7 +304,7 @@ Approval UI event 保留完整 `ToolCall`，用于展示和用户决策。它只
 ## 7. 进程化演进
 
 当前 D3-PF 保持 Host actor 与 Tauri shell 同进程，但 Web intent、response 和 event 全部经过
-冻结的 `desktop-protocol` v1 envelope。`connection_epoch`、`request_id` 和 `seq` 的 owner
+冻结的 `desktop::protocol` v1 envelope。`connection_epoch`、`request_id` 和 `seq` 的 owner
 与 D4 相同。D4 只把 bounded in-process transport 换成 framed child-process transport，
 不得重写 shell、frontend projection 或 Agent ownership。
 

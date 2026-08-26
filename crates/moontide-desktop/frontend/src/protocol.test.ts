@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import commandFixtures from "../../../desktop-protocol/tests/fixtures/commands.json";
-import eventFixtures from "../../../desktop-protocol/tests/fixtures/events.json";
-import responseFixtures from "../../../desktop-protocol/tests/fixtures/responses.json";
+import commandFixtures from "../../../desktop/tests/protocol/fixtures/commands.json";
+import eventFixtures from "../../../desktop/tests/protocol/fixtures/events.json";
+import responseFixtures from "../../../desktop/tests/protocol/fixtures/responses.json";
 
 import { DesktopMessageEnvelopeSchema, parseDesktopMessageEnvelope } from "./protocol";
 

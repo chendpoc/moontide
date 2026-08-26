@@ -1,8 +1,8 @@
 use std::fmt;
 
 use anyhow::{anyhow, bail, Result};
+use desktop::protocol as wire;
 use desktop::{DesktopProtocolEventStream, DesktopProtocolServerHandle};
-use desktop_protocol as wire;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 

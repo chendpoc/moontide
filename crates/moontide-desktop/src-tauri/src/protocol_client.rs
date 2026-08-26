@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Result};
-use desktop_protocol as wire;
+use desktop::protocol as wire;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::transport::ClientTransport;
