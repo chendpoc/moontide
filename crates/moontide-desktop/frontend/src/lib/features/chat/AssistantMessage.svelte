@@ -3,7 +3,11 @@
     AssistantDisplayBlock,
     AssistantPendingBlock,
   } from "$lib/projection/uiModel.js";
-  import { assistantCopyText, displayJson } from "$lib/projection/uiModel.js";
+  import {
+    assistantCopyText,
+    contentBlockDisplayText,
+    displayJson,
+  } from "$lib/projection/uiModel.js";
 
   import CopyMessageButton from "./CopyMessageButton.svelte";
 
@@ -13,27 +17,6 @@
   export let interrupted = false;
 
   $: copyText = assistantCopyText(blocks, pending);
-
-  function nestedContentText(content: string | AssistantDisplayBlock[]): string {
-    if (typeof content === "string") {
-      return content;
-    }
-    return content
-      .flatMap((block) => {
-        switch (block.kind) {
-          case "text":
-            return [block.text];
-          case "thinking":
-            return [];
-          case "tool_use":
-            return [`Tool call · ${block.name}`];
-          case "tool_result":
-            return [nestedContentText(block.content)];
-        }
-      })
-      .filter((text) => text.length > 0)
-      .join("\n");
-  }
 </script>
 
 <article
@@ -42,9 +25,9 @@
   data-streaming={streaming}
 >
   {#if streaming}
-    <p class="sr-only" role="status">Streaming response</p>
+    <p class="sr-only">Streaming response</p>
   {:else if interrupted}
-    <p class="mb-2 text-xs font-medium text-muted-foreground" role="status">
+    <p class="mb-2 text-xs font-medium text-muted-foreground">
       Interrupted response
     </p>
   {/if}
@@ -66,7 +49,7 @@
       {:else}
         <details class="rounded-lg border border-border bg-message-tool px-3 py-2 text-sm">
           <summary class="cursor-pointer font-medium">Tool result</summary>
-          <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{nestedContentText(block.content)}</pre>
+          <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{contentBlockDisplayText(block.content)}</pre>
         </details>
       {/if}
     {/each}

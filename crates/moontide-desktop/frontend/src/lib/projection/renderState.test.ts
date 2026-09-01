@@ -9,7 +9,12 @@ import {
   type ToolCall,
   type ToolResult,
 } from "$lib/protocol/index.js";
-import { createRenderState, reduceEnvelope, type RenderState } from "$lib/projection/renderState.js";
+import {
+  createRenderState,
+  reduceEnvelope,
+  reduceLiveEnvelope,
+  type RenderState,
+} from "$lib/projection/renderState.js";
 
 function event(seq: number, payload: DesktopProtocolEvent, epoch = 1) {
   return parseDesktopMessageEnvelope({
@@ -51,6 +56,7 @@ function desktopSnapshot(): DesktopSnapshot {
         item_count: 0,
       },
       items: [],
+      history: { oldest_turn: null, has_older: false },
     },
     state: "idle",
     pending_approvals: [],
@@ -201,6 +207,292 @@ describe("RenderState Rust parity", () => {
     expect(state.stoppedReport).toEqual(report);
   });
 
+  it("keeps a provider failure visible when the terminal snapshot already includes its event", () => {
+    const snapshot = desktopSnapshot();
+    snapshot.state = {
+      failed: {
+        turn: 0,
+        error: {
+          kind: "provider",
+          message: "HTTP 402 Payment Required: Insufficient Balance",
+          recoverable: true,
+        },
+      },
+    };
+    snapshot.delivery.last_delivered_seq = 4;
+
+    const restored = reduceEnvelope(
+      createRenderState(),
+      response({ kind: "snapshot", connection_epoch: 1, snapshot }),
+    ).state;
+
+    expect(restored.notices).toContainEqual({
+      kind: "error",
+      message: "HTTP 402 Payment Required: Insufficient Balance",
+      recoverable: true,
+      errorKind: "provider",
+      turn: 0,
+    });
+
+    const replayed = reduceEnvelope(
+      restored,
+      event(4, {
+        kind: "turn_failed",
+        turn: 0,
+        error: {
+          kind: "provider",
+          message: "HTTP 402 Payment Required: Insufficient Balance",
+          recoverable: true,
+        },
+      }),
+    ).state;
+    expect(replayed.notices).toHaveLength(1);
+  });
+
+  it("deduplicates event then snapshot for one Turn but preserves the same error on another Turn", () => {
+    const error = {
+      kind: "provider" as const,
+      message: "HTTP 402 Payment Required: Insufficient Balance",
+      recoverable: true,
+    };
+    let state = apply(
+      createRenderState(),
+      event(1, { kind: "turn_failed", turn: 0, error }),
+    );
+    const failed = desktopSnapshot();
+    failed.state = { failed: { turn: 0, error } };
+    failed.delivery.last_delivered_seq = 1;
+    state = reduceEnvelope(
+      state,
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: failed }),
+    ).state;
+    expect(state.notices).toHaveLength(1);
+
+    state = apply(state, event(2, { kind: "turn_failed", turn: 1, error }));
+    expect(state.notices).toHaveLength(2);
+    expect(state.notices.map((notice) => notice.turn)).toEqual([0, 1]);
+  });
+
+  it("does not synthesize a failure notice from an idle snapshot", () => {
+    const restored = reduceEnvelope(
+      createRenderState(),
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: desktopSnapshot() }),
+    ).state;
+
+    expect(restored.notices).toEqual([]);
+  });
+
+  it("prepends older history once and retains it across later snapshots", () => {
+    const latest = desktopSnapshot();
+    latest.session.summary.last_turn = 40;
+    latest.session.summary.item_count = 3;
+    latest.session.items = [
+      {
+        kind: "user_message",
+        base: {
+          id: "turn-30",
+          seq: 30,
+          session_id: "session-1",
+          turn: 30,
+          at: "2026-09-01T00:00:30Z",
+        },
+        text: "recent-30",
+      },
+      {
+        kind: "user_message",
+        base: {
+          id: "turn-40",
+          seq: 40,
+          session_id: "session-1",
+          turn: 40,
+          at: "2026-09-01T00:00:40Z",
+        },
+        text: "recent-40",
+      },
+    ];
+    latest.session.history = { oldest_turn: 30, has_older: true };
+    let state = reduceEnvelope(
+      createRenderState(),
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: latest }),
+    ).state;
+
+    state = reduceEnvelope(
+      state,
+      response({
+        kind: "session_history_page",
+        session_id: "session-1",
+        items: [
+          {
+            kind: "user_message",
+            base: {
+              id: "turn-0",
+              seq: 0,
+              session_id: "session-1",
+              turn: 0,
+              at: "2026-09-01T00:00:00Z",
+            },
+            text: "oldest",
+          },
+          latest.session.items[0]!,
+        ],
+        oldest_turn: 0,
+        has_older: false,
+      }),
+    ).state;
+    expect(state.messages).toEqual([
+      { kind: "user", turn: 0, text: "oldest" },
+      { kind: "user", turn: 30, text: "recent-30" },
+      { kind: "user", turn: 40, text: "recent-40" },
+    ]);
+    expect(state.session?.items).toHaveLength(3);
+    expect(state.historyExpanded).toBe(true);
+    expect(state.session?.history).toEqual({ oldest_turn: 0, has_older: false });
+
+    const refreshed = structuredClone(latest);
+    refreshed.session.items = [latest.session.items[1]!];
+    refreshed.session.history = { oldest_turn: 40, has_older: true };
+    state = reduceEnvelope(
+      state,
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: refreshed }),
+    ).state;
+    expect(state.messages.map((message) => message.turn)).toEqual([0, 30, 40]);
+    expect(state.session?.history).toEqual({ oldest_turn: 0, has_older: false });
+  });
+
+  it("replaces the rolling latest window until the user explicitly expands history", () => {
+    const first = desktopSnapshot();
+    first.session.items = [
+      {
+        kind: "user_message",
+        base: {
+          id: "turn-30",
+          seq: 30,
+          session_id: "session-1",
+          turn: 30,
+          at: "2026-09-01T00:00:30Z",
+        },
+        text: "turn 30",
+      },
+      {
+        kind: "user_message",
+        base: {
+          id: "turn-59",
+          seq: 59,
+          session_id: "session-1",
+          turn: 59,
+          at: "2026-09-01T00:00:59Z",
+        },
+        text: "turn 59",
+      },
+    ];
+    first.session.history = { oldest_turn: 30, has_older: true };
+    let state = reduceEnvelope(
+      createRenderState(),
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: first }),
+    ).state;
+    expect(state.historyExpanded).toBe(false);
+
+    const next = desktopSnapshot();
+    next.session.items = [
+      {
+        kind: "user_message",
+        base: {
+          id: "turn-31",
+          seq: 31,
+          session_id: "session-1",
+          turn: 31,
+          at: "2026-09-01T00:00:31Z",
+        },
+        text: "turn 31",
+      },
+      {
+        kind: "user_message",
+        base: {
+          id: "turn-60",
+          seq: 60,
+          session_id: "session-1",
+          turn: 60,
+          at: "2026-09-01T00:01:00Z",
+        },
+        text: "turn 60",
+      },
+    ];
+    next.session.history = { oldest_turn: 31, has_older: true };
+    state = reduceEnvelope(
+      state,
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: next }),
+    ).state;
+
+    expect(state.messages.map((message) => message.turn)).toEqual([31, 60]);
+    expect(state.session?.items.some((item) => item.base.id === "turn-30")).toBe(false);
+    expect(state.historyExpanded).toBe(false);
+  });
+
+  it("ignores a history page for a different loaded Session", () => {
+    const loaded = reduceEnvelope(
+      createRenderState(),
+      response({ kind: "snapshot", connection_epoch: 1, snapshot: desktopSnapshot() }),
+    ).state;
+
+    const output = reduceEnvelope(
+      loaded,
+      response({
+        kind: "session_history_page",
+        session_id: "session-2",
+        items: [],
+        oldest_turn: null,
+        has_older: false,
+      }),
+    );
+
+    expect(output.result).toBe("ignored");
+    expect(output.state.session).toEqual(loaded.session);
+  });
+
+  // Pending approvals restored from a snapshot stay silent, while a sequenced live event creates
+  // one safe announcement that does not include tool input and is not rewritten by stream tokens.
+  it("preserves live-event origin for approval announcements", () => {
+    const request = {
+      id: "approval-1",
+      turn: 1,
+      call: { tool_use_id: "tool-1", name: "bash", input: { secret: "hidden" } },
+      working_dir: ".",
+    };
+    const snapshot = desktopSnapshot();
+    snapshot.pending_approvals = [request];
+    const restored = reduceEnvelope(
+      createRenderState(),
+      response({ kind: "snapshot", connection_epoch: 1, snapshot }),
+    );
+    expect(restored.state.liveAnnouncement).toBeNull();
+
+    let state = reduceLiveEnvelope(
+      createRenderState(),
+      event(1, { kind: "approval_requested", request }),
+    ).state;
+    expect(state.liveAnnouncement).toEqual({
+      id: "1:1:approval-1",
+      kind: "approval_required",
+      toolName: "bash",
+    });
+    expect(state.liveAnnouncement?.toolName).not.toContain("hidden");
+
+    state = apply(
+      state,
+      event(2, {
+        kind: "assistant_response_snapshot",
+        turn: 1,
+        step: 0,
+        llm_call_id: "call-1",
+        update_index: 1,
+        snapshot: modelSnapshot("token"),
+      }),
+    );
+    expect(state.liveAnnouncement?.id).toBe("1:1:approval-1");
+  });
+
+  // Snapshot keeps only Host-confirmed live drafts. Unproven streaming drafts are dropped
+  // silently; a completed baseline is not a user-facing resync failure.
   it("preserves only drafts confirmed active by a snapshot", () => {
     let state = createRenderState();
     for (const [seq, callId] of [
@@ -228,7 +520,7 @@ describe("RenderState Rust parity", () => {
 
     expect(state.assistantDrafts["1:call-1"]).toBeDefined();
     expect(state.assistantDrafts["1:call-2"]).toBeUndefined();
-    expect(state.notices.some((notice) => notice.kind === "resync")).toBe(true);
+    expect(state.notices.some((notice) => notice.kind === "resync")).toBe(false);
   });
 
   it("requires a snapshot before accepting events from a new epoch", () => {

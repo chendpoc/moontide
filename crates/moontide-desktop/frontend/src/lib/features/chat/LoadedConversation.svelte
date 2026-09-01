@@ -1,13 +1,17 @@
 <script lang="ts">
-  import { afterUpdate } from "svelte";
+  import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
+  import { afterUpdate, tick } from "svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import type { ConnectionState } from "$lib/controller/index.js";
   import type { RenderState } from "$lib/projection/renderState.js";
   import {
     conversationItems,
+    historyErrorCopy,
     liveTools,
     orderedDrafts,
     runStateKind,
+    visibleConversationNotices,
     type ConversationItem,
   } from "$lib/projection/uiModel.js";
 
@@ -18,21 +22,30 @@
   import UserMessage from "./UserMessage.svelte";
 
   export let state: RenderState;
+  export let connection: ConnectionState;
   export let approvalEnabled: boolean;
   export let approvalTarget: string | null;
+  export let historyLoading: boolean;
+  export let historyError: string | null;
+  export let historyEnabled: boolean;
+  export let historyBlockReason: string | null;
   export let onResolveApproval: (
     approvalId: string,
     approve: boolean,
   ) => void | Promise<void>;
+  export let onLoadOlderHistory: () => void | Promise<void>;
 
   const BOTTOM_THRESHOLD = 64;
 
   let viewport: HTMLDivElement | null = null;
   let detached = false;
+  let historyLoadActive = false;
+  let historyAnchorTop = 0;
   let previousContentVersion: string | null = null;
 
   $: items = conversationItems(state);
   $: drafts = orderedDrafts(state);
+  $: notices = visibleConversationNotices(state, connection);
   $: liveToolItems = liveTools(state).map(
     (tool): Extract<ConversationItem, { kind: "tool" }> => ({
       kind: "tool",
@@ -67,6 +80,9 @@
     const distanceFromBottom =
       viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
     detached = distanceFromBottom > BOTTOM_THRESHOLD;
+    if (historyLoadActive) {
+      historyAnchorTop = viewport.scrollTop;
+    }
   }
 
   function scrollToLatest(): void {
@@ -75,6 +91,22 @@
     }
     viewport.scrollTop = viewport.scrollHeight;
     detached = false;
+  }
+
+  async function loadOlderHistory(): Promise<void> {
+    if (viewport === null || historyLoading) {
+      return;
+    }
+    const previousHeight = viewport.scrollHeight;
+    historyAnchorTop = viewport.scrollTop;
+    historyLoadActive = true;
+    try {
+      await onLoadOlderHistory();
+      await tick();
+      viewport.scrollTop = historyAnchorTop + (viewport.scrollHeight - previousHeight);
+    } finally {
+      historyLoadActive = false;
+    }
   }
 
   function readingContentVersion(current: RenderState): string {
@@ -102,7 +134,7 @@
       ...draftVersions,
       ...toolVersions,
       ...Object.keys(current.approvals),
-      ...current.notices.map((notice) => `${notice.kind}:${notice.message}`),
+      ...visibleConversationNotices(current, connection).map((notice) => `${notice.kind}:${notice.message}`),
     ].join("|");
   }
 </script>
@@ -113,10 +145,38 @@
     class="h-full overflow-y-auto overscroll-contain"
     role="region"
     aria-label="Conversation"
+    style="overflow-anchor: none;"
     onscroll={handleScroll}
   >
     <section class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      {#if items.length === 0 && drafts.length === 0 && liveToolItems.length === 0 && approvals.length === 0 && state.notices.length === 0}
+      {#if state.session?.history.has_older || historyError !== null}
+        <div class="flex flex-col items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={historyLoading || !historyEnabled}
+            aria-describedby={historyBlockReason === null ? undefined : "history-load-block-reason"}
+            onclick={() => void loadOlderHistory()}
+          >
+            {#if historyLoading}
+              <LoaderCircleIcon class="animate-spin motion-reduce:animate-none" />
+              Loading earlier messages…
+            {:else}
+              Load earlier messages
+            {/if}
+          </Button>
+          {#if historyError !== null}
+            <p class="m-0 text-sm text-destructive" role="alert">{historyErrorCopy(historyError)}</p>
+          {/if}
+          {#if historyBlockReason !== null}
+            <p id="history-load-block-reason" class="m-0 text-center text-sm text-muted-foreground">
+              {historyBlockReason}
+            </p>
+          {/if}
+        </div>
+      {/if}
+      {#if items.length === 0 && drafts.length === 0 && liveToolItems.length === 0 && approvals.length === 0 && notices.length === 0}
         <p class="py-12 text-center text-sm text-muted-foreground">
           This Session has no messages yet.
         </p>
@@ -154,7 +214,7 @@
         />
       {/each}
 
-      {#each state.notices as notice}
+      {#each notices as notice}
         <NoticeBlock {notice} />
       {/each}
 

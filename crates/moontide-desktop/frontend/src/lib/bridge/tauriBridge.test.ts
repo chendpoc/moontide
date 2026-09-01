@@ -34,6 +34,7 @@ describe("Tauri Desktop bridge", () => {
     await bridge.newChat();
     await bridge.createSession();
     await bridge.startSession("session-1");
+    await bridge.loadSessionHistory("session-1", 30, 30);
     await bridge.submitTurn("session-1", "continue");
     await bridge.cancelTurn();
     const removeEnvelope = await bridge.listenEnvelope((payload) => envelopes.push(payload));
@@ -48,6 +49,11 @@ describe("Tauri Desktop bridge", () => {
     expect(invokeMock).toHaveBeenCalledWith("create_session");
     expect(invokeMock).toHaveBeenCalledWith("start_session", {
       sessionId: "session-1",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("load_session_history", {
+      sessionId: "session-1",
+      beforeTurn: 30,
+      limit: 30,
     });
     expect(invokeMock).toHaveBeenCalledWith("submit_turn", {
       sessionId: "session-1",

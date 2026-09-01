@@ -12,6 +12,12 @@ export const DesktopCommandSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("create_session") }),
   z.strictObject({ kind: z.literal("start_session"), session_id: z.string() }),
   z.strictObject({
+    kind: z.literal("load_session_history"),
+    session_id: z.string(),
+    before_turn: uint,
+    limit: uint,
+  }),
+  z.strictObject({
     kind: z.literal("submit_turn"),
     session_id: z.string(),
     text: z.string(),
@@ -45,6 +51,7 @@ const DesktopCommandErrorSchema = z.strictObject({
     "shutdown_failed",
     "generation_not_ready",
     "catalog_unavailable",
+    "history_unavailable",
     "invalid_input",
     "internal",
   ]),
@@ -241,6 +248,10 @@ const SessionSnapshotSchema = z.strictObject({
     item_count: uint,
   }),
   items: z.array(SessionItemSchema),
+  history: z.strictObject({
+    oldest_turn: uint.nullable(),
+    has_older: z.boolean(),
+  }),
 });
 
 const ApprovalRequestSchema = z.strictObject({
@@ -311,6 +322,13 @@ export const DesktopResponseSchema = z.discriminatedUnion("kind", [
     kind: z.literal("session_ready"),
     connection_epoch: uint,
     snapshot: DesktopSnapshotSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("session_history_page"),
+    session_id: z.string(),
+    items: z.array(SessionItemSchema),
+    oldest_turn: uint.nullable(),
+    has_older: z.boolean(),
   }),
   z.strictObject({ kind: z.literal("turn_accepted"), turn: uint }),
   z.strictObject({ kind: z.literal("cancellation_accepted"), turn: uint }),

@@ -7,7 +7,9 @@ import {
 import {
   createRenderState,
   reduceEnvelope,
+  reduceLiveEnvelope,
 } from "$lib/projection/renderState.js";
+import { isSessionCloseSettled } from "$lib/projection/uiModel.js";
 import type {
   DesktopBridge,
   DesktopControllerPort,
@@ -27,6 +29,7 @@ import {
 } from "./utils.js";
 
 const DEFAULT_EVENT_BUFFER_CAPACITY = 256;
+const HISTORY_PAGE_TURN_LIMIT = 30;
 
 export class DesktopController implements DesktopControllerPort {
   readonly #bridge: DesktopBridge;
@@ -42,6 +45,7 @@ export class DesktopController implements DesktopControllerPort {
   #snapshotPending = false;
   #turnSubmissionPending = false;
   #turnStartedObserved = false;
+  #historyLoadPending = false;
   #lifecycleTask: Promise<void> | null = null;
   #resyncTask: Promise<void> | null = null;
   #unlisten: Unlisten[] = [];
@@ -109,7 +113,7 @@ export class DesktopController implements DesktopControllerPort {
       }
       if (this.#view.render.session !== null) {
         this.#requireCloseGate();
-        await this.#replaceRuntime();
+        await this.#replaceRuntime(false);
         if (this.#view.render.session !== null || this.#view.connection.kind !== "ready") {
           return;
         }
@@ -136,6 +140,47 @@ export class DesktopController implements DesktopControllerPort {
       throw new Error("Cannot refresh the catalog during a Session lifecycle transition");
     }
     await this.#refreshCatalog();
+  }
+
+  async loadOlderHistory(): Promise<void> {
+    if (this.#lifecycleTask !== null) {
+      throw new Error("Cannot load older history during a Session lifecycle transition");
+    }
+    if (this.#historyLoadPending) {
+      throw new Error("An older history page is already loading");
+    }
+    this.#requireCloseGate();
+    const session = this.#view.render.session;
+    if (session === null || !session.history.has_older) {
+      return;
+    }
+    const beforeTurn = session.history.oldest_turn;
+    if (beforeTurn === null) {
+      throw new Error("Loaded Session history is missing its oldest Turn cursor");
+    }
+    this.#historyLoadPending = true;
+    try {
+      const response = await this.#request(() =>
+        this.#bridge.loadSessionHistory(
+          session.summary.session_id,
+          beforeTurn,
+          HISTORY_PAGE_TURN_LIMIT,
+        ),
+      );
+      if (response.kind === "rejected") {
+        throw new Error(response.error.message);
+      }
+      if (response.kind !== "session_history_page") {
+        throw new Error(`Desktop response ${response.kind} did not match session_history_page`);
+      }
+      const loadedSessionId = this.#view.render.session?.summary.session_id;
+      if (response.session_id !== session.summary.session_id || loadedSessionId !== response.session_id) {
+        throw new Error("Desktop history page does not match the loaded Session");
+      }
+      this.#applyResponse(response);
+    } finally {
+      this.#historyLoadPending = false;
+    }
   }
 
   async submitTurn(text: string): Promise<DesktopResponse> {
@@ -199,7 +244,7 @@ export class DesktopController implements DesktopControllerPort {
     }
   }
 
-  async #replaceRuntime(): Promise<void> {
+  async #replaceRuntime(refreshCatalog = true): Promise<void> {
     try {
       const response = await this.#bridge.newChat();
       if (response.kind === "generation_ready") {
@@ -212,7 +257,9 @@ export class DesktopController implements DesktopControllerPort {
           render,
         };
         this.#notify();
-        await this.#refreshCatalog();
+        if (refreshCatalog) {
+          await this.#refreshCatalog();
+        }
         return;
       }
       if (response.kind === "rejected") {
@@ -436,16 +483,7 @@ export class DesktopController implements DesktopControllerPort {
   }
 
   #requireCloseGate(): void {
-    const run = this.#view.render.run;
-    const runKind = typeof run === "string" ? run : Object.keys(run)[0];
-    if (
-      this.#view.connection.kind !== "ready" ||
-      !["idle", "failed"].includes(runKind ?? "") ||
-      Object.keys(this.#view.render.approvals).length !== 0 ||
-      this.#turnSubmissionPending ||
-      this.#view.render.delivery.awaitingSnapshot ||
-      this.#view.render.delivery.resyncRequired
-    ) {
+    if (!isSessionCloseSettled(this.#view, { turnSubmissionPending: this.#turnSubmissionPending })) {
       throw new Error("Current Session must settle before it can be closed");
     }
   }
@@ -516,7 +554,7 @@ export class DesktopController implements DesktopControllerPort {
       return;
     }
 
-    const output = reduceEnvelope(this.#view.render, envelope);
+    const output = reduceLiveEnvelope(this.#view.render, envelope);
     this.#view = { ...this.#view, render: output.state };
     if (output.result === "applied" && envelope.payload.event.kind === "turn_started") {
       this.#recordTurnStarted();
@@ -699,6 +737,9 @@ export class DesktopController implements DesktopControllerPort {
     }
     if (this.#turnSubmissionPending || isFirstSendInFlight(this.#view.firstSend)) {
       throw new Error("Cannot change Session lifecycle while a Turn submission is pending");
+    }
+    if (this.#historyLoadPending) {
+      throw new Error("Cannot change Session lifecycle while history is loading");
     }
     const task = operation();
     this.#lifecycleTask = task;

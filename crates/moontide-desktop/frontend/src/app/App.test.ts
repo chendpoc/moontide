@@ -19,7 +19,8 @@ import type {
   DesktopSnapshot,
   ToolResult,
 } from "$lib/protocol/index.js";
-import { createRenderState } from "$lib/projection/renderState.js";
+import { parseDesktopMessageEnvelope } from "$lib/protocol/index.js";
+import { createRenderState, reduceEnvelope } from "$lib/projection/renderState.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -38,9 +39,12 @@ class FakeController implements DesktopControllerPort {
     kind: "turn_accepted",
     turn: 1,
   });
+  newChatHandler: () => Promise<void> = async () => undefined;
   approveHandler: (approvalId: string) => Promise<DesktopResponse> = async (
     approvalId,
   ) => ({ kind: "approval_accepted", approval_id: approvalId });
+  loadSessionHandler: (sessionId: string) => Promise<void> = async () => undefined;
+  loadOlderHistoryHandler: () => Promise<void> = async () => undefined;
   readonly #subscribers = new Set<(state: DesktopViewState) => void>();
 
   constructor(state = readyView()) {
@@ -66,10 +70,17 @@ class FakeController implements DesktopControllerPort {
 
   async newChat(): Promise<void> {
     this.operations.push("newChat");
+    await this.newChatHandler();
   }
 
   async loadSession(sessionId: string): Promise<void> {
     this.operations.push(`loadSession:${sessionId}`);
+    await this.loadSessionHandler(sessionId);
+  }
+
+  async loadOlderHistory(): Promise<void> {
+    this.operations.push("loadOlderHistory");
+    await this.loadOlderHistoryHandler();
   }
 
   async retryRuntime(): Promise<void> {
@@ -134,6 +145,16 @@ class IntegrationBridge implements DesktopBridge {
 
   async startSession(): Promise<DesktopResponse> {
     return { kind: "session_ready", connection_epoch: 1, snapshot: protocolSnapshot() };
+  }
+
+  async loadSessionHistory(): Promise<DesktopResponse> {
+    return {
+      kind: "session_history_page",
+      session_id: "session-1",
+      items: [],
+      oldest_turn: null,
+      has_older: false,
+    };
   }
 
   async submitTurn(): Promise<DesktopResponse> {
@@ -247,6 +268,41 @@ describe("App", () => {
     expect(screen.getByText("provider unavailable")).toBeInTheDocument();
   });
 
+  it("shows the provider error restored from a failed terminal snapshot", async () => {
+    const state = readyView();
+    const snapshot = protocolSnapshot(4, "hello");
+    snapshot.state = {
+      failed: {
+        turn: 0,
+        error: {
+          kind: "provider",
+          message: "HTTP 402 Payment Required: Insufficient Balance",
+          recoverable: true,
+        },
+      },
+    };
+    state.render = reduceEnvelope(
+      createRenderState(),
+      parseDesktopMessageEnvelope({
+        protocol_version: 1,
+        connection_epoch: 1,
+        request_id: "terminal-refresh",
+        seq: null,
+        payload: {
+          kind: "response",
+          response: { kind: "snapshot", connection_epoch: 1, snapshot },
+        },
+      }),
+    ).state;
+
+    render(App, { props: { controller: new FakeController(state) } });
+
+    expect(await screen.findByText("Reply didn't finish")).toBeInTheDocument();
+    expect(
+      screen.getByText("HTTP 402 Payment Required: Insufficient Balance"),
+    ).toBeInTheDocument();
+  });
+
   it("renders Loaded user and assistant geometry with local Copy actions", async () => {
     const state = readyView();
     state.render.messages = [
@@ -310,7 +366,7 @@ describe("App", () => {
     expect(screen.getByText("Invalid arguments")).toBeInTheDocument();
     expect(screen.getByText("Unknown tool")).toBeInTheDocument();
     expect(screen.getByText("Denied")).toBeInTheDocument();
-    expect(screen.getByText("Cancelled · user")).toBeInTheDocument();
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
     expect(screen.getByText("Execution outcome unknown")).toBeInTheDocument();
     expect(document.querySelectorAll("[data-tool-id]")).toHaveLength(statuses.length);
   });
@@ -409,6 +465,123 @@ describe("App", () => {
     scrollHeight = 1400;
     controller.publish();
     await waitFor(() => expect(conversation.scrollTop).toBe(1400));
+  });
+
+  it("loads earlier messages once and preserves the visible reading position", async () => {
+    const state = readyView();
+    if (state.render.session === null) {
+      throw new Error("expected loaded Session");
+    }
+    state.render.session.history = { oldest_turn: 30, has_older: true };
+    state.catalog = {
+      kind: "ready",
+      rows: [
+        ...state.catalog.rows,
+        {
+          session_id: "session-2",
+          first_user_message_excerpt: "Another Session",
+          last_activity_at: null,
+          loaded: false,
+        },
+      ],
+    };
+    const controller = new FakeController(state);
+    const pending = deferred<void>();
+    let scrollHeight = 1000;
+    controller.loadOlderHistoryHandler = async () => {
+      await pending.promise;
+      if (controller.state.render.session === null) {
+        throw new Error("expected loaded Session");
+      }
+      controller.state.render.session.items.unshift({
+        kind: "user_message",
+        base: {
+          id: "older-item",
+          seq: 0,
+          session_id: "session-1",
+          turn: 0,
+          at: "2026-09-01T00:00:00Z",
+        },
+        text: "earlier message",
+      });
+      controller.state.render.session.history = { oldest_turn: 0, has_older: false };
+      controller.state.render.messages.unshift({
+        kind: "user",
+        turn: 0,
+        text: "earlier message",
+      });
+      scrollHeight = 1400;
+      controller.publish();
+    };
+    render(App, { props: { controller } });
+
+    const conversation = await screen.findByRole("region", { name: "Conversation" });
+    Object.defineProperty(conversation, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(conversation, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    conversation.scrollTop = 100;
+    await fireEvent.scroll(conversation);
+
+    const load = screen.getByRole("button", { name: "Load earlier messages" });
+    await fireEvent.click(load);
+    expect(screen.getByRole("button", { name: "Loading earlier messages…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "New Chat" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Another Session" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(
+      screen.getByText("Wait for earlier messages to finish loading before changing Sessions."),
+    ).toBeInTheDocument();
+    await fireEvent.click(load);
+    expect(controller.operations).toEqual(["loadOlderHistory"]);
+
+    conversation.scrollTop = 250;
+    await fireEvent.scroll(conversation);
+
+    pending.resolve();
+    expect(await screen.findByText("earlier message")).toBeInTheDocument();
+    await waitFor(() => expect(conversation.scrollTop).toBe(650));
+    expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument();
+  });
+
+  it("shows an older-history error and allows retry", async () => {
+    const state = readyView();
+    if (state.render.session === null) {
+      throw new Error("expected loaded Session");
+    }
+    state.render.session.history = { oldest_turn: 30, has_older: true };
+    const controller = new FakeController(state);
+    let attempts = 0;
+    controller.loadOlderHistoryHandler = async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("history temporarily unavailable");
+      }
+      if (controller.state.render.session === null) {
+        throw new Error("expected loaded Session");
+      }
+      controller.state.render.session.history = { oldest_turn: 0, has_older: false };
+      controller.publish();
+    };
+    render(App, { props: { controller } });
+
+    await fireEvent.click(
+      await screen.findByRole("button", { name: "Load earlier messages" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't load earlier messages.",
+    );
+    expect(screen.queryByText("history temporarily unavailable")).not.toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: "Load earlier messages" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(controller.operations).toEqual(["loadOlderHistory", "loadOlderHistory"]);
   });
 
   it("boots through the injected controller and submits only typed intent", async () => {
@@ -532,6 +705,43 @@ describe("App", () => {
     );
   });
 
+  it("keeps approval controls enabled while local submit is still pending", async () => {
+    const pending = deferred<DesktopResponse>();
+    const controller = new FakeController(readyView());
+    controller.submitTurnHandler = async () => pending.promise;
+    render(App, { props: { controller } });
+
+    const input = screen.getByRole("textbox", { name: "Message" });
+    await fireEvent.input(input, { target: { value: "needs approval" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    controller.state = {
+      ...controller.state,
+      render: {
+        ...controller.state.render,
+        run: { waiting_approval: { turn: 1, request_id: "approval-1" } },
+        approvals: {
+          "approval-1": {
+            request: {
+              id: "approval-1",
+              turn: 1,
+              call: { tool_use_id: "tool-1", name: "bash", input: { cmd: "pwd" } },
+              working_dir: "/workspace",
+            },
+          },
+        },
+      },
+    };
+    controller.publish();
+
+    expect(await screen.findByText("Approval required")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Allow" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
+
+    pending.resolve({ kind: "turn_accepted", turn: 1 });
+    await waitFor(() => expect(controller.operations).toEqual(["submitTurn:needs approval"]));
+  });
+
   it("keeps one inline Approval owner locked while its decision is resolving", async () => {
     const state = readyView();
     state.render.run = {
@@ -559,11 +769,13 @@ describe("App", () => {
     await waitFor(() => expect(screen.queryByText("Resolving approval…")).not.toBeInTheDocument());
   });
 
-  // A transport failure is explained where it blocks the conversation; duplicated chrome badges
+  // A transport failure is explained where it blocks the conversation. Resync recovery stays off
+  // the reading surface while disconnected so Connection lost is the only status, and chrome badges
   // stay absent while Composer and lifecycle intents remain disabled.
-  it("makes transport disconnection and resync evidence visible and disables intent", async () => {
+  it("makes transport disconnection visible without stacking resync recovery", async () => {
     const state = readyView();
     state.connection = { kind: "disconnected", message: "event stream closed" };
+    state.render.delivery.resyncRequired = true;
     state.render.notices.push({
       kind: "resync",
       message: "desktop state requires resync: event_gap",
@@ -574,16 +786,111 @@ describe("App", () => {
     const controller = new FakeController(state);
     render(App, { props: { controller } });
 
-    expect(await screen.findByText("event stream closed")).toBeInTheDocument();
-    expect(screen.getByText("Connection unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("Connection lost")).toBeInTheDocument();
+    expect(screen.getByText("MoonTide disconnected. Retry to continue.")).toBeInTheDocument();
     expect(screen.queryByText("Disconnected")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
-    expect(screen.getByText("desktop state requires resync: event_gap")).toBeInTheDocument();
+    expect(screen.queryByText("Updating conversation")).not.toBeInTheDocument();
+    expect(screen.queryByText("event stream closed")).not.toBeInTheDocument();
+    expect(screen.queryByText("desktop state requires resync: event_gap")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
     await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(controller.operations).toContain("retryRuntime");
+  });
+
+  // In-flight delivery recovery is chat copy only while the connection is still ready; protocol
+  // reason codes stay in state and never reach the reading surface.
+  it("shows in-flight resync recovery while the connection stays ready", async () => {
+    const state = readyView();
+    state.render.delivery.resyncRequired = true;
+    state.render.notices.push({
+      kind: "resync",
+      message: "desktop state requires resync: event_gap",
+      recoverable: true,
+      errorKind: null,
+    });
+
+    render(App, { props: { controller: new FakeController(state) } });
+
+    expect(await screen.findByText("Updating conversation")).toBeInTheDocument();
+    expect(
+      screen.getByText("Live updates were interrupted. Restoring the latest state."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("desktop state requires resync: event_gap")).not.toBeInTheDocument();
+  });
+
+  // Excerpt is the only Session title. Missing excerpt uses Untitled session; opaque IDs stay out
+  // of the Top Bar, row label, and hover title.
+  it("titles Sessions without an excerpt as Untitled session", async () => {
+    const state = readyView();
+    if (state.catalog.kind !== "ready") {
+      throw new Error("expected ready catalog");
+    }
+    state.catalog.rows.push({
+      session_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      first_user_message_excerpt: null,
+      last_activity_at: null,
+      loaded: false,
+    });
+    render(App, { props: { controller: new FakeController(state) } });
+
+    expect(await screen.findByRole("heading", { name: "Untitled session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Untitled session, Loaded" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Untitled session$/ })).toHaveAttribute(
+      "title",
+      "Untitled session",
+    );
+    expect(screen.queryByText("Session session-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")).not.toBeInTheDocument();
+  });
+
+  // Controller throw text is a protocol fact. The chat surface maps it to a recoverable sentence.
+  it("maps Controller action failures instead of showing Host strings", async () => {
+    const controller = new FakeController(readyView());
+    controller.submitTurnHandler = async () => {
+      throw new Error("Desktop Session creation baseline still requires resync");
+    };
+    render(App, { props: { controller } });
+
+    const input = await screen.findByRole("textbox", { name: "Message" });
+    await fireEvent.input(input, { target: { value: "hello" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Action failed")).toBeInTheDocument();
+    expect(screen.getByText("That action didn't complete. Try again.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Desktop Session creation baseline still requires resync"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Stopped and rejected-command notices keep kind/code in state; the surface never echoes Host
+  // Display text such as desktop host stopped or desktop host is busy.
+  it("maps stopped and internal notices without protocol wording", async () => {
+    const state = readyView();
+    state.render.notices.push(
+      {
+        kind: "stopped",
+        message: "desktop host stopped",
+        recoverable: false,
+        errorKind: null,
+      },
+      {
+        kind: "error",
+        message: "desktop host is busy",
+        recoverable: true,
+        errorKind: null,
+      },
+    );
+    render(App, { props: { controller: new FakeController(state) } });
+
+    expect(await screen.findByText("MoonTide stopped")).toBeInTheDocument();
+    expect(screen.getByText("This window is no longer connected.")).toBeInTheDocument();
+    expect(screen.getByText("Reply didn't finish")).toBeInTheDocument();
+    expect(screen.getByText("The reply didn't finish. Try again.")).toBeInTheDocument();
+    expect(screen.queryByText("desktop host stopped")).not.toBeInTheDocument();
+    expect(screen.queryByText("desktop host is busy")).not.toBeInTheDocument();
   });
 
   // Startup is a temporary action blocker, so Blank explains it beside the disabled Composer
@@ -621,14 +928,314 @@ describe("App", () => {
     await fireEvent.click(screen.getByRole("button", { name: "New Chat" }));
 
     expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
     expect(controller.operations).toEqual([]);
 
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Review the provider boundary" }),
-    );
+    const historicalSession = screen.getByRole("button", {
+      name: "Review the provider boundary",
+    });
+    expect(historicalSession).toHaveClass("mt-session-row");
+    historicalSession.focus();
+    expect(historicalSession).toHaveFocus();
+    historicalSession.click();
     await waitFor(() => {
       expect(controller.operations).toEqual(["loadSession:session-2"]);
     });
+  });
+
+  // Blank projection keeps Host run "starting" until a Session snapshot arrives. That is not an
+  // active Turn, so Recent rows stay enabled after the connection is ready.
+  it("loads a Recent Session from Blank while the Host run is still starting", async () => {
+    const state = blankView();
+    state.render.run = "starting";
+    state.catalog = {
+      kind: "ready",
+      rows: [
+        {
+          session_id: "session-2",
+          first_user_message_excerpt: "Review the provider boundary",
+          last_activity_at: "2026-08-31T00:00:00Z",
+          loaded: false,
+        },
+      ],
+    };
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
+
+    const historicalSession = await screen.findByRole("button", {
+      name: "Review the provider boundary",
+    });
+    expect(historicalSession).toHaveAttribute("aria-disabled", "false");
+    await fireEvent.click(historicalSession);
+    expect(controller.operations).toEqual(["loadSession:session-2"]);
+  });
+
+  // A composing or repeated Send chord must not submit; the first completed chord submits the
+  // exact draft once and preserves ordinary Enter for multiline input.
+  it("guards Composer submission during IME composition and key repeat", async () => {
+    const controller = new FakeController(readyView());
+    render(App, { props: { controller } });
+
+    const input = screen.getByRole("textbox", { name: "Message" });
+    await fireEvent.input(input, { target: { value: "中文输入" } });
+    await fireEvent.keyDown(input, { key: "Enter", metaKey: true, isComposing: true });
+    await fireEvent.keyDown(input, { key: "Enter", metaKey: true, repeat: true });
+    const plainEnter = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(plainEnter);
+    expect(plainEnter.defaultPrevented).toBe(false);
+    expect(controller.operations).toEqual([]);
+
+    await fireEvent.keyDown(input, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(controller.operations).toEqual(["submitTurn:中文输入"]));
+  });
+
+  // Stop is a global active-Turn shortcut only: idle Control+Period remains untouched, while an
+  // active chord produces one cancellation even if the keyboard repeats.
+  it("handles the active-Turn Stop shortcut without capturing idle period input", async () => {
+    const state = readyView();
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
+
+    await fireEvent.keyDown(window, { key: ".", ctrlKey: true });
+    expect(controller.operations).toEqual([]);
+
+    controller.state.render.run = { thinking: { turn: 1, step: 0 } };
+    controller.publish();
+    expect(await screen.findByText("MoonTide is working · Cmd/Ctrl+. to stop")).toBeInTheDocument();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("session-drawer-layout")).toHaveAttribute("data-state", "open");
+    await fireEvent.keyDown(window, { key: ".", ctrlKey: true, isComposing: true });
+    expect(controller.operations).toEqual([]);
+    await fireEvent.keyDown(window, { key: ".", ctrlKey: true });
+    await fireEvent.keyDown(window, { key: ".", ctrlKey: true, repeat: true });
+    await waitFor(() => expect(controller.operations).toEqual(["cancelTurn"]));
+  });
+
+  // Even when Recent is empty, a disabled lifecycle action must reference a visible reason so
+  // keyboard and screen-reader users receive the same explanation.
+  it("associates the Session block reason when the catalog is empty", async () => {
+    const state = readyView();
+    state.catalog = { kind: "empty", rows: [] };
+    state.render.run = { thinking: { turn: 1, step: 0 } };
+    render(App, { props: { controller: new FakeController(state) } });
+
+    const newChat = screen.getByRole("button", { name: "New Chat" });
+    const reasonId = newChat.getAttribute("aria-describedby");
+    expect(newChat).toBeDisabled();
+    expect(reasonId).not.toBeNull();
+    expect(document.getElementById(reasonId ?? "")).toHaveTextContent(
+      "Finish or stop the current turn before changing Sessions.",
+    );
+  });
+
+  it("disables earlier-history loading while the current Turn is active", async () => {
+    const state = readyView();
+    if (state.render.session === null) {
+      throw new Error("expected loaded Session");
+    }
+    state.render.session.history = { oldest_turn: 30, has_older: true };
+    state.render.run = { thinking: { turn: 1, step: 0 } };
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
+
+    const load = await screen.findByRole("button", { name: "Load earlier messages" });
+    expect(load).toBeDisabled();
+    const reasonId = load.getAttribute("aria-describedby");
+    expect(reasonId).not.toBeNull();
+    expect(document.getElementById(reasonId ?? "")).toHaveTextContent(
+      "Finish or stop the current turn before loading earlier messages.",
+    );
+    await fireEvent.click(load);
+    expect(controller.operations).toEqual([]);
+
+    controller.state.render.run = "idle";
+    controller.publish();
+    await waitFor(() => expect(load).toBeEnabled());
+  });
+
+  // Loaded New Chat waits for the authoritative Blank state, then places focus in the new
+  // Composer without creating a frontend-only Session identity.
+  it("focuses the Blank Composer after Loaded New Chat completes", async () => {
+    const controller = new FakeController(readyView());
+    const reset = deferred<void>();
+    controller.newChatHandler = async () => {
+      await reset.promise;
+      controller.state.render = createRenderState();
+      controller.state.catalog = {
+        kind: "ready",
+        rows: controller.state.catalog.rows.map((row) => ({ ...row, loaded: false })),
+      };
+      controller.publish();
+    };
+    render(App, { props: { controller } });
+
+    await fireEvent.click(screen.getByRole("button", { name: "New Chat" }));
+    expect(controller.operations).toEqual(["newChat"]);
+    reset.resolve();
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus());
+    expect(screen.getByRole("heading", { name: "How can I help?" })).toBeInTheDocument();
+  });
+
+  // Unsafe Session switching stays disabled with an explicit reason; once the authoritative run
+  // is idle, the same candidate activates and focus moves to the Loaded conversation heading.
+  it("explains blocked Session switching and focuses Loaded after an allowed switch", async () => {
+    const state = readyView();
+    state.catalog = {
+      kind: "ready",
+      rows: [
+        {
+          session_id: "session-1",
+          first_user_message_excerpt: "Current Session",
+          last_activity_at: null,
+          loaded: true,
+        },
+        {
+          session_id: "session-2",
+          first_user_message_excerpt: "Historical Session",
+          last_activity_at: null,
+          loaded: false,
+        },
+      ],
+    };
+    state.render.run = { thinking: { turn: 1, step: 0 } };
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
+
+    const candidate = await screen.findByRole("button", { name: "Historical Session" });
+    expect(candidate).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Finish or stop the current turn before changing Sessions.")).toBeInTheDocument();
+    await fireEvent.click(candidate);
+    expect(controller.operations).toEqual([]);
+
+    controller.state.render.run = "idle";
+    controller.publish();
+    await waitFor(() => expect(candidate).toHaveAttribute("aria-disabled", "false"));
+    const sessionLoad = deferred<void>();
+    controller.loadSessionHandler = async () => {
+      await sessionLoad.promise;
+      if (controller.state.render.session === null) {
+        throw new Error("expected a Loaded Session");
+      }
+      controller.state.render.session.summary.session_id = "session-2";
+      controller.state.catalog = {
+        kind: "ready",
+        rows: controller.state.catalog.rows.map((row) => ({
+          ...row,
+          loaded: row.session_id === "session-2",
+        })),
+      };
+      controller.publish();
+    };
+    await fireEvent.click(candidate);
+    await waitFor(() => expect(controller.operations).toEqual(["loadSession:session-2"]));
+    expect(screen.getByRole("status", { name: "Loading conversation" })).toBeInTheDocument();
+    expect(candidate).toHaveAccessibleName("Historical Session, Loading");
+    expect(screen.queryByRole("status", { name: "" })).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Recent Sessions" }).parentElement).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    await fireEvent.click(candidate);
+    expect(controller.operations).toEqual(["loadSession:session-2"]);
+    sessionLoad.resolve();
+    await waitFor(
+      () => expect(screen.getByRole("heading", { name: "Historical Session" })).toHaveFocus(),
+      { timeout: 2000 },
+    );
+  });
+
+  // A delayed submit may restore focus only when the user stayed inside the Composer; moving to
+  // another control while waiting must keep that explicit destination focused.
+  it("does not steal focus after a delayed submit when the user moved elsewhere", async () => {
+    const controller = new FakeController(readyView());
+    const submission = deferred<DesktopResponse>();
+    controller.submitTurnHandler = () => submission.promise;
+    render(App, { props: { controller } });
+
+    const input = screen.getByRole("textbox", { name: "Message" });
+    await fireEvent.input(input, { target: { value: "wait for this" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const themeButton = screen.getByRole("button", { name: "Switch to Black theme" });
+    themeButton.focus();
+    await fireEvent.click(themeButton);
+    expect(themeButton).toHaveFocus();
+
+    submission.resolve({ kind: "turn_accepted", turn: 1 });
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(themeButton).toHaveFocus();
+  });
+
+  // Stream, notice, and theme updates may change presentation but never move focus away from the
+  // user's current Composer destination.
+  it("keeps Composer focus during background presentation updates", async () => {
+    const controller = new FakeController(readyView());
+    render(App, { props: { controller } });
+
+    const input = screen.getByRole("textbox", { name: "Message" });
+    input.focus();
+    controller.state.render.notices.push({
+      kind: "error",
+      message: "background notice",
+      recoverable: true,
+      errorKind: null,
+    });
+    controller.state.render.assistantDrafts["1:call-2"] = {
+      turn: 1,
+      step: 0,
+      llmCallId: "call-2",
+      updateIndex: 1,
+      snapshot: {
+        content: [{ kind: "text", text: "background stream" }],
+        pending: null,
+        stop_reason: null,
+        usage: null,
+        model: null,
+      },
+    };
+    controller.publish();
+
+    await screen.findByText("background stream");
+    expect(input).toHaveFocus();
+  });
+
+  // Initial state is silent; explicit theme and connection changes use a polite status region,
+  // and a projection-provided live approval cue exposes only the tool name.
+  it("announces explicit UI changes and live approvals without announcing initial state", async () => {
+    const state = readyView();
+    state.render.liveAnnouncement = {
+      id: "1:6:old-approval",
+      kind: "approval_required",
+      toolName: "historical-tool",
+    };
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
+
+    const uiStatus = screen.getByTestId("ui-status-announcement");
+    const eventStatus = screen.getByTestId("live-event-announcement");
+    expect(uiStatus).toHaveTextContent("");
+    expect(eventStatus).toHaveTextContent("");
+    expect(eventStatus).not.toHaveTextContent("historical-tool");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Switch to Black theme" }));
+    expect(uiStatus).toHaveTextContent("Black theme enabled");
+
+    controller.state.connection = { kind: "disconnected", message: "secret detail" };
+    controller.publish();
+    await waitFor(() => expect(uiStatus).toHaveTextContent("MoonTide connection unavailable"));
+    expect(uiStatus).not.toHaveTextContent("secret detail");
+
+    controller.state.render.liveAnnouncement = {
+      id: "1:7:approval-1",
+      kind: "approval_required",
+      toolName: "bash",
+    };
+    controller.publish();
+    await waitFor(() => expect(eventStatus).toHaveTextContent("Approval required for bash"));
   });
 
   it("keeps catalog failure distinct from empty and retries through the Controller", async () => {
@@ -641,12 +1248,15 @@ describe("App", () => {
     const controller = new FakeController(state);
     render(App, { props: { controller } });
 
-    expect(await screen.findByText("Session catalog unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load recent conversations.")).toBeInTheDocument();
+    expect(screen.queryByText("Session catalog unavailable")).not.toBeInTheDocument();
     expect(screen.queryByText("No recent conversations.")).not.toBeInTheDocument();
     await fireEvent.click(screen.getByRole("button", { name: "Retry recent Sessions" }));
     await waitFor(() => expect(controller.operations).toEqual(["retryCatalog"]));
   });
 
+  // Listing with retained rows keeps the same Session list DOM; busy state is aria-only so
+  // rows do not jump when the catalog refreshes.
   it("shows retained Session rows as refreshing while the catalog is listing", async () => {
     const state = blankView();
     state.catalog = {
@@ -662,8 +1272,8 @@ describe("App", () => {
     };
     render(App, { props: { controller: new FakeController(state) } });
 
-    expect(await screen.findByText("Refreshing recent Sessions…")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retained conversation" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Retained conversation" })).toBeInTheDocument();
+    expect(screen.queryByText("Refreshing recent Sessions…")).not.toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Recent Sessions" }).parentElement).toHaveAttribute(
       "aria-busy",
       "true",
@@ -775,6 +1385,7 @@ function readyView(): DesktopViewState {
       item_count: 0,
     },
     items: [],
+    history: { oldest_turn: null, has_older: false },
   };
   return {
     connection: { kind: "ready" },
@@ -832,6 +1443,10 @@ function protocolSnapshot(lastSeq = 0, userText?: string): DesktopSnapshot {
         item_count: items.length,
       },
       items,
+      history: {
+        oldest_turn: userText === undefined ? null : 0,
+        has_older: false,
+      },
     },
     state: "idle",
     pending_approvals: [],

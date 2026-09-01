@@ -45,6 +45,7 @@ export interface NoticeView {
   message: string;
   recoverable: boolean;
   errorKind: DesktopError["kind"] | null;
+  turn?: number | null;
 }
 
 export interface DeliveryView {
@@ -57,14 +58,22 @@ export interface DeliveryView {
   resyncReason: ResyncReason | null;
 }
 
+export interface LiveAnnouncementView {
+  id: string;
+  kind: "approval_required";
+  toolName: string;
+}
+
 export interface RenderState {
   session: SessionSnapshot | null;
+  historyExpanded: boolean;
   run: DesktopRunState;
   messages: MessageView[];
   assistantDrafts: Record<string, AssistantDraftView>;
   tools: Record<string, ToolView>;
   approvals: Record<string, ApprovalView>;
   notices: NoticeView[];
+  liveAnnouncement: LiveAnnouncementView | null;
   delivery: DeliveryView;
   stoppedReport: ShutdownReport | null;
   finalizedCalls: Set<string>;
@@ -80,12 +89,14 @@ export interface RenderFoldOutput {
 export function createRenderState(): RenderState {
   return {
     session: null,
+    historyExpanded: false,
     run: "starting",
     messages: [],
     assistantDrafts: {},
     tools: {},
     approvals: {},
     notices: [],
+    liveAnnouncement: null,
     delivery: {
       connectionEpoch: null,
       lastSeq: null,
@@ -120,6 +131,25 @@ export function reduceEnvelope(
   }
 }
 
+export function reduceLiveEnvelope(
+  current: RenderState,
+  envelope: DesktopMessageEnvelope,
+): RenderFoldOutput {
+  const output = reduceEnvelope(current, envelope);
+  if (
+    output.result === "applied" &&
+    envelope.payload.kind === "event" &&
+    envelope.payload.event.kind === "approval_requested"
+  ) {
+    output.state.liveAnnouncement = {
+      id: `${envelope.connection_epoch ?? "unknown"}:${envelope.seq ?? "unknown"}:${envelope.payload.event.request.id}`,
+      kind: "approval_required",
+      toolName: envelope.payload.event.request.call.name,
+    };
+  }
+  return output;
+}
+
 function reduceResponse(
   state: RenderState,
   epoch: number | null,
@@ -132,6 +162,24 @@ function reduceResponse(
         state: replaceSnapshot(state, response.snapshot, epoch),
         result: "applied",
       };
+    case "session_history_page": {
+      if (state.session?.summary.session_id !== response.session_id) {
+        return { state, result: "ignored" };
+      }
+      state.session = {
+        ...state.session,
+        items: mergeSessionItems(state.session.items, response.items),
+        history: {
+          oldest_turn: response.oldest_turn,
+          has_older: response.has_older,
+        },
+      };
+      state.historyExpanded = true;
+      const projected = projectSession(state.session);
+      state.messages = projected.messages;
+      state.tools = projected.tools;
+      return { state, result: "applied" };
+    }
     case "approval_accepted":
       delete state.approvals[response.approval_id];
       return { state, result: "applied" };
@@ -235,7 +283,7 @@ function reduceEvent(
       break;
     case "turn_failed":
       state.run = { failed: { turn: event.turn, error: event.error } };
-      state.notices.push(errorNotice(event.error));
+      addErrorNotice(state, event.error, event.turn);
       break;
     case "resync_required":
       return requestResync(state, event.reason);
@@ -307,22 +355,29 @@ function replaceSnapshot(
   snapshot: DesktopSnapshot,
   epoch: number | null,
 ): RenderState {
-  const projected = projectSession(snapshot.session);
+  const sameSession = state.session?.summary.session_id === snapshot.session.summary.session_id;
+  const session = mergeSnapshotWindow(
+    state.session,
+    snapshot.session,
+    state.historyExpanded,
+  );
+  const projected = projectSession(session);
   const activeCalls = new Set(
     snapshot.active_assistant_calls.map((call) => assistantDraftKey(call.turn, call.llm_call_id)),
   );
-  const hadDroppedDraft = Object.keys(state.assistantDrafts).some((key) => !activeCalls.has(key));
   const assistantDrafts = Object.fromEntries(
     Object.entries(state.assistantDrafts).filter(([key]) => activeCalls.has(key)),
   );
 
-  state.session = snapshot.session;
+  state.session = session;
+  state.historyExpanded = sameSession ? state.historyExpanded : false;
   state.run = snapshot.state;
   state.messages = projected.messages;
   state.tools = projected.tools;
   state.approvals = Object.fromEntries(
     snapshot.pending_approvals.map((request) => [request.id, { request }]),
   );
+  state.liveAnnouncement = null;
   state.assistantDrafts = assistantDrafts;
   state.finalizedCalls = new Set();
   state.stoppedReport = null;
@@ -336,15 +391,44 @@ function replaceSnapshot(
     resyncReason: null,
   };
   state.notices = state.notices.filter((notice) => notice.kind !== "resync");
-  if (hadDroppedDraft) {
-    state.notices.push({
-      kind: "resync",
-      message: "resync removed an assistant draft whose call was no longer active",
-      recoverable: true,
-      errorKind: null,
-    });
+  if (typeof snapshot.state !== "string" && "failed" in snapshot.state) {
+    addErrorNotice(state, snapshot.state.failed.error, snapshot.state.failed.turn);
   }
   return state;
+}
+
+function mergeSnapshotWindow(
+  current: SessionSnapshot | null,
+  snapshot: SessionSnapshot,
+  historyExpanded: boolean,
+): SessionSnapshot {
+  if (!historyExpanded || current?.summary.session_id !== snapshot.summary.session_id) {
+    return snapshot;
+  }
+  const currentOldest = current.history.oldest_turn;
+  const snapshotOldest = snapshot.history.oldest_turn;
+  if (currentOldest === null || snapshotOldest === null || currentOldest >= snapshotOldest) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    items: mergeSessionItems(current.items, snapshot.items),
+    history: {
+      oldest_turn: currentOldest,
+      has_older: current.history.has_older,
+    },
+  };
+}
+
+function mergeSessionItems(
+  current: SessionSnapshot["items"],
+  incoming: SessionSnapshot["items"],
+): SessionSnapshot["items"] {
+  const items = new Map(current.map((item) => [item.base.id, item]));
+  for (const item of incoming) {
+    items.set(item.base.id, item);
+  }
+  return [...items.values()].sort((left, right) => left.base.seq - right.base.seq);
 }
 
 function projectSession(session: SessionSnapshot): {
@@ -399,27 +483,46 @@ function requestResync(state: RenderState, reason: ResyncReason): RenderFoldOutp
   return { state, result: "resync_required" };
 }
 
-function errorNotice(error: DesktopError): NoticeView {
+function errorNotice(error: DesktopError, turn: number | null): NoticeView {
   return {
     kind: "error",
     message: error.message,
     recoverable: error.recoverable,
     errorKind: error.kind,
+    turn,
   };
 }
 
-function commandErrorRecoverable(code: DesktopCommandError["code"]): boolean {
-  return ![
-    "protocol_version_unsupported",
-    "handshake_required",
-    "session_not_started",
-    "session_already_started",
-    "stopping",
-    "stopped",
-    "event_stream_closed",
-    "internal",
-  ].includes(code);
+function addErrorNotice(state: RenderState, error: DesktopError, turn: number | null): void {
+  const notice = errorNotice(error, turn);
+  const existing = state.notices.findIndex(
+    (current) =>
+      current.kind === notice.kind &&
+      current.message === notice.message &&
+      current.errorKind === notice.errorKind &&
+      current.turn === notice.turn,
+  );
+  if (existing === -1) {
+    state.notices.push(notice);
+  } else {
+    state.notices[existing] = notice;
+  }
 }
+
+function commandErrorRecoverable(code: DesktopCommandError["code"]): boolean {
+  return !UNRECOVERABLE_COMMAND_ERROR_CODES.has(code);
+}
+
+const UNRECOVERABLE_COMMAND_ERROR_CODES = new Set<DesktopCommandError["code"]>([
+  "protocol_version_unsupported",
+  "handshake_required",
+  "session_not_started",
+  "session_already_started",
+  "stopping",
+  "stopped",
+  "event_stream_closed",
+  "internal",
+]);
 
 function assistantDraftKey(turn: number, llmCallId: string): string {
   return `${turn}:${llmCallId}`;

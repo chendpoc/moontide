@@ -23,8 +23,8 @@
 <details
   class={cn(
     "group rounded-lg border bg-message-tool text-sm",
-    status.tone === "warning" && "border-warning/50",
-    status.tone === "danger" && "border-destructive/50",
+    status.tone === "warning" && "border-warning",
+    status.tone === "danger" && "border-destructive",
   )}
   data-tool-id={tool.call.tool_use_id}
 >

@@ -1,9 +1,13 @@
 <script lang="ts">
   import { tick } from "svelte";
 
-  import { Alert, AlertDescription, AlertTitle } from "$lib/components/ui/alert/index.js";
-  import { Button } from "$lib/components/ui/button/index.js";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
+  import {
+    COMPOSER_STOP_KEY,
+    COMPOSER_SUBMIT_MODIFIERS,
+    SESSION_SWITCH_LOADING_MIN_MS,
+  } from "$lib/constants/index.js";
   import type { DesktopControllerPort, DesktopViewState } from "$lib/controller/index.js";
   import {
     initializeThemePreference,
@@ -12,24 +16,27 @@
   } from "$lib/hooks/theme.js";
   import {
     allowsApproval,
-    allowsSessionTransition,
     chatUiModel,
     composerMode,
+    connectionAnnouncement,
+    historyLoadReason as resolveHistoryLoadReason,
+    liveAnnouncementPresentation,
     runStateKind,
+    sessionExcerptLabel,
     sessionListModel,
+    sessionTransitionReason as resolveSessionTransitionReason,
+    visibleConversationNotices,
     type CommandPhase,
+    type LifecycleOverlayContext,
   } from "$lib/projection/uiModel.js";
 
   import BlankConversation from "./BlankConversation.svelte";
   import ChatTopBar from "./ChatTopBar.svelte";
   import Composer from "./Composer.svelte";
+  import ComposerAlerts from "./ComposerAlerts.svelte";
   import LoadedConversation from "./LoadedConversation.svelte";
+  import SessionDrawerFrame from "./SessionDrawerFrame.svelte";
   import SessionSidebar from "./SessionSidebar.svelte";
-
-  const DRAWER_DEFAULT_WIDTH = 240;
-  const DRAWER_MIN_WIDTH = 200;
-  const DRAWER_MAX_WIDTH = 360;
-  const DRAWER_KEYBOARD_STEP = 16;
 
   export let controller: DesktopControllerPort;
   export let view: DesktopViewState;
@@ -41,37 +48,60 @@
   let actionError: string | null = null;
   let approvalTarget: string | null = null;
   let lifecycleTarget: "new" | string | null = null;
+  let historyLoading = false;
+  let historyError: string | null = null;
+  let historySessionId = view.render.session?.summary.session_id ?? null;
   let sidebarOpen = true;
-  let sidebarWidth = DRAWER_DEFAULT_WIDTH;
-  let sidebarWidthTransition = false;
-  let resizingSidebar = false;
-  let composer: { focus: () => void } | null = null;
+  let composer: { focus: () => void; containsFocus: () => boolean } | null = null;
+  let topBar: { focusTitle: () => void } | null = null;
   let theme: ThemePreference = initializeThemePreference();
+  let uiStatusAnnouncement = "";
+  let previousConnectionKind = view.connection.kind;
+  let liveEventAnnouncement = "";
+  let previousLiveAnnouncementId = view.render.liveAnnouncement?.id ?? null;
 
   $: chat = chatUiModel(view.render);
   $: catalog = sessionListModel(view.catalog);
   $: mode = composerMode(view.connection, chat.page, view.render.run, phase);
-  $: approvalEnabled = allowsApproval(view.connection, view.render.run, phase);
-  $: sessionTransitionEnabled =
-    phase === "idle" &&
-    lifecycleTarget === null &&
-    allowsSessionTransition(view);
+  $: approvalEnabled = allowsApproval(
+    view.connection,
+    view.render.run,
+    phase,
+    Object.keys(view.render.approvals).length,
+  );
+  $: lifecycleOverlay = {
+    historyLoading,
+    lifecycleTarget,
+    phase,
+  } satisfies LifecycleOverlayContext;
+  $: sessionTransitionReason = resolveSessionTransitionReason(view, lifecycleOverlay);
+  $: sessionTransitionEnabled = sessionTransitionReason === null;
+  $: historyBlockReason = resolveHistoryLoadReason(view, lifecycleOverlay);
+  $: historyEnabled = historyBlockReason === null;
   $: visibleError = actionError ?? startupError;
   $: selectedExcerpt =
-    catalog.rows.find((row) => row.selected)?.excerpt ??
-    (chat.page === "loaded" ? `Session ${chat.sessionId}` : null);
+    chat.page === "loaded"
+      ? sessionExcerptLabel(catalog.rows.find((row) => row.selected)?.excerpt ?? null)
+      : null;
   $: currentRun = runStateKind(view.render.run);
   $: firstSendInFlight =
     view.firstSend.kind === "creating_session" ||
     view.firstSend.kind === "submitting_first_turn";
+  $: sessionSwitching = lifecycleTarget !== null && lifecycleTarget !== "new";
   $: lastTurn = view.render.session?.summary.last_turn ?? null;
+  $: currentHistorySessionId = view.render.session?.summary.session_id ?? null;
+  $: if (currentHistorySessionId !== historySessionId) {
+    historySessionId = currentHistorySessionId;
+    historyError = null;
+  }
   $: if (
     phase === "submitting" &&
-    acceptedSubmissionTurn !== null &&
-    !firstSendInFlight &&
-    (view.connection.kind !== "ready" ||
-      currentRun !== "idle" ||
-      (lastTurn !== null && lastTurn >= acceptedSubmissionTurn))
+    (currentRun === "waiting_approval" ||
+      (acceptedSubmissionTurn !== null &&
+        !firstSendInFlight &&
+        (view.connection.kind !== "ready" ||
+          currentRun !== "idle" ||
+          (lastTurn !== null && lastTurn >= acceptedSubmissionTurn))))
   ) {
     phase = "idle";
     acceptedSubmissionTurn = null;
@@ -83,11 +113,30 @@
   ) {
     phase = "idle";
   }
+  $: if (view.connection.kind !== previousConnectionKind) {
+    previousConnectionKind = view.connection.kind;
+    uiStatusAnnouncement = connectionAnnouncement(view.connection.kind);
+  }
+  $: if ((view.render.liveAnnouncement?.id ?? null) !== previousLiveAnnouncementId) {
+    previousLiveAnnouncementId = view.render.liveAnnouncement?.id ?? null;
+    liveEventAnnouncement =
+      view.render.liveAnnouncement === null
+        ? ""
+        : liveAnnouncementPresentation(view.render.liveAnnouncement);
+  }
 
   async function submit(): Promise<void> {
     const text = prompt;
     if (text.trim().length === 0 || mode !== "editable") {
       return;
+    }
+    const restoreComposerFocus = composer?.containsFocus() ?? false;
+    let focusMoved = false;
+    const recordFocusMove = (): void => {
+      focusMoved = true;
+    };
+    if (restoreComposerFocus) {
+      window.addEventListener("focusin", recordFocusMove);
     }
     phase = "submitting";
     acceptedSubmissionTurn = null;
@@ -99,6 +148,9 @@
       }
       if (response.kind === "turn_accepted") {
         acceptedSubmissionTurn = response.turn;
+        if (restoreComposerFocus && !focusMoved) {
+          await focusComposer();
+        }
       } else {
         phase = "idle";
         acceptedSubmissionTurn = null;
@@ -107,11 +159,13 @@
       phase = "idle";
       acceptedSubmissionTurn = null;
       recordActionError(error);
+    } finally {
+      window.removeEventListener("focusin", recordFocusMove);
     }
   }
 
   async function cancel(): Promise<void> {
-    if (mode !== "active") {
+    if (mode !== "active" || phase !== "idle") {
       return;
     }
     phase = "cancelling";
@@ -160,8 +214,10 @@
     }
     lifecycleTarget = "new";
     actionError = null;
+    const startedAt = performance.now();
     try {
       await controller.newChat();
+      await holdSessionSwitch(startedAt);
       await focusComposer();
     } catch (error) {
       recordActionError(error);
@@ -176,8 +232,11 @@
     }
     lifecycleTarget = sessionId;
     actionError = null;
+    const startedAt = performance.now();
     try {
       await controller.loadSession(sessionId);
+      await holdSessionSwitch(startedAt);
+      await focusLoadedConversation();
     } catch (error) {
       recordActionError(error);
     } finally {
@@ -194,6 +253,21 @@
     }
   }
 
+  async function loadOlderHistory(): Promise<void> {
+    if (historyLoading || !historyEnabled) {
+      return;
+    }
+    historyLoading = true;
+    historyError = null;
+    try {
+      await controller.loadOlderHistory();
+    } catch (error) {
+      historyError = error instanceof Error ? error.message : String(error);
+    } finally {
+      historyLoading = false;
+    }
+  }
+
   async function retryRuntime(): Promise<void> {
     actionError = null;
     try {
@@ -207,62 +281,36 @@
   function toggleTheme(): void {
     theme = theme === "white" ? "black" : "white";
     setThemePreference(theme);
+    uiStatusAnnouncement = `${theme === "white" ? "White" : "Black"} theme enabled`;
+  }
+
+  function handleGlobalKeydown(event: KeyboardEvent): void {
+    if (event.isComposing || event.repeat || mode !== "active" || phase !== "idle") {
+      return;
+    }
+    if (
+      event.key === COMPOSER_STOP_KEY &&
+      COMPOSER_SUBMIT_MODIFIERS.some((modifier) => event[modifier])
+    ) {
+      event.preventDefault();
+      void cancel();
+    }
   }
 
   function toggleSidebar(): void {
     sidebarOpen = !sidebarOpen;
-    sidebarWidthTransition = true;
   }
 
-  function endSidebarWidthTransition(event: TransitionEvent): void {
-    if (event.target !== event.currentTarget || event.propertyName !== "width") {
+  async function holdSessionSwitch(startedAt: number): Promise<void> {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return;
     }
-    sidebarWidthTransition = false;
-  }
-
-  function clampSidebarWidth(width: number): number {
-    return Math.min(DRAWER_MAX_WIDTH, Math.max(DRAWER_MIN_WIDTH, width));
-  }
-
-  function startSidebarResize(event: PointerEvent): void {
-    if (event.button !== 0) {
-      return;
+    const remaining = SESSION_SWITCH_LOADING_MIN_MS - (performance.now() - startedAt);
+    if (remaining > 0) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, remaining);
+      });
     }
-    sidebarWidthTransition = false;
-    resizingSidebar = true;
-    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-    event.preventDefault();
-  }
-
-  function resizeSidebar(event: PointerEvent): void {
-    if (!resizingSidebar) {
-      return;
-    }
-    sidebarWidth = clampSidebarWidth(event.clientX);
-  }
-
-  function stopSidebarResize(): void {
-    resizingSidebar = false;
-  }
-
-  function resizeSidebarFromKeyboard(event: KeyboardEvent): void {
-    let nextWidth: number | null = null;
-    if (event.key === "ArrowLeft") {
-      nextWidth = sidebarWidth - DRAWER_KEYBOARD_STEP;
-    } else if (event.key === "ArrowRight") {
-      nextWidth = sidebarWidth + DRAWER_KEYBOARD_STEP;
-    } else if (event.key === "Home") {
-      nextWidth = DRAWER_MIN_WIDTH;
-    } else if (event.key === "End") {
-      nextWidth = DRAWER_MAX_WIDTH;
-    }
-    if (nextWidth === null) {
-      return;
-    }
-    event.preventDefault();
-    sidebarWidthTransition = false;
-    sidebarWidth = clampSidebarWidth(nextWidth);
   }
 
   function recordActionError(error: unknown): void {
@@ -273,85 +321,63 @@
     await tick();
     composer?.focus();
   }
+
+  async function focusLoadedConversation(): Promise<void> {
+    await tick();
+    topBar?.focusTitle();
+  }
 </script>
 
-<svelte:window
-  onpointermove={resizeSidebar}
-  onpointerup={stopSidebarResize}
-  onpointercancel={stopSidebarResize}
-  onblur={stopSidebarResize}
-/>
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <Sidebar.Provider
   bind:open={sidebarOpen}
   class="h-svh min-h-0 overflow-hidden bg-background"
   style="--sidebar-width: 15rem;"
 >
-  <div
-    class:select-none={resizingSidebar}
-    class:transition-[width]={sidebarWidthTransition && !resizingSidebar}
-    class:duration-200={sidebarWidthTransition && !resizingSidebar}
-    class:ease-out={sidebarWidthTransition && !resizingSidebar}
-    class="relative h-svh min-h-0 shrink-0 overflow-hidden motion-reduce:transition-none"
-    style={`width: ${sidebarOpen ? sidebarWidth : 0}px;`}
-    data-testid="session-drawer-layout"
-    data-state={sidebarOpen ? "open" : "closed"}
-    aria-hidden={!sidebarOpen}
-    inert={!sidebarOpen || undefined}
-    ontransitionend={endSidebarWidthTransition}
-  >
-    <div class="h-full min-h-0" style={`width: ${sidebarWidth}px;`}>
-      <SessionSidebar
-        model={catalog}
-        newChatDisabled={
-          lifecycleTarget !== null ||
-          view.firstSend.kind !== "idle" ||
-          (chat.page === "loaded" && !sessionTransitionEnabled)
-        }
-        rowsDisabled={!sessionTransitionEnabled}
-        {lifecycleTarget}
-        onNewChat={newChat}
-        onLoadSession={loadSession}
-        onRetryCatalog={retryCatalog}
-      />
-    </div>
-    {#if sidebarOpen}
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
-      <div
-        role="separator"
-        aria-label="Resize Session drawer"
-        aria-orientation="vertical"
-        aria-valuemin={DRAWER_MIN_WIDTH}
-        aria-valuemax={DRAWER_MAX_WIDTH}
-        aria-valuenow={sidebarWidth}
-        tabindex="0"
-        class="group absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none outline-none"
-        onpointerdown={startSidebarResize}
-        onkeydown={resizeSidebarFromKeyboard}
-      >
-        <span
-          class="absolute inset-y-0 left-1/2 w-px bg-transparent transition-colors group-hover:bg-ring group-focus-visible:bg-ring"
-        ></span>
-      </div>
-    {/if}
-  </div>
+  <SessionDrawerFrame bind:open={sidebarOpen}>
+    <SessionSidebar
+      model={catalog}
+      newChatDisabled={
+        lifecycleTarget !== null ||
+        view.firstSend.kind !== "idle" ||
+        (chat.page === "loaded" && !sessionTransitionEnabled)
+      }
+      rowsBlockedReason={sessionTransitionReason}
+      {lifecycleTarget}
+      onNewChat={newChat}
+      onLoadSession={loadSession}
+      onRetryCatalog={retryCatalog}
+    />
+  </SessionDrawerFrame>
 
   <main class="flex h-svh min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <ChatTopBar
+      bind:this={topBar}
       title={selectedExcerpt}
+      loaded={chat.page === "loaded"}
       {theme}
       drawerOpen={sidebarOpen}
       onToggleDrawer={toggleSidebar}
       onToggleTheme={toggleTheme}
     />
 
-    {#if chat.page === "blank"}
+    {#if sessionSwitching}
+      <div
+        class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground"
+        role="status"
+        aria-label="Loading conversation"
+      >
+        <LoaderCircleIcon class="size-6 animate-spin motion-reduce:animate-none" />
+        <p class="m-0 text-sm">Loading…</p>
+      </div>
+    {:else if chat.page === "blank"}
       <BlankConversation
         bind:this={composer}
         bind:value={prompt}
         {mode}
         connection={view.connection}
-        notices={view.render.notices}
+        notices={visibleConversationNotices(view.render, view.connection)}
         error={visibleError}
         onSubmit={submit}
         onCancel={cancel}
@@ -361,34 +387,24 @@
       <div class="flex min-h-0 flex-1 flex-col">
         <LoadedConversation
           state={view.render}
+          connection={view.connection}
           {approvalEnabled}
           {approvalTarget}
+          {historyLoading}
+          {historyError}
+          {historyEnabled}
+          {historyBlockReason}
           onResolveApproval={resolveApproval}
+          onLoadOlderHistory={loadOlderHistory}
         />
         <div class="shrink-0 border-t border-border bg-background py-3">
           <div class="mx-auto w-full max-w-3xl px-4">
-            {#if view.connection.kind === "starting"}
-              <Alert class="mb-3 py-3">
-                <AlertTitle>Starting MoonTide</AlertTitle>
-                <AlertDescription>Sending will be available shortly.</AlertDescription>
-              </Alert>
-            {:else if view.connection.kind === "degraded" || view.connection.kind === "disconnected"}
-              <Alert variant="destructive" class="mb-3 py-3">
-                <AlertTitle>Connection unavailable</AlertTitle>
-                <AlertDescription>{view.connection.message}</AlertDescription>
-                <div class="mt-3">
-                  <Button type="button" size="sm" variant="outline" onclick={() => void retryRuntime()}>
-                    Retry
-                  </Button>
-                </div>
-              </Alert>
-            {/if}
-            {#if visibleError !== null}
-              <Alert variant="destructive" class="mb-3 py-3">
-                <AlertTitle>Action failed</AlertTitle>
-                <AlertDescription>{visibleError}</AlertDescription>
-              </Alert>
-            {/if}
+            <ComposerAlerts
+              connection={view.connection}
+              actionError={visibleError}
+              onRetryRuntime={retryRuntime}
+              alertClass="mb-3 py-3"
+            />
             <Composer
               bind:this={composer}
               bind:value={prompt}
@@ -403,4 +419,17 @@
       </div>
     {/if}
   </main>
+
+  <p
+    class="sr-only"
+    aria-live="polite"
+    aria-atomic="true"
+    data-testid="ui-status-announcement"
+  >{uiStatusAnnouncement}</p>
+  <p
+    class="sr-only"
+    aria-live="polite"
+    aria-atomic="true"
+    data-testid="live-event-announcement"
+  >{liveEventAnnouncement}</p>
 </Sidebar.Provider>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import eventFixtures from "../../../../src-tauri/tests/protocol/fixtures/events.json";
+import historyFixture from "../../../../src-tauri/tests/protocol/fixtures/history.json";
 
 import {
   DesktopCommandSchema,
@@ -173,5 +174,48 @@ describe("desktop protocol v1 fixtures", () => {
         selection: { kind: "new" },
       }),
     ).toThrow();
+  });
+
+  it("parses bounded Session history commands and responses", () => {
+    expect(
+      DesktopCommandSchema.parse({
+        kind: "load_session_history",
+        session_id: "session-1",
+        before_turn: 30,
+        limit: 30,
+      }),
+    ).toEqual({
+      kind: "load_session_history",
+      session_id: "session-1",
+      before_turn: 30,
+      limit: 30,
+    });
+    expect(
+      parseDesktopResponse({
+        kind: "session_history_page",
+        session_id: "session-1",
+        items: [],
+        oldest_turn: 0,
+        has_older: false,
+      }),
+    ).toMatchObject({ kind: "session_history_page", session_id: "session-1" });
+    expect(() =>
+      parseDesktopResponse({
+        kind: "session_history_page",
+        session_id: "session-1",
+        items: [],
+        oldest_turn: -1,
+        has_older: false,
+      }),
+    ).toThrow();
+  });
+
+  it("shares the Session history fixture with the Rust protocol", () => {
+    expect(DesktopCommandSchema.parse(historyFixture.command)).toEqual(
+      historyFixture.command,
+    );
+    expect(parseDesktopResponse(historyFixture.response)).toEqual(
+      historyFixture.response,
+    );
   });
 });

@@ -16,9 +16,14 @@
   export let onCancel: () => void | Promise<void>;
 
   let textarea: HTMLTextAreaElement | null = null;
+  let root: HTMLDivElement | null = null;
 
   export function focus(): void {
     textarea?.focus();
+  }
+
+  export function containsFocus(): boolean {
+    return root?.contains(document.activeElement) ?? false;
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -35,7 +40,7 @@
   }
 </script>
 
-<div class="rounded-xl border border-input bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
+<div bind:this={root} class="rounded-xl border border-input bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
   <Label for="prompt" class="sr-only">Message</Label>
   <Textarea
     bind:ref={textarea}
@@ -50,7 +55,7 @@
   <div class="flex min-h-9 items-end justify-between gap-3 px-1 pb-1">
     <p class="m-0 text-xs text-muted-foreground">
       {#if mode === "active"}
-        MoonTide is working
+        MoonTide is working · Cmd/Ctrl+. to stop
       {:else if mode !== "disabled"}
         Cmd/Ctrl+Enter to send
       {/if}

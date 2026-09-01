@@ -8,6 +8,7 @@ export interface DesktopBridge {
     newChat(): Promise<DesktopResponse>;
     createSession(): Promise<DesktopResponse>;
     startSession(sessionId: string): Promise<DesktopResponse>;
+    loadSessionHistory(sessionId: string, beforeTurn: number, limit: number): Promise<DesktopResponse>;
     submitTurn(sessionId: string, text: string): Promise<DesktopResponse>;
     cancelTurn(): Promise<DesktopResponse>;
     approve(approvalId: string): Promise<DesktopResponse>;
@@ -57,6 +58,7 @@ export interface DesktopControllerPort {
     start(): Promise<void>;
     newChat(): Promise<void>;
     loadSession(sessionId: string): Promise<void>;
+    loadOlderHistory(): Promise<void>;
     retryRuntime(): Promise<void>;
     retryCatalog(): Promise<void>;
     submitTurn(text: string): Promise<DesktopResponse>;

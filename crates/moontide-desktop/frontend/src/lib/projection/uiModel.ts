@@ -7,7 +7,9 @@ import type {
 } from "$lib/protocol/index.js";
 import type {
   AssistantDraftView,
+  LiveAnnouncementView,
   MessageView,
+  NoticeView,
   RenderState,
   ToolView,
 } from "$lib/projection/renderState.js";
@@ -88,25 +90,43 @@ export function runStateKind(run: DesktopRunState): string {
 
 export function runStateLabel(run: DesktopRunState): string {
   if (typeof run === "string") {
-    return capitalize(run);
+    return RUN_STATE_STRING_LABEL[run] ?? capitalize(run);
   }
-  if ("thinking" in run) {
-    return `Thinking · turn ${run.thinking.turn} · step ${run.thinking.step}`;
+  const key = Object.keys(run)[0];
+  if (key === undefined) {
+    return "Unknown";
   }
-  if ("running_tool" in run) {
-    return `Running ${run.running_tool.name}`;
-  }
-  if ("waiting_approval" in run) {
-    return "Waiting for approval";
-  }
-  if ("cancelling" in run) {
-    return "Cancelling";
-  }
-  if ("failed" in run) {
-    return "Failed";
-  }
-  return "Unknown";
+  return RUN_STATE_OBJECT_LABEL[key]?.(run as never) ?? "Unknown";
 }
+
+interface ComposerModeInput {
+  connection: ConnectionState;
+  page: ChatPageMode;
+  run: DesktopRunState;
+  phase: CommandPhase;
+}
+
+const COMPOSER_MODE_RULES: ReadonlyArray<{
+  when: (input: ComposerModeInput) => boolean;
+  mode: ComposerMode;
+}> = [
+  { when: (input) => input.connection.kind !== "ready", mode: "disabled" },
+  { when: (input) => input.phase === "cancelling", mode: "cancelling" },
+  { when: (input) => input.phase === "submitting", mode: "submitting" },
+  { when: (input) => input.page === "blank", mode: "editable" },
+  {
+    when: (input) => LOADED_EDITABLE_RUNS.has(runStateKind(input.run)),
+    mode: "editable",
+  },
+  {
+    when: (input) => LOADED_ACTIVE_RUNS.has(runStateKind(input.run)),
+    mode: "active",
+  },
+  {
+    when: (input) => LOADED_CANCELLING_RUNS.has(runStateKind(input.run)),
+    mode: "cancelling",
+  },
+];
 
 export function composerMode(
   connection: ConnectionState,
@@ -114,55 +134,319 @@ export function composerMode(
   run: DesktopRunState,
   phase: CommandPhase,
 ): ComposerMode {
-  if (connection.kind !== "ready") {
-    return "disabled";
-  }
-  if (phase === "cancelling") {
-    return "cancelling";
-  }
-  if (phase === "submitting") {
-    return "submitting";
-  }
-
-  if (page === "blank") {
-    return "editable";
-  }
-
-  const kind = runStateKind(run);
-  if (kind === "idle" || kind === "failed") {
-    return "editable";
-  }
-  if (kind === "thinking" || kind === "running_tool" || kind === "waiting_approval") {
-    return "active";
-  }
-  if (kind === "cancelling" || kind === "stopping") {
-    return "cancelling";
-  }
-  return "disabled";
+  const input: ComposerModeInput = { connection, page, run, phase };
+  return COMPOSER_MODE_RULES.find((rule) => rule.when(input))?.mode ?? "disabled";
 }
+
+const APPROVAL_BLOCKED_PHASES = new Set<CommandPhase>(["approval", "cancelling"]);
 
 export function allowsApproval(
   connection: ConnectionState,
   run: DesktopRunState,
   phase: CommandPhase,
+  pendingApprovalCount = 0,
 ): boolean {
+  if (connection.kind !== "ready" || APPROVAL_BLOCKED_PHASES.has(phase)) {
+    return false;
+  }
   return (
-    connection.kind === "ready" &&
-    phase === "idle" &&
-    runStateKind(run) === "waiting_approval"
+    runStateKind(run) === "waiting_approval" || pendingApprovalCount > 0
   );
 }
 
 export function allowsSessionTransition(state: DesktopViewState): boolean {
-  const run = runStateKind(state.render.run);
-  return (
-    state.connection.kind === "ready" &&
-    (run === "idle" || run === "failed") &&
-    Object.keys(state.render.approvals).length === 0 &&
-    state.firstSend.kind === "idle" &&
-    !state.render.delivery.awaitingSnapshot &&
-    !state.render.delivery.resyncRequired
-  );
+  return sessionTransitionBlockReason(state) === null;
+}
+
+export interface LifecycleOverlayContext {
+  historyLoading: boolean;
+  lifecycleTarget: "new" | string | null;
+  phase: CommandPhase;
+}
+
+const SESSION_SWITCH_OVERLAY_RULES: ReadonlyArray<{
+  when: (overlay: LifecycleOverlayContext) => boolean;
+  message: string;
+}> = [
+  {
+    when: (overlay) => overlay.historyLoading,
+    message: "Wait for earlier messages to finish loading before changing Sessions.",
+  },
+  {
+    when: (overlay) => overlay.lifecycleTarget !== null,
+    message: "A Session change is already in progress.",
+  },
+  {
+    when: (overlay) => overlay.phase !== "idle",
+    message: "Wait for the current action to finish before switching Sessions.",
+  },
+];
+
+const HISTORY_LOAD_OVERLAY_RULES: ReadonlyArray<{
+  when: (overlay: LifecycleOverlayContext) => boolean;
+  message: string;
+}> = [
+  {
+    when: (overlay) => overlay.lifecycleTarget !== null,
+    message: "Wait for the Session change to finish before loading earlier messages.",
+  },
+  {
+    when: (overlay) => overlay.phase !== "idle",
+    message: "Wait for the current action to finish before loading earlier messages.",
+  },
+];
+
+export function sessionTransitionReason(
+  view: DesktopViewState,
+  overlay: LifecycleOverlayContext,
+): string | null {
+  const overlayRule = SESSION_SWITCH_OVERLAY_RULES.find((rule) => rule.when(overlay));
+  if (overlayRule !== undefined) {
+    return overlayRule.message;
+  }
+  return sessionTransitionBlockReason(view);
+}
+
+export function historyLoadReason(
+  view: DesktopViewState,
+  overlay: LifecycleOverlayContext,
+): string | null {
+  const overlayRule = HISTORY_LOAD_OVERLAY_RULES.find((rule) => rule.when(overlay));
+  if (overlayRule !== undefined) {
+    return overlayRule.message;
+  }
+  return historyLoadBlockReason(view);
+}
+
+type LifecycleGateAction = "session_switch" | "load_history";
+
+interface LifecycleGateContext {
+  connectionKind: ConnectionState["kind"];
+  runKind: string;
+  pendingApprovalCount: number;
+  firstSendIdle: boolean;
+  deliverySettled: boolean;
+}
+
+const LIFECYCLE_GATE_RULES: ReadonlyArray<{
+  when: (context: LifecycleGateContext) => boolean;
+  messages: Record<LifecycleGateAction, string>;
+}> = [
+  {
+    when: (context) => context.connectionKind === "starting",
+    messages: {
+      session_switch:
+        "Wait for MoonTide to finish starting before changing Sessions.",
+      load_history:
+        "Wait for MoonTide to finish starting before loading earlier messages.",
+    },
+  },
+  {
+    when: (context) => context.connectionKind !== "ready",
+    messages: {
+      session_switch: "Reconnect MoonTide before changing Sessions.",
+      load_history: "Reconnect MoonTide before loading earlier messages.",
+    },
+  },
+  {
+    when: (context) =>
+      context.pendingApprovalCount > 0 || context.runKind === "waiting_approval",
+    messages: {
+      session_switch: "Resolve the pending approval before changing Sessions.",
+      load_history:
+        "Resolve the pending approval before loading earlier messages.",
+    },
+  },
+  {
+    when: (context) => isBusyTurnRun(context.runKind),
+    messages: {
+      session_switch: "Finish or stop the current turn before changing Sessions.",
+      load_history:
+        "Finish or stop the current turn before loading earlier messages.",
+    },
+  },
+  {
+    when: (context) => !context.firstSendIdle,
+    messages: {
+      session_switch:
+        "Wait for the first message to finish starting its Session.",
+      load_history:
+        "Wait for the first message to finish before loading earlier messages.",
+    },
+  },
+  {
+    when: (context) => !context.deliverySettled,
+    messages: {
+      session_switch: "Wait for MoonTide to finish syncing before changing Sessions.",
+      load_history:
+        "Wait for MoonTide to finish syncing before loading earlier messages.",
+    },
+  },
+];
+
+function lifecycleGateContext(state: DesktopViewState): LifecycleGateContext {
+  return {
+    connectionKind: state.connection.kind,
+    runKind: runStateKind(state.render.run),
+    pendingApprovalCount: Object.keys(state.render.approvals).length,
+    firstSendIdle: state.firstSend.kind === "idle",
+    deliverySettled:
+      !state.render.delivery.awaitingSnapshot &&
+      !state.render.delivery.resyncRequired,
+  };
+}
+
+function lifecycleBlockReason(
+  state: DesktopViewState,
+  action: LifecycleGateAction,
+): string | null {
+  const context = lifecycleGateContext(state);
+  const rule = LIFECYCLE_GATE_RULES.find((entry) => entry.when(context));
+  return rule === undefined ? null : rule.messages[action];
+}
+
+export function sessionTransitionBlockReason(state: DesktopViewState): string | null {
+  return lifecycleBlockReason(state, "session_switch");
+}
+
+export function historyLoadBlockReason(state: DesktopViewState): string | null {
+  return lifecycleBlockReason(state, "load_history");
+}
+
+export function isSessionCloseSettled(
+  state: DesktopViewState,
+  options: { turnSubmissionPending?: boolean } = {},
+): boolean {
+  const context = lifecycleGateContext(state);
+  if (context.connectionKind !== "ready") {
+    return false;
+  }
+  if (!["idle", "failed"].includes(context.runKind)) {
+    return false;
+  }
+  if (context.pendingApprovalCount > 0) {
+    return false;
+  }
+  if (!context.firstSendIdle) {
+    return false;
+  }
+  if (!context.deliverySettled) {
+    return false;
+  }
+  if (options.turnSubmissionPending) {
+    return false;
+  }
+  return true;
+}
+
+export const UNTITLED_SESSION_LABEL = "Untitled session";
+
+const REPLY_DIDNT_FINISH = "The reply didn't finish. Try again.";
+const MOONTIDE_STOPPED = "This window is no longer connected.";
+const CONNECTION_LOST = "MoonTide disconnected. Retry to continue.";
+const CATALOG_LOAD_FAILED = "Couldn't load recent conversations.";
+const HISTORY_LOAD_FAILED = "Couldn't load earlier messages.";
+const ACTION_FAILED = "That action didn't complete. Try again.";
+
+export interface NoticePresentation {
+  title: string;
+  description: string;
+}
+
+export function sessionExcerptLabel(excerpt: string | null): string {
+  return excerpt ?? UNTITLED_SESSION_LABEL;
+}
+
+export function connectionPresentation(
+  connection: ConnectionState,
+): NoticePresentation | null {
+  return CONNECTION_PRESENTATION[connection.kind] ?? null;
+}
+
+export function catalogErrorCopy(_message: string | null): string {
+  return CATALOG_LOAD_FAILED;
+}
+
+export function historyErrorCopy(_message: string | null): string {
+  return HISTORY_LOAD_FAILED;
+}
+
+export function actionErrorCopy(_message: string | null): string {
+  return ACTION_FAILED;
+}
+
+export const CONNECTION_ANNOUNCEMENT: Record<ConnectionState["kind"], string> = {
+  starting: "MoonTide is starting",
+  ready: "MoonTide is ready",
+  degraded: "MoonTide connection unavailable",
+  disconnected: "MoonTide connection unavailable",
+};
+
+export function connectionAnnouncement(kind: ConnectionState["kind"]): string {
+  return CONNECTION_ANNOUNCEMENT[kind];
+}
+
+export type ComposerAlertKind = "starting" | "action_failed";
+
+export const COMPOSER_ALERT_PRESENTATION: Record<
+  ComposerAlertKind,
+  Pick<NoticePresentation, "title"> & { description?: string }
+> = {
+  starting: {
+    title: "Starting MoonTide",
+    description: "Sending will be available shortly.",
+  },
+  action_failed: {
+    title: "Action failed",
+  },
+};
+
+export function composerAlertPresentation(kind: ComposerAlertKind): NoticePresentation {
+  const presentation = COMPOSER_ALERT_PRESENTATION[kind];
+  return {
+    title: presentation.title,
+    description: presentation.description ?? "",
+  };
+}
+
+export function liveAnnouncementPresentation(announcement: LiveAnnouncementView): string {
+  switch (announcement.kind) {
+    case "approval_required":
+      return `Approval required for ${announcement.toolName}`;
+  }
+}
+
+// Resync notices only belong on the reading surface while delivery is still catching up.
+// A completed snapshot already replaced Host facts; leftover protocol notices stay out of chat.
+export function visibleConversationNotices(
+  state: RenderState,
+  connection: ConnectionState = { kind: "ready" },
+): NoticeView[] {
+  return state.notices.filter((notice) => {
+    if (notice.kind !== "resync") {
+      return true;
+    }
+    if (connection.kind === "degraded" || connection.kind === "disconnected") {
+      return false;
+    }
+    return state.delivery.resyncRequired || state.delivery.awaitingSnapshot;
+  });
+}
+
+export function noticePresentation(notice: NoticeView): NoticePresentation {
+  if (notice.kind === "error") {
+    if (notice.errorKind === "provider" || notice.errorKind === "tool") {
+      return {
+        title: ERROR_NOTICE_TITLE,
+        description: notice.message,
+      };
+    }
+    return {
+      title: ERROR_NOTICE_TITLE,
+      description: REPLY_DIDNT_FINISH,
+    };
+  }
+  return NOTICE_PRESENTATION[notice.kind];
 }
 
 export function conversationItems(state: RenderState): ConversationItem[] {
@@ -213,22 +497,38 @@ export function conversationItems(state: RenderState): ConversationItem[] {
   return items;
 }
 
-export function blocksText(blocks: ContentBlock[]): string {
+export function contentBlockDisplayText(content: string | ContentBlock[]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  return blocksText(content, "display");
+}
+
+export function blocksText(
+  blocks: ContentBlock[],
+  mode: "copy" | "display" = "copy",
+): string {
   return blocks
-    .flatMap((block) => {
-      switch (block.kind) {
-        case "text":
-          return [block.text];
-        case "thinking":
-          return [];
-        case "tool_use":
-          return [`tool: ${block.name}`];
-        case "tool_result":
-          return ["tool result"];
-      }
-    })
+    .flatMap((block) => blockDisplayLines(block, mode))
     .filter((text) => text.length > 0)
     .join("\n");
+}
+
+function blockDisplayLines(block: ContentBlock, mode: "copy" | "display"): string[] {
+  switch (block.kind) {
+    case "text":
+      return [block.text];
+    case "thinking":
+      return [];
+    case "tool_use":
+      return mode === "display"
+        ? [`Tool call · ${block.name}`]
+        : [`tool: ${block.name}`];
+    case "tool_result":
+      return mode === "display"
+        ? [contentBlockDisplayText(block.content)]
+        : ["tool result"];
+  }
 }
 
 export function snapshotText(snapshot: ModelResponseSnapshot): string {
@@ -297,32 +597,89 @@ export function toolStatusLabel(result: ToolResult | null): string {
 
 export function toolStatusModel(result: ToolResult | null): ToolStatusModel {
   if (result === null) {
-    return { label: "Running", tone: "neutral" };
+    return TOOL_STATUS.running;
   }
   if (typeof result.status === "string") {
-    switch (result.status) {
-      case "succeeded":
-        return { label: "Succeeded", tone: "success" };
-      case "invalid_arguments":
-        return { label: "Invalid arguments", tone: "danger" };
-      case "unknown_tool":
-        return { label: "Unknown tool", tone: "danger" };
-      case "denied":
-        return { label: "Denied", tone: "warning" };
-      case "outcome_unknown":
-        return { label: "Execution outcome unknown", tone: "warning" };
-    }
+    return TOOL_STRING_STATUS[result.status] ?? TOOL_STATUS.running;
   }
   if ("failed" in result.status) {
-    return {
-      label: result.status.failed.retryable ? "Failed · retryable" : "Failed",
-      tone: "danger",
-    };
+    return TOOL_STATUS.failed;
   }
-  return {
-    label: `Cancelled · ${result.status.cancelled.reason}`,
-    tone: "warning",
-  };
+  return TOOL_STATUS.cancelled;
+}
+
+const RUN_STATE_STRING_LABEL: Record<string, string> = {
+  idle: "Idle",
+  failed: "Failed",
+  starting: "Starting",
+  stopping: "Stopping",
+  stopped: "Stopped",
+};
+
+const RUN_STATE_OBJECT_LABEL: Record<
+  string,
+  (run: DesktopRunState & object) => string
+> = {
+  thinking: (run) =>
+    "thinking" in run
+      ? `Thinking · turn ${run.thinking.turn} · step ${run.thinking.step}`
+      : "Unknown",
+  running_tool: (run) =>
+    "running_tool" in run ? `Running ${run.running_tool.name}` : "Unknown",
+  waiting_approval: () => "Waiting for approval",
+  cancelling: () => "Cancelling",
+  failed: () => "Failed",
+};
+
+const LOADED_EDITABLE_RUNS = new Set(["idle", "failed"]);
+const LOADED_ACTIVE_RUNS = new Set(["thinking", "running_tool", "waiting_approval"]);
+const LOADED_CANCELLING_RUNS = new Set(["cancelling", "stopping"]);
+
+const CONNECTION_PRESENTATION: Partial<
+  Record<ConnectionState["kind"], NoticePresentation>
+> = {
+  degraded: {
+    title: "Connection lost",
+    description: CONNECTION_LOST,
+  },
+  disconnected: {
+    title: "Connection lost",
+    description: CONNECTION_LOST,
+  },
+};
+
+const ERROR_NOTICE_TITLE = "Reply didn't finish";
+
+const NOTICE_PRESENTATION: Record<
+  Exclude<NoticeView["kind"], "error">,
+  NoticePresentation
+> = {
+  resync: {
+    title: "Updating conversation",
+    description: "Live updates were interrupted. Restoring the latest state.",
+  },
+  stopped: {
+    title: "MoonTide stopped",
+    description: MOONTIDE_STOPPED,
+  },
+};
+
+const TOOL_STATUS = {
+  running: { label: "Running", tone: "neutral" },
+  failed: { label: "Failed", tone: "danger" },
+  cancelled: { label: "Cancelled", tone: "warning" },
+} as const satisfies Record<string, ToolStatusModel>;
+
+const TOOL_STRING_STATUS: Record<string, ToolStatusModel> = {
+  succeeded: { label: "Succeeded", tone: "success" },
+  invalid_arguments: { label: "Invalid arguments", tone: "danger" },
+  unknown_tool: { label: "Unknown tool", tone: "danger" },
+  denied: { label: "Denied", tone: "warning" },
+  outcome_unknown: { label: "Execution outcome unknown", tone: "warning" },
+};
+
+function isBusyTurnRun(run: string): boolean {
+  return run !== "idle" && run !== "failed" && run !== "starting";
 }
 
 function capitalize(value: string): string {

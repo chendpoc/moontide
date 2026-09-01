@@ -18,6 +18,7 @@ function snapshot(lastSeq = 0): DesktopSnapshot {
         item_count: 0,
       },
       items: [],
+      history: { oldest_turn: null, has_older: false },
     },
     state: "idle",
     pending_approvals: [],
@@ -54,6 +55,7 @@ function completedSnapshot(lastSeq: number, text: string): DesktopSnapshot {
           text,
         },
       ],
+      history: { oldest_turn: 0, has_older: false },
     },
   };
 }
@@ -81,6 +83,11 @@ class FakeBridge implements DesktopBridge {
   readonly snapshotCalls: number[] = [];
   readonly startedSessionIds: string[] = [];
   readonly submitCalls: Array<{ sessionId: string; text: string }> = [];
+  readonly historyCalls: Array<{
+    sessionId: string;
+    beforeTurn: number;
+    limit: number;
+  }> = [];
   currentEpoch = 1;
   loadedSessionId: string | null = null;
   listSessionsHandler: (() => Promise<DesktopResponse>) | null = null;
@@ -109,6 +116,17 @@ class FakeBridge implements DesktopBridge {
   ) => Promise<DesktopResponse> = async () => ({
     kind: "turn_accepted",
     turn: 0,
+  });
+  loadSessionHistoryHandler: (
+    sessionId: string,
+    beforeTurn: number,
+    limit: number,
+  ) => Promise<DesktopResponse> = async (sessionId) => ({
+    kind: "session_history_page",
+    session_id: sessionId,
+    items: [],
+    oldest_turn: null,
+    has_older: false,
   });
   #envelopeListener: ((payload: unknown) => void) | null = null;
   #connectionListener: ((payload: unknown) => void) | null = null;
@@ -168,6 +186,16 @@ class FakeBridge implements DesktopBridge {
     this.operations.push("submitTurn");
     this.submitCalls.push({ sessionId, text });
     return this.submitTurnHandler(sessionId, text);
+  }
+
+  async loadSessionHistory(
+    sessionId: string,
+    beforeTurn: number,
+    limit: number,
+  ): Promise<DesktopResponse> {
+    this.operations.push("loadSessionHistory");
+    this.historyCalls.push({ sessionId, beforeTurn, limit });
+    return this.loadSessionHistoryHandler(sessionId, beforeTurn, limit);
   }
 
   async cancelTurn(): Promise<DesktopResponse> {
@@ -523,7 +551,6 @@ describe("DesktopController Session lifecycle", () => {
       "startSession",
       "listSessions",
       "newChat",
-      "listSessions",
       "startSession",
       "listSessions",
       "submitTurn",
@@ -690,7 +717,162 @@ describe("DesktopController Session lifecycle", () => {
   });
 });
 
+describe("DesktopController Session history", () => {
+  it("loads the previous Turn window for the currently loaded Session", async () => {
+    const bridge = new FakeBridge();
+    const controller = new DesktopController(bridge);
+    await startLoaded(controller);
+    const session = controller.state.render.session;
+    if (session === null) {
+      throw new Error("expected loaded Session");
+    }
+    session.history = { oldest_turn: 30, has_older: true };
+    bridge.loadSessionHistoryHandler = async (sessionId) => ({
+      kind: "session_history_page",
+      session_id: sessionId,
+      items: [
+        {
+          kind: "user_message",
+          base: {
+            id: "old-item",
+            seq: 0,
+            session_id: sessionId,
+            turn: 0,
+            at: "2026-09-01T00:00:00Z",
+          },
+          text: "older message",
+        },
+      ],
+      oldest_turn: 0,
+      has_older: false,
+    });
+
+    await controller.loadOlderHistory();
+
+    expect(bridge.historyCalls).toEqual([
+      { sessionId: "session-1", beforeTurn: 30, limit: 30 },
+    ]);
+    expect(controller.state.render.messages).toEqual([
+      { kind: "user", turn: 0, text: "older message" },
+    ]);
+    expect(controller.state.render.session?.history).toEqual({
+      oldest_turn: 0,
+      has_older: false,
+    });
+  });
+
+  it("allows only one older-history request at a time", async () => {
+    const bridge = new FakeBridge();
+    const controller = new DesktopController(bridge);
+    await startLoaded(controller);
+    const session = controller.state.render.session;
+    if (session === null) {
+      throw new Error("expected loaded Session");
+    }
+    session.history = { oldest_turn: 30, has_older: true };
+    const pending = deferred<DesktopResponse>();
+    bridge.loadSessionHistoryHandler = async () => pending.promise;
+
+    const first = controller.loadOlderHistory();
+    await Promise.resolve();
+    await expect(controller.loadOlderHistory()).rejects.toThrow(
+      "An older history page is already loading",
+    );
+    await expect(controller.newChat()).rejects.toThrow(
+      "Cannot change Session lifecycle while history is loading",
+    );
+    pending.resolve({
+      kind: "session_history_page",
+      session_id: "session-1",
+      items: [],
+      oldest_turn: null,
+      has_older: false,
+    });
+    await first;
+
+    expect(bridge.historyCalls).toHaveLength(1);
+  });
+
+  it("preserves the loaded history when a page is rejected or belongs to another Session", async () => {
+    const bridge = new FakeBridge();
+    const controller = new DesktopController(bridge);
+    await startLoaded(controller);
+    const session = controller.state.render.session;
+    if (session === null) {
+      throw new Error("expected loaded Session");
+    }
+    session.history = { oldest_turn: 30, has_older: true };
+    const original = structuredClone(session);
+    bridge.loadSessionHistoryHandler = async () => ({
+      kind: "rejected",
+      error: { code: "history_unavailable", message: "history unavailable" },
+    });
+
+    await expect(controller.loadOlderHistory()).rejects.toThrow("history unavailable");
+    expect(controller.state.connection).toEqual({ kind: "ready" });
+    expect(controller.state.render.session).toEqual(original);
+
+    bridge.loadSessionHistoryHandler = async () => ({
+      kind: "session_history_page",
+      session_id: "session-2",
+      items: [],
+      oldest_turn: null,
+      has_older: false,
+    });
+    await expect(controller.loadOlderHistory()).rejects.toThrow(
+      "Desktop history page does not match the loaded Session",
+    );
+    expect(controller.state.connection).toEqual({ kind: "ready" });
+    expect(controller.state.render.session).toEqual(original);
+  });
+});
+
 describe("DesktopController delivery orchestration", () => {
+  // Approval events buffered behind a snapshot update approval state but stay silent; only a
+  // subsequently delivered live approval creates an announcement.
+  it("does not announce approval events replayed after a snapshot", async () => {
+    const bridge = new FakeBridge();
+    bridge.startSessionHandler = async () => {
+      bridge.emitEnvelope(
+        event(1, {
+          kind: "approval_requested",
+          request: {
+            id: "replayed-approval",
+            turn: 0,
+            call: { tool_use_id: "tool-1", name: "bash", input: { secret: "hidden" } },
+            working_dir: ".",
+          },
+        }),
+      );
+      return { kind: "session_ready", connection_epoch: 1, snapshot: snapshot() };
+    };
+    const controller = new DesktopController(bridge);
+    await controller.start();
+
+    await controller.loadSession("session-1");
+
+    expect(controller.state.render.approvals["replayed-approval"]).toBeDefined();
+    expect(controller.state.render.liveAnnouncement).toBeNull();
+
+    bridge.emitEnvelope(
+      event(2, {
+        kind: "approval_requested",
+        request: {
+          id: "live-approval",
+          turn: 0,
+          call: { tool_use_id: "tool-2", name: "read_file", input: {} },
+          working_dir: ".",
+        },
+      }),
+    );
+
+    expect(controller.state.render.liveAnnouncement).toEqual({
+      id: "1:2:live-approval",
+      kind: "approval_required",
+      toolName: "read_file",
+    });
+  });
+
   it("subscribes before startSession and ignores boot events already included in SessionReady", async () => {
     const bridge = new FakeBridge();
     bridge.startSessionHandler = async () => {

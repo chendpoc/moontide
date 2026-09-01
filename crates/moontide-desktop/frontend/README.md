@@ -211,6 +211,19 @@ Batch 1 使用并记录 `shadcn-svelte 1.5.1`；禁止使用未记录的 `@lates
 
 精确 gate 见 [`../docs/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md`](../docs/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md)。
 
+### 3.5 Projection 声明式模式
+
+`lib/projection/uiModel.ts` 集中 gate、status copy 与 notice presentation。两种常用形状：
+
+| 形状 | 用途 | 解析 |
+|------|------|------|
+| 规则表 + `find` | gate、composer mode 等互斥决策 | `ReadonlyArray<{ when, … }>` 按声明顺序匹配第一条 |
+| copy 常量 + presentation map | connection / catalog / history / action / notice 文案 | `Record<kind, string>` 或 `*Copy()` / `*Presentation()` |
+
+**Svelte 纪律：** feature 组件只消费 `uiModel` 导出（`chatUiModel`、`composerMode`、`sessionTransitionBlockReason` 等），**不在组件内写 gate 文案或嵌套三元**。Host / Controller 原文只进 state，展示一律经 projection map。
+
+**范例：** [`uiModel.ts`](src/lib/projection/uiModel.ts) 中的 `LIFECYCLE_GATE_RULES`（同一 `when` 多 action → `Record<action, message>`）与 `COMPOSER_MODE_RULES`（条件 → mode）。契约见 [`UI-STATE.md`](../docs/UI-STATE.md) §4 / §8。
+
 ---
 
 ## 4. 本地命令

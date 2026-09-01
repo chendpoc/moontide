@@ -24,6 +24,15 @@ export function createTauriBridge(): DesktopBridge {
     async startSession(sessionId: string): Promise<DesktopResponse> {
       return parseDesktopResponse(await invoke<unknown>("start_session", { sessionId }));
     },
+    async loadSessionHistory(
+      sessionId: string,
+      beforeTurn: number,
+      limit: number,
+    ): Promise<DesktopResponse> {
+      return parseDesktopResponse(
+        await invoke<unknown>("load_session_history", { sessionId, beforeTurn, limit }),
+      );
+    },
     async submitTurn(sessionId: string, text: string): Promise<DesktopResponse> {
       return parseDesktopResponse(
         await invoke<unknown>("submit_turn", { sessionId, text }),

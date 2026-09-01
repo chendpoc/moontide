@@ -8,7 +8,7 @@
   export let onResolve: (approvalId: string, approve: boolean) => void | Promise<void>;
 </script>
 
-<section class="rounded-lg border border-warning/50 bg-message-tool p-3 text-sm" data-approval-id={approval.request.id}>
+<section class="rounded-lg border border-warning bg-message-tool p-3 text-sm" data-approval-id={approval.request.id}>
   <div class="flex flex-wrap items-start justify-between gap-2">
     <div>
       <p class="m-0 font-medium text-warning">Approval required</p>
