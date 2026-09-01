@@ -1,199 +1,231 @@
-# Desktop v0.1 UI Scope
+# Desktop v0.1 Session Chat Scope
 
-> **性质：** v0.1 布局与 core feature 定稿清单（实施门禁）
-> **状态：** Proposal；定稿前不启动 Panel Host 以外的 Workbench 大批量编码
-> **交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)（详细行为）
-> **状态 fold：** [`UI-STATE.md`](UI-STATE.md)
-> **产品基线：** [`../../docs/product/desktop-development-direction.md`](../../docs/product/desktop-development-direction.md)
-> **工程计划：** [`../docs/desktop-stack-simplification-refactor.md`](../docs/desktop-stack-simplification-refactor.md)
+> **性质：** v0.1 产品范围与实施门禁
+> **状态：** Confirmed product target；目标行为不表示已经实现
+> **实施计划：** [`UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md`](UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md)
+> **交互权威：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
+> **视觉方向：** [`UI-VISUAL-DIRECTION.md`](UI-VISUAL-DIRECTION.md)
+> **当前 projection：** [`UI-STATE.md`](UI-STATE.md)
 
-本文把 v0.1 Workbench 收成 **一页 scope**：哪些 layout 区域进版、哪些 core feature 必须闭环、哪些明确不做。冲突时 [`UI-INTERACTION.md`](UI-INTERACTION.md) 仍是交互细节权威；本文只管 **范围裁剪与实施顺序**。
+## 1. 产品结论
 
----
-
-## 1. 定稿目标
-
-用户能在单窗口内完成：
+MoonTide Desktop v0.1 是单窗口、单 loaded Session、单 Agent 的 **Session Chat client**。主界面只有两种页面级视觉状态：
 
 ```text
-启动 →（可选）选/建 Session → 对话 → 看 tool/approval 状态 → 批准或停止 → 断线/resync 可理解
+Blank Conversation
+    └── StartSession accepted / load existing Session
+            ↓
+Loaded Conversation
 ```
 
-不要求：可拖拽分屏、多 Session 并行、Settings UI、独立 agent-host 进程。
+- `Blank Conversation`：controller projection 中没有 loaded Session。
+- `Loaded Conversation`：controller projection 中有且只有一个 loaded Session。
+- message 数量不决定页面状态；刚加载但没有消息的 Session 仍是 Loaded。
+- connecting、listing、submitting、streaming、approval、failed、resyncing 和 disconnected 都只能在这两种页面内表达，不形成第三种页面布局。
 
----
+此前确认的 Single-Agent Terminal、四区 Workbench、PTY、Content Deck、Agent Dock、File、Plan、Pins 和 Floating Island 方向不再属于 v0.1。相关文档与历史视觉资产只保留未来研究价值，不约束本版本实现。
 
-## 2. Layout（空间结构）
-
-### 2.1 目标线框（与 UI-INTERACTION 一致）
+## 2. v0.1 用户流
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ TopBar                                                       │
-├──────────┬───────────────────────────────┬───────────────────┤
-│ Session  │ Conversation                  │ Inspector         │
-│ Rail     │  + Composer（贴底）            │ （可折叠）         │
-└──────────┴───────────────────────────────┴───────────────────┘
+Provider/bootstrap ready
+    → Blank Conversation
+    → first Send or load Recent Session
+    → Loaded Conversation
+    → serial Turns
 ```
 
-实现方式 v0.1：**固定 CSS Grid**，不用 layout engine（dockview / paneforge 等）。
+用户可以：
 
-### 2.2 区域 scope 表
+- 在 Blank 页输入第一条 prompt；first-send transaction 的 `StartSession` 被接受后创建 Session，
+  后续 `SubmitTurn` 独立接受或拒绝。
+- 从 Recent list 恢复一个 Session。
+- 在 Loaded 页阅读 conversation，继续提交 Turn、取消 active Turn、处理 approval。
+- 在满足 close gate 后 New Chat 或切换 Session。
+- 在 White 与 Black 等价主题间切换。
+- 在失败、断连或 resync 后保留 frontend-local draft。
 
-| 区域 | 建议 v0.1.0 | 说明 | 定稿 |
-|------|-------------|------|------|
-| **TopBar** | 进 | workspace 路径缩写、Session 标题、`DesktopRunState`、连接状态 | ☐ 确认 |
-| **TopBar · Settings** | **不进** v0.1.0 | 继续 `.env` / 环境变量；Settings UI 归 D5 | ☐ 确认 |
-| **TopBar · Inspector 开关** | 进 | 控制右栏显隐；与 Esc 关闭 Inspector 一致 | ☐ 确认 |
-| **Session Rail** | **分期** | 见 §2.3 | ☐ 确认 |
-| **Conversation** | 进 | 流式 draft、终态 message、tool 简略 card、错误 notice | ☐ 确认 |
-| **Composer** | 进 | 多行、Cmd/Ctrl+Enter、Stop、失败保留输入 | ☐ 确认 |
-| **Inspector** | **简化版进** | 见 §2.4 | ☐ 确认 |
+v0.1 同时最多一个 loaded/running Session、一个 Agent 和一个 active Turn。旧 Session 不在后台运行。
 
-### 2.3 Session Rail：两个可选定稿方案
+## 3. 页面与空间
 
-**方案 A（推荐，与 UI-INTERACTION 一致）— v0.1.0 含 Rail**
+### 3.1 Base frame
 
-- `New session`、`Recent` 列表（标题、时间、cwd 缩写）
-- `Idle` 时切换；运行中点击他 Session → 提示「Turn 运行中」
-- 依赖：Host 已有 `SessionQuery` + `StartSession { existing }`；**不扩 wire v1**
+主验收画布为 `1440 × 900`：
 
-**方案 B — v0.1.0 仅单 Session，Rail 推到 v0.1.1**
+- Session Sidebar：默认 `240px`，可折叠。
+- Main Chat Surface：占剩余宽度，最小 `560px`。
+- Top Bar：`52px`。
+- reading column 与 Composer：同轴，目标 `720–800px`。
+- `>=1100px` 默认显示 Sidebar；更窄时 Sidebar 以 overlay 呈现。
+- Tauri 主窗口建议最小宽度 `720px`。
 
-- 启动即 `StartSession { new }`；无列表、无切换
-- 需修订：在 UI-INTERACTION 标注 Rail 为 v0.1.1，或接受文档滞后
+### 3.2 Blank Conversation
 
-**建议：** 方案 A；Rail 可先做窄栏 + 最小列表，不做 Search。
+- Sidebar 可显示 Recent list，但没有 row 标为 Loaded。
+- 主区域只有欢迎语和 Composer，不显示 timeline、cards 或 onboarding checklist。
+- Composer 在视觉中心略偏下，是唯一 primary action。
+- Blank 中点击 New Chat 只清理 frontend-local draft/selection，不创建 Session。
+- connection/list/runtime failure 使用 Sidebar 或 Top Bar 的 inline notice。
 
-### 2.4 Inspector：两个可选定稿方案
+### 3.3 Loaded Conversation
 
-**方案 A（推荐）— 简化 Inspector 进 v0.1.0**
+- Sidebar 中恰好一个 row 标为 Loaded。
+- Main 只显示 Conversation reading column 与底部 Composer。
+- assistant 使用 plain reading surface；user 使用右对齐 compact bubble。
+- thinking、tool、approval、failure、interrupted response 都是 chronology 中的 typed block。
+- streaming draft 原位增长；finalized 后保持同一阅读位置。
+- Composer sticky 于底部，并为 scroll content 预留遮挡空间。
+- 用户离开 bottom anchor 时不强制滚动，显示 `Jump to latest`。
 
-| 能力 | v0.1.0 | 后置 |
-|------|--------|------|
-| 右栏可折叠 | 是 | — |
-| 点击 tool card → 详情（参数、结果、status） | 是 | — |
-| 点击 approval → 详情 + Allow/Deny | 是（Conversation 可保留快捷按钮） | — |
-| Thinking 详情 | 可选：仅 draft 内折叠块 | 完整 Inspector 专页 |
-| Diagnostics（delivery、resync） | 是 | Agent Event Log 浏览器 |
-| Inspector 选中态 | UI local state，**不进 RenderState** | — |
+## 4. 所有权
 
-**方案 B — v0.1.0 无独立 Inspector**
+- Host / Controller projection 拥有 Session catalog、loaded Session identity、runtime readiness、canonical messages、assistant drafts、tools、approvals、Turn lifecycle 与 delivery facts。
+- composition root / Tauri bootstrap coordinator 拥有 protocol server generation、shutdown、recreate 与 handshake。
+- frontend-local state 只拥有 Composer draft、Sidebar 展开、theme、detail disclosure、menu 和 auto-scroll anchor。
+- Session Item Log 仍是恢复事实源；Desktop protocol 是 transport contract，不是第二个事实源。
+- Svelte component 只接收 view model 与 typed callback，不直接调用 bridge，也不解析 Session JSONL。
 
-- 全部内联在 Conversation；与 UI-INTERACTION「对话中心 Workbench」定位不一致
-- 仅当产品改名为「Conversation MVP」时采用
-
-**建议：** 方案 A；Thinking 完整页可标 v0.1.1。
-
----
-
-## 3. Core features（v0.1.0 必须闭环）
-
-### 3.1 已在 D3-PF（保持不回退）
-
-- [x] protocol → RenderState fold（draft 替换、finalized、tool、approval）
-- [x] Tauri bridge + controller（handshake、resync、send/cancel/approve）
-- [x] 最小 Conversation + Composer + Stop + 内联 approval
-- [x] Host：单 Session、单 Turn、ApprovalBroker、关闭清理
-
-### 3.2 v0.1.0 待完成（P0）
-
-| ID | Feature | Owner | 验收 |
-|----|---------|-------|------|
-| F1 | **Panel Host 最小壳** | frontend | `PanelInstance` + 固定 grid 挂载 Conversation / Inspector |
-| F2 | **Workbench 三区布局** | frontend | TopBar + 三列；Composer 贴 Conversation 底 |
-| F3 | **Inspector 简化版** | frontend | 开/关、tool/approval 选中详情；不改变 Host 事实 |
-| F4 | **Session Rail**（若 §2.3 选 A） | frontend + 现有 Host API | 列表、切换、Busy 提示 |
-| F5 | **Composer 输入保留** | frontend | 发送失败、resync 不丢未提交文本 |
-| F6 | **Provider 流式 smoke** | 集成 | 真实 API 下 draft 更新与 final 一致 |
-
-### 3.3 明确不进 v0.1.0
-
-| 项 | 归属 |
-|----|------|
-| Layout engine（拖拽 split、tab dock） | Workspace / v0.2+ |
-| 多 Session 并行、后台 Turn | P2 / scheduler |
-| Settings UI、workspace 切换 UI | D5 |
-| agent-host 独立进程 | D4 |
-| Fleet / 灵动岛 / Tide / Buoy | [`workspace-product-direction.md`](../../docs/product/workspace-product-direction.md) |
-| Thinking 完整 Inspector 页、Agent Event 浏览器 | v0.1.1+ |
-| Session Search、fork/branch | P1 |
-
----
-
-## 4. 四层栈与缺口（定稿后填什么）
+页面模式只能由 loaded Session identity 派生：
 
 ```text
-desktop::wire（合并后）  ← R2 结构精简，不改 JSON v1
-Desktop Server（desktop） ← v0.1 基本不动
-RenderState + controller ← 已有；F5 等细项
-Panel Host + Panel 视图  ← F1–F3 主战场
-Layout Engine            ← 明确不做（固定 grid）
+loadedSession == none  → Blank Conversation
+loadedSession != none  → Loaded Conversation
 ```
 
----
+## 5. Session lifecycle
 
-## 5. 推荐实施顺序
+### 5.1 Session catalog
 
-与 [`desktop-stack-simplification-refactor.md`](../docs/desktop-stack-simplification-refactor.md) 对齐：
+Sidebar row 至少投影：
 
-| 步 | 内容 | 产出 |
-|----|------|------|
-| 0 | **本文定稿**（§2、§3 打勾） | 锁定 v0.1.0 scope |
-| 1 | 合并 `desktop-protocol` → `desktop::protocol` | 结构精简（已完成） |
-| 2 | 文档 + fixture + 测试路径售后 | 无行为变更 |
-| 3 | Panel Host + WorkbenchLayout（固定 grid） | F1、F2 |
-| 4 | Inspector 简化版 | F3 |
-| 5 | Session Rail（若选定方案 A） | F4 |
-| 6 | Composer 保留 + UI-INTERACTION 验收清单 | F5 |
-| 7 | Provider smoke | F6 |
-| — | Layout engine | 不做 |
+```text
+session_id
+first_user_message_excerpt
+last_activity_at
+loaded
+```
 
----
+excerpt 不是持久化 title。Host 决定排序。listing、empty 和 failed 必须可区分；前端不得用 fixture 冒充生产 catalog。
 
-## 6. v0.1.0 验收 checklist
+### 5.2 New Chat
 
-实施完成后逐项勾选：
+从 Loaded 执行 New Chat：
 
-**Layout**
+```text
+check close gate while keeping Loaded visible
+  → Shutdown current generation
+  → wait for Stopped and ShutdownCompleted
+  → clear loaded Session identity
+  → discard old generation
+  → create fresh server generation
+  → Handshake to Ready Blank
+```
 
-- [ ] TopBar 显示 run state（来自 `DesktopRunState`，非文本推断）
-- [ ] 三列 Workbench 可见；Inspector 可折叠
-- [ ] Composer 固定 Conversation 底部
+- shutdown 确认前保留 Loaded 内容与 draft。
+- active Turn、pending approval、stopping 或 unresolved delivery 阻止 New Chat。
+- shutdown 失败保留最后一个 Loaded projection并显示 retry。
+- shutdown 成功后，即使 fresh generation 失败也保持 Blank；不得恢复或伪造 loaded identity。
+- fresh generation 必须获得新的 `connection_epoch`。
 
-**Conversation**
+### 5.3 First Send
 
-- [ ] 流式 assistant 同一 bubble 替换，非多条 snapshot message
-- [ ] Tool 简略 card；终态 message 与 Session 恢复一致
+Blank 中第一次 Send 是 controller-owned transaction：
 
-**Inspector（若启用）**
+```text
+validate exact draft
+  → StartSession
+  → wait for accepted loaded Session identity
+  → SubmitTurn exactly once
+  → clear submitted draft only after acceptance
+```
 
-- [ ] 选中 tool 显示参数与 result
-- [ ] 选中 approval 可 Allow/Deny；关闭 Inspector 不影响 pending 可见性（TopBar/Conversation）
+- start failure 保持 Blank 与 exact draft。
+- submit rejection 保持 Loaded identity 与 exact draft。
+- start failure 已消费当前 generation；Retry 必须先由 composition root 创建并 handshake fresh
+  generation，不得复用失败的 server。
+- connection not ready 不开始 transaction。
+- double activation 对同一 intent 只执行一次。
+- component 不串接 Tauri invoke，也不以 timeout 猜测 Session 已 ready。
 
-**Session（若启用 Rail）**
+### 5.4 Load existing Session
 
-- [ ] New / 切换 Recent；运行中切换被阻止并提示
+- 从 Blank 加载：在 Ready generation 上 Start/Load，成功 snapshot 后进入 Loaded。
+- 从 Loaded 切换：先按 New Chat 顺序关闭并重建 generation，再加载目标 Session。
+- close gate 未满足时禁用 row switch并说明原因。
+- fresh generation 或 load failure 保持 Blank；目标 row 不标为 Loaded。
+- snapshot/resync 最终决定 loaded row 与 Conversation。
 
-**生命周期**
+## 6. Conversation 与 Composer
 
-- [ ] Stop / Esc 取消 Turn
-- [ ] 窗口关闭：cancel → await → shutdown
-- [ ] 断线/resync：UI 进入 degraded/disconnected，recovery 可理解
+Composer 在 Blank/Loaded 复用同一 component 与 logical draft：
 
-**工程**
+- `Cmd/Ctrl+Enter` Send；普通 Enter 换行。
+- IME composition 期间不 submit。
+- whitespace-only 禁 Send。
+- Submitting 锁定当前 submission，但允许编辑下一条 draft。
+- active Turn 延续单 pending prompt contract。
+- Stop 与 Send 是独立 action。
 
-- [ ] `just check` 通过
-- [ ] 至少一条真实 provider 流式 smoke
+Conversation 最小 block set：
 
----
+- `UserMessage`
+- `AssistantMessage` / `AssistantDraft`
+- `ThinkingDisclosure`
+- `ToolCallBlock`
+- `ApprovalBlock`
+- `NoticeBlock` / `InterruptedResponse`
 
-## 7. 定稿记录
+Tool 结果必须分别显示 `Succeeded`、`Failed`、`InvalidArguments`、`UnknownTool`、`Denied`、`Cancelled` 和 `OutcomeUnknown`。首批 message action 只包含 Copy、detail disclosure、approval Allow/Deny 与失败 Retry。
 
-| 日期 | 决策 | 签字 |
-|------|------|------|
-| | §2.3 Session Rail：方案 A / B | |
-| | §2.4 Inspector：方案 A / B | |
-| | §2 TopBar Settings 不进 v0.1.0 | |
+## 7. Theme 与 accessibility
 
-定稿后更新本文 **状态** 为 `Confirmed baseline`，并在 [`TASKS.md`](TASKS.md) 增 R-simplify / v0.1.0 批次勾选项。
+- White 与 Black 是相同 geometry、spacing、font metrics 和 interaction 的等价主题。
+- 首次启动可读取 `prefers-color-scheme`；之后只持久化显式 `white | black`。
+- theme 是 frontend-local，不进入 RenderState、Session Item Log 或 Desktop protocol。
+- active selection 使用 foreground/background、weight、shape 与 border，不使用常驻品牌 accent。
+- semantic yellow/green/red 只表达 approval/success/danger。
+- normal text contrast 至少 `4.5:1`；control boundary、focus ring 与 non-text state 至少 `3:1`。
+- icon-only control 有 accessible name；keyboard focus 可见且顺序稳定。
+- reduced motion 不影响状态可理解性。
+
+## 8. Implementation gates
+
+生产 UI 前必须满足：
+
+1. 本文件、Interaction、Visual Direction、UI State 与 frontend README 只描述两状态 Chat UI。
+2. 四张 reference 以稳定文件名进入 `references/chat-ui/` 并记录来源。
+3. Session catalog、first-send、New Chat、load/switch 与 server generation lifecycle 有正式 contract 和测试。
+4. pnpm lockfile 与当前 Svelte/shadcn 迁移收敛，不重置现有工作。
+5. White/Black token 与 preference wiring 可验证。
+
+每个 implementation batch 独立 review；未经用户 diff review 不 commit。
+
+## 9. Acceptance
+
+- 主界面只能识别为 Blank 或 Loaded Conversation。
+- Sidebar 同时最多一个 Loaded row。
+- Blank 只有一个 primary action；Loaded 只有一个内容主面。
+- draft 在 start/submit/list/load/resync/disconnect failure 中不丢失。
+- Session switch 不后台化旧 Agent，也不复用 consumed server。
+- streaming、tool、approval、failure 和 resync 不改变页面布局。
+- White/Black 等价；`1440×900`、`1280×800`、`960×720` 无关键操作裁切。
+- frontend、Rust protocol、真实 Tauri smoke 与独立 Standards/Spec review 均有证据。
+
+## 10. Non-goals
+
+- PTY、Shell/Agent mode、Terminal Focus、Agent Terminal。
+- File tree、File preview/edit、Diff review。
+- Content tabs、split panes、Activity Rail、Agent Dock、Context panel。
+- Floating Island / Companion。
+- Plan、Pins、Task、multi-agent、多 Session 并发。
+- model hub、training、image workflow、web search 产品入口。
+- conversation outline、fork、regenerate、edit history、export、read aloud。
+- SvelteKit、router、SSR、全局 state library、通用 design system。
+
+## 11. 决策记录
+
+- 2026-09-01：v0.1 从 Single-Agent Terminal 重置为两状态 Session Chat client。
+- 2026-09-01：Blank 的第一次 Send 才创建 Session。
+- 2026-09-01：White/Black 为等价主题，无常驻品牌 accent。
+- 2026-09-01：Tool 与 Approval 保留为 Conversation inline block，不建立独立执行面。

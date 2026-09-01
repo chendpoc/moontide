@@ -6,6 +6,7 @@
 > **UI 状态契约：** [`UI-STATE.md`](UI-STATE.md)
 > **UI 交互契约：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
 > **v0.1 Scope 定稿：** [`UI-V0.1-SCOPE.md`](UI-V0.1-SCOPE.md)
+> **UI 视觉方向：** [`UI-VISUAL-DIRECTION.md`](UI-VISUAL-DIRECTION.md)
 > **UI 技术决策：** [`UI-TECH-CHOICE.md`](UI-TECH-CHOICE.md)
 > **栈精简计划：** [`../docs/desktop-stack-simplification-refactor.md`](../docs/desktop-stack-simplification-refactor.md)
 > **进程化目标架构：** [`../docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)
@@ -40,6 +41,29 @@ agent → agent-core + agent-tools
 v0.1 D1 的实现边界是：单窗口、单活跃 Session、单活跃 Turn、同一进程、Turn 串行。
 进程化目标仍保持单 Host、单 Session、单 active Turn；拆分进程不改变 Agent ownership
 和 Session Item Log 事实源。
+
+### 1.1 当前实现与产品目标
+
+本文其余章节记录 **已实现的 D3-PF Host、wire 与 RenderState 基础**。已确认的 v0.1
+产品目标是 `Provider/bootstrap ready → Blank Conversation → Loaded Conversation`，由 UI Scope、
+Interaction、Visual Direction 与 Chat Implementation Plan 共同定义。
+
+一个窗口同一时刻只 loaded/running 一个 Session、一个 Agent 和一个 active Turn。当前实现只覆盖
+单 Session 的 Host/protocol/conversation projection 基础；Session catalog、Blank identity、
+first-send transaction 和 protocol server generation 重建仍待实现。
+
+v0.1 目标 UI 能力：
+
+- `240px Session Sidebar + Main Chat Surface`；
+- Blank Conversation 的欢迎语与居中 Composer；
+- Loaded Conversation 的 reading column、typed inline blocks 与 sticky Composer；
+- Host-owned Session catalog 与唯一 loaded Session identity；
+- controller-owned first-send、New Chat、load/switch 和 fresh generation lifecycle；
+- frontend-local shared draft、White/Black theme、Sidebar、detail disclosure 与 reading anchor。
+
+Single-Agent Terminal、PTY、Activity Rail、Project Navigator、Content Deck、Agent Dock、
+Floating Island、File、Plan 与 Pins 是后置研究方向，不得从本文的现有契约推断为已实现或
+v0.1 acceptance。
 
 ## 2. 谁该用什么
 
@@ -229,7 +253,8 @@ tool、approval、notice 和 delivery state；它不拥有 Agent、SessionStore 
 
 Tauri slice 已提供 Rust protocol client、bounded in-process
 transport、单一 bridge 和 listener-first boot；Host 和 protocol stream 由 composition root
-注入，frontend 只发送 protocol intent，不负责 provider bootstrap。完整 Workbench 面板后置。
+注入，frontend 只发送 protocol intent，不负责 provider bootstrap。完整 Session Chat
+界面、Session catalog 与 generation coordinator 后置。
 
 ## 4. 事件与恢复
 
@@ -309,14 +334,18 @@ Approval UI event 保留完整 `ToolCall`，用于展示和用户决策。它只
 不得重写 shell、frontend projection 或 Agent ownership。
 
 AgentLoop 初期仍是 Agent Host 内的 Tokio task；subagent 先是逻辑 runtime/actor；daemon
-是未来独立生命周期的 sibling/service，不作为 Agent 子进程。
+是未来独立生命周期的 sibling/service，不作为 Agent 子进程。multi-agent 与 subagent
+产品界面不属于 v0.1 Session Chat contract。
 
 完整 owner、协议、重连、resync 和阶段划分见
 [`crates/docs/desktop-process-architecture.md`](../docs/desktop-process-architecture.md)。
 
 ## 8. 非目标
 
-- D3-PF 不实现完整 Session Rail、Inspector、settings 和 workspace switching；
+- D3-PF 尚未实现 Session catalog、Blank/Loaded page identity、first-send transaction、
+  New Chat/Session switch 的 fresh-generation lifecycle 或完整 Chat UI；
+- Activity Rail、Project Navigator、Content Deck、Agent Dock、Floating Island、
+  PTY/Agent Shell、File、Plan 与 Pins 不属于 v0.1；
 - 多 Session 并发、多 Agent、后台队列和 scheduler；
 - D3-PF 不实现 daemon、server、IPC、sidecar 和跨设备同步；IPC 作为 D4 进程拆分目标，
   daemon 仍以后置独立 runtime 为边界；
