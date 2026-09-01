@@ -58,6 +58,7 @@ Session list 始终是 Main 左侧的 docked drawer，不切换成 modal overlay
 - Conversation 按 chronology 渲染 message、draft、tool、approval 和 notice。
 - Composer sticky 于底部。
 - 一个没有 message 的 loaded Session 仍显示 Loaded page 和空 timeline。
+- 初始只显示最新 30 个 whole Turns；存在更早历史时，chronology 顶部提供 `Load earlier messages`。
 
 ## 3. 状态域
 
@@ -165,6 +166,10 @@ validate draft
 - unresolved delivery/resync。
 - connection state unknown。
 
+同一 gate 也约束 `Load earlier messages`：active Turn、pending approval、resync、connection unknown 或
+Session lifecycle intent 期间按钮保持可见但 disabled，并在按钮附近说明原因。历史加载本身 single-flight；
+失败保留当前 messages，显示 retryable error。
+
 ### 5.2 New Chat from Loaded
 
 ```text
@@ -259,6 +264,7 @@ Regenerate、Edit、Fork、Export、Read aloud 和 Delete 不显示。
 - 非 bottom 时显示 `Jump to latest`；激活后滚到底并恢复 anchor。
 - finalized 不创建第二个视觉 message，也不跳动 reading position。
 - snapshot/history/replay 不触发 live-only sound 或 announcement。
+- older history 使用 exclusive Turn cursor 按 whole Turn prepend；加载中显示明确 spinner，完成后保持原可见内容的位置。
 
 ## 9. Theme
 
@@ -311,7 +317,7 @@ snapshot 替换 Host facts：
 - active assistant call identities。
 - tools、approvals、Turn lifecycle 与 delivery。
 
-若 snapshot 无法证明 draft 仍 active，删除 transient draft并显示恢复 notice。事件 replay 只发生在 snapshot baseline 安装后；gap 再现时进入 disconnected，不无界重试。
+若 snapshot 无法证明 draft 仍 active，删除 transient draft，不把这次 cleanup 当成用户失败。进行中的 delivery resync 才显示恢复 notice；connection 已 degraded/disconnected 时不叠 resync notice。connection/catalog/history/action/notice 的用户文案由 projection 映射，Host message 不进聊天表面。事件 replay 只发生在 snapshot baseline 安装后；gap 再现时进入 disconnected，不无界重试。
 
 ## 12. Responsive behavior
 

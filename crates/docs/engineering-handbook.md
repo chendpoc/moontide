@@ -185,6 +185,16 @@ canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定�
 
 详见 [`agent-core/src/tools/README.md`](../agent-core/src/tools/README.md) 与 [`agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。
 
+### 4.3 声明式 policy 与 UI projection
+
+Rust 组合根与 Desktop frontend projection 共用同一纪律：用 **readonly 规则表** 或 **`Record` map** 表达「条件 → 决策 / 文案」，禁止在多个 callsite 复制 for-loop + match 或嵌套三元。
+
+**UI projection（`uiModel`）：** gate、status copy、notice 在 projection 层集中映射。同一条件影响多个 user action 时，用 `Record<action, message>`（Desktop 范例：`LIFECYCLE_GATE_RULES`）。Host / Controller 返回的原始字符串只写入 state；**展示必须经 copy map**，不得直出 Host message（与 [`UI-STATE.md`](../moontide-desktop/docs/UI-STATE.md) §8 一致）。
+
+**组合根 policy（permission、coding preset 等）：** 静态规则表在启动时 resolve 为 runtime map（如 `ToolPermissionMap`）；新增条目改表，不在 CLI / Desktop 各写一份循环 + match。
+
+**与 AGENTS 原则 6（简单冗余）的关系：** 表驱动是为消除重复条件分支，不是为压缩行数。不为「一行表」引入 DSL、泛型引擎或共享 abstraction；discriminated union 上的合理 `switch`（如 `renderState` fold）可保留。
+
 ---
 
 ## 5. Runtime 数据流与事实边界

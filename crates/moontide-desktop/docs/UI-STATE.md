@@ -1,7 +1,7 @@
 # Desktop v0.1 Chat UI State Contract
 
 > **性质：** UI-owned projection 与 local state contract
-> **状态：** Session catalog、两状态 Chat lifecycle、first-send projection 与 Batch 4 Shell/Blank 已实现；Loaded Conversation 与最终交互 QA 待 Batch 5/6
+> **状态：** Batch 0–5、6A 与 bounded history 已实现；真实 Tauri visual QA 待 6B
 > **产品范围：** [`UI-V0.1-SCOPE.md`](UI-V0.1-SCOPE.md)
 > **交互：** [`UI-INTERACTION.md`](UI-INTERACTION.md)
 > **实现计划：** [`UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md`](UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md)
@@ -46,7 +46,8 @@ RenderState
 │   └── error?
 ├── loadedSession: SessionIdentity | null
 ├── session
-│   └── canonical history
+│   ├── delivered whole-Turn window
+│   └── history: { oldestTurn, hasOlder }
 ├── run
 ├── messages
 ├── assistantDrafts
@@ -87,6 +88,8 @@ ChatLocalState
 │   └── idle | creatingSession | submittingFirstTurn | awaitingFreshGeneration
 ├── sessionTransition
 │   └── idle | closing | creatingGeneration | loading
+├── historyLoad
+│   └── idle | loading | failed
 ├── theme: white | black
 ├── sidebar
 │   ├── open: boolean
@@ -101,6 +104,7 @@ ChatLocalState
 - draft 是用户尚未被 Host 接受的意图。
 - theme 只持久化明确的 `white | black`。
 - first-send 与 Session transition state用于去重 intent，不伪造 Host acceptance。
+- historyLoad 只表示当前 older-page intent；错误可重试，Session 切换时清除。
 - local state可以 gate component interaction，但不能建立 loaded Session、Turn、approval 或 tool outcome。
 
 ## 4. chatUiModel
@@ -165,6 +169,17 @@ ChatUiModel
 - `ResyncRequired` 设置 delivery marker。
 - `Stopped` 禁 Host actions，保留 history、draft和 shutdown report。
 - connection unknown不伪造 Session closed、Turn failed 或 Idle。
+
+### 5.5 Bounded Session history
+
+- `session.items` 是 Rust 已交付的 whole-Turn window，不等于完整 Session Item Log；完整日志仍由 Host/Rust 拥有。
+- `session_ready` 与 `snapshot` 提供最新 30 个 whole Turns，以及 `oldestTurn` / `hasOlder`。
+- `loadOlderHistory` 只在 matching Loaded Session、Idle/Failed、无 approval、无 resync 且无其他 lifecycle intent 时可用。
+- older page 使用 exclusive `before_turn = oldestTurn`；返回项按 stable item ID 去重、按 `seq` 排序后 prepend。
+- page response 的 Session identity 不匹配时忽略或拒绝，不改变当前 projection。
+- projection 记录该 window 是否由用户显式扩展；未扩展时后续 latest snapshot 直接替换旧 30-Turn window，避免每轮隐式增长。
+- 后续 authoritative latest snapshot 可与已经交付的 immutable older items 合并；不得重新引入重复项。
+- history read failure 保留当前 window，显示 local retry；不改变 Loaded identity。
 
 ## 6. First-send state
 
@@ -242,10 +257,10 @@ request snapshot
   → replay events above baseline in seq order
 ```
 
-snapshot 替换：
+snapshot 安装/合并：
 
 - catalog rows与 loaded identity。
-- canonical Session history。
+- bounded latest Session window；同一 Session 已交付的 immutable older window 继续保留。
 - run、tools、approvals、delivery。
 - active assistant call identities。
 
@@ -256,7 +271,7 @@ snapshot 替换：
 - Sidebar、disclosure、menu与 reading anchor（identity仍有效时）。
 - first-send/transition guard只在 response correlation仍可信时保留；否则安全失败并允许用户 Retry。
 
-`active_assistant_calls` 只证明 identity；不复制 draft content。无法证明 active 的 transient draft删除并增加 recoverable notice。重放再次 gap时停止并进入 disconnected；同一 degradation episode不发起无界 snapshot loop。
+`active_assistant_calls` 只证明 identity；不复制 draft content。无法证明 active 的 transient draft 删除，不向用户展示协议级 cleanup notice。仅在 delivery 仍 `resyncRequired` / `awaitingSnapshot` 时展示恢复文案。connection/catalog/history/action/notice 的用户文案由 projection 映射，Host message 不进聊天表面。重放再次 gap时停止并进入 disconnected；同一 degradation episode不发起无界 snapshot loop。
 
 ## 9. Auto-scroll projection
 
@@ -268,6 +283,7 @@ reading anchor 是 local state：
 - `detached` 时保持 scroll position并显示 Jump to latest。
 - Jump 激活后滚到底并设为 `atBottom`。
 - snapshot替换尽量以稳定 message/block identity恢复 anchor；目标不存在时安全退化，不猜测 Host fact。
+- prepend older history 后以 scroll-height delta 恢复同一可见位置，不跳到底部。
 
 ## 10. Theme projection
 
@@ -288,6 +304,7 @@ submitDraft
 stopTurn
 newChat
 loadSession(sessionId)
+loadOlderHistory
 retryRuntime
 retryCatalog
 retrySubmit
@@ -316,6 +333,7 @@ jumpToLatest
 10. resync替换 Host facts但保留列明 local state。
 11. theme、Sidebar、disclosure与 scroll不进入 protocol。
 12. connection unknown不等于业务失败。
+13. history page 只合并 matching Session，并按 stable item ID 去重。
 
 ## 13. Not RenderState
 

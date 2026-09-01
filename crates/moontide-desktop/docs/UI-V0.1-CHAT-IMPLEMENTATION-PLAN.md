@@ -1,10 +1,10 @@
 # MoonTide Desktop v0.1 Chat UI Implementation Plan
 
-> **状态：** Confirmed；Batch 0-5 已完成，Batch 6 待实现
+> **状态：** Confirmed；Batch 0-5 已完成，Batch 6A 与 Batch 7 已实现并通过独立 review，Batch 6B 待执行
 > **版本目标：** v0.1 post-bootstrap primary surface
 > **技术栈：** Tauri 2 · Svelte 5 · TypeScript · Vite SPA · shadcn-svelte · Tailwind CSS v4
 > **视觉参考：** 用户于 2026-09-01 提供的 Unsloth blank/loaded Chat 与 DeepSeek blank/loaded Chat 截图
-> **交付进度：** Batch 0-5 已按本计划落地；Batch 6 最终 QA 尚未开始
+> **交付进度：** Batch 0-5 已按本计划落地；Batch 6 已拆为 6A interaction/accessibility 与 6B real-window visual QA；插入的 Batch 7 Session switching/history performance 已实现，下一步回到 6B
 
 ## 1. 结论
 
@@ -487,6 +487,8 @@ shutdown failure 与 fresh-generation failure 均可复现；focused Rust protoc
 
 ### Batch 6 — Interaction、accessibility 与 visual QA
 
+**状态：** in progress（实施拆分见 `UI-V0.1-CHAT-BATCH-6-WORK-PACKET.md`）。
+
 - 完成 keyboard、IME、focus、live region、reduced motion 与 two-theme contrast；
 - 使用 `crates/moontide-desktop/docs/references/chat-ui/` 的四张 reference 与 implementation capture 做同状态比较；
 - Blank 比较只检查 sidebar density、留白层级、欢迎语/Composer 主次和单一 primary action；Loaded 比较只检查
@@ -497,6 +499,19 @@ shutdown failure 与 fresh-generation failure 均可复现；focused Rust protoc
 
 **Gate：** `design-qa.md` final result 为 `passed`；在真实 Tauri 窗口完成 White/Black、keyboard focus、
 Session drawer resize/collapse、first-send 与 Session switch smoke；无 WebView console error。
+
+### Batch 7 — Session switching 与 bounded history
+
+**状态：** implemented，独立 Standards / Spec review 无剩余 P0/P1/P2；待用户 diff review。
+
+- 先消除 Loaded Session 切换中的重复 catalog 扫描与重复持久化读取；
+- Session catalog 只保留摘要，不把所有完整历史长期放入 frontend 内存；
+- initial history 只交付最近 30 个完整 Turn，使用稳定 `before_turn` 游标向上加载更早 Turn；
+- prepend older history 时保持阅读位置，失败可重试；
+- 先分页并测量，当前不加入 variable-height virtual list。
+
+**Gate：** switch operation sequence、complete-Turn page boundary、stale response、duplicate merge、scroll anchor、
+frontend/Rust checks 均有测试；独立 review 与用户 diff review 后才进入 commit gate。
 
 ## 12. Validation matrix
 
