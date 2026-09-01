@@ -41,9 +41,11 @@
   data-message-kind="assistant"
   data-streaming={streaming}
 >
-  {#if streaming || interrupted}
+  {#if streaming}
+    <p class="sr-only" role="status">Streaming response</p>
+  {:else if interrupted}
     <p class="mb-2 text-xs font-medium text-muted-foreground" role="status">
-      {interrupted ? "Interrupted response" : "Streaming response"}
+      Interrupted response
     </p>
   {/if}
 

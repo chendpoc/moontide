@@ -128,19 +128,26 @@ describe("desktop UI presentation model", () => {
     ).toBe("hel\nlo");
   });
 
+  // Live ToolViews exclude identities already materialized in history and retain the Controller's
+  // insertion order even when opaque tool IDs would sort differently.
   it("shows only live tools outside the historical message sequence", () => {
     const state = createRenderState();
     const historical = { tool_use_id: "tool-1", name: "read", input: {} };
-    const live = { tool_use_id: "tool-2", name: "grep", input: {} };
+    const firstLive = { tool_use_id: "tool-z", name: "grep", input: {} };
+    const secondLive = { tool_use_id: "tool-a", name: "bash", input: {} };
     state.messages.push({ kind: "tool_call", turn: 1, call: historical });
     state.tools[historical.tool_use_id] = { turn: 1, call: historical, result: null };
-    state.tools[live.tool_use_id] = { turn: 1, call: live, result: null };
+    state.tools[firstLive.tool_use_id] = { turn: 1, call: firstLive, result: null };
+    state.tools[secondLive.tool_use_id] = { turn: 1, call: secondLive, result: null };
 
-    expect(liveTools(state).map((tool) => tool.call.tool_use_id)).toEqual(["tool-2"]);
+    expect(liveTools(state).map((tool) => tool.call.tool_use_id)).toEqual([
+      "tool-z",
+      "tool-a",
+    ]);
     expect(toolStatusLabel(null)).toBe("Running");
     expect(
       toolStatusLabel({
-        tool_use_id: "tool-2",
+        tool_use_id: "tool-z",
         name: "grep",
         status: { failed: { retryable: true } },
         content: { text: "failed" },

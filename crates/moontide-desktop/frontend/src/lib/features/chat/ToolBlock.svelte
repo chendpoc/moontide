@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+
   import type { ConversationItem } from "$lib/projection/uiModel.js";
   import {
     displayJson,
@@ -20,15 +22,16 @@
 
 <details
   class={cn(
-    "rounded-lg border bg-message-tool text-sm",
+    "group rounded-lg border bg-message-tool text-sm",
     status.tone === "warning" && "border-warning/50",
     status.tone === "danger" && "border-destructive/50",
   )}
   data-tool-id={tool.call.tool_use_id}
 >
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2">
+  <summary class="flex cursor-pointer list-none items-center gap-2 px-3 py-2">
+    <ChevronRightIcon class="size-4 shrink-0 transition-transform group-open:rotate-90" />
     <span class="min-w-0 truncate font-medium">Tool · {tool.call.name}</span>
-    <span class={cn("shrink-0 text-xs font-medium", statusClass)}>{status.label}</span>
+    <span class={cn("ml-auto shrink-0 text-xs font-medium", statusClass)}>{status.label}</span>
   </summary>
   <div class="space-y-3 border-t border-border px-3 py-3">
     <div>

@@ -53,11 +53,11 @@ v0.1 同时最多一个 loaded/running Session、一个 Agent 和一个 active T
 
 主验收画布为 `1440 × 900`：
 
-- Session Sidebar：默认 `240px`，可折叠。
+- Session drawer：默认 `240px`，可在 `200–360px` 拉伸，并可完全折叠。
 - Main Chat Surface：占剩余宽度，最小 `560px`。
 - Top Bar：`52px`。
 - reading column 与 Composer：同轴，目标 `720–800px`。
-- `>=1100px` 默认显示 Sidebar；更窄时 Sidebar 以 overlay 呈现。
+- 所有验收宽度都使用占据真实布局空间的 docked drawer；不切换为 overlay。
 - Tauri 主窗口建议最小宽度 `720px`。
 
 ### 3.2 Blank Conversation
@@ -66,7 +66,7 @@ v0.1 同时最多一个 loaded/running Session、一个 Agent 和一个 active T
 - 主区域只有欢迎语和 Composer，不显示 timeline、cards 或 onboarding checklist。
 - Composer 在视觉中心略偏下，是唯一 primary action。
 - Blank 中点击 New Chat 只清理 frontend-local draft/selection，不创建 Session。
-- connection/list/runtime failure 使用 Sidebar 或 Top Bar 的 inline notice。
+- connection/runtime failure 在受影响的 Main action 附近内联说明；list failure 留在 Session drawer。
 
 ### 3.3 Loaded Conversation
 
@@ -82,7 +82,7 @@ v0.1 同时最多一个 loaded/running Session、一个 Agent 和一个 active T
 
 - Host / Controller projection 拥有 Session catalog、loaded Session identity、runtime readiness、canonical messages、assistant drafts、tools、approvals、Turn lifecycle 与 delivery facts。
 - composition root / Tauri bootstrap coordinator 拥有 runtime generation、shutdown 与 recreate；构造成功即 Ready。
-- frontend-local state 只拥有 Composer draft、Sidebar 展开、theme、detail disclosure、menu 和 auto-scroll anchor。
+- frontend-local state 只拥有 Composer draft、Session drawer 展开/宽度、theme、detail disclosure、menu 和 auto-scroll anchor。
 - Session Item Log 仍是恢复事实源；Desktop protocol 是 transport contract，不是第二个事实源。
 - Svelte component 只接收 view model 与 typed callback，不直接调用 bridge，也不解析 Session JSONL。
 

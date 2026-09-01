@@ -84,15 +84,15 @@ White 与 Black 使用同一 geometry、spacing、font metrics、component marku
 主画布 `1440 × 900`：
 
 ```text
-0–239       Session Sidebar · 240px
-240–1439    Main Chat Surface · 1200px
+0–239       Session drawer · default 240px
+240–1439    Main Chat Surface · remaining width
 top         Top Bar · 52px
 center      Reading/Composer column · 720–800px
 ```
 
 规则：
 
-- Sidebar 固定宽度，不随内容扩展。
+- Session drawer 默认 `240px`，允许在 `200–360px` 内显式拉伸；内容本身不改变宽度。
 - Main 最小宽度 `560px`。
 - reading column 与 Composer 同轴。
 - Main 横向 padding 随 viewport 缩小，不压窄正文到不可读。
@@ -106,7 +106,7 @@ center      Reading/Composer column · 720–800px
 2. `New Chat` primary navigation action。
 3. `Recent` label 与 listing state。
 4. Session rows。
-5. 底部 connection/runtime notice（仅需要时）。
+5. 不放常驻 connection status；异常在受影响的 Main action 附近内联说明。
 
 Session row 显示 excerpt 与 last activity。Loaded row 使用可见 selection shape、weight 和 `Loaded` 文本或 accessible state；不只靠一个彩色圆点。
 
@@ -114,10 +114,11 @@ list loading 使用 bounded Skeleton。empty 提供安静说明，不新增 CTA�
 
 ### 5.3 Top Bar
 
-- Blank：保留低密度空间，右侧仅 theme/connection utility。
-- Loaded：显示当前 Session excerpt，右侧为 theme/connection utility。
+- Blank：保留低密度空间，右侧仅 theme utility。
+- Loaded：显示当前 Session excerpt，右侧仅 theme utility；不放 connection badge。
 - 不加入 model picker、Share、Export、tabs 或第二 navigation。
 - icon-only control 至少 `32×32` 且有 accessible name。
+- v0.1 不为单独的 connection state 增加底部 Status Bar；多个 workspace 级状态/操作形成真实消费者后再设计。
 
 ## 6. Blank Conversation frame
 
@@ -248,23 +249,19 @@ Token ownership固定在 `styles.css`：
 
 ## 11. Responsive modes
 
-### Wide: `>=1100px`
+### Docked: all validated viewports
 
-- Sidebar 固定 `240px`。
+- Session drawer 默认 `240px`，可拉伸至 `200–360px` 或完全折叠。
 - Main 保持 `720–800px` reading column。
 - 额外宽度只增加外侧留白，不无限加宽文字。
-
-### Overlay: `<1100px`
-
-- Sidebar 从固定列切换为 overlay/drawer。
-- Main 使用完整宽度，不被 Sidebar 挤压。
-- overlay 有 modal semantics、focus trap、Esc close 与 focus restore。
+- drawer 展开时占据真实布局宽度并使 Main 重排，不覆盖 Conversation。
+- drawer 不创建遮罩、focus trap 或 modal semantics。
 
 ### Acceptance specimens
 
 - `1440×900`：默认构图。
 - `1280×800`：保持 Sidebar 与 reading width。
-- `960×720`：Sidebar overlay；Composer 与 Top Bar 不裁切。
+- `960×720`：Session drawer 与 Main 并排；Composer 与 Top Bar 不裁切。
 - `1440×900 @ 200%`：等效 CSS 宽度 `720px`，关键操作仍可达。
 
 更窄窗口不是 v0.1 主验收目标；允许垂直滚动，不允许关键操作水平裁切。
@@ -273,7 +270,7 @@ Token ownership固定在 `styles.css`：
 
 - 默认只允许短 opacity/color/height transition。
 - streaming 依靠内容增长，不使用打字光标之外的持续动画。
-- Sidebar overlay 可以短距离 transition。
+- Session drawer hover/focus affordance 可以使用短 color transition；拖拽宽度不做滞后动画。
 - `prefers-reduced-motion` 下移除 smooth scroll、translation、scale 与 pulse。
 - 状态变化始终可由即时 text/shape/border 理解。
 
@@ -282,7 +279,7 @@ Token ownership固定在 `styles.css`：
 - normal text contrast ≥ `4.5:1`。
 - large text、boundary、focus indicator 与 non-text state ≥ `3:1`。
 - Loaded、tool outcome、approval 与 connection 不只用 color。
-- focus ring 不被 sticky Composer、overlay 或 overflow 裁切。
+- focus ring 不被 sticky Composer、drawer boundary 或 overflow 裁切。
 - icon-only target 至少 `32×32`；primary target 目标 `40×40`。
 - `200%` zoom 保留 New Chat、Send、Stop、Approval、Retry、Jump to latest 与 theme。
 - Skeleton、streaming 与 live status 不制造不可关闭的视觉噪音。
@@ -298,7 +295,7 @@ Token ownership固定在 `styles.css`：
 最终 `design-qa.md` 必须记录：
 
 - White/Black 的四个 viewport/zoom specimen。
-- keyboard focus 与 Sidebar overlay。
+- keyboard focus 与 Session drawer 拉伸/折叠。
 - first-send、Session switch、streaming、tool、approval 和 failure state。
 - contrast 与 reduced-motion 结果。
 - WebView console error 与真实 Tauri smoke。

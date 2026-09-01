@@ -49,11 +49,9 @@
   />
   <div class="flex min-h-9 items-end justify-between gap-3 px-1 pb-1">
     <p class="m-0 text-xs text-muted-foreground">
-      {#if mode === "disabled"}
-        Connection unavailable
-      {:else if mode === "active"}
+      {#if mode === "active"}
         MoonTide is working
-      {:else}
+      {:else if mode !== "disabled"}
         Cmd/Ctrl+Enter to send
       {/if}
     </p>

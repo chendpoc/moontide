@@ -1,10 +1,10 @@
 # MoonTide Desktop v0.1 Chat UI Implementation Plan
 
-> **状态：** Confirmed；Batch 0-4 已完成，Batch 5-6 待实现
+> **状态：** Confirmed；Batch 0-5 已完成，Batch 6 待实现
 > **版本目标：** v0.1 post-bootstrap primary surface
 > **技术栈：** Tauri 2 · Svelte 5 · TypeScript · Vite SPA · shadcn-svelte · Tailwind CSS v4
 > **视觉参考：** 用户于 2026-09-01 提供的 Unsloth blank/loaded Chat 与 DeepSeek blank/loaded Chat 截图
-> **交付进度：** Batch 0-4 已按本计划落地；Batch 5 Loaded Conversation 与 Batch 6 最终 QA 尚未开始
+> **交付进度：** Batch 0-5 已按本计划落地；Batch 6 最终 QA 尚未开始
 
 ## 1. 结论
 
@@ -105,14 +105,14 @@ failure semantics。
 
 | Surface | Wide default | Constraint |
 |---|---:|---|
-| Session Sidebar | 240 px | fixed；可折叠 |
+| Session drawer | 240 px | docked；可在 200–360 px 拉伸；可完全折叠 |
 | Main Chat Surface | remaining width | min 560 px |
 | Top Bar | 52 px | 当前 Session metadata 与 theme utility |
 | Loaded reading column | 720–800 px | 居中；长文本建议不超过约 72 字符/行 |
 | Composer | 720–800 px | 与 reading column 同轴 |
 
-`>= 1100px` 默认显示 Sidebar。`< 1100px` 使用 shadcn Sidebar 的 mobile/overlay behavior，不压窄
-Conversation。建议 Tauri 主窗口最小宽度为 `720px`；更窄窗口不作为 v0.1 桌面验收目标。
+Session drawer 在所有验收宽度都占据真实布局空间，不切换为 mobile overlay；Main 随 drawer 宽度重排。
+建议 Tauri 主窗口最小宽度为 `720px`；更窄窗口不作为 v0.1 桌面验收目标。
 
 ### 4.2 Blank Conversation
 
@@ -134,7 +134,7 @@ Conversation。建议 Tauri 主窗口最小宽度为 `720px`；更窄窗口不�
 - 主区域不显示 chat timeline、empty card、feature cards 或 onboarding checklist；
 - Composer 在视觉中心略偏下，成为唯一 primary action；
 - New Chat 在 Blank 状态只清理 frontend-local draft/selection，不提前持久化空 Session；
-- list error、connection notice 或 runtime unavailable 使用 Sidebar/Top Bar 内联表达，不创建第三页。
+- list error 留在 Session drawer；connection/runtime unavailable 在受影响的 Main action 附近内联表达，不创建第三页。
 
 ### 4.3 Loaded Conversation
 
@@ -469,16 +469,21 @@ shutdown failure 与 fresh-generation failure 均可复现；focused Rust protoc
 - 实现 first-send UI gate，不在组件中直接操作 bridge；
 - 完成 White/Black 基础视觉。
 
-**Gate：** `1440×900` 与 `960×720` 无裁切；Sidebar overlay 可键盘关闭并恢复焦点。
+**Gate：** `1440×900` 与 `960×720` 无裁切。该批当时采用的 responsive overlay 已由 Batch 5
+用户决策替换为 docked、resizable drawer。
 
 ### Batch 5 — Loaded Conversation
+
+**状态：** completed（2026-09-01）。
 
 - 实现 reading column、typed message blocks、assistant draft 原位更新；
 - inline thinking/tool/approval/notice；
 - sticky Composer、bottom anchor 与 Jump to latest；
+- 将 Session list 改为 `200–360px` 可拖拽/键盘拉伸的 docked drawer；折叠时 Main 回收宽度，不使用 overlay；
 - 不加入未支持 message actions。
 
-**Gate：** 长消息、streaming、tool terminal states、approval、failure/cancel 与 resync 均不改变 page layout。
+**Gate：** 长消息、streaming、tool terminal states、approval、failure/cancel 与 resync 均不改变 page layout；
+`960×720` drawer 展开时仍与 Main 并排且没有 modal layer。
 
 ### Batch 6 — Interaction、accessibility 与 visual QA
 
@@ -491,7 +496,7 @@ shutdown failure 与 fresh-generation failure 均可复现；focused Rust protoc
 - 用户 visual review 后才进入 commit gate。
 
 **Gate：** `design-qa.md` final result 为 `passed`；在真实 Tauri 窗口完成 White/Black、keyboard focus、
-Sidebar overlay、first-send 与 Session switch smoke；无 WebView console error。
+Session drawer resize/collapse、first-send 与 Session switch smoke；无 WebView console error。
 
 ## 12. Validation matrix
 
@@ -506,10 +511,10 @@ Sidebar overlay、first-send 与 Session switch smoke；无 WebView console erro
 | Connection | resync/disconnect preserve draft and history projection；Host facts come from snapshot |
 | Theme | White/Black geometry identical；AA contrast；semantic colors only when needed |
 | Responsive | 标准缩放检查 `1440×900`、`1280×800`、`960×720`；`1440×900` 单独检查 200% zoom，等效 CSS 宽度不低于 720 px；无隐藏 critical action |
-| Accessibility | logical focus order、visible focus、sidebar focus restore、live announcements |
+| Accessibility | logical focus order、visible focus、drawer keyboard resize、live announcements |
 | Frontend | `pnpm test`、`pnpm run check`、`pnpm run build` |
 | Rust/protocol | affected crates 的 focused tests、schema/conformance fixtures、最终 `just check` |
-| Desktop smoke | 真实 Tauri window；Blank/Loaded、White/Black、focus/overlay、first-send/switch、WebView console |
+| Desktop smoke | 真实 Tauri window；Blank/Loaded、White/Black、focus/drawer、first-send/switch、WebView console |
 
 ## 13. Acceptance criteria
 

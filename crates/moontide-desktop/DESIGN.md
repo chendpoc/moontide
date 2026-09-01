@@ -115,7 +115,7 @@ Internal items are `pub(crate)`; raw Tokio senders and Agent ownership do not le
 | **2 Runtime/shell** | `list_sessions`, `new_chat`, existing-only `start_session`, required `submit_turn.session_id`; generation coordinator and Controller intents | completed |
 | **3 Projection/first send** | `create_session`; single-flight create → submit transaction; first-send state; UI model derivation | completed |
 | **4 Shell/sidebar/Blank** | thin App shell, Session sidebar, Blank Conversation, first-send UI gate, White/Black foundation | completed |
-| **5 Loaded Conversation** | reading column, typed message blocks, in-place streaming, inline tool/approval/notice, sticky Composer | pending |
+| **5 Loaded Conversation** | reading column, typed message blocks, in-place streaming, inline tool/approval/notice, sticky Composer, docked resizable Session drawer | completed |
 | **6 Interaction/QA** | keyboard, IME, focus, accessibility, responsive and real-window visual validation | pending |
 
 UI contract details: [`docs/UI-STATE.md`](docs/UI-STATE.md), [`docs/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md`](docs/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md).

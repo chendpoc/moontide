@@ -1,9 +1,7 @@
 <script lang="ts">
   import { afterUpdate } from "svelte";
 
-  import { Alert, AlertDescription, AlertTitle } from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
-  import type { ConnectionState } from "$lib/controller/index.js";
   import type { RenderState } from "$lib/projection/renderState.js";
   import {
     conversationItems,
@@ -20,8 +18,6 @@
   import UserMessage from "./UserMessage.svelte";
 
   export let state: RenderState;
-  export let connection: ConnectionState;
-  export let error: string | null;
   export let approvalEnabled: boolean;
   export let approvalTarget: string | null;
   export let onResolveApproval: (
@@ -52,7 +48,7 @@
       left.request.id.localeCompare(right.request.id),
   );
   $: interrupted = runStateKind(state.run) === "failed";
-  $: contentVersion = readingContentVersion(state, connection, error);
+  $: contentVersion = readingContentVersion(state);
 
   afterUpdate(() => {
     if (contentVersion === previousContentVersion) {
@@ -81,11 +77,7 @@
     detached = false;
   }
 
-  function readingContentVersion(
-    current: RenderState,
-    currentConnection: ConnectionState,
-    currentError: string | null,
-  ): string {
+  function readingContentVersion(current: RenderState): string {
     const messages = current.messages.map((message) => {
       switch (message.kind) {
         case "user":
@@ -111,8 +103,6 @@
       ...toolVersions,
       ...Object.keys(current.approvals),
       ...current.notices.map((notice) => `${notice.kind}:${notice.message}`),
-      currentConnection.kind,
-      currentError ?? "",
     ].join("|");
   }
 </script>
@@ -126,20 +116,6 @@
     onscroll={handleScroll}
   >
     <section class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      {#if connection.kind === "degraded" || connection.kind === "disconnected"}
-        <Alert variant="destructive" class="py-3">
-          <AlertTitle>Connection unavailable</AlertTitle>
-          <AlertDescription>{connection.message}</AlertDescription>
-        </Alert>
-      {/if}
-
-      {#if error !== null}
-        <Alert variant="destructive" class="py-3">
-          <AlertTitle>Action failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      {/if}
-
       {#if items.length === 0 && drafts.length === 0 && liveToolItems.length === 0 && approvals.length === 0 && state.notices.length === 0}
         <p class="py-12 text-center text-sm text-muted-foreground">
           This Session has no messages yet.

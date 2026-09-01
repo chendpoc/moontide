@@ -108,19 +108,6 @@ export function runStateLabel(run: DesktopRunState): string {
   return "Unknown";
 }
 
-export function connectionLabel(connection: ConnectionState): string {
-  switch (connection.kind) {
-    case "starting":
-      return "Connecting";
-    case "ready":
-      return "Connected";
-    case "degraded":
-      return "Shutdown degraded";
-    case "disconnected":
-      return "Disconnected";
-  }
-}
-
 export function composerMode(
   connection: ConnectionState,
   page: ChatPageMode,
@@ -299,9 +286,9 @@ export function liveTools(state: RenderState): ToolView[] {
       return [];
     }),
   );
-  return Object.values(state.tools)
-    .filter((tool) => !historical.has(tool.call.tool_use_id))
-    .sort((left, right) => left.call.tool_use_id.localeCompare(right.call.tool_use_id));
+  return Object.values(state.tools).filter(
+    (tool) => !historical.has(tool.call.tool_use_id),
+  );
 }
 
 export function toolStatusLabel(result: ToolResult | null): string {

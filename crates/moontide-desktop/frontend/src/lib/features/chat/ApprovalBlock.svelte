@@ -13,6 +13,7 @@
     <div>
       <p class="m-0 font-medium text-warning">Approval required</p>
       <p class="mb-0 mt-1">{approval.request.call.name}</p>
+      <p class="mb-0 mt-1 text-xs text-muted-foreground">{approval.request.working_dir}</p>
     </div>
     {#if resolving}
       <p class="m-0 text-xs text-muted-foreground" role="status">Resolving approval…</p>

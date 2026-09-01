@@ -257,7 +257,8 @@ describe("App", () => {
         blocks: [{ kind: "text", text: "A plain long-form response" }],
       },
     ];
-    render(App, { props: { controller: new FakeController(state) } });
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
 
     const user = await screen.findByText("A compact prompt");
     const assistant = screen.getByText("A plain long-form response");
@@ -314,6 +315,8 @@ describe("App", () => {
     expect(document.querySelectorAll("[data-tool-id]")).toHaveLength(statuses.length);
   });
 
+  // A draft updates and finalizes under one assistant identity; its streaming announcement stays
+  // outside visual flow so finalization cannot shift the message body.
   it("replaces one streaming assistant block and does not duplicate it on finalization", async () => {
     const state = readyView();
     state.render.assistantDrafts["1:call-1"] = {
@@ -333,7 +336,7 @@ describe("App", () => {
     render(App, { props: { controller } });
 
     expect(await screen.findByText("partial")).toBeInTheDocument();
-    expect(screen.getByText("Streaming response")).toBeInTheDocument();
+    expect(screen.getByText("Streaming response")).toHaveClass("sr-only");
     expect(document.querySelectorAll('[data-message-kind="assistant"]')).toHaveLength(1);
 
     const draft = controller.state.render.assistantDrafts["1:call-1"];
@@ -556,6 +559,8 @@ describe("App", () => {
     await waitFor(() => expect(screen.queryByText("Resolving approval…")).not.toBeInTheDocument());
   });
 
+  // A transport failure is explained where it blocks the conversation; duplicated chrome badges
+  // stay absent while Composer and lifecycle intents remain disabled.
   it("makes transport disconnection and resync evidence visible and disables intent", async () => {
     const state = readyView();
     state.connection = { kind: "disconnected", message: "event stream closed" };
@@ -566,14 +571,32 @@ describe("App", () => {
       errorKind: null,
     });
 
-    render(App, { props: { controller: new FakeController(state) } });
+    const controller = new FakeController(state);
+    render(App, { props: { controller } });
 
     expect(await screen.findByText("event stream closed")).toBeInTheDocument();
-    expect(screen.getAllByText("Disconnected").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Connection unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Disconnected")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(screen.getByText("desktop state requires resync: event_gap")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(controller.operations).toContain("retryRuntime");
+  });
+
+  // Startup is a temporary action blocker, so Blank explains it beside the disabled Composer
+  // without creating a persistent connection badge in the application chrome.
+  it("explains startup beside the disabled Blank Composer", async () => {
+    const state = blankView();
+    state.connection = { kind: "starting" };
+    render(App, { props: { controller: new FakeController(state) } });
+
+    expect(await screen.findByText("Starting MoonTide")).toBeInTheDocument();
+    expect(screen.getByText("Sending will be available shortly.")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
+    expect(screen.queryByText("Connecting")).not.toBeInTheDocument();
   });
 
   it("renders Blank with real Recent rows and keeps New Chat local until a Session exists", async () => {
@@ -702,17 +725,42 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Switch to White theme" })).toBeInTheDocument();
   });
 
-  it("closes the 960px Session overlay with Escape and restores opener focus", async () => {
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 960 });
+  // The Session list is a viewport-independent docked pane; resizing updates its layout width,
+  // keyboard bounds stay explicit, and collapsing animates to 0 width without a modal layer.
+  it("resizes and collapses the docked Session drawer without an overlay", async () => {
     render(App, { props: { controller: new FakeController(blankView()) } });
 
-    const opener = await screen.findByRole("button", { name: "Open Session sidebar" });
-    opener.focus();
-    await fireEvent.click(opener);
-    expect(await screen.findByRole("button", { name: "New Chat" })).toBeInTheDocument();
+    const drawer = await screen.findByTestId("session-drawer-layout");
+    const resizer = screen.getByRole("separator", { name: "Resize Session drawer" });
+    expect(drawer).toHaveStyle({ width: "240px" });
+    expect(resizer).toHaveAttribute("aria-valuemin", "200");
+    expect(resizer).toHaveAttribute("aria-valuemax", "360");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
 
-    await fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(opener).toHaveFocus());
+    await fireEvent.pointerDown(resizer, { button: 0, clientX: 240 });
+    await fireEvent.pointerMove(window, { clientX: 320 });
+    await fireEvent.pointerUp(window);
+    expect(drawer).toHaveStyle({ width: "320px" });
+    expect(resizer).toHaveAttribute("aria-valuenow", "320");
+
+    await fireEvent.keyDown(resizer, { key: "ArrowLeft" });
+    expect(drawer).toHaveStyle({ width: "304px" });
+    await fireEvent.keyDown(resizer, { key: "Home" });
+    expect(drawer).toHaveStyle({ width: "200px" });
+    await fireEvent.keyDown(resizer, { key: "End" });
+    expect(drawer).toHaveStyle({ width: "360px" });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Close Session drawer" }));
+    expect(drawer).toHaveStyle({ width: "0px" });
+    expect(drawer).toHaveAttribute("data-state", "closed");
+    expect(screen.queryByRole("separator", { name: "Resize Session drawer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const opener = screen.getByRole("button", { name: "Open Session drawer" });
+    await fireEvent.click(opener);
+    expect(drawer).toHaveStyle({ width: "360px" });
+    expect(drawer).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("separator", { name: "Resize Session drawer" })).toBeInTheDocument();
   });
 });
 

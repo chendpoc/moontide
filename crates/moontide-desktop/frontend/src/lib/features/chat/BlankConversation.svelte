@@ -29,7 +29,12 @@
       How can I help?
     </h1>
 
-    {#if connection.kind === "degraded" || connection.kind === "disconnected"}
+    {#if connection.kind === "starting"}
+      <Alert>
+        <AlertTitle>Starting MoonTide</AlertTitle>
+        <AlertDescription>Sending will be available shortly.</AlertDescription>
+      </Alert>
+    {:else if connection.kind === "degraded" || connection.kind === "disconnected"}
       <Alert variant="destructive">
         <AlertTitle>Runtime unavailable</AlertTitle>
         <AlertDescription>{connection.message}</AlertDescription>

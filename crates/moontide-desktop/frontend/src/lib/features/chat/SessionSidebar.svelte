@@ -5,11 +5,9 @@
 
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-  import type { ConnectionState } from "$lib/controller/index.js";
-  import { connectionLabel, type SessionListUiModel } from "$lib/projection/uiModel.js";
+  import type { SessionListUiModel } from "$lib/projection/uiModel.js";
 
   export let model: SessionListUiModel;
-  export let connection: ConnectionState;
   export let newChatDisabled: boolean;
   export let rowsDisabled: boolean;
   export let lifecycleTarget: "new" | string | null;
@@ -17,10 +15,7 @@
   export let onLoadSession: (sessionId: string) => void | Promise<void>;
   export let onRetryCatalog: () => void | Promise<void>;
 
-  const sidebar = Sidebar.useSidebar();
-
   function activateNewChat(): void {
-    sidebar.setOpenMobile(false);
     void onNewChat();
   }
 
@@ -28,7 +23,6 @@
     if (disabled) {
       return;
     }
-    sidebar.setOpenMobile(false);
     void onLoadSession(sessionId);
   }
 
@@ -47,7 +41,10 @@
   }
 </script>
 
-<Sidebar.Root collapsible="offcanvas" aria-label="Session sidebar">
+<aside
+  class="flex h-full min-h-0 w-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+  aria-label="Session drawer"
+>
   <Sidebar.Header class="gap-3 border-b border-sidebar-border p-3">
     <div class="px-2 py-1 text-sm font-semibold tracking-tight">MoonTide</div>
     <Button
@@ -132,9 +129,4 @@
     </Sidebar.Group>
   </Sidebar.Content>
 
-  {#if connection.kind !== "ready"}
-    <Sidebar.Footer class="border-t border-sidebar-border p-3 text-xs text-muted-foreground">
-      {connectionLabel(connection)}
-    </Sidebar.Footer>
-  {/if}
-</Sidebar.Root>
+</aside>

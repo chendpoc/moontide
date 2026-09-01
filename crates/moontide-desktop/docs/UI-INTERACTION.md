@@ -23,7 +23,7 @@ runtime、connection、listing、Turn、assistant、tool 和 approval 是 page �
 - 一个窗口最多一个 loaded/running Session、一个 Agent 和一个 active Turn。
 - Session Item Log 与 Host snapshot 决定业务事实。
 - composition root 拥有 protocol server generation。
-- frontend 拥有 draft、theme、Sidebar 展开与 reading anchor。
+- frontend 拥有 draft、theme、Session drawer 展开/宽度与 reading anchor。
 - component 不直接调用 Tauri bridge，也不从 text、color、animation 或 Idle 猜测成功。
 
 ## 2. 空间与页面
@@ -33,11 +33,15 @@ runtime、connection、listing、Turn、assistant、tool 和 approval 是 page �
 两种 page mode 共享：
 
 - Session Sidebar：New Chat、Recent、listing/error state。
-- Top Bar：当前 Session excerpt 或 Blank identity、connection utility、theme toggle。
+- Top Bar：当前 Session excerpt 或 Blank identity、theme toggle；不放 connection badge。
 - Main Chat Surface：Blank hero 或 Loaded Conversation。
 - 同一个 Composer component 和 logical draft owner。
 
-`>=1100px` Sidebar 固定显示；更窄时以 modal overlay 呈现。overlay 关闭后焦点恢复到 opener。
+v0.1 不建立全局 Status Bar。若后续同时出现多个 window/workspace 级状态或入口，再统一放在窗口底部；
+单独的 connection state 不足以创建一条永久界面区域。
+
+Session list 始终是 Main 左侧的 docked drawer，不切换成 modal overlay。默认宽度 `240px`，允许在
+`200–360px` 内水平拖拽或键盘调节；关闭后 Main 回收该宽度，再次打开恢复本次应用运行中的宽度。
 
 ### 2.2 Blank Conversation
 
@@ -270,9 +274,9 @@ Regenerate、Edit、Fork、Export、Read aloud 和 Delete 不显示。
 
 - Composer `Cmd/Ctrl+Enter`：Send 或 Queue。
 - active Turn `Cmd/Ctrl+.`：Stop。
-- `Esc`：先关闭当前 local layer；不 Stop、不 New Chat。
-- Sidebar overlay `Esc`：关闭并恢复 opener focus。
-- Tab 顺序：Sidebar → Top Bar → chronology controls → Composer。
+- `Esc`：先关闭当前 local layer；不 Stop、不 New Chat。Session drawer 不是 layer，因此不由 `Esc` 关闭。
+- Session drawer resize handle：`←` / `→` 每次调整 `16px`，`Home` / `End` 到最小/最大宽度。
+- Tab 顺序：Session drawer → Top Bar → chronology controls → Composer。
 
 ### 10.2 Focus
 
@@ -287,8 +291,7 @@ Regenerate、Edit、Fork、Export、Read aloud 和 Delete 不显示。
 
 1. approval deny detail。
 2. row/message dropdown。
-3. Sidebar overlay。
-4. no-op。
+3. no-op。
 
 ## 11. Resync 与恢复
 
@@ -296,7 +299,7 @@ resync 保留 frontend-local：
 
 - current Composer draft 与 pending/held text。
 - theme preference。
-- Sidebar state。
+- Session drawer open/width state。
 - expanded thinking/tool detail。
 - message menu 与 reading anchor（目标消失时安全关闭/重置）。
 - local Interrupted response。
@@ -312,9 +315,9 @@ snapshot 替换 Host facts：
 
 ## 12. Responsive behavior
 
-- `1440×900`：240px Sidebar 固定，Main 读取列 `720–800px`。
-- `1280×800`：保持固定 Sidebar与可读列。
-- `960×720`：Sidebar overlay；Main 不被压成窄列。
+- `1440×900`：Session drawer 默认 `240px`，Main 读取列 `720–800px`。
+- `1280×800`：保持 docked drawer 与可读列。
+- `960×720`：Session drawer 仍与 Main 并排；不创建遮罩、focus trap 或 modal layer。
 - `200%` zoom 等效宽度至少 `720px` 时，critical action 不水平裁切。
 - sticky Composer 不遮挡最后一个 block；scroll padding 与 Composer 实际高度同步。
 
@@ -342,7 +345,7 @@ snapshot 替换 Host facts：
 9. 七种 tool outcome、approval stale、failure/cancel 均不改变 page layout。
 10. resync 替换 Host facts但保留 local draft/theme。
 11. White/Black geometry 等价。
-12. keyboard、IME、focus restore、live announcement 和 Sidebar overlay 可复现。
+12. keyboard、IME、focus、live announcement 和 Session drawer 拉伸/折叠可复现。
 
 ## 15. Non-goals
 

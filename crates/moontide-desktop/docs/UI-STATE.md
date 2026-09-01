@@ -89,7 +89,8 @@ ChatLocalState
 │   └── idle | closing | creatingGeneration | loading
 ├── theme: white | black
 ├── sidebar
-│   └── expanded | overlayOpen
+│   ├── open: boolean
+│   └── width: 200..360
 ├── expandedThinking
 ├── expandedTools
 ├── openMenu?
@@ -295,10 +296,11 @@ deny(approvalId, reason)
 copyMessage(messageId)
 toggleTheme
 toggleSidebar
+resizeSidebar(width)
 jumpToLatest
 ```
 
-业务 intent由 Controller处理。Copy、theme、Sidebar、disclosure和 reading anchor是 local intent；Session/Turn/approval intent通过 Controller/Host。
+业务 intent由 Controller处理。Copy、theme、Session drawer、disclosure和 reading anchor是 local intent；Session/Turn/approval intent通过 Controller/Host。
 
 ## 12. Invariants
 
