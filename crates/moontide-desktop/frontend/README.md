@@ -142,6 +142,14 @@ features/            ← 同上
 snapshot establishment 与 resync 共享同一台异步状态机；强行拆成多个对象会造成重复的状态所有权。
 只有出现可独立验证的状态边界、第二个消费者或持续的合并冲突时，才重新评估其结构。
 
+### 1.5 文档位置
+
+前端目录规范、模块职责与依赖方向**只写在本文件**。`src/` 下各目录（`app/`、`features/`、
+`components/moontide/` 等）**不放** stub `README.md`；那些文件只会复述 §0–§1。
+
+非代码说明放在 crate 文档层：Host/UI 契约在 `../docs/`，crate 入口在 [`../README.md`](../README.md)。
+截图 provenance 属于 `../docs/references/`，不属于 `src/`。
+
 ---
 
 ## 2. 依赖方向
