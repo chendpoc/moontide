@@ -1,55 +1,53 @@
 # MoonTide Desktop (Tauri)
 
-Tauri 2 shell for the MoonTide protocol-first Desktop vertical slice.
+Tauri 2 shell with integrated Desktop Host runtime (no separate `desktop` crate).
 
 ## Prerequisites
 
 - Rust toolchain (same as workspace)
 - macOS: Xcode CLT
+- Node.js 22+ and pnpm 9 (`corepack enable` or `npm i -g pnpm`)
 - `DEEPSEEK_API_KEY` in environment or `.env`
 
-## Run (dev)
+## Frontend
 
-From repository root:
+See [`frontend/README.md`](frontend/README.md). UI scope/interaction docs: [`docs/`](docs/).
+
+```bash
+cd crates/moontide-desktop/frontend
+pnpm install
+pnpm test
+pnpm run check
+pnpm run build
+```
+
+## Run (dev)
 
 ```bash
 cd crates/moontide-desktop/src-tauri
 cargo tauri dev
 ```
 
-`cargo tauri dev` does not accept Cargo's `--manifest-path` option. Run it from the directory that
-contains `tauri.conf.json`; Cargo still resolves the package through the workspace root.
-
-If `cargo tauri` is unavailable, install the CLI once:
-
-```bash
-cargo install tauri-cli --version "^2"
-```
+`cargo tauri dev` must run from the directory containing `tauri.conf.json`.
 
 ## Architecture
 
 ```text
-frontend typed DesktopCommand intent
-  → one Tauri desktop_request bridge
-    → Rust DesktopProtocolClient (request ID + epoch owner)
-      → bounded in-process envelope transport
-        → DesktopProtocolServer → DesktopHost → Agent
+WebView typed invoke → DesktopRuntimeCoordinator → DesktopRuntimeHandle → DesktopHost actor
+Events: Host → desktop-envelope (connection_epoch + seq + snapshot/resync)
 ```
 
-The frontend subscribes to `desktop-envelope` before Handshake and StartSession. Responses and
-events use the frozen `desktop-protocol` v1 JSON shape; transport failures use the separate
-`desktop-connection` lifecycle notification. The Tauri shell owns only window lifecycle, the
-allowlisted bridge and the injected protocol client. `bootstrap.rs` is the D3 composition root and
-is the only Tauri-crate module that builds the current `AgentConfig`.
+The coordinator keeps one in-process Session runtime per window. `new_chat`
+closes the loaded runtime without deleting its Session Item Log, then prepares
+a fresh ready runtime with a new `connection_epoch`.
 
-Focused verification:
+Design contract: [`DESIGN.md`](DESIGN.md).
 
 ```bash
 cargo test -p moontide-desktop
 cargo clippy -p moontide-desktop --all-targets -- -D warnings
 ```
 
-## Next steps
+## Historical note
 
-- Split `agent-host` process (D4)
-- Complete deferred Workbench panels and settings in their own aligned batches
+Independent `crates/desktop`, in-process protocol client/server transport, and D4 agent-host process split are **superseded**. See [`DESIGN.md`](DESIGN.md) and `docs/archive/`.

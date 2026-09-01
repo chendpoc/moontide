@@ -6,6 +6,7 @@
 > **Base snapshot:** `feat/assistant-host/r2` at `2cdf850`
 > **Implementation status:** R1–R5 committed; R6 implementation, validation and independent review passed
 > **Task tracking:** [`tauri-protocol-boundary-refactor-TASKS.md`](tauri-protocol-boundary-refactor-TASKS.md)
+> **Note (2026-08-26):** 原独立 `desktop-protocol` crate 已合并为 `desktop::protocol` 模块。下文历史批次仍可能使用旧 crate 名；现行 wire DTO 位于 `crates/desktop/src/protocol/`，fixtures 位于 `crates/desktop/tests/protocol/fixtures/`。
 
 ## 1. Problem Statement
 
@@ -74,7 +75,7 @@ DesktopHost
 1. 根目录 `AGENTS.md` 与 `UBIQUITOUS_LANGUAGE.md`；
 2. 本任务文档中经用户确认的 scope、ownership、acceptance 和 stop conditions；
 3. `crates/docs/desktop-process-architecture.md`；
-4. `crates/desktop-protocol/README.md` 与 `DESIGN.md`；
+4. [`crates/desktop/README.md`](crates/desktop/README.md) 与 [`DESIGN.md`](crates/desktop/DESIGN.md)（含 `desktop::protocol` 模块）；
 5. `crates/desktop/README.md`、`DESIGN.md` 和当前测试；
 6. 当前 checkout 的实现代码；
 7. `crates/desktop-supervisor` 只作为 D4 已有基础，不作为本任务实现范围。
@@ -86,7 +87,7 @@ DesktopHost
 
 ### 4.1 In scope
 
-- 冻结并验证 `desktop-protocol` v1 的 command、response、event、snapshot、error 和
+- 冻结并验证 `desktop::protocol` v1 的 command、response、event、snapshot、error 和
   delivery identity；
 - 建立 host-side protocol adapter，使所有 Web intent 都先成为 protocol command；
 - 建立 transport-neutral Desktop protocol client，负责 request correlation、connection
@@ -107,8 +108,7 @@ DesktopHost
 
 - `crates/docs/tauri-protocol-boundary-refactor.md`；
 - `crates/docs/desktop-process-architecture.md`；
-- `crates/desktop-protocol/**`；
-- `crates/desktop/**`；
+- `crates/desktop/**`（含 `desktop::protocol` 模块与 fixtures）；
 - `crates/moontide-desktop/**`；
 - workspace `Cargo.toml`、`Cargo.lock`、`justfile` 中与 Desktop 依赖或验证入口直接相关的行。
 
@@ -127,10 +127,10 @@ DesktopHost
 
 ## 5. Architectural Decisions
 
-### D1. `desktop-protocol` 是唯一跨边界消息契约
+### D1. `desktop::protocol` 是唯一跨边界消息契约
 
 `DesktopCommand`、`DesktopResponse`、`DesktopProtocolEvent` 和
-`DesktopMessageEnvelope` 的 wire shape 只由 `desktop-protocol` 拥有。Tauri、Svelte、
+`DesktopMessageEnvelope` 的 wire shape 只由 `desktop::protocol` 拥有。Tauri、Svelte、
 Agent runtime 和 Tokio ownership 类型不得进入该 crate。
 
 Host 内部可以保留 `HostCommand`、`DesktopEvent` 和 actor channel，但不能再维护第二套
@@ -158,7 +158,7 @@ child-process transport。
 ### D3. 同进程不等于绕过协议
 
 D3 可以继续让 Host 与 Tauri 位于同一 OS process，但所有 frontend command、response 和
-event 必须经过与 D4 相同的 `desktop-protocol` envelope。不得根据 transport 类型提供
+event 必须经过与 D4 相同的 `desktop::protocol` envelope。不得根据 transport 类型提供
 直接调用 `DesktopHostHandle` 的 UI 快路径。
 
 ### D4. Tauri shell 不拥有 Agent bootstrap
@@ -237,7 +237,7 @@ envelope，event pump 发布完整 event envelope。`submit_turn`、`cancel_turn
 `fetch_snapshot` 等独立业务 command 不再作为 bridge API。
 
 该澄清于 2026-08-25 经用户确认：D9 中“typed protocol command”指
-`desktop_protocol::DesktopCommand` value，而非 UI 自行构造的 `DesktopMessageEnvelope`。
+`desktop::protocol::DesktopCommand` value，而非 UI 自行构造的 `DesktopMessageEnvelope`。
 因此 D2/D6 的 identity ownership 保持不变，WebView 无法伪造 connection identity。
 
 Tauri capability 只允许该入口、必要的 event subscription 和 window close。WebView 不获得
@@ -256,7 +256,7 @@ Tauri capability 只允许该入口、必要的 event subscription 和 window cl
 
 | Module | Owns | Must not own |
 |---|---|---|
-| `desktop-protocol` | Wire DTO、version、identity、serialization fixtures | Agent、IO、Tauri、Tokio channel、RenderState |
+| `desktop::protocol` | Wire DTO、version、identity、serialization fixtures | Agent、IO、Tauri、Tokio channel、RenderState |
 | `desktop` host internals | Host actor、Agent、Session query、ApprovalBroker、EventBuffer | Tauri、Web state、cross-process transport |
 | `desktop` host protocol adapter | Wire validation、command mapping、response/event mapping | Window、frontend state、process lifecycle |
 | `moontide-desktop` composition root | D3 runtime assembly、current config source、client injection | UI projection、Session facts |
@@ -268,18 +268,18 @@ Tauri capability 只允许该入口、必要的 event subscription 和 window cl
 目标依赖方向：
 
 ```text
-frontend ──JSON shape──► desktop-protocol
-Tauri bridge/client ───► desktop-protocol
+frontend ──JSON shape──► desktop::protocol
+Tauri bridge/client ───► desktop::protocol
 in-process composition ─► desktop host adapter ─► agent
-desktop host adapter ───► desktop-protocol
-desktop-protocol ────────► serde only
+desktop host adapter ───► desktop::protocol
+desktop::protocol ───────► serde only
 ```
 
 禁止形成：
 
 ```text
 frontend/Tauri handler ─► DesktopHostHandle
-desktop-protocol ───────► agent / agent-core / Tauri
+desktop::protocol ───────► agent / agent-core / Tauri
 Tauri shell ────────────► AgentConfig / SessionStore
 ```
 
@@ -308,14 +308,14 @@ message 在实施时按 `{feat,fix,docs}[(scope)]: …` 生成；以下是逻辑
    - 明确未知 version、错误 payload kind 和过大 frame 的处理；
    - 若 fixture 暴露必须修改 JSON shape 的缺陷，停止并请求 protocol version 决策。
 
-**Acceptance:** `cargo test -p desktop-protocol`；fixture diff 可独立 review。
+**Acceptance:** `cargo test -p desktop`（含 protocol fixtures）；fixture diff 可独立 review。
 
 ### Work Packet R1 — Build the host protocol adapter
 
 **Goal:** 让现有 `DesktopHost` 可以只通过 wire envelope 被驱动。
 
 4. **Add protocol validation and handshake adapter.**
-   - adapter 接收 `desktop-protocol` command envelope；
+   - adapter 接收 `desktop::protocol` command envelope；
    - 拒绝错误 version、缺失 request ID、command 携带 seq、非 command payload；
    - handshake response 回显 request ID，并建立 connection epoch；
    - 使用 fake/in-memory Host boundary 测试，不接 Tauri。
@@ -440,7 +440,7 @@ message 在实施时按 `{feat,fix,docs}[(scope)]: …` 生成；以下是逻辑
     - 不删除仍承载 runtime 不变量的测试。
 
 22. **Tighten dependency direction.**
-    - `desktop-protocol` 保持 serde-only；
+    - `desktop::protocol` 保持 serde-only；
     - Tauri shell/bridge 模块只依赖 protocol client 与 Tauri；
     - `desktop` 对 `agent-core` 的直接 production dependency 若仅由转换层引入，则把转换
       ownership 移到 host adapter 能使用的最窄边界，并重新评估是否可移除；
@@ -467,7 +467,7 @@ message 在实施时按 `{feat,fix,docs}[(scope)]: …` 生成；以下是逻辑
 
 ### 8.2 Existing prior art to preserve
 
-- `desktop-protocol` 已有 JSON round-trip、streaming snapshot 和 frame-size tests；
+- `desktop::protocol` 已有 JSON round-trip、streaming snapshot 和 frame-size tests；
 - `desktop::event` 已覆盖 snapshot coalescing、control order、overflow 和 resync marker；
 - `desktop::host` 已覆盖 start/snapshot/shutdown 和 Busy；
 - 已删除的 Rust `desktop::render_state` 曾覆盖 seq gap、new epoch、snapshot baseline、assistant
@@ -495,7 +495,7 @@ matrix 和冻结 fixtures 持续守门。
 
 每个 Work Packet 先运行最小 focused test，再扩大：
 
-1. `cargo test -p desktop-protocol`；
+1. `cargo test -p desktop`；
 2. `cargo test -p desktop`；
 3. frontend typecheck/unit test/build scripts；
 4. `cargo test -p moontide-desktop` 或等价 Tauri library check；
@@ -512,8 +512,8 @@ matrix 和冻结 fixtures 持续守门。
 - Tauri shell、bridge 和 frontend 不 import 或保存 `DesktopHostHandle`；
 - Tauri shell 不构造 `AgentConfig`、不解析 settings、不选择 Session；
 - frontend-to-host command 与 host-to-frontend response/event 全部使用
-  `desktop-protocol::DesktopMessageEnvelope` 的 JSON shape；
-- `desktop-protocol` 不依赖 Agent、Agent Core、Tauri、Tokio 或 frontend framework；
+  `desktop::protocol::DesktopMessageEnvelope` 的 JSON shape；
+- `desktop::protocol` 不依赖 Agent、Agent Core、Tauri、Tokio 或 frontend framework；
 - D3 in-process transport 可以被 fake transport 替换，而无需修改 client、bridge 或
   `RenderState` contract；
 - 不存在两个公开 command/response/envelope graph；
@@ -555,7 +555,7 @@ matrix 和冻结 fixtures 持续守门。
 
 出现以下情况时暂停受影响 Work Packet 并请求用户决定：
 
-- 需要修改 `desktop-protocol` v1 的现有 JSON shape 或提升 protocol version；
+- 需要修改 `desktop::protocol` v1 的现有 JSON shape 或提升 protocol version；
 - 需要改变 Agent、SessionStore、ApprovalBroker、Session Item Log 的 ownership；
 - 需要修改 Session persistence 格式或 Agent public contract；
 - D3 无法在不创建 `agent-host` process 的情况下满足 protocol/client seam；

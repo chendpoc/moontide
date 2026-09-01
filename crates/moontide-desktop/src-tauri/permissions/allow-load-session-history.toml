@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-load-session-history"
+description = "Allow MoonTide Desktop load_session_history"
+commands.allow = ["load_session_history"]

@@ -1,24 +1,23 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-use agent_core::{
-    llm::{adapter::AdapterFamily, protocol::ThinkingLevel},
-    r#loop::ToolPermission,
-};
+use agent_core::{llm::protocol::ThinkingLevel, r#loop::ToolPermission};
 use tempfile::TempDir;
 
-use crate::{prompt, Agent, AgentConfig, ProviderConfig};
+use crate::{prompt, resolve_provider_config, Agent, AgentConfig, ProviderId, ProviderOverrides};
 
 fn config(temp: &TempDir) -> AgentConfig {
     AgentConfig {
         cwd: temp.path().to_path_buf(),
         sessions_dir: temp.path().join("sessions"),
         runs_dir: temp.path().join("runs"),
-        provider: ProviderConfig {
-            family: AdapterFamily::OpenAiChatCompletions,
-            base_url: "https://example.com/v1".into(),
-            api_key: "test-key".into(),
-        },
-        model: "test-model".into(),
+        provider: resolve_provider_config(
+            ProviderId::Deepseek,
+            ProviderOverrides {
+                base_url: Some("https://example.com/v1"),
+                model: None,
+                api_key: Some("test-key"),
+            },
+        ),
         max_tokens: 128,
         thinking_level: Some(ThinkingLevel::Off),
         max_steps: 4,
@@ -87,7 +86,7 @@ async fn reload_preserves_session_and_applies_turn_limits() {
         .expect("turn limits should apply");
 
     let mut updated = config(&temp);
-    updated.model = "updated-model".into();
+    updated.provider.base_url = "https://updated.example/v1".into();
     agent.reload(updated).await.expect("agent should reload");
     assert_eq!(agent.session_id(), session_id);
 }
@@ -150,7 +149,7 @@ async fn ask_without_handler_is_rejected() {
 async fn invalid_config_values_are_rejected() {
     let temp = tempfile::tempdir().expect("tempdir should be available for test");
     let mut agent_config = config(&temp);
-    agent_config.model = String::new();
+    agent_config.provider.model = String::new();
     assert!(Agent::create(agent_config).is_err());
 
     let mut agent_config = config(&temp);

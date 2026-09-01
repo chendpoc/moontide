@@ -83,5 +83,5 @@ Agent 协作规则见 [`AGENTS.md`](AGENTS.md)。
 | CLI 纯壳 | [`crates/cli/README.md`](crates/cli/README.md) · [`crates/cli/DESIGN.md`](crates/cli/DESIGN.md) | one-shot/REPL/approval/render |
 | 索引 | [`docs/README.md`](docs/README.md) | Doc Map |
 | 方向 | [`docs/product/`](docs/product/) | vision / plan / Desktop development direction |
-| Spec | [`docs/spec/`](docs/spec/) | agent-core、agent-events、context-composer、llm-provider |
+| Spec | [`docs/spec/`](docs/spec/) | 候选系统规格（当前为空）；历史见 [`docs/archive/spec/`](docs/archive/spec/) |
 | Archive | [`docs/archive/`](docs/archive/) | TypeScript 时代文档 |

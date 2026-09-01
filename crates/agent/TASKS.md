@@ -13,7 +13,7 @@
 
 ### TASK-agent-01: Crate scaffold 与显式配置
 
-- **做什么：** 将 `agent` 加入 workspace，建立 `ProviderConfig` / `AgentConfig`，完成 provider config 与基础路径、model、max_tokens、max_steps 的校验。AgentConfig 只接收显式值，不读取环境变量。
+- **做什么：** 将 `agent` 加入 workspace，建立 resolved provider config / `AgentConfig`，完成 provider config 与基础路径、model、max_tokens、max_steps 的校验。当前 `AgentConfig` 只持有一个 `ResolvedProviderConfig`，不读取环境变量。
 - **依赖：** 无
 - **范围：** 根 `Cargo.toml`、`Cargo.lock`、`crates/agent/Cargo.toml`、`crates/agent/src/lib.rs`、`config.rs`、`tests.rs`
 - **预估 diff：** ~350 行

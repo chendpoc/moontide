@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-shutdown"
+description = "Allow MoonTide Desktop shutdown"
+commands.allow = ["shutdown"]

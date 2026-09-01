@@ -1,0 +1,107 @@
+use std::fmt;
+
+use tokio::sync::oneshot;
+
+use super::state::{DesktopSnapshot, ShutdownReport};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum DesktopCommandError {
+    ProtocolVersionUnsupported,
+    HandshakeRequired,
+    SessionNotStarted,
+    SessionAlreadyStarted,
+    Busy,
+    NoActiveTurn,
+    ApprovalNotFound,
+    ApprovalAlreadyResolved,
+    Stopping,
+    Stopped,
+    EventStreamClosed,
+    SessionStartFailed(String),
+    SessionMismatch { requested: String, loaded: String },
+    ShutdownFailed(String),
+    GenerationNotReady(String),
+    CatalogUnavailable(String),
+    HistoryUnavailable(String),
+    InvalidInput(String),
+    Internal(String),
+}
+
+impl fmt::Display for DesktopCommandError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProtocolVersionUnsupported => {
+                formatter.write_str("desktop protocol version is unsupported")
+            }
+            Self::HandshakeRequired => {
+                formatter.write_str("desktop protocol handshake is required")
+            }
+            Self::SessionNotStarted => formatter.write_str("desktop session has not started"),
+            Self::SessionAlreadyStarted => {
+                formatter.write_str("desktop session has already started")
+            }
+            Self::Busy => formatter.write_str("desktop host is busy"),
+            Self::NoActiveTurn => formatter.write_str("desktop host has no active turn"),
+            Self::ApprovalNotFound => formatter.write_str("approval request not found"),
+            Self::ApprovalAlreadyResolved => formatter.write_str("approval request is resolved"),
+            Self::Stopping => formatter.write_str("desktop host is stopping"),
+            Self::Stopped => formatter.write_str("desktop host is stopped"),
+            Self::EventStreamClosed => formatter.write_str("desktop event stream is closed"),
+            Self::SessionStartFailed(message) => {
+                write!(formatter, "desktop session start failed: {message}")
+            }
+            Self::SessionMismatch { requested, loaded } => write!(
+                formatter,
+                "requested Session {requested} does not match loaded Session {loaded}"
+            ),
+            Self::ShutdownFailed(message) => {
+                write!(formatter, "desktop runtime shutdown failed: {message}")
+            }
+            Self::GenerationNotReady(message) => {
+                write!(formatter, "desktop runtime is not ready: {message}")
+            }
+            Self::CatalogUnavailable(message) => {
+                write!(
+                    formatter,
+                    "desktop session catalog is unavailable: {message}"
+                )
+            }
+            Self::HistoryUnavailable(message) => {
+                write!(
+                    formatter,
+                    "desktop Session history is unavailable: {message}"
+                )
+            }
+            Self::InvalidInput(message) => write!(formatter, "invalid desktop input: {message}"),
+            Self::Internal(message) => write!(formatter, "desktop host error: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for DesktopCommandError {}
+
+pub(crate) enum HostCommand {
+    SubmitTurn {
+        text: String,
+        reply: oneshot::Sender<Result<u64, DesktopCommandError>>,
+    },
+    CancelTurn {
+        reply: oneshot::Sender<Result<u64, DesktopCommandError>>,
+    },
+    Approve {
+        request_id: String,
+        reply: oneshot::Sender<Result<(), DesktopCommandError>>,
+    },
+    Deny {
+        request_id: String,
+        reason: String,
+        reply: oneshot::Sender<Result<(), DesktopCommandError>>,
+    },
+    Snapshot {
+        reply: oneshot::Sender<Result<DesktopSnapshot, DesktopCommandError>>,
+    },
+    Shutdown {
+        reply: oneshot::Sender<Result<ShutdownReport, DesktopCommandError>>,
+    },
+}

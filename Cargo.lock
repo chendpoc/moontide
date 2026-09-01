@@ -913,39 +913,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "desktop"
-version = "0.1.0"
-dependencies = [
- "agent",
- "agent-core",
- "anyhow",
- "desktop-protocol",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-util",
- "wiremock",
-]
-
-[[package]]
-name = "desktop-protocol"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "desktop-supervisor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2507,15 +2474,16 @@ name = "moontide-desktop"
 version = "0.1.0"
 dependencies = [
  "agent",
+ "agent-core",
  "anyhow",
- "desktop",
- "desktop-protocol",
  "dotenvy",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tempfile",
  "tokio",
+ "tokio-util",
  "wiremock",
 ]
 

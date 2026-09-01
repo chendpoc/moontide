@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
+use std::{env, path::PathBuf, sync::Arc};
 
 use agent::{
-    platform::ProjectPaths, AdapterFamily, AgentConfig, ToolApprovalHandler, ToolPermission,
-    ToolPermissionMap,
+    llm::require_api_key, platform::ProjectPaths, resolve_coding_preset, CodingPresetPolicy,
+    ToolApprovalHandler,
 };
 use anyhow::{bail, Context, Result};
 
@@ -15,19 +15,18 @@ use crate::{
 
 pub(crate) const DEFAULT_MAX_TOKENS: u32 = 4_096;
 pub(crate) const DEFAULT_MAX_STEPS: u32 = 8;
-const API_KEY_ENV: &str = "DEEPSEEK_API_KEY";
 
 pub(crate) fn resolve_agent_config(
     args: &CliArgs,
     settings: &GlobalConfigStore,
-) -> Result<AgentConfig> {
+) -> Result<agent::AgentConfig> {
     let cwd = args
         .cwd
         .clone()
         .map(Ok)
         .unwrap_or_else(env::current_dir)
         .context("resolve current working directory")?;
-    resolve_agent_config_with(args, cwd, Some(settings.api_key.clone()), settings)
+    resolve_agent_config_with(args, cwd, settings)
 }
 
 pub(crate) fn resolve_project_paths(args: &CliArgs) -> Result<ProjectPaths> {
@@ -43,15 +42,14 @@ pub(crate) fn resolve_project_paths(args: &CliArgs) -> Result<ProjectPaths> {
 pub(crate) fn resolve_agent_config_with(
     args: &CliArgs,
     cwd: PathBuf,
-    api_key: Option<String>,
     settings: &GlobalConfigStore,
-) -> Result<AgentConfig> {
-    let api_key = api_key
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| anyhow::anyhow!("{API_KEY_ENV} is required"))?;
+) -> Result<agent::AgentConfig> {
+    let merged = crate::settings::merged_llm_from_store(settings);
+    require_api_key(&merged)?;
     let paths = ProjectPaths::resolve(cwd, args.sessions_dir.clone(), args.runs_dir.clone())?;
 
-    let (tool_names, permissions) = coding_preset(settings.approval_policy);
+    let (tool_names, permissions) =
+        resolve_coding_preset(CodingPresetPolicy::from(settings.approval_policy));
     let approval: Option<Arc<dyn ToolApprovalHandler>> = match settings.approval_policy {
         ApprovalPolicy::AlwaysAllow => None,
         ApprovalPolicy::Default | ApprovalPolicy::Always => match settings.input_owner.clone() {
@@ -66,16 +64,11 @@ pub(crate) fn resolve_agent_config_with(
                 as Arc<dyn agent::ProgressObserver>)
         }
     };
-    Ok(AgentConfig {
+    Ok(agent::AgentConfig {
         cwd: paths.cwd,
         sessions_dir: paths.sessions_dir,
         runs_dir: paths.runs_dir,
-        provider: agent::ProviderConfig {
-            family: AdapterFamily::OpenAiChatCompletions,
-            base_url: settings.base_url.clone(),
-            api_key,
-        },
-        model: settings.model.clone(),
+        provider: merged,
         max_tokens: settings.max_tokens,
         thinking_level: settings.thinking_level,
         max_steps: settings.max_steps,
@@ -87,35 +80,14 @@ pub(crate) fn resolve_agent_config_with(
     })
 }
 
-fn coding_preset(policy: ApprovalPolicy) -> (Vec<String>, ToolPermissionMap) {
-    let allow = ["read", "find", "grep"];
-    let ask = ["write", "edit", "bash"];
-    let tool_names = allow
-        .iter()
-        .chain(ask.iter())
-        .map(|name| (*name).to_owned())
-        .collect::<Vec<_>>();
-    let mut permissions = BTreeMap::new();
-    for name in allow {
-        permissions.insert(
-            name.to_owned(),
-            match policy {
-                ApprovalPolicy::Default => ToolPermission::Allow,
-                ApprovalPolicy::Always => ToolPermission::Ask,
-                ApprovalPolicy::AlwaysAllow => ToolPermission::Allow,
-            },
-        );
+impl From<ApprovalPolicy> for CodingPresetPolicy {
+    fn from(value: ApprovalPolicy) -> Self {
+        match value {
+            ApprovalPolicy::Default => Self::Default,
+            ApprovalPolicy::Always => Self::Always,
+            ApprovalPolicy::AlwaysAllow => Self::AlwaysAllow,
+        }
     }
-    for name in ask {
-        permissions.insert(
-            name.to_owned(),
-            match policy {
-                ApprovalPolicy::AlwaysAllow => ToolPermission::Allow,
-                ApprovalPolicy::Default | ApprovalPolicy::Always => ToolPermission::Ask,
-            },
-        );
-    }
-    (tool_names, permissions)
 }
 
 pub(crate) fn session_mode(args: &CliArgs) -> &'static str {

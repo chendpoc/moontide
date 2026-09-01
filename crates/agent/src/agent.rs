@@ -155,7 +155,7 @@ impl Agent {
         Ok(Self {
             loop_: parts.loop_,
             session_id: parts.session_id,
-            model: config.model,
+            model: config.provider.model,
             max_tokens: config.max_tokens,
             thinking_level: config.thinking_level,
             max_steps: config.max_steps,
@@ -171,7 +171,7 @@ impl Agent {
     fn apply_parts(&mut self, config: AgentConfig, parts: AgentParts) {
         self.loop_ = parts.loop_;
         self.cwd = parts.cwd;
-        self.model = config.model;
+        self.model = config.provider.model;
         self.max_tokens = config.max_tokens;
         self.thinking_level = config.thinking_level;
         self.max_steps = config.max_steps;

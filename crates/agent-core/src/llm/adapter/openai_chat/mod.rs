@@ -6,8 +6,7 @@ use futures::Stream;
 use futures::StreamExt;
 use tokio::sync::mpsc;
 
-use crate::llm::adapter::AdapterConfig;
-use crate::llm::normalize::openai_chat::{encode_request, StreamDecoder};
+use crate::llm::normalize::openai_chat::{encode_request, OpenAiChatOptions, StreamDecoder};
 use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, RequestFailureKind};
 use crate::llm::LLMProvider;
 
@@ -18,11 +17,16 @@ pub struct OpenAiChatAdapter {
     client: reqwest::Client,
     base_url: String,
     api_key: String,
+    options: OpenAiChatOptions,
 }
 
 impl OpenAiChatAdapter {
-    pub fn new(config: AdapterConfig) -> Result<Self, LlmError> {
-        if config.base_url.trim().is_empty() {
+    pub fn new(
+        base_url: String,
+        api_key: String,
+        options: OpenAiChatOptions,
+    ) -> Result<Self, LlmError> {
+        if base_url.trim().is_empty() {
             return Err(LlmError::RequestFailed {
                 kind: RequestFailureKind::Unrecoverable,
                 message: "base_url must not be empty".into(),
@@ -30,8 +34,9 @@ impl OpenAiChatAdapter {
         }
         Ok(Self {
             client: reqwest::Client::new(),
-            base_url: config.base_url.trim_end_matches('/').to_string(),
-            api_key: config.api_key,
+            base_url: base_url.trim_end_matches('/').to_string(),
+            api_key,
+            options,
         })
     }
 
@@ -48,11 +53,12 @@ impl LLMProvider for OpenAiChatAdapter {
         let url = self.chat_completions_url();
         let client = self.client.clone();
         let api_key = self.api_key.clone();
+        let options = self.options;
 
         let (tx, rx) = mpsc::channel::<Result<ModelStreamEvent, LlmError>>(64);
 
         tokio::spawn(async move {
-            if let Err(err) = run_stream(client, url, api_key, request, tx.clone()).await {
+            if let Err(err) = run_stream(client, url, api_key, options, request, tx.clone()).await {
                 let _ = tx.send(Err(err)).await;
             }
         });
@@ -73,10 +79,11 @@ async fn run_stream(
     client: reqwest::Client,
     url: String,
     api_key: String,
+    options: OpenAiChatOptions,
     request: ModelRequest,
     tx: mpsc::Sender<Result<ModelStreamEvent, LlmError>>,
 ) -> Result<(), LlmError> {
-    let body = encode_request(&request)?;
+    let body = encode_request(&request, options)?;
 
     let response = client
         .post(&url)
@@ -216,6 +223,9 @@ data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prom
 data: [DONE]
 ";
 
+    // Scenario: a mock OpenAI endpoint emits text followed by a terminal finish reason.
+    // Expected: the adapter exposes a final Finished event with EndTurn.
+    // Invariant: the OpenAI options path does not alter stream termination semantics.
     #[tokio::test]
     async fn mock_http_stream_ends_with_finished() {
         let server = MockServer::start().await;
@@ -229,11 +239,9 @@ data: [DONE]
             .mount(&server)
             .await;
 
-        let adapter = OpenAiChatAdapter::new(AdapterConfig {
-            base_url: server.uri(),
-            api_key: "test".into(),
-        })
-        .expect("adapter");
+        let adapter =
+            OpenAiChatAdapter::new(server.uri(), "test".into(), OpenAiChatOptions::default())
+                .expect("adapter");
 
         let mut stream = adapter.stream(sample_request());
         let mut last = None;
@@ -248,6 +256,9 @@ data: [DONE]
         }
     }
 
+    // Scenario: one UTF-8 code point is split across two transport chunks.
+    // Expected: byte buffering reconstructs the original line.
+    // Invariant: chunk boundaries never introduce replacement characters.
     #[test]
     fn utf8_char_split_across_chunks_decodes_correctly() {
         let mut buf = ByteLineBuffer::new();
@@ -258,6 +269,9 @@ data: [DONE]
         assert!(buf.next_line().unwrap().is_none());
     }
 
+    // Scenario: an SSE line contains invalid UTF-8 bytes.
+    // Expected: line decoding returns an unrecoverable request error.
+    // Invariant: malformed provider bytes are never normalized as valid text.
     #[test]
     fn invalid_utf8_line_is_unrecoverable() {
         let mut buf = ByteLineBuffer::new();
@@ -271,6 +285,9 @@ data: [DONE]
         ));
     }
 
+    // Scenario: the provider responds with timeout or rate-limit status.
+    // Expected: each response is classified as recoverable.
+    // Invariant: retry classification is independent of adapter options.
     #[tokio::test]
     async fn http_408_and_429_are_recoverable() {
         for status in [408u16, 429] {
@@ -280,11 +297,9 @@ data: [DONE]
                 .respond_with(ResponseTemplate::new(status))
                 .mount(&server)
                 .await;
-            let adapter = OpenAiChatAdapter::new(AdapterConfig {
-                base_url: server.uri(),
-                api_key: "test".into(),
-            })
-            .expect("adapter");
+            let adapter =
+                OpenAiChatAdapter::new(server.uri(), "test".into(), OpenAiChatOptions::default())
+                    .expect("adapter");
             let mut stream = adapter.stream(sample_request());
             let err = stream
                 .next()

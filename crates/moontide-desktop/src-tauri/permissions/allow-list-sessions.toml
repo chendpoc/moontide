@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-list-sessions"
+description = "Allow MoonTide Desktop list_sessions"
+commands.allow = ["list_sessions"]

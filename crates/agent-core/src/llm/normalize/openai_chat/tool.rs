@@ -13,6 +13,13 @@ pub struct OpenAiChatRequestBody {
     pub tools: Option<Vec<OpenAiToolDefinition>>,
     pub max_tokens: u32,
     pub stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_template_kwargs: Option<ChatTemplateKwargs>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChatTemplateKwargs {
+    pub enable_thinking: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

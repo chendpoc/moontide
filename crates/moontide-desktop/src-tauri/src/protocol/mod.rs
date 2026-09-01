@@ -1,0 +1,676 @@
+//! Versioned, framework-independent wire contract for MoonTide Desktop.
+//!
+//! This module deliberately contains no Agent, Tauri, Tokio, or frontend types.
+//! Runtime adapters convert their owned values to these DTOs at the process
+//! boundary.
+
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+pub const DESKTOP_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion(1);
+pub const MAX_FRAME_LENGTH: u32 = 16 * 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProtocolVersion(pub u16);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RequestId(pub String);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ConnectionEpoch(pub u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Seq(pub u64);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DesktopCommand {
+    Handshake,
+    ListSessions,
+    NewChat,
+    CreateSession,
+    StartSession {
+        session_id: String,
+    },
+    LoadSessionHistory {
+        session_id: String,
+        before_turn: u64,
+        limit: u32,
+    },
+    SubmitTurn {
+        session_id: String,
+        text: String,
+    },
+    CancelTurn,
+    Approve {
+        approval_id: String,
+    },
+    Deny {
+        approval_id: String,
+        reason: String,
+    },
+    Snapshot,
+    Shutdown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopCommandErrorCode {
+    ProtocolVersionUnsupported,
+    HandshakeRequired,
+    SessionNotStarted,
+    SessionAlreadyStarted,
+    Busy,
+    NoActiveTurn,
+    ApprovalNotFound,
+    ApprovalAlreadyResolved,
+    Stopping,
+    Stopped,
+    EventStreamClosed,
+    SessionStartFailed,
+    SessionMismatch,
+    ShutdownFailed,
+    GenerationNotReady,
+    CatalogUnavailable,
+    HistoryUnavailable,
+    InvalidInput,
+    Internal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DesktopCommandErrorDto {
+    pub code: DesktopCommandErrorCode,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopErrorKindDto {
+    Configuration,
+    Provider,
+    Tool,
+    Approval,
+    Cancelled,
+    Persistence,
+    Internal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DesktopErrorDto {
+    pub kind: DesktopErrorKindDto,
+    pub message: String,
+    pub recoverable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopRunStateDto {
+    Starting,
+    Idle,
+    Thinking {
+        turn: u64,
+        step: u32,
+    },
+    RunningTool {
+        turn: u64,
+        tool_use_id: String,
+        name: String,
+    },
+    WaitingApproval {
+        turn: u64,
+        request_id: String,
+    },
+    Cancelling {
+        turn: u64,
+    },
+    Failed {
+        turn: Option<u64>,
+        error: DesktopErrorDto,
+    },
+    Stopping,
+    Stopped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResyncReasonDto {
+    EventGap,
+    ProgressLoss,
+    WorkerDegraded,
+    ExplicitRequest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeliveryStatusDto {
+    pub last_delivered_seq: u64,
+    pub resync_required: bool,
+    pub dropped_snapshots: u64,
+    pub buffered_events: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ActiveAssistantCallDto {
+    pub turn: u64,
+    pub llm_call_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionSummaryDto {
+    pub session_id: String,
+    pub cwd: PathBuf,
+    pub last_turn: Option<u64>,
+    pub item_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionCatalogRowDto {
+    pub session_id: String,
+    pub first_user_message_excerpt: Option<String>,
+    pub last_activity_at: Option<String>,
+    pub loaded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SessionItemDto {
+    UserMessage {
+        base: SessionItemBaseDto,
+        text: String,
+    },
+    AssistantMessage {
+        base: SessionItemBaseDto,
+        blocks: Vec<ContentBlockDto>,
+    },
+    ToolCall {
+        base: SessionItemBaseDto,
+        call: ToolCallDto,
+    },
+    ToolResult {
+        base: SessionItemBaseDto,
+        result: ToolResultDto,
+    },
+    Compaction {
+        base: SessionItemBaseDto,
+        compaction_kind: CompactionKindDto,
+        compaction_save_id: Option<String>,
+        excluded_item_ids: Vec<String>,
+        before_tokens: Option<u64>,
+        after_tokens: Option<u64>,
+    },
+    CheckpointCreated {
+        base: SessionItemBaseDto,
+        checkpoint_id: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionItemBaseDto {
+    pub id: String,
+    pub seq: u64,
+    pub session_id: String,
+    pub turn: u64,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CompactionKindDto {
+    Prune,
+    TailWindow,
+    Summary,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SessionSnapshotDto {
+    pub summary: SessionSummaryDto,
+    pub items: Vec<SessionItemDto>,
+    pub history: SessionHistoryWindowDto,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionHistoryWindowDto {
+    pub oldest_turn: Option<u64>,
+    pub has_older: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApprovalRequestDto {
+    pub id: String,
+    pub turn: u64,
+    pub call: ToolCallDto,
+    pub working_dir: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopSnapshotDto {
+    pub session: SessionSnapshotDto,
+    pub state: DesktopRunStateDto,
+    pub pending_approvals: Vec<ApprovalRequestDto>,
+    pub active_assistant_calls: Vec<ActiveAssistantCallDto>,
+    pub delivery: DeliveryStatusDto,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShutdownReportDto {
+    pub cancelled_turn: Option<u64>,
+    pub progress_flushed: bool,
+    pub diagnostic_log_flushed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DesktopResponse {
+    HandshakeAccepted {
+        protocol_version: ProtocolVersion,
+    },
+    SessionCatalogListed {
+        connection_epoch: ConnectionEpoch,
+        rows: Vec<SessionCatalogRowDto>,
+    },
+    GenerationReady {
+        connection_epoch: ConnectionEpoch,
+    },
+    SessionReady {
+        connection_epoch: ConnectionEpoch,
+        snapshot: DesktopSnapshotDto,
+    },
+    SessionHistoryPage {
+        session_id: String,
+        items: Vec<SessionItemDto>,
+        oldest_turn: Option<u64>,
+        has_older: bool,
+    },
+    TurnAccepted {
+        turn: u64,
+    },
+    CancellationAccepted {
+        turn: u64,
+    },
+    ApprovalAccepted {
+        approval_id: String,
+    },
+    Snapshot {
+        connection_epoch: ConnectionEpoch,
+        snapshot: DesktopSnapshotDto,
+    },
+    ShutdownCompleted {
+        report: ShutdownReportDto,
+    },
+    Rejected {
+        error: DesktopCommandErrorDto,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DesktopProtocolEvent {
+    TurnStarted {
+        turn: u64,
+    },
+    LlmCallStarted {
+        turn: u64,
+        step: u32,
+        llm_call_id: String,
+    },
+    AssistantResponseSnapshot {
+        turn: u64,
+        step: u32,
+        llm_call_id: String,
+        update_index: u32,
+        snapshot: ModelResponseSnapshotDto,
+    },
+    ToolCall {
+        turn: u64,
+        call: ToolCallDto,
+    },
+    ToolResult {
+        turn: u64,
+        result: ToolResultDto,
+    },
+    LlmCallEnded {
+        turn: u64,
+        step: u32,
+        llm_call_id: String,
+        outcome: LlmCallOutcomeDto,
+    },
+    AssistantFinalized {
+        turn: u64,
+        llm_call_id: String,
+        blocks: Vec<ContentBlockDto>,
+    },
+    TurnEnded {
+        turn: u64,
+    },
+    StateChanged {
+        state: DesktopRunStateDto,
+    },
+    ApprovalRequested {
+        request: ApprovalRequestDto,
+    },
+    TurnCompleted {
+        turn: u64,
+    },
+    TurnFailed {
+        turn: u64,
+        error: DesktopErrorDto,
+    },
+    ResyncRequired {
+        reason: ResyncReasonDto,
+    },
+    Stopped {
+        report: ShutdownReportDto,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DesktopMessage {
+    Command { command: DesktopCommand },
+    Response { response: DesktopResponse },
+    Event { event: DesktopProtocolEvent },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopMessageEnvelope {
+    pub protocol_version: ProtocolVersion,
+    pub connection_epoch: Option<ConnectionEpoch>,
+    pub request_id: Option<RequestId>,
+    pub seq: Option<Seq>,
+    pub payload: DesktopMessage,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelResponseSnapshotDto {
+    pub content: Vec<ContentBlockDto>,
+    pub pending: Option<PendingBlockDto>,
+    pub stop_reason: Option<StopReasonDto>,
+    pub usage: Option<UsageDto>,
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PendingBlockDto {
+    Text {
+        text: String,
+    },
+    Thinking {
+        thinking: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input_json: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ContentBlockDto {
+    Text {
+        text: String,
+    },
+    Thinking {
+        thinking: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: Value,
+    },
+    ToolResult {
+        tool_use_id: String,
+        content: ToolResultContentDto,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ToolResultContentDto {
+    Text(String),
+    Blocks(Vec<ContentBlockDto>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StopReasonDto {
+    EndTurn,
+    ToolUse,
+    MaxTokens,
+    Other(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageDto {
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ToolCallDto {
+    pub tool_use_id: String,
+    pub name: String,
+    pub input: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolContentDto {
+    Text(String),
+    Json(Value),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolCancellationReasonDto {
+    User,
+    Parent,
+    Hook,
+    Disposed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolResultStatusDto {
+    Succeeded,
+    Failed { retryable: bool },
+    InvalidArguments,
+    UnknownTool,
+    Denied,
+    Cancelled { reason: ToolCancellationReasonDto },
+    OutcomeUnknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ToolResultDto {
+    pub tool_use_id: String,
+    pub name: String,
+    pub status: ToolResultStatusDto,
+    pub content: ToolContentDto,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LlmCallOutcomeDto {
+    Succeeded {
+        stop_reason: StopReasonDto,
+        usage: Option<UsageDto>,
+    },
+    Failed {
+        message: String,
+    },
+    Cancelled,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // 场景：一个前端 command envelope 在 wire JSON 中往返。
+    // 预期：所有 correlation 字段和 command payload 保持不变。
+    // 不变量：协议 DTO 不依赖 runtime ownership 类型，序列化不会丢失 request identity。
+    #[test]
+    fn command_envelope_round_trips() {
+        let envelope = DesktopMessageEnvelope {
+            protocol_version: DESKTOP_PROTOCOL_VERSION,
+            connection_epoch: Some(ConnectionEpoch(3)),
+            request_id: Some(RequestId("req-1".into())),
+            seq: None,
+            payload: DesktopMessage::Command {
+                command: DesktopCommand::SubmitTurn {
+                    session_id: "session-1".into(),
+                    text: "inspect the workspace".into(),
+                },
+            },
+        };
+
+        let encoded = serde_json::to_vec(&envelope).expect("protocol envelope should serialize");
+        let decoded: DesktopMessageEnvelope =
+            serde_json::from_slice(&encoded).expect("protocol envelope should deserialize");
+
+        assert_eq!(decoded, envelope);
+    }
+
+    // 场景：新建 Session 与加载历史 Session 使用两个公开 command。
+    // 预期：create_session 无选择参数，start_session 只携带已有 session_id。
+    // 不变量：wire contract 不保留可通过 start_session 隐式新建 Session 的第二条路径。
+    #[test]
+    fn session_creation_and_loading_are_distinct_commands() {
+        let create = serde_json::to_value(DesktopCommand::CreateSession)
+            .expect("create command should serialize");
+        let load = serde_json::to_value(DesktopCommand::StartSession {
+            session_id: "session-1".into(),
+        })
+        .expect("load command should serialize");
+
+        assert_eq!(create, serde_json::json!({ "kind": "create_session" }));
+        assert_eq!(
+            load,
+            serde_json::json!({ "kind": "start_session", "session_id": "session-1" })
+        );
+    }
+
+    // 场景：assistant streaming snapshot 包含 text、thinking 和 pending tool-use。
+    // 预期：前端能够区分完整 blocks 与 transient pending block。
+    // 不变量：snapshot 是 wire view，不携带 Agent 或 SessionStore 类型。
+    #[test]
+    fn snapshot_event_preserves_transient_content() {
+        let event = DesktopProtocolEvent::AssistantResponseSnapshot {
+            turn: 2,
+            step: 1,
+            llm_call_id: "call-1".into(),
+            update_index: 4,
+            snapshot: ModelResponseSnapshotDto {
+                content: vec![ContentBlockDto::Text {
+                    text: "partial".into(),
+                }],
+                pending: Some(PendingBlockDto::ToolUse {
+                    id: "tool-1".into(),
+                    name: "read_file".into(),
+                    input_json: "{\"path\":\"README.md\"}".into(),
+                }),
+                stop_reason: None,
+                usage: None,
+                model: Some("test-model".into()),
+            },
+        };
+
+        let encoded = serde_json::to_vec(&event).expect("event should serialize");
+        let decoded: DesktopProtocolEvent =
+            serde_json::from_slice(&encoded).expect("event should deserialize");
+
+        assert_eq!(decoded, event);
+    }
+
+    // 场景：protocol frame length guard 被读取端使用。
+    // 预期：最大长度是固定协议常量，不由 UI 或 runtime 任意扩大。
+    // 不变量：跨进程读端必须拥有明确的内存上限。
+    #[test]
+    fn frame_limit_is_bounded() {
+        assert_eq!(MAX_FRAME_LENGTH, 16 * 1024 * 1024);
+    }
+
+    // 场景：Session catalog 与 generation-ready response 在 wire JSON 中往返。
+    // 预期：catalog row、status 与 connection_epoch 字段保持不变。
+    // 不变量：catalog 是 invoke response DTO，不携带 Host actor 类型。
+    #[test]
+    fn session_lifecycle_responses_round_trip() {
+        let catalog = DesktopResponse::SessionCatalogListed {
+            connection_epoch: ConnectionEpoch(4),
+            rows: vec![SessionCatalogRowDto {
+                session_id: "session-1".into(),
+                first_user_message_excerpt: Some("hello".into()),
+                last_activity_at: Some("2026-09-01T08:00:00Z".into()),
+                loaded: true,
+            }],
+        };
+        let generation_ready = DesktopResponse::GenerationReady {
+            connection_epoch: ConnectionEpoch(4),
+        };
+        let session_ready = DesktopResponse::SessionReady {
+            connection_epoch: ConnectionEpoch(4),
+            snapshot: DesktopSnapshotDto {
+                session: SessionSnapshotDto {
+                    summary: SessionSummaryDto {
+                        session_id: "session-2".into(),
+                        cwd: PathBuf::from("/tmp"),
+                        last_turn: Some(1),
+                        item_count: 1,
+                    },
+                    items: vec![],
+                    history: SessionHistoryWindowDto {
+                        oldest_turn: Some(1),
+                        has_older: true,
+                    },
+                },
+                state: DesktopRunStateDto::Idle,
+                pending_approvals: vec![],
+                active_assistant_calls: vec![],
+                delivery: DeliveryStatusDto {
+                    last_delivered_seq: 0,
+                    resync_required: false,
+                    dropped_snapshots: 0,
+                    buffered_events: 0,
+                },
+            },
+        };
+
+        let history_page = DesktopResponse::SessionHistoryPage {
+            session_id: "session-2".into(),
+            items: vec![],
+            oldest_turn: Some(0),
+            has_older: false,
+        };
+
+        for response in [catalog, generation_ready, session_ready, history_page] {
+            let encoded = serde_json::to_vec(&response).expect("response should serialize");
+            let decoded: DesktopResponse =
+                serde_json::from_slice(&encoded).expect("response should deserialize");
+            assert_eq!(decoded, response);
+        }
+    }
+
+    // 场景：前端请求已加载 Session 在指定 Turn 之前的一页历史。
+    // 预期：command 精确保留 Session identity、exclusive cursor 与 Turn limit。
+    // 不变量：历史分页不使用易受并发追加影响的 page number 或 item offset。
+    #[test]
+    fn session_history_command_round_trips_exclusive_turn_cursor() {
+        let command = DesktopCommand::LoadSessionHistory {
+            session_id: "session-1".into(),
+            before_turn: 30,
+            limit: 30,
+        };
+
+        let encoded = serde_json::to_vec(&command).expect("history command should serialize");
+        let decoded: DesktopCommand =
+            serde_json::from_slice(&encoded).expect("history command should deserialize");
+
+        assert_eq!(decoded, command);
+    }
+}

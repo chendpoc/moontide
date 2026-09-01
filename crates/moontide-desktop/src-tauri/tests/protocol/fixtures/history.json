@@ -1,0 +1,27 @@
+{
+  "command": {
+    "kind": "load_session_history",
+    "session_id": "session-1",
+    "before_turn": 30,
+    "limit": 30
+  },
+  "response": {
+    "kind": "session_history_page",
+    "session_id": "session-1",
+    "items": [
+      {
+        "kind": "user_message",
+        "base": {
+          "id": "item-0",
+          "seq": 0,
+          "session_id": "session-1",
+          "turn": 0,
+          "at": "2026-09-01T00:00:00Z"
+        },
+        "text": "oldest message"
+      }
+    ],
+    "oldest_turn": 0,
+    "has_older": false
+  }
+}

@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::llm` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R6 已完成；48 tests。Loop R1 已确认 retry/cancellation 的上层接缝，LLMProvider API 不变。
+> **状态：** R1–R8 已完成；provider-config 修复已通过门禁，待用户 diff review。Loop R1 已确认 retry/cancellation 的上层接缝，LLMProvider API 不变。
 > **系统边界：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
@@ -26,7 +26,7 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 ```text
   loop / model_input                agent（组合根）
          │                                │
-         │  ModelRequest                  │ build_provider(family, config)
+         │  ModelRequest                  │ build_provider(AdapterConfig)
          ▼                                ▼
     run_model_call*  ──►  LLMProvider  ──►  adapter + normalize  ──►  HTTP/SSE
          │
@@ -40,7 +40,7 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 |------|------|
 | **MoonTide 协议** | 内核 domain 类型（与厂商无关） |
 | **AdapterFamily** | wire 形状（如 OpenAI Chat Completions） |
-| **Preset** | 厂商配置（base_url、api_key）；在 `agent/`，不在 `llm` |
+| **Adapter options** | 由组合根解析后传入 adapter 的显式 wire 选项；内核不推断 vendor identity |
 
 ---
 
@@ -137,17 +137,19 @@ run_model_call_with_updates(provider.as_ref(), request, |snapshot| {
 // 结束后 loop emit LlmCallEnded、AssistantFinalized（见 event README）
 ```
 
-### agent：注入 provider
+### agent：从 resolved provider 注入 adapter
 
 ```rust
-let provider = build_provider(
-    AdapterFamily::OpenAiChatCompletions,
-    AdapterConfig {
-        base_url: "https://api.deepseek.com".into(),
-        api_key: std::env::var("DEEPSEEK_API_KEY")?,
-    },
-);
+let provider = build_provider(AdapterConfig::OpenAiChat {
+    base_url: resolved.base_url.clone(),
+    api_key: resolved.api_key.clone(),
+    options: resolved.openai_chat,
+})?;
 ```
+
+`resolved` 由 `agent::llm::ResolvedProviderConfig` 提供。concrete vendor/model catalog、
+endpoint default、credential env 名与 provider-scoped precedence 都在 `agent::llm`；
+`agent-core::llm` 不读取 vendor identity、settings 或环境变量。
 
 ### cli：渲染（禁止碰流事件）
 

@@ -1,7 +1,7 @@
 # agent — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** 初步可用版 Agent R1–R3 已实现；CLI 接缝按后续 `cli` 模块实现。
+> **状态：** 初步可用版 Agent R1–R3 已实现；LLM provider-config 修复已通过门禁，待用户 diff review。
 > **关联：** [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ---
@@ -12,7 +12,9 @@
 
 | 做 | 不做 |
 |----|------|
-| provider preset 与显式配置解析结果装配 | 读取环境变量（由 CLI/宿主解析） |
+| concrete provider/model catalog 与 `ResolvedProviderConfig` | 读取 CLI/Desktop settings 文件 |
+| **`agent::llm`**：provider-scoped merge、env registry、adapter option 解析 | 声明宿主 settings schema、读取 stdin/UI |
+| **`agent::session`**：只读 SessionQuery facade + session DTO re-export | SessionStore 写入、AgentLoop ownership |
 | Session create/load | Session Item Log 直接写入 |
 | agent-tools catalog → ToolRegistry | 复制 ToolRuntime/Loop 状态机 |
 | permission map + approval handler 注入 | scheduler、并发 ToolExecutor |
@@ -29,6 +31,8 @@ cli ─────────────► agent ─────────
 agent-tools ────────────────────────────┘
 ```
 
+**源码注释：** 只描述 MoonTide 模块职责与边界；不得引用外部仓库、npm 包名或路径作为架构说明。外部方案对照写在 `crates/docs/` 计划文档，不进 `src/` doc comment。
+
 ---
 
 ## 2. 模块结构（目标）
@@ -40,7 +44,9 @@ crates/agent/
   DESIGN.md
   src/
     lib.rs
-    config.rs             # ProviderConfig / AgentConfig
+    config.rs             # ResolvedProviderConfig / AgentConfig
+    llm/                  # concrete catalog + provider-scoped startup merge
+    session/              # read-only Session Item Log query facade
     log/                  # R3 Agent Event diagnostic queue / worker / file persistence
     platform/              # ProjectPaths 与 settings 原子写入
     bootstrap.rs          # create/resume 装配
@@ -59,18 +65,20 @@ Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent:
 ## 3. 类型与签名
 
 ```rust
-pub struct ProviderConfig {
-    pub family: agent_core::llm::adapter::AdapterFamily,
+pub struct ResolvedProviderConfig {
+    pub provider_id: ProviderId,
+    pub model: String,
+    pub family: AdapterFamily,
     pub base_url: String,
     pub api_key: String,
+    pub openai_chat: OpenAiChatOptions,
 }
 
 pub struct AgentConfig {
     pub cwd: PathBuf,
     pub sessions_dir: PathBuf,
     pub runs_dir: PathBuf,
-    pub provider: ProviderConfig,
-    pub model: String,
+    pub provider: ResolvedProviderConfig,
     pub max_tokens: u32,
     pub thinking_level: Option<ThinkingLevel>,
     pub max_steps: u32,
@@ -115,13 +123,17 @@ impl Agent {
 ### 4.1 Provider
 
 ```text
-ProviderConfig
-  → AdapterConfig { base_url, api_key }
-  → llm::adapter::build_provider(family, adapter_config)
+ResolvedProviderConfig
+  → match family
+  → AdapterConfig::OpenAiChat { base_url, api_key, options }
+    | AdapterConfig::AnthropicMessages { base_url, api_key }
+  → llm::adapter::build_provider(adapter_config)
   → Arc<dyn LLMProvider>
 ```
 
-`agent` 不直接 import provider adapter 的具体实现，只使用当前公开的 `AdapterFamily`、`AdapterConfig` 和 `build_provider` seam。
+`AgentConfig` 只持有这一份 resolved provider fact，不再平行持有 `provider_id`、
+`model` 或另一份 endpoint/credential。`agent` 不直接 import provider adapter 的具体
+实现，只使用当前公开的 `AdapterFamily`、`AdapterConfig` 和 `build_provider` seam。
 
 ### 4.2 Tools
 
@@ -138,7 +150,7 @@ config.tool_names
 
 ### 4.3 Session 与 events
 
-`agent::SessionQuery` 是面向 CLI/Desktop 的只读 facade，底层调用
+`agent::SessionQuery` 是面向 CLI/Desktop 的只读 facade，定义于 **`agent::session`**，底层调用
 `agent-core::session::SessionQuery`。它只能读取和校验现有 Session Item Log，不取得
 AgentLoop 的 SessionStore ownership，不创建第二 writer，也不改变 Agent resume 路径。
 
@@ -179,7 +191,7 @@ SystemPrompt 在每个 user Turn 边界解析一次；同一 Turn 的多个 mode
 TurnInput {
     text,
     config: ModelRequestConfig {
-        model: config.model.clone(),
+        model: config.provider.model.clone(),
         max_tokens: config.max_tokens,
         thinking_level: config.thinking_level,
         session_id: Some(self.session_id.clone()),
@@ -198,7 +210,8 @@ TurnInput {
 
 ## 6. 配置校验
 
-bootstrap 必须拒绝：
+host/env layer construction 必须先拒绝显式空白 model/base URL；bootstrap 仍守卫
+resolved value，必须拒绝：
 
 1. 空 base URL；
 2. 空 model；
@@ -260,19 +273,26 @@ Session/Run/Settings 均为项目本地 `.moontide` 布局；用户级 config/da
 
 ### 8.2 Settings persistence
 
-设置 schema 由 CLI/frontend 拥有，第一版带显式 `version: 1`。`api_key` 可以持久化在项目设置中；它不进入 Session Item Log 或 Agent Event Log。
+设置 schema 由 CLI/frontend 拥有；当前写入 `version: 2`（可读 `version: 1`）。`api_key` 可以持久化在项目设置中；它不进入 Session Item Log 或 Agent Event Log。
 
-API key 优先级：`--api-key` > `DEEPSEEK_API_KEY` > `settings.json` > interactive input。其他设置优先级：显式 CLI 参数 > `settings.json` > 环境变量 > 默认值。CLI 参数必须使用 `Option<T>` 保留“未传入”和“显式传入”的区别。
+**LLM 启动配置** 的 settings schema 与 JSON IO 由 CLI/Desktop 各自持有。宿主把
+已解析值构造成 `LlmConfigLayer`，再调用 `agent::llm` 的 env reader 与
+provider-scoped merge：catalog preset → settings layer → environment layer → host layer。
+merge 产出单一 `ResolvedProviderConfig`；`agent` 不读取 settings 文件，也不在
+`AgentConfig` 装配后再次执行 precedence。API key 字段 precedence：settings <
+最终 provider 对应的 env key < host；interactive CLI 仅在四层均为空时读取 stdin。
+
+非 LLM 设置优先级：显式 CLI 参数 > `settings.json` > 环境变量 > 默认值。CLI 参数必须使用 `Option<T>` 保留“未传入”和“显式传入”的区别。
 
 `write_settings_atomically(path, bytes)` 在目标目录创建临时文件，写入完整 bytes 后以平台可用的替换语义更新目标文件。它不解析 JSON、不合并配置、不实现 concurrent writer；第一版约束一个 workspace 同时只有一个 settings writer。损坏或未知版本的 settings 文件由 frontend 显式报错并保留原文件。
 
 ### 8.3 Ownership
 
 ```text
-agent::platform  → 路径解析、settings 原子替换
-cli/frontend     → settings schema、JSON 解析、优先级、读写流程
-agent            → AgentConfig 装配
-agent-core       → Session Item Log / AgentLoop，不读取 settings.json
+agent::llm                → concrete catalog、四层 provider-scoped merge、env registry、ResolvedProviderConfig
+agent::platform           → 路径解析、settings 原子替换
+cli / desktop             → 各自持有 settings schema/IO，构造 layer、调 merge、装配 AgentConfig
+agent-core                → Session Item Log / AgentLoop，不读取 settings.json
 ```
 
 ---
@@ -293,7 +313,7 @@ agent-core       → Session Item Log / AgentLoop，不读取 settings.json
 ## 10. 决策记录
 
 1. agent 是唯一组合根，不把装配逻辑塞入 cli 或 agent-core；
-2. AgentConfig 接收显式解析值，agent 不读取环境变量；
+2. AgentConfig 只接收单一 `ResolvedProviderConfig`；agent runtime 不读取 settings/env；
 3. AgentLoop 是唯一 Session runtime owner；
 4. Harness System Prompt 与 Project Instructions 由 agent 组合，UserMessage 保持独立；
 5. 初版默认 DeepSeek/OpenAI-compatible provider；
@@ -304,7 +324,7 @@ agent-core       → Session Item Log / AgentLoop，不读取 settings.json
 
 ## 11. 单测方向
 
-- ProviderConfig → AdapterConfig 映射；
+- ResolvedProviderConfig → family-specific AdapterConfig 映射；
 - create/resume Session identity 与独立 legacy run partition；
 - catalog tool selection、未知 name、permission key mismatch；
 - Ask 无 handler 拒绝，approval handler 注入；

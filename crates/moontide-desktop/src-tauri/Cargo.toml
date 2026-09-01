@@ -13,18 +13,23 @@ crate-type = ["lib", "cdylib", "staticlib"]
 name = "moontide-desktop"
 path = "src/main.rs"
 
+[[test]]
+name = "protocol_fixtures"
+path = "tests/protocol_fixtures.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 agent.workspace = true
+agent-core.workspace = true
 anyhow.workspace = true
-desktop = { path = "../../desktop" }
-desktop-protocol = { path = "../../desktop-protocol" }
 dotenvy.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tokio.workspace = true
+tokio-util.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

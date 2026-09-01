@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-snapshot"
+description = "Allow MoonTide Desktop snapshot"
+commands.allow = ["snapshot"]

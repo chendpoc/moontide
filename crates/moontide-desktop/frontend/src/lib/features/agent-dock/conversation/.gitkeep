@@ -1,0 +1,8 @@
+# Agent Dock · Conversation
+
+Chat transcript、streaming draft、tool card、approval card。
+
+**入口（规划）：** `ConversationPanel.svelte`  
+**依赖：** `DesktopControllerPort`（只读 subscribe）、`projection/uiModel`、`components/moontide/*`
+
+当前实现仍位于 `src/app/App.svelte`，本目录随 Workbench 批次迁入。

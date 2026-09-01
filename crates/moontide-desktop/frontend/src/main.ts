@@ -1,8 +1,8 @@
 import { mount } from "svelte";
 
-import App from "./App.svelte";
-import { DesktopController } from "./controller";
-import { createTauriBridge } from "./tauriBridge";
+import App from "./app/App.svelte";
+import { DesktopController } from "$lib/controller/index.js";
+import { createTauriBridge } from "$lib/bridge/tauriBridge.js";
 import "../styles.css";
 
 const target = document.getElementById("app");

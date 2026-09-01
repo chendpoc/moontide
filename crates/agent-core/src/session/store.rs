@@ -173,6 +173,14 @@ fn validate_loaded_items(items: &[SessionItem], session_id: &str) -> Result<()> 
                 item.base().session_id
             );
         }
+        if expected_seq > 0 && item.base().turn < items[expected_seq - 1].base().turn {
+            anyhow::bail!(
+                "session log turn decreased at line {}: previous {}, got {}",
+                expected_seq + 1,
+                items[expected_seq - 1].base().turn,
+                item.base().turn,
+            );
+        }
         match item {
             SessionItem::ToolCall { call, .. }
                 if call.tool_use_id().trim().is_empty() || call.name().trim().is_empty() =>

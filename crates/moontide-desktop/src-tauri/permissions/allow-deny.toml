@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-deny"
+description = "Allow MoonTide Desktop deny"
+commands.allow = ["deny"]

@@ -14,7 +14,7 @@
 ```text
 AgentConfig（显式解析值）
       │
-      ├─ ProviderConfig → LLMProvider
+      ├─ ResolvedProviderConfig → typed AdapterConfig → LLMProvider
       ├─ tool_names → agent-tools catalog → ToolRegistry
       ├─ permissions + approval → ToolRuntime
       ├─ create/load SessionStore
@@ -46,18 +46,20 @@ AgentConfig（显式解析值）
 ## 公开 API
 
 ```rust
-pub struct ProviderConfig {
+pub struct ResolvedProviderConfig {
+    pub provider_id: ProviderId,
+    pub model: String,
     pub family: agent_core::llm::adapter::AdapterFamily,
     pub base_url: String,
     pub api_key: String,
+    pub openai_chat: agent_core::llm::normalize::openai_chat::OpenAiChatOptions,
 }
 
 pub struct AgentConfig {
     pub cwd: std::path::PathBuf,
     pub sessions_dir: std::path::PathBuf,
     pub runs_dir: std::path::PathBuf,
-    pub provider: ProviderConfig,
-    pub model: String,
+    pub provider: ResolvedProviderConfig,
     pub max_tokens: u32,
     pub thinking_level: Option<agent_core::llm::protocol::ThinkingLevel>,
     pub max_steps: u32,
@@ -93,7 +95,7 @@ pub fn latest_session_id(
     sessions_dir: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<Option<String>>;
 
-pub use agent_core::session::{SessionItem, SessionSnapshot, SessionSummary};
+pub use agent::session::{SessionItem, SessionSnapshot, SessionSummary};
 
 pub struct SessionQuery;
 

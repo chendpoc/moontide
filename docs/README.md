@@ -23,7 +23,7 @@ docs/
 | 目录 | 回答的问题 | 本地索引 |
 |------|------------|----------|
 | [`product/`](product/) | 产品是什么，范围和长期方向是什么？ | [`product/README.md`](product/README.md) |
-| [`spec/`](spec/) | 哪些系统规格仍处于候选或 draft？ | [`spec/README.md`](spec/README.md) |
+| [`spec/`](spec/) | 哪些系统规格仍处于候选或 draft？ | 当前为空；历史见 [`archive/spec/`](archive/spec/) |
 | [`guides/`](guides/) | 如何执行一个具体工作流？ | [`guides/README.md`](guides/README.md) |
 | [`notes/`](notes/) | 哪些分析、计划或候选仍需验证？ | [`notes/README.md`](notes/README.md) |
 | [`archive/`](archive/) | 哪些内容只用于历史追溯？ | [`archive/README.md`](archive/README.md) |
@@ -98,9 +98,9 @@ docs/
 |------|------|
 | [`crates/agent-core/README.md`](../crates/agent-core/README.md) | 内核模块清单与推进顺序 |
 | [`crates/docs/`](../crates/docs/) | Rust 工程手册、当前系统设计与明确标记的候选设计 |
-| [`schema/README.md`](../schema/README.md) | 跨语言契约的落点判据 |
-| [`services/README.md`](../services/README.md) | Go 后台服务边界（后置） |
-| [`node/README.md`](../node/README.md) | Node 扩展生态边界（后置） |
+| [`schema/`](../schema/) | 跨语言 wire schema 预留；仅当契约被 ≥2 种语言消费时落盘，当前为空 |
+| [`services/`](../services/) | Go 后台服务预留（常驻监控 / 代理 / 调度），当前为空 |
+| [`node/`](../node/) | Node 扩展生态预留（MCP / 插件），当前为空 |
 
 其余 `crates/*` 的模块级 README 待补：新增时写在对应 crate 根，并登记到上表。
 

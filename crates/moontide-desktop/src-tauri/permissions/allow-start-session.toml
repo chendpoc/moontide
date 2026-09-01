@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-start-session"
+description = "Allow MoonTide Desktop start_session"
+commands.allow = ["start_session"]
