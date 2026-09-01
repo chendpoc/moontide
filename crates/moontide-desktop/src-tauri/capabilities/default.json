@@ -10,6 +10,7 @@
     "allow-new-chat",
     "allow-create-session",
     "allow-start-session",
+    "allow-load-session-history",
     "allow-submit-turn",
     "allow-cancel-turn",
     "allow-approve",

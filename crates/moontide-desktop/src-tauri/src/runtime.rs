@@ -31,6 +31,8 @@ pub(crate) use command::DesktopCommandError;
 pub(crate) use coordinator::{DesktopRuntimeCoordinator, DesktopRuntimeCoordinatorHandle};
 
 const EVENT_FORWARDER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+const INITIAL_HISTORY_TURN_LIMIT: usize = 30;
+const MAX_HISTORY_TURN_LIMIT: u32 = 100;
 static NEXT_CONNECTION_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -218,6 +220,18 @@ impl DesktopRuntimeHandle {
                 });
             }
         };
+        let session_page = match snapshot.session.turn_page(None, INITIAL_HISTORY_TURN_LIMIT) {
+            Ok(page) => page,
+            Err(error) => {
+                let _ = host.shutdown().await;
+                self.stop_unstarted();
+                return Ok(wire::DesktopResponse::Rejected {
+                    error: runtime_wire::command_error_to_wire(
+                        &DesktopCommandError::SessionStartFailed(error.to_string()),
+                    ),
+                });
+            }
+        };
 
         let event_sender = self
             .inner
@@ -256,8 +270,46 @@ impl DesktopRuntimeHandle {
 
         Ok(wire::DesktopResponse::SessionReady {
             connection_epoch: self.inner.connection_epoch,
-            snapshot: runtime_wire::snapshot_to_wire(&snapshot),
+            snapshot: runtime_wire::snapshot_to_wire(&snapshot, &session_page),
         })
+    }
+
+    pub(crate) fn load_session_history(
+        &self,
+        session_id: String,
+        before_turn: u64,
+        limit: u32,
+    ) -> wire::DesktopResponse {
+        if limit == 0 || limit > MAX_HISTORY_TURN_LIMIT {
+            return map_domain_response(Err(DesktopCommandError::InvalidInput(format!(
+                "history limit must be between 1 and {MAX_HISTORY_TURN_LIMIT}",
+            ))));
+        }
+        let loaded_session_id = self
+            .inner
+            .loaded_session_id
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone();
+        let Some(loaded_session_id) = loaded_session_id else {
+            return map_domain_response(Err(DesktopCommandError::SessionNotStarted));
+        };
+        if loaded_session_id != session_id {
+            return map_domain_response(Err(DesktopCommandError::SessionMismatch {
+                requested: session_id,
+                loaded: loaded_session_id,
+            }));
+        }
+        match agent::SessionQuery::new(self.inner.sessions_dir.clone()).load_turn_page(
+            &session_id,
+            Some(before_turn),
+            limit as usize,
+        ) {
+            Ok(page) => runtime_wire::history_page_to_wire(&page),
+            Err(error) => map_domain_response(Err(DesktopCommandError::HistoryUnavailable(
+                error.to_string(),
+            ))),
+        }
     }
 
     pub(crate) async fn submit_turn(
@@ -324,13 +376,16 @@ impl DesktopRuntimeHandle {
 
     pub(crate) async fn snapshot(&self) -> Result<wire::DesktopResponse, DesktopCommandError> {
         let host = self.require_host().await?;
-        let response = host
-            .snapshot()
-            .await
-            .map(|snapshot| wire::DesktopResponse::Snapshot {
+        let response = host.snapshot().await.and_then(|snapshot| {
+            let session_page = snapshot
+                .session
+                .turn_page(None, INITIAL_HISTORY_TURN_LIMIT)
+                .map_err(|error| DesktopCommandError::Internal(error.to_string()))?;
+            Ok(wire::DesktopResponse::Snapshot {
                 connection_epoch: self.inner.connection_epoch,
-                snapshot: runtime_wire::snapshot_to_wire(&snapshot),
-            });
+                snapshot: runtime_wire::snapshot_to_wire(&snapshot, &session_page),
+            })
+        });
         Ok(map_domain_response(response))
     }
 

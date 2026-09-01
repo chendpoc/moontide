@@ -6,6 +6,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State, WindowEvent};
 use tokio::time::timeout;
 
+use crate::bootstrap::{self, DesktopStoragePaths};
 use crate::protocol as wire;
 use crate::runtime::{
     DesktopRuntimeCoordinator, DesktopRuntimeCoordinatorHandle, DesktopRuntimeEventStream,
@@ -42,10 +43,21 @@ enum ShutdownOutcome {
     Degraded,
 }
 
-pub(crate) fn run(runtime: DesktopRuntimeCoordinator) -> Result<()> {
-    let DesktopRuntimeCoordinator { handle, events } = runtime;
+pub(crate) fn run() -> Result<()> {
     tauri::Builder::default()
-        .setup(move |app| {
+        .setup(|app| {
+            let app_config_dir = app
+                .path()
+                .app_config_dir()
+                .context("resolve MoonTide Desktop application config directory")?;
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .context("resolve MoonTide Desktop application data directory")?;
+            let storage = DesktopStoragePaths::from_app_directories(app_config_dir, app_data_dir)
+                .context("resolve MoonTide Desktop storage layout")?;
+            let DesktopRuntimeCoordinator { handle, events } = bootstrap::start_runtime(storage)
+                .context("assemble Desktop runtime coordinator")?;
             let runtime_handle = handle.clone();
             tauri::async_runtime::block_on(async move {
                 runtime_handle.bootstrap_first_generation().await
@@ -92,6 +104,7 @@ pub(crate) fn run(runtime: DesktopRuntimeCoordinator) -> Result<()> {
             new_chat,
             create_session,
             start_session,
+            load_session_history,
             submit_turn,
             cancel_turn,
             approve,
@@ -153,6 +166,21 @@ async fn start_session(
         .runtime
         .inner
         .start_session(session_id)
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn load_session_history(
+    state: State<'_, AppState>,
+    session_id: String,
+    before_turn: u64,
+    limit: u32,
+) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .load_session_history(session_id, before_turn, limit)
         .await
         .map_err(bridge_error)
 }
@@ -237,7 +265,8 @@ mod tests {
 
     // 场景：Svelte 产品入口、Tauri permission 和安全配置完成 integrated runtime 收敛。
     // 预期：只允许 receive-only events 与 typed invoke commands，禁用 global API/CSP 空值和动态 HTML。
-    // 不变量：Web intent 无法绕过 runtime handle，也无法取得 process/filesystem/shell authority。
+    // 不变量：Web intent 无法绕过 runtime handle，无法取得 process/filesystem/shell authority，且
+    // Tauri bundle 始终声明各平台所需的应用图标。
     #[test]
     fn frontend_and_capability_enforce_the_security_baseline() {
         let capabilities_dir =
@@ -261,6 +290,7 @@ mod tests {
             "new_chat",
             "create_session",
             "start_session",
+            "load_session_history",
             "submit_turn",
             "cancel_turn",
             "approve",
@@ -286,7 +316,21 @@ mod tests {
         assert!(!config.contains("\"csp\": null"));
         assert!(config.contains("\"capabilities\": [\"default\"]"));
         assert!(config.contains("\"frontendDist\": \"../frontend/dist\""));
-        assert!(config.contains("\"icon\": [\"icons/icon.png\"]"));
+        let config_json: serde_json::Value =
+            serde_json::from_str(config).expect("valid Tauri config");
+        let icons = config_json
+            .pointer("/bundle/icon")
+            .and_then(serde_json::Value::as_array)
+            .expect("bundle icon array");
+        for required_icon in [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico",
+        ] {
+            assert!(icons.iter().any(|icon| icon == required_icon));
+        }
         assert!(bridge.contains("@tauri-apps/api/core"));
         assert!(bridge.contains("@tauri-apps/api/event"));
         for typed_invoke in [
@@ -294,6 +338,7 @@ mod tests {
             "new_chat",
             "create_session",
             "start_session",
+            "load_session_history",
             "submit_turn",
             "cancel_turn",
             "approve",

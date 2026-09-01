@@ -32,9 +32,12 @@ pub(crate) fn event_envelope_to_wire(
     }
 }
 
-pub(crate) fn snapshot_to_wire(snapshot: &DesktopSnapshot) -> wire::DesktopSnapshotDto {
+pub(crate) fn snapshot_to_wire(
+    snapshot: &DesktopSnapshot,
+    session_page: &agent::SessionTurnPage,
+) -> wire::DesktopSnapshotDto {
     wire::DesktopSnapshotDto {
-        session: session_snapshot_to_wire(&snapshot.session),
+        session: session_page_to_wire(session_page),
         state: run_state_to_wire(&snapshot.state),
         pending_approvals: snapshot
             .pending_approvals
@@ -98,6 +101,9 @@ pub(crate) fn command_error_to_wire(error: &DesktopCommandError) -> wire::Deskto
             }
             DesktopCommandError::CatalogUnavailable(_) => {
                 wire::DesktopCommandErrorCode::CatalogUnavailable
+            }
+            DesktopCommandError::HistoryUnavailable(_) => {
+                wire::DesktopCommandErrorCode::HistoryUnavailable
             }
             DesktopCommandError::InvalidInput(_) => wire::DesktopCommandErrorCode::InvalidInput,
             DesktopCommandError::Internal(_) => wire::DesktopCommandErrorCode::Internal,
@@ -196,15 +202,28 @@ fn progress_event_to_wire(event: &agent::ProgressEvent) -> wire::DesktopProtocol
     }
 }
 
-fn session_snapshot_to_wire(snapshot: &agent::SessionSnapshot) -> wire::SessionSnapshotDto {
+fn session_page_to_wire(page: &agent::SessionTurnPage) -> wire::SessionSnapshotDto {
     wire::SessionSnapshotDto {
         summary: wire::SessionSummaryDto {
-            session_id: snapshot.summary.session_id.clone(),
-            cwd: snapshot.summary.cwd.clone(),
-            last_turn: snapshot.summary.last_turn,
-            item_count: snapshot.summary.item_count,
+            session_id: page.summary.session_id.clone(),
+            cwd: page.summary.cwd.clone(),
+            last_turn: page.summary.last_turn,
+            item_count: page.summary.item_count,
         },
-        items: snapshot.items.iter().map(session_item_to_wire).collect(),
+        items: page.items.iter().map(session_item_to_wire).collect(),
+        history: wire::SessionHistoryWindowDto {
+            oldest_turn: page.oldest_turn,
+            has_older: page.has_older,
+        },
+    }
+}
+
+pub(crate) fn history_page_to_wire(page: &agent::SessionTurnPage) -> wire::DesktopResponse {
+    wire::DesktopResponse::SessionHistoryPage {
+        session_id: page.summary.session_id.clone(),
+        items: page.items.iter().map(session_item_to_wire).collect(),
+        oldest_turn: page.oldest_turn,
+        has_older: page.has_older,
     }
 }
 

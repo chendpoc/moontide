@@ -11,14 +11,8 @@ pub(super) fn list_rows(
     loaded_session_id: Option<&str>,
 ) -> Result<Vec<wire::SessionCatalogRowDto>> {
     let query = agent::SessionQuery::new(sessions_dir);
-    let mut rows = query
-        .list()?
-        .into_iter()
-        .map(|summary| {
-            let snapshot = query.load(&summary.session_id)?;
-            Ok(row_from_snapshot(&snapshot, loaded_session_id))
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let mut rows =
+        query.map_snapshots(|snapshot| row_from_snapshot(&snapshot, loaded_session_id))?;
     rows.sort_by(|left, right| {
         right
             .last_activity_at

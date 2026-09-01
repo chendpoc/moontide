@@ -1,11 +1,13 @@
 use std::collections::BTreeSet;
 
 use moontide_desktop_lib::protocol::{
-    DesktopMessage, DesktopMessageEnvelope, DesktopProtocolEvent, DESKTOP_PROTOCOL_VERSION,
+    DesktopCommand, DesktopMessage, DesktopMessageEnvelope, DesktopProtocolEvent, DesktopResponse,
+    DESKTOP_PROTOCOL_VERSION,
 };
 use serde_json::Value;
 
 const EVENT_FIXTURES: &str = include_str!("protocol/fixtures/events.json");
+const HISTORY_FIXTURE: &str = include_str!("protocol/fixtures/history.json");
 
 fn decode_fixtures(source: &str) -> (Value, Vec<DesktopMessageEnvelope>) {
     let json: Value = serde_json::from_str(source).expect("fixture file should contain valid JSON");
@@ -89,4 +91,35 @@ fn event_fixtures_cover_v1_contract_and_delivery_identity() {
         serde_json::to_value(&envelopes).expect("event fixtures should serialize"),
         json
     );
+}
+
+// 场景：Rust 与 TypeScript 共用一个历史分页 command/response JSON fixture。
+// 预期：exclusive Turn cursor、Session identity、item payload 与终页标记均可解析。
+// 不变量：两端协议 schema 不会对分页字段或 Rust enum tagging 产生漂移。
+#[test]
+fn history_fixture_conforms_to_rust_protocol() {
+    let fixture: Value =
+        serde_json::from_str(HISTORY_FIXTURE).expect("history fixture should be valid JSON");
+    let command: DesktopCommand = serde_json::from_value(fixture["command"].clone())
+        .expect("history command fixture should conform");
+    let response: DesktopResponse = serde_json::from_value(fixture["response"].clone())
+        .expect("history response fixture should conform");
+
+    assert!(matches!(
+        command,
+        DesktopCommand::LoadSessionHistory {
+            ref session_id,
+            before_turn: 30,
+            limit: 30,
+        } if session_id == "session-1"
+    ));
+    assert!(matches!(
+        response,
+        DesktopResponse::SessionHistoryPage {
+            ref session_id,
+            oldest_turn: Some(0),
+            has_older: false,
+            ..
+        } if session_id == "session-1"
+    ));
 }

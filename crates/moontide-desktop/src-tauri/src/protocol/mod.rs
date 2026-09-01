@@ -35,11 +35,26 @@ pub enum DesktopCommand {
     ListSessions,
     NewChat,
     CreateSession,
-    StartSession { session_id: String },
-    SubmitTurn { session_id: String, text: String },
+    StartSession {
+        session_id: String,
+    },
+    LoadSessionHistory {
+        session_id: String,
+        before_turn: u64,
+        limit: u32,
+    },
+    SubmitTurn {
+        session_id: String,
+        text: String,
+    },
     CancelTurn,
-    Approve { approval_id: String },
-    Deny { approval_id: String, reason: String },
+    Approve {
+        approval_id: String,
+    },
+    Deny {
+        approval_id: String,
+        reason: String,
+    },
     Snapshot,
     Shutdown,
 }
@@ -63,6 +78,7 @@ pub enum DesktopCommandErrorCode {
     ShutdownFailed,
     GenerationNotReady,
     CatalogUnavailable,
+    HistoryUnavailable,
     InvalidInput,
     Internal,
 }
@@ -214,6 +230,13 @@ pub enum CompactionKindDto {
 pub struct SessionSnapshotDto {
     pub summary: SessionSummaryDto,
     pub items: Vec<SessionItemDto>,
+    pub history: SessionHistoryWindowDto,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionHistoryWindowDto {
+    pub oldest_turn: Option<u64>,
+    pub has_older: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -256,6 +279,12 @@ pub enum DesktopResponse {
     SessionReady {
         connection_epoch: ConnectionEpoch,
         snapshot: DesktopSnapshotDto,
+    },
+    SessionHistoryPage {
+        session_id: String,
+        items: Vec<SessionItemDto>,
+        oldest_turn: Option<u64>,
+        has_older: bool,
     },
     TurnAccepted {
         turn: u64,
@@ -595,6 +624,10 @@ mod tests {
                         item_count: 1,
                     },
                     items: vec![],
+                    history: SessionHistoryWindowDto {
+                        oldest_turn: Some(1),
+                        has_older: true,
+                    },
                 },
                 state: DesktopRunStateDto::Idle,
                 pending_approvals: vec![],
@@ -608,11 +641,36 @@ mod tests {
             },
         };
 
-        for response in [catalog, generation_ready, session_ready] {
+        let history_page = DesktopResponse::SessionHistoryPage {
+            session_id: "session-2".into(),
+            items: vec![],
+            oldest_turn: Some(0),
+            has_older: false,
+        };
+
+        for response in [catalog, generation_ready, session_ready, history_page] {
             let encoded = serde_json::to_vec(&response).expect("response should serialize");
             let decoded: DesktopResponse =
                 serde_json::from_slice(&encoded).expect("response should deserialize");
             assert_eq!(decoded, response);
         }
+    }
+
+    // 场景：前端请求已加载 Session 在指定 Turn 之前的一页历史。
+    // 预期：command 精确保留 Session identity、exclusive cursor 与 Turn limit。
+    // 不变量：历史分页不使用易受并发追加影响的 page number 或 item offset。
+    #[test]
+    fn session_history_command_round_trips_exclusive_turn_cursor() {
+        let command = DesktopCommand::LoadSessionHistory {
+            session_id: "session-1".into(),
+            before_turn: 30,
+            limit: 30,
+        };
+
+        let encoded = serde_json::to_vec(&command).expect("history command should serialize");
+        let decoded: DesktopCommand =
+            serde_json::from_slice(&encoded).expect("history command should deserialize");
+
+        assert_eq!(decoded, command);
     }
 }

@@ -93,6 +93,41 @@ impl DesktopRuntimeCoordinatorHandle {
         generation.handle.load_session(session_id).await
     }
 
+    pub(crate) async fn load_session_history(
+        &self,
+        session_id: String,
+        before_turn: u64,
+        limit: u32,
+    ) -> Result<wire::DesktopResponse, DesktopCommandError> {
+        let (handle, requested_epoch) = {
+            let current = self.inner.current.lock().await;
+            let generation = current.as_ref().ok_or_else(runtime_unavailable_error)?;
+            (
+                generation.handle.clone(),
+                generation.handle.connection_epoch(),
+            )
+        };
+        let response = tokio::task::spawn_blocking(move || {
+            handle.load_session_history(session_id, before_turn, limit)
+        })
+        .await
+        .map_err(|error| {
+            DesktopCommandError::Internal(format!("history read task failed: {error}"))
+        })?;
+        let current = self.inner.current.lock().await;
+        let Some(generation) = current.as_ref() else {
+            return Ok(rejected(DesktopCommandError::GenerationNotReady(
+                "history request outlived its runtime generation".into(),
+            )));
+        };
+        if generation.handle.connection_epoch() != requested_epoch {
+            return Ok(rejected(DesktopCommandError::GenerationNotReady(
+                "history request outlived its runtime generation".into(),
+            )));
+        }
+        Ok(response)
+    }
+
     pub(crate) async fn new_chat(&self) -> Result<wire::DesktopResponse, DesktopCommandError> {
         let mut current = self.inner.current.lock().await;
         if let Some(generation) = current.take() {
@@ -255,7 +290,11 @@ mod tests {
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use agent_core::{llm::protocol::ThinkingLevel, r#loop::ToolPermissionMap};
+    use agent_core::{
+        llm::protocol::{ContentBlock, ThinkingLevel},
+        r#loop::ToolPermissionMap,
+        session::{SessionItemDraft, SessionStore},
+    };
     use tempfile::TempDir;
 
     use super::*;
@@ -297,6 +336,27 @@ mod tests {
             .await
             .expect("bootstrap first generation");
         coordinator
+    }
+
+    fn item_turn(item: &wire::SessionItemDto) -> u64 {
+        match item {
+            wire::SessionItemDto::UserMessage { base, .. }
+            | wire::SessionItemDto::AssistantMessage { base, .. }
+            | wire::SessionItemDto::ToolCall { base, .. }
+            | wire::SessionItemDto::ToolResult { base, .. }
+            | wire::SessionItemDto::Compaction { base, .. }
+            | wire::SessionItemDto::CheckpointCreated { base, .. } => base.turn,
+        }
+    }
+
+    fn session_log_path(root: &Path, session_id: &str) -> std::path::PathBuf {
+        std::fs::read_dir(root.join("sessions"))
+            .expect("sessions directory")
+            .filter_map(std::result::Result::ok)
+            .map(|entry| entry.path())
+            .find(|path| path.join(format!("{session_id}.meta.json")).is_file())
+            .expect("Session partition")
+            .join(format!("{session_id}.log.jsonl"))
     }
 
     // 场景：Loaded Session 依次执行 New Chat 和加载原 Session。
@@ -477,5 +537,177 @@ mod tests {
             error.code,
             wire::DesktopCommandErrorCode::CatalogUnavailable
         );
+    }
+
+    // 场景：持久化 Session 有 65 个 Turn，Desktop 加载它并连续向前翻页。
+    // 预期：初始快照只含最新 30 个完整 Turn，后续页面按 exclusive Turn cursor 返回。
+    // 不变量：任何页面都不拆分 Turn，最终页明确标记不存在更早历史。
+    #[tokio::test]
+    async fn session_history_is_bounded_and_pages_backwards_by_complete_turn() {
+        let root = TempDir::new().expect("tempdir");
+        let sessions_dir = root.path().join("sessions");
+        let mut store =
+            SessionStore::create(&sessions_dir, root.path().to_path_buf()).expect("Session");
+        for turn in 0..65 {
+            store
+                .commit_item(SessionItemDraft::UserMessage {
+                    turn,
+                    text: format!("user-{turn}"),
+                })
+                .expect("user item");
+            store
+                .commit_item(SessionItemDraft::AssistantMessage {
+                    turn,
+                    blocks: vec![ContentBlock::Text {
+                        text: format!("assistant-{turn}"),
+                    }],
+                })
+                .expect("assistant item");
+        }
+        let session_id = store.header().session_id.clone();
+        drop(store);
+
+        let coordinator = bootstrapped_coordinator(root.path().to_path_buf()).await;
+        let ready = coordinator
+            .handle
+            .start_session(session_id.clone())
+            .await
+            .expect("load Session");
+        let wire::DesktopResponse::SessionReady { snapshot, .. } = ready else {
+            panic!("expected SessionReady")
+        };
+        assert_eq!(snapshot.session.items.len(), 60);
+        assert_eq!(snapshot.session.history.oldest_turn, Some(35));
+        assert!(snapshot.session.history.has_older);
+        assert!(snapshot
+            .session
+            .items
+            .iter()
+            .all(|item| (35..65).contains(&item_turn(item))));
+
+        let middle = coordinator
+            .handle
+            .load_session_history(session_id.clone(), 35, 30)
+            .await
+            .expect("middle history page");
+        let wire::DesktopResponse::SessionHistoryPage {
+            items,
+            oldest_turn,
+            has_older,
+            ..
+        } = middle
+        else {
+            panic!("expected history page")
+        };
+        assert_eq!(items.len(), 60);
+        assert_eq!(oldest_turn, Some(5));
+        assert!(has_older);
+        assert!(items.iter().all(|item| (5..35).contains(&item_turn(item))));
+
+        let oldest = coordinator
+            .handle
+            .load_session_history(session_id, 5, 30)
+            .await
+            .expect("oldest history page");
+        let wire::DesktopResponse::SessionHistoryPage {
+            items,
+            oldest_turn,
+            has_older,
+            ..
+        } = oldest
+        else {
+            panic!("expected history page")
+        };
+        assert_eq!(items.len(), 10);
+        assert_eq!(oldest_turn, Some(0));
+        assert!(!has_older);
+        assert!(items.iter().all(|item| item_turn(item) < 5));
+    }
+
+    // 场景：加载历史时请求不同 Session identity，或给出越界 limit。
+    // 预期：runtime 返回 typed rejection，且不读取或替换当前 Session 状态。
+    // 不变量：分页 API 只能读取当前已加载 Session，limit 始终处于 1..=100。
+    #[tokio::test]
+    async fn session_history_rejects_identity_mismatch_and_invalid_limits() {
+        let root = TempDir::new().expect("tempdir");
+        let coordinator = bootstrapped_coordinator(root.path().to_path_buf()).await;
+        let ready = coordinator
+            .handle
+            .create_session()
+            .await
+            .expect("create Session");
+        let wire::DesktopResponse::SessionReady { snapshot, .. } = ready else {
+            panic!("expected SessionReady")
+        };
+        let session_id = snapshot.session.summary.session_id;
+
+        let mismatch = coordinator
+            .handle
+            .load_session_history("another-session".into(), 1, 30)
+            .await
+            .expect("typed mismatch");
+        let wire::DesktopResponse::Rejected { error } = mismatch else {
+            panic!("expected mismatch rejection")
+        };
+        assert_eq!(error.code, wire::DesktopCommandErrorCode::SessionMismatch);
+
+        for limit in [0, 101] {
+            let invalid = coordinator
+                .handle
+                .load_session_history(session_id.clone(), 1, limit)
+                .await
+                .expect("typed invalid limit");
+            let wire::DesktopResponse::Rejected { error } = invalid else {
+                panic!("expected invalid-input rejection")
+            };
+            assert_eq!(error.code, wire::DesktopCommandErrorCode::InvalidInput);
+        }
+    }
+
+    // 场景：当前 Loaded Session 的持久化 JSONL 在后续历史读取前损坏。
+    // 预期：load_session_history 返回 history_unavailable，而 loaded identity 仍用于后续校验。
+    // 不变量：历史读取失败不替换、关闭或伪造当前 Host-owned Session identity。
+    #[tokio::test]
+    async fn session_history_storage_failure_is_typed_without_clearing_loaded_identity() {
+        let root = TempDir::new().expect("tempdir");
+        let coordinator = bootstrapped_coordinator(root.path().to_path_buf()).await;
+        let ready = coordinator
+            .handle
+            .create_session()
+            .await
+            .expect("create Session");
+        let wire::DesktopResponse::SessionReady { snapshot, .. } = ready else {
+            panic!("expected SessionReady")
+        };
+        let session_id = snapshot.session.summary.session_id;
+        std::fs::write(
+            session_log_path(root.path(), &session_id),
+            b"{invalid-json\n",
+        )
+        .expect("corrupt test Session log");
+
+        let response = coordinator
+            .handle
+            .load_session_history(session_id.clone(), 1, 30)
+            .await
+            .expect("typed history failure");
+        let wire::DesktopResponse::Rejected { error } = response else {
+            panic!("expected history rejection")
+        };
+        assert_eq!(
+            error.code,
+            wire::DesktopCommandErrorCode::HistoryUnavailable
+        );
+
+        let mismatch = coordinator
+            .handle
+            .load_session_history("another-session".into(), 1, 30)
+            .await
+            .expect("loaded identity remains authoritative");
+        let wire::DesktopResponse::Rejected { error } = mismatch else {
+            panic!("expected Session mismatch")
+        };
+        assert_eq!(error.code, wire::DesktopCommandErrorCode::SessionMismatch);
+        assert!(error.message.contains(&session_id));
     }
 }

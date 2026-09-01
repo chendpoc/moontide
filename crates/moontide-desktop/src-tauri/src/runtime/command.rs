@@ -23,6 +23,7 @@ pub enum DesktopCommandError {
     ShutdownFailed(String),
     GenerationNotReady(String),
     CatalogUnavailable(String),
+    HistoryUnavailable(String),
     InvalidInput(String),
     Internal(String),
 }
@@ -64,6 +65,12 @@ impl fmt::Display for DesktopCommandError {
                 write!(
                     formatter,
                     "desktop session catalog is unavailable: {message}"
+                )
+            }
+            Self::HistoryUnavailable(message) => {
+                write!(
+                    formatter,
+                    "desktop Session history is unavailable: {message}"
                 )
             }
             Self::InvalidInput(message) => write!(formatter, "invalid desktop input: {message}"),

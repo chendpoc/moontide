@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, env, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use agent::{
     llm::{
@@ -6,7 +10,7 @@ use agent::{
         ProcessEnv, ProviderId,
     },
     platform::ProjectPaths,
-    AgentConfig, PersistenceConfig, SessionPersistence, ToolPermission, ToolPermissionMap,
+    resolve_coding_preset, AgentConfig, CodingPresetPolicy, PersistenceConfig, SessionPersistence,
 };
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -16,41 +20,82 @@ use crate::runtime::{DesktopRuntime, DesktopRuntimeCoordinator};
 const DEFAULT_MAX_TOKENS: u32 = 4_096;
 const DEFAULT_MAX_STEPS: u32 = 8;
 const DEFAULT_EVENT_CAPACITY: usize = 256;
-const SETTINGS_VERSION: u32 = 2;
+const SETTINGS_VERSION: u32 = 3;
+const SETTINGS_FILE_NAME: &str = "settings.json";
+const CONTENT_DIRECTORY_NAME: &str = "content";
+const SESSIONS_DIRECTORY_NAME: &str = "sessions";
+const RUNS_DIRECTORY_NAME: &str = "runs";
 
 #[derive(Deserialize)]
-struct DesktopPersistedLlmSettings {
-    #[allow(dead_code)]
-    version: u32,
+#[serde(deny_unknown_fields)]
+struct DesktopPersistedSettings {
+    #[serde(rename = "version")]
+    _version: u32,
+    project_root: PathBuf,
     provider: ProviderId,
     model: String,
     base_url: String,
-    api_key: String,
 }
 
-pub(crate) fn start_runtime() -> Result<DesktopRuntimeCoordinator> {
-    dotenvy::dotenv().ok();
+struct DesktopEnv<'a, E> {
+    inherited: &'a E,
+    project: BTreeMap<String, String>,
+}
+
+impl<E: EnvSource> EnvSource for DesktopEnv<'_, E> {
+    fn var(&self, name: &str) -> Option<String> {
+        self.inherited
+            .var(name)
+            .or_else(|| self.project.get(name).cloned())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DesktopStoragePaths {
+    pub(crate) settings_path: PathBuf,
+    pub(crate) sessions_dir: PathBuf,
+    pub(crate) runs_dir: PathBuf,
+}
+
+impl DesktopStoragePaths {
+    pub(crate) fn from_app_directories(
+        app_config_dir: PathBuf,
+        app_data_dir: PathBuf,
+    ) -> Result<Self> {
+        if !app_config_dir.is_absolute() {
+            anyhow::bail!(
+                "Desktop application config directory must be absolute: {}",
+                app_config_dir.display()
+            );
+        }
+        if !app_data_dir.is_absolute() {
+            anyhow::bail!(
+                "Desktop application data directory must be absolute: {}",
+                app_data_dir.display()
+            );
+        }
+        let content_dir = app_data_dir.join(CONTENT_DIRECTORY_NAME);
+        Ok(Self {
+            settings_path: app_config_dir.join(SETTINGS_FILE_NAME),
+            sessions_dir: content_dir.join(SESSIONS_DIRECTORY_NAME),
+            runs_dir: content_dir.join(RUNS_DIRECTORY_NAME),
+        })
+    }
+}
+
+pub(crate) fn start_runtime(storage: DesktopStoragePaths) -> Result<DesktopRuntimeCoordinator> {
     DesktopRuntimeCoordinator::start(
-        || {
-            let agent_config = build_agent_config()?;
+        move || {
+            let agent_config = build_agent_config_for_storage(&storage, &ProcessEnv)?;
             DesktopRuntime::start(agent_config, DEFAULT_EVENT_CAPACITY)
         },
         DEFAULT_EVENT_CAPACITY,
     )
 }
 
-fn build_agent_config() -> Result<AgentConfig> {
-    let cwd = env::current_dir().context("resolve current working directory")?;
-    let paths = ProjectPaths::resolve(cwd, None, None)?;
-    build_agent_config_for_paths(&paths, &ProcessEnv)
-}
-
-fn read_persisted_llm_layer(path: &Path) -> Result<LlmConfigLayer> {
-    if !path.exists() {
-        return Ok(LlmConfigLayer::default());
-    }
+fn read_persisted_settings(path: &Path) -> Result<DesktopPersistedSettings> {
     let bytes = fs::read(path).with_context(|| format!("read settings file {}", path.display()))?;
-    let mut value: serde_json::Value = serde_json::from_slice(&bytes)
+    let value: serde_json::Value = serde_json::from_slice(&bytes)
         .with_context(|| format!("parse settings file {}", path.display()))?;
     let version = value
         .get("version")
@@ -58,45 +103,49 @@ fn read_persisted_llm_layer(path: &Path) -> Result<LlmConfigLayer> {
         .ok_or_else(|| {
             anyhow::anyhow!("settings file {} has no numeric version", path.display())
         })?;
-    if version != 1 && version != u64::from(SETTINGS_VERSION) {
-        anyhow::bail!("unsupported settings version {version} (expected {SETTINGS_VERSION} or 1)");
+    if version != u64::from(SETTINGS_VERSION) {
+        anyhow::bail!(
+            "unsupported Desktop settings version {version} (expected {SETTINGS_VERSION})"
+        );
     }
-    if version == 1 {
-        let object = value.as_object_mut().ok_or_else(|| {
-            anyhow::anyhow!("settings file {} must contain an object", path.display())
-        })?;
-        object
-            .entry("provider")
-            .or_insert_with(|| serde_json::Value::String(ProviderId::default().to_string()));
-    }
-    let persisted: DesktopPersistedLlmSettings = serde_json::from_value(value)
+    let persisted: DesktopPersistedSettings = serde_json::from_value(value)
         .with_context(|| format!("decode settings file {}", path.display()))?;
-    LlmConfigLayer::new(
+    if !persisted.project_root.is_absolute() {
+        anyhow::bail!(
+            "Desktop settings project_root must be absolute: {}",
+            persisted.project_root.display()
+        );
+    }
+    Ok(persisted)
+}
+
+fn build_agent_config_for_storage(
+    storage: &DesktopStoragePaths,
+    env: &impl EnvSource,
+) -> Result<AgentConfig> {
+    let persisted = read_persisted_settings(&storage.settings_path)?;
+    let project_env = read_project_dotenv(&persisted.project_root)?;
+    let desktop_env = DesktopEnv {
+        inherited: env,
+        project: project_env,
+    };
+    let settings_layer = LlmConfigLayer::new(
         Some(persisted.provider),
         Some(persisted.model),
         Some(persisted.base_url),
-        optional_api_key(Some(persisted.api_key)),
+        None,
     )
-    .context("construct Desktop settings LLM layer")
-}
-
-fn optional_api_key(value: Option<String>) -> Option<String> {
-    value.and_then(|value| {
-        let value = value.trim();
-        (!value.is_empty()).then(|| value.to_owned())
-    })
-}
-
-pub(crate) fn build_agent_config_for_paths(
-    paths: &ProjectPaths,
-    env: &impl EnvSource,
-) -> Result<AgentConfig> {
-    let settings_layer = read_persisted_llm_layer(&paths.settings_path)?;
-    let env_layer = read_llm_env(env)?;
+    .context("construct Desktop settings LLM layer")?;
+    let env_layer = read_llm_env(&desktop_env)?;
     let merged = merge_startup_llm_config(&settings_layer, &env_layer, &LlmConfigLayer::default())?;
     require_api_key(&merged)?;
+    let paths = ProjectPaths::resolve(
+        persisted.project_root,
+        Some(storage.sessions_dir.clone()),
+        Some(storage.runs_dir.clone()),
+    )?;
 
-    let (tool_names, permissions) = coding_preset();
+    let (tool_names, permissions) = resolve_coding_preset(CodingPresetPolicy::DesktopDefault);
 
     Ok(AgentConfig {
         cwd: paths.cwd.clone(),
@@ -117,22 +166,20 @@ pub(crate) fn build_agent_config_for_paths(
     })
 }
 
-fn coding_preset() -> (Vec<String>, ToolPermissionMap) {
-    let allow = ["read", "find", "grep"];
-    let ask = ["write", "edit", "bash"];
-    let tool_names = allow
-        .iter()
-        .chain(ask.iter())
-        .map(|name| (*name).to_owned())
-        .collect::<Vec<_>>();
-    let mut permissions = BTreeMap::new();
-    for name in allow {
-        permissions.insert(name.to_owned(), ToolPermission::Allow);
+fn read_project_dotenv(project_root: &Path) -> Result<BTreeMap<String, String>> {
+    let path = project_root.join(".env");
+    match path.try_exists() {
+        Ok(false) => return Ok(BTreeMap::new()),
+        Ok(true) => {}
+        Err(error) => {
+            return Err(error).with_context(|| format!("inspect dotenv file {}", path.display()));
+        }
     }
-    for name in ask {
-        permissions.insert(name.to_owned(), ToolPermission::Ask);
-    }
-    (tool_names, permissions)
+
+    dotenvy::from_path_iter(&path)
+        .with_context(|| format!("open dotenv file {}", path.display()))?
+        .map(|entry| entry.with_context(|| format!("parse dotenv file {}", path.display())))
+        .collect()
 }
 
 #[cfg(test)]
@@ -150,81 +197,212 @@ mod tests {
         }
     }
 
-    fn project_with_settings(json: &str) -> (tempfile::TempDir, ProjectPaths) {
-        let root = tempdir().expect("temporary desktop project");
-        let settings_path = root.path().join(".moontide/settings.json");
-        fs::create_dir_all(settings_path.parent().expect("settings parent"))
+    fn storage_with_settings(json: &str) -> (tempfile::TempDir, DesktopStoragePaths) {
+        let root = tempdir().expect("temporary Desktop storage");
+        let project_root = root.path().join("project");
+        fs::create_dir(&project_root).expect("project root");
+        let storage = DesktopStoragePaths::from_app_directories(
+            root.path().join("app-config"),
+            root.path().join("app-data"),
+        )
+        .expect("Desktop storage paths");
+        fs::create_dir_all(storage.settings_path.parent().expect("settings parent"))
             .expect("settings parent directory");
-        fs::write(&settings_path, json.as_bytes()).expect("settings file");
-        let paths =
-            ProjectPaths::resolve(root.path().to_owned(), None, None).expect("project paths");
-        (root, paths)
+        let bytes = match serde_json::from_str::<serde_json::Value>(json) {
+            Ok(mut value) => {
+                if let Some(object) = value.as_object_mut() {
+                    object.entry("project_root").or_insert_with(|| {
+                        serde_json::Value::String(project_root.to_string_lossy().into_owned())
+                    });
+                }
+                serde_json::to_vec(&value).expect("settings JSON")
+            }
+            Err(_) => json.as_bytes().to_vec(),
+        };
+        fs::write(&storage.settings_path, bytes).expect("settings file");
+        (root, storage)
     }
 
-    // Scenario: Desktop starts with no settings file and no env credentials.
-    // Expected: bootstrap fails at require_api_key with the catalog env name.
-    // Invariant: Desktop never reads stdin for API keys.
+    // Scenario: Tauri supplies absolute application configuration and data directories.
+    // Expected: Desktop settings and content paths are derived under their matching scopes.
+    // Invariant: storage layout never consults or embeds the process working directory.
     #[test]
-    fn build_agent_config_requires_credentials_without_settings() {
-        let root = tempdir().expect("temporary desktop project");
-        let paths =
-            ProjectPaths::resolve(root.path().to_owned(), None, None).expect("project paths");
-        let error = match build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())) {
-            Ok(_) => panic!("missing credentials"),
+    fn desktop_storage_layout_is_stable_under_app_directories() {
+        let root = tempdir().expect("temporary application directories");
+        let config_dir = root.path().join("config");
+        let data_dir = root.path().join("data");
+        let storage =
+            DesktopStoragePaths::from_app_directories(config_dir.clone(), data_dir.clone())
+                .expect("Desktop storage paths");
+
+        assert_eq!(storage.settings_path, config_dir.join("settings.json"));
+        assert_eq!(storage.sessions_dir, data_dir.join("content/sessions"));
+        assert_eq!(storage.runs_dir, data_dir.join("content/runs"));
+    }
+
+    // Scenario: Desktop starts without its fixed application settings file.
+    // Expected: bootstrap reports the missing fixed path instead of falling back to process cwd.
+    // Invariant: an arbitrary launch directory can never become an implicit Desktop project.
+    #[test]
+    fn build_agent_config_requires_fixed_settings_file() {
+        let root = tempdir().expect("temporary application config directory");
+        let storage = DesktopStoragePaths::from_app_directories(
+            root.path().join("config"),
+            root.path().join("data"),
+        )
+        .expect("Desktop storage paths");
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+            Ok(_) => panic!("missing settings"),
             Err(error) => error,
         };
-        assert!(error.to_string().contains("DEEPSEEK_API_KEY"));
+        assert!(error.to_string().contains("read settings file"));
+        assert!(error.to_string().contains("settings.json"));
     }
 
-    // Scenario: settings.json supplies provider, model, and API key.
-    // Expected: merged AgentConfig reflects persisted LLM fields.
-    // Invariant: empty host layer does not override settings.
+    // Scenario: version-3 settings select Agnes while its credential comes from environment.
+    // Expected: AgentConfig uses the explicit project root and application content directories.
+    // Invariant: Desktop JSON owns no provider credential and process cwd owns no storage path.
     #[test]
     fn build_agent_config_loads_persisted_settings() {
-        let (_root, paths) = project_with_settings(
+        let (root, storage) = storage_with_settings(
             r#"{
-                "version": 2,
+                "version": 3,
                 "provider": "agnes",
                 "model": "agnes-2.5-pro",
-                "base_url": "https://api.agnes-ai.cn/v1",
-                "api_key": "settings-key",
-                "approval_policy": "default",
-                "trace_mode": "off",
-                "max_tokens": 4096,
-                "max_steps": 8,
-                "persistence": { "session": "items", "diagnostic": "off" }
+                "base_url": "https://api.agnes-ai.cn/v1"
             }"#,
         );
-        let config =
-            build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())).expect("config");
+        let env = MapEnv(BTreeMap::from([("AGNES_API_KEY", "env-key".into())]));
+        let config = build_agent_config_for_storage(&storage, &env).expect("config");
+        assert_eq!(config.cwd, root.path().join("project"));
+        assert_eq!(config.sessions_dir, storage.sessions_dir);
+        assert_eq!(config.runs_dir, storage.runs_dir);
         assert_eq!(config.provider.provider_id, ProviderId::Agnes);
         assert_eq!(config.provider.model, "agnes-2.5-pro");
-        assert_eq!(config.provider.api_key, "settings-key");
+        assert_eq!(config.provider.api_key, "env-key");
     }
 
-    // Scenario: environment provides the winning API key for the final provider.
-    // Expected: env key overrides settings without changing provider selection.
-    // Invariant: AGNES_API_KEY alone does not switch provider away from settings.
+    // Scenario: environment provides the API key for the provider selected by settings.
+    // Expected: the matching environment key completes the resolved configuration.
+    // Invariant: Desktop JSON never persists or supplies a provider credential.
     #[test]
-    fn build_agent_config_env_key_overrides_settings_key() {
-        let (_root, paths) = project_with_settings(
+    fn build_agent_config_uses_provider_environment_key() {
+        let (_root, storage) = storage_with_settings(
             r#"{
-                "version": 2,
+                "version": 3,
                 "provider": "deepseek",
                 "model": "deepseek-chat",
-                "base_url": "https://api.deepseek.com",
-                "api_key": "settings-key",
-                "approval_policy": "default",
-                "trace_mode": "off",
-                "max_tokens": 4096,
-                "max_steps": 8,
-                "persistence": { "session": "items", "diagnostic": "off" }
+                "base_url": "https://api.deepseek.com"
             }"#,
         );
         let env = MapEnv(BTreeMap::from([("DEEPSEEK_API_KEY", "env-key".into())]));
-        let config = build_agent_config_for_paths(&paths, &env).expect("config");
+        let config = build_agent_config_for_storage(&storage, &env).expect("config");
         assert_eq!(config.provider.provider_id, ProviderId::Deepseek);
         assert_eq!(config.provider.api_key, "env-key");
+    }
+
+    // Scenario: the selected project stores its development credential in a local dotenv file.
+    // Expected: Desktop reads that explicit file without consulting the shell launch directory.
+    // Invariant: project_root, not process cwd, owns optional development dotenv discovery.
+    #[test]
+    fn build_agent_config_reads_dotenv_from_project_root() {
+        let (root, storage) = storage_with_settings(
+            r#"{
+                "version": 3,
+                "provider": "agnes",
+                "model": "agnes-2.5-flash",
+                "base_url": "https://api.agnes-ai.cn/v1"
+            }"#,
+        );
+        fs::write(
+            root.path().join("project/.env"),
+            "AGNES_API_KEY=project-key\n",
+        )
+        .expect("project dotenv");
+
+        let config = build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new()))
+            .expect("config from project dotenv");
+
+        assert_eq!(config.provider.api_key, "project-key");
+    }
+
+    // Scenario: inherited process environment and project dotenv define the same provider fields.
+    // Expected: the inherited environment wins without mutating process-global state.
+    // Invariant: project dotenv is a development fallback, not a higher-precedence host override.
+    #[test]
+    fn inherited_environment_overrides_project_dotenv() {
+        let (root, storage) = storage_with_settings(
+            r#"{
+                "version": 3,
+                "provider": "agnes",
+                "model": "agnes-2.5-flash",
+                "base_url": "https://api.agnes-ai.cn/v1"
+            }"#,
+        );
+        fs::write(
+            root.path().join("project/.env"),
+            "MOONTIDE_MODEL=dotenv-model\nAGNES_API_KEY=dotenv-key\n",
+        )
+        .expect("project dotenv");
+        let env = MapEnv(BTreeMap::from([
+            ("MOONTIDE_MODEL", "inherited-model".into()),
+            ("AGNES_API_KEY", "inherited-key".into()),
+        ]));
+
+        let config = build_agent_config_for_storage(&storage, &env).expect("config");
+
+        assert_eq!(config.provider.model, "inherited-model");
+        assert_eq!(config.provider.api_key, "inherited-key");
+    }
+
+    // Scenario: explicit project dotenv exists but is malformed.
+    // Expected: Desktop reports the parse failure instead of hiding it as a missing credential.
+    // Invariant: only a missing dotenv file is an accepted no-op.
+    #[test]
+    fn malformed_project_dotenv_is_rejected() {
+        let (root, storage) = storage_with_settings(
+            r#"{
+                "version": 3,
+                "provider": "agnes",
+                "model": "agnes-2.5-flash",
+                "base_url": "https://api.agnes-ai.cn/v1"
+            }"#,
+        );
+        fs::write(
+            root.path().join("project/.env"),
+            "AGNES_API_KEY='unterminated\n",
+        )
+        .expect("malformed project dotenv");
+
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+            Ok(_) => panic!("malformed dotenv should fail"),
+            Err(error) => error,
+        };
+
+        assert!(format!("{error:#}").contains("parse dotenv file"));
+    }
+
+    // Scenario: Desktop settings contain a credential field from the legacy schema.
+    // Expected: version-3 decoding rejects the field instead of silently ignoring a secret.
+    // Invariant: persisted Desktop settings cannot represent provider credentials.
+    #[test]
+    fn desktop_settings_reject_api_key_field() {
+        let (_root, storage) = storage_with_settings(
+            r#"{
+                "version": 3,
+                "provider": "agnes",
+                "model": "agnes-2.5-flash",
+                "base_url": "https://api.agnes-ai.cn/v1",
+                "api_key": "must-not-be-persisted"
+            }"#,
+        );
+
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+            Ok(_) => panic!("credential field should fail"),
+            Err(error) => error,
+        };
+
+        assert!(format!("{error:#}").contains("unknown field `api_key`"));
     }
 
     // Scenario: settings select DeepSeek while environment selects Agnes and supplies both keys.
@@ -232,13 +410,12 @@ mod tests {
     // Invariant: a provider change cannot retain a lower-layer provider endpoint or credential.
     #[test]
     fn environment_provider_switch_isolates_endpoint_and_credential() {
-        let (_root, paths) = project_with_settings(
+        let (_root, storage) = storage_with_settings(
             r#"{
-                "version": 2,
+                "version": 3,
                 "provider": "deepseek",
                 "model": "deepseek-chat",
-                "base_url": "https://api.deepseek.com",
-                "api_key": "settings-deepseek-key"
+                "base_url": "https://api.deepseek.com"
             }"#,
         );
         let env = MapEnv(BTreeMap::from([
@@ -249,23 +426,28 @@ mod tests {
             ("AGNES_API_KEY", "agnes-env-key".into()),
         ]));
 
-        let config = build_agent_config_for_paths(&paths, &env).expect("Agnes config");
+        let config = build_agent_config_for_storage(&storage, &env).expect("Agnes config");
         assert_eq!(config.provider.provider_id, ProviderId::Agnes);
         assert_eq!(config.provider.model, "agnes-2.5-pro");
         assert_eq!(config.provider.base_url, "https://agnes-env.example/v1");
         assert_eq!(config.provider.api_key, "agnes-env-key");
     }
 
-    // Scenario: only AGNES_API_KEY is present while settings omit provider and key.
-    // Expected: provider stays catalog default DeepSeek and bootstrap still requires DeepSeek key.
+    // Scenario: settings select DeepSeek while only an Agnes credential exists in environment.
+    // Expected: provider stays DeepSeek and bootstrap still requires its matching key.
     // Invariant: provider-specific env keys do not auto-select provider.
     #[test]
     fn agnes_env_key_does_not_auto_select_provider() {
-        let root = tempdir().expect("temporary desktop project");
-        let paths =
-            ProjectPaths::resolve(root.path().to_owned(), None, None).expect("project paths");
+        let (_root, storage) = storage_with_settings(
+            r#"{
+                "version": 3,
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+                "base_url": "https://api.deepseek.com"
+            }"#,
+        );
         let env = MapEnv(BTreeMap::from([("AGNES_API_KEY", "agnes-only".into())]));
-        let error = match build_agent_config_for_paths(&paths, &env) {
+        let error = match build_agent_config_for_storage(&storage, &env) {
             Ok(_) => panic!("deepseek key required"),
             Err(error) => error,
         };
@@ -277,8 +459,8 @@ mod tests {
     // Invariant: corrupt settings are surfaced to the host startup path.
     #[test]
     fn build_agent_config_rejects_corrupt_settings_json() {
-        let (_root, paths) = project_with_settings("{not-json");
-        let error = match build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())) {
+        let (_root, storage) = storage_with_settings("{not-json");
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
             Ok(_) => panic!("corrupt settings"),
             Err(error) => error,
         };
@@ -290,12 +472,14 @@ mod tests {
     // Invariant: unknown versions never silently downgrade to catalog defaults.
     #[test]
     fn build_agent_config_rejects_unsupported_settings_version() {
-        let (_root, paths) = project_with_settings(r#"{"version":99}"#);
-        let error = match build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())) {
+        let (_root, storage) = storage_with_settings(r#"{"version":99}"#);
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
             Ok(_) => panic!("unsupported version"),
             Err(error) => error,
         };
-        assert!(error.to_string().contains("unsupported settings version"));
+        assert!(error
+            .to_string()
+            .contains("unsupported Desktop settings version"));
     }
 
     // Scenario: a persisted model or base URL is explicitly blank.
@@ -308,14 +492,13 @@ mod tests {
             ("deepseek-chat", "\t", "base URL"),
         ] {
             let json = serde_json::json!({
-                "version": 2,
+                "version": 3,
                 "provider": "deepseek",
                 "model": model,
-                "base_url": base_url,
-                "api_key": "settings-key"
+                "base_url": base_url
             });
-            let (_root, paths) = project_with_settings(&json.to_string());
-            let error = match build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())) {
+            let (_root, storage) = storage_with_settings(&json.to_string());
+            let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
                 Ok(_) => panic!("blank settings field should fail"),
                 Err(error) => error,
             };
@@ -323,68 +506,91 @@ mod tests {
         }
     }
 
-    // Scenario: a version-2 Desktop settings file omits provider identity.
+    // Scenario: a version-3 Desktop settings file omits provider identity.
     // Expected: Desktop rejects the file instead of assigning its credential to DeepSeek.
-    // Invariant: only version-1 host migration may synthesize provider identity.
+    // Invariant: the fixed settings schema never synthesizes provider identity.
     #[test]
-    fn desktop_version_two_settings_require_provider() {
-        let (_root, paths) = project_with_settings(
+    fn desktop_version_three_settings_require_provider() {
+        let (_root, storage) = storage_with_settings(
             r#"{
-                "version": 2,
+                "version": 3,
                 "model": "agnes-2.5-flash",
-                "base_url": "https://api.agnes-ai.cn/v1",
-                "api_key": "agnes-key"
+                "base_url": "https://api.agnes-ai.cn/v1"
             }"#,
         );
-        let error = match build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())) {
-            Ok(_) => panic!("version 2 provider is required"),
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+            Ok(_) => panic!("version 3 provider is required"),
             Err(error) => error,
         };
         assert!(format!("{error:#}").contains("provider"));
     }
 
-    // Scenario: a version-2 Desktop settings file omits an endpoint field.
-    // Expected: Desktop rejects the file just as the CLI schema does.
-    // Invariant: host-owned schemas agree on required v2 LLM fields.
+    // Scenario: a version-3 Desktop settings file omits an endpoint field.
+    // Expected: Desktop rejects the incomplete fixed settings file.
+    // Invariant: model and base URL remain explicit persisted Desktop facts.
     #[test]
-    fn desktop_version_two_settings_require_model_and_base_url() {
+    fn desktop_version_three_settings_require_model_and_base_url() {
         for missing_field in ["model", "base_url"] {
             let mut value = serde_json::json!({
-                "version": 2,
+                "version": 3,
                 "provider": "agnes",
                 "model": "agnes-2.5-flash",
-                "base_url": "https://api.agnes-ai.cn/v1",
-                "api_key": "agnes-key"
+                "base_url": "https://api.agnes-ai.cn/v1"
             });
             value
                 .as_object_mut()
                 .expect("settings object")
                 .remove(missing_field);
-            let (_root, paths) = project_with_settings(&value.to_string());
-            let error = match build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())) {
-                Ok(_) => panic!("version 2 endpoint field is required"),
+            let (_root, storage) = storage_with_settings(&value.to_string());
+            let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+                Ok(_) => panic!("version 3 endpoint field is required"),
                 Err(error) => error,
             };
             assert!(format!("{error:#}").contains(missing_field));
         }
     }
 
-    // Scenario: Desktop reads a version-1 settings file that predates provider identity.
-    // Expected: the host migrates the layer to DeepSeek without rewriting the file.
-    // Invariant: version migration belongs to the Desktop settings parser, not agent::llm.
+    // Scenario: the fixed application directory contains an old project-local settings schema.
+    // Expected: Desktop rejects it with an explicit version error.
+    // Invariant: legacy cwd-derived configuration is never silently reinterpreted as app config.
     #[test]
-    fn desktop_settings_version_one_defaults_provider_to_deepseek() {
-        let (_root, paths) = project_with_settings(
+    fn desktop_rejects_legacy_project_settings_version() {
+        let (_root, storage) = storage_with_settings(
             r#"{
-                "version": 1,
+                "version": 2,
+                "provider": "deepseek",
                 "model": "deepseek-chat",
-                "base_url": "https://api.deepseek.com",
-                "api_key": "settings-key"
+                "base_url": "https://api.deepseek.com"
             }"#,
         );
-        let config =
-            build_agent_config_for_paths(&paths, &MapEnv(BTreeMap::new())).expect("config");
-        assert_eq!(config.provider.provider_id, ProviderId::Deepseek);
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+            Ok(_) => panic!("legacy settings should fail"),
+            Err(error) => error,
+        };
+        assert!(error
+            .to_string()
+            .contains("unsupported Desktop settings version 2"));
+    }
+
+    // Scenario: version-3 settings provide a relative project root.
+    // Expected: Desktop rejects it before reading credentials or creating a runtime.
+    // Invariant: the Agent workspace identity is explicit and independent of process cwd.
+    #[test]
+    fn desktop_settings_require_absolute_project_root() {
+        let (_root, storage) = storage_with_settings(
+            r#"{
+                "version": 3,
+                "project_root": "relative/project",
+                "provider": "agnes",
+                "model": "agnes-2.5-flash",
+                "base_url": "https://api.agnes-ai.cn/v1"
+            }"#,
+        );
+        let error = match build_agent_config_for_storage(&storage, &MapEnv(BTreeMap::new())) {
+            Ok(_) => panic!("relative project root should fail"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("project_root must be absolute"));
     }
 
     // Scenario: Desktop bootstrap sources must not reach into agent-core catalog directly.
