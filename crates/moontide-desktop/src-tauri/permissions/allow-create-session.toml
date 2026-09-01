@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-create-session"
+description = "Allow MoonTide Desktop create_session"
+commands.allow = ["create_session"]

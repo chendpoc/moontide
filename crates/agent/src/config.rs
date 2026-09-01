@@ -1,29 +1,21 @@
 use std::{collections::BTreeSet, fs, path::PathBuf, sync::Arc};
 
 use agent_core::{
-    llm::{adapter::AdapterFamily, protocol::ThinkingLevel},
+    llm::protocol::ThinkingLevel,
     r#loop::{ToolApprovalHandler, ToolPermissionMap},
 };
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::llm::ResolvedProviderConfig;
 use crate::progress::ProgressEvent;
-
-/// Provider settings resolved by the host application.
-#[derive(Debug, Clone)]
-pub struct ProviderConfig {
-    pub family: AdapterFamily,
-    pub base_url: String,
-    pub api_key: String,
-}
 
 /// Fully resolved settings for constructing one [`crate::Agent`].
 pub struct AgentConfig {
     pub cwd: PathBuf,
     pub sessions_dir: PathBuf,
     pub runs_dir: PathBuf,
-    pub provider: ProviderConfig,
-    pub model: String,
+    pub provider: ResolvedProviderConfig,
     pub max_tokens: u32,
     pub thinking_level: Option<ThinkingLevel>,
     pub max_steps: u32,
@@ -85,7 +77,7 @@ impl AgentConfig {
         if self.provider.base_url.trim().is_empty() {
             bail!("provider base_url must not be empty");
         }
-        if self.model.trim().is_empty() {
+        if self.provider.model.trim().is_empty() {
             bail!("model must not be empty");
         }
         if self.max_tokens == 0 {

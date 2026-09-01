@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use agent::ProviderId;
 use clap::{Parser, ValueEnum};
 
 /// Command-line values before environment and path defaults are resolved.
@@ -18,9 +19,13 @@ pub(crate) struct CliArgs {
     #[arg(long)]
     pub(crate) cwd: Option<PathBuf>,
 
-    /// API key used for the provider; falls back to the project settings file.
-    #[arg(long, env = "DEEPSEEK_API_KEY")]
+    /// API key used for the selected provider preset.
+    #[arg(long)]
     pub(crate) api_key: Option<String>,
+
+    /// Provider preset (deepseek or agnes).
+    #[arg(long, value_enum)]
+    pub(crate) provider: Option<ProviderArg>,
 
     /// Session Item Log directory.
     #[arg(long)]
@@ -45,6 +50,21 @@ pub(crate) struct CliArgs {
     /// Display live execution events on stderr.
     #[arg(long, value_enum)]
     pub(crate) trace: Option<TraceModeArg>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum ProviderArg {
+    Deepseek,
+    Agnes,
+}
+
+impl From<ProviderArg> for ProviderId {
+    fn from(value: ProviderArg) -> Self {
+        match value {
+            ProviderArg::Deepseek => ProviderId::Deepseek,
+            ProviderArg::Agnes => ProviderId::Agnes,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

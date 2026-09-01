@@ -1,11 +1,20 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
-  "description": "MoonTide Desktop tracer bullet capabilities",
+  "description": "MoonTide Desktop integrated runtime capabilities",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "allow-desktop-request"
+    "allow-list-sessions",
+    "allow-new-chat",
+    "allow-create-session",
+    "allow-start-session",
+    "allow-submit-turn",
+    "allow-cancel-turn",
+    "allow-approve",
+    "allow-deny",
+    "allow-snapshot",
+    "allow-shutdown"
   ]
 }

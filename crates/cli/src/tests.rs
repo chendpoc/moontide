@@ -70,7 +70,6 @@ fn config_resolution_uses_explicit_inputs() {
     let config = resolve_agent_config_with(
         &args,
         cwd.clone(),
-        Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Default),
     )
     .expect("explicit config should resolve");
@@ -78,7 +77,7 @@ fn config_resolution_uses_explicit_inputs() {
     assert_eq!(config.cwd, cwd.clone());
     assert_eq!(config.provider.api_key, "secret");
     assert_eq!(config.provider.base_url, "https://api.deepseek.com");
-    assert_eq!(config.model, "deepseek-chat");
+    assert_eq!(config.provider.model, "deepseek-chat");
     assert_eq!(config.sessions_dir, cwd.join(".moontide/sessions"));
     assert_eq!(config.tool_names.len(), 6);
     assert_eq!(config.max_tokens, super::config::DEFAULT_MAX_TOKENS);
@@ -94,7 +93,6 @@ fn always_approval_policy_maps_all_tools_to_ask() {
     let config = resolve_agent_config_with(
         &args,
         directory.path().to_owned(),
-        Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Always),
     )
     .expect("always approval config should resolve");
@@ -115,7 +113,6 @@ fn always_allow_policy_maps_all_tools_to_allow() {
     let config = resolve_agent_config_with(
         &args,
         directory.path().to_owned(),
-        Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::AlwaysAllow),
     )
     .expect("always-allow config should resolve");
@@ -133,13 +130,14 @@ fn always_allow_policy_maps_all_tools_to_allow() {
 #[test]
 fn missing_api_key_is_rejected() {
     let args = <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello"]);
-    let settings = runtime_settings("secret", ApprovalPolicy::Default);
-    assert!(resolve_agent_config_with(&args, PathBuf::from("project"), None, &settings).is_err());
+    let empty_settings = runtime_settings("", ApprovalPolicy::Default);
+    assert!(resolve_agent_config_with(&args, PathBuf::from("project"), &empty_settings).is_err());
+    let args_with_empty_key =
+        <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello", "--api-key", "  "]);
     assert!(resolve_agent_config_with(
-        &args,
+        &args_with_empty_key,
         PathBuf::from("project"),
-        Some("  ".into()),
-        &settings,
+        &runtime_settings("secret", ApprovalPolicy::Default),
     )
     .is_err());
 }
@@ -153,15 +151,45 @@ fn invalid_working_directory_is_rejected_by_agent_boundary() {
     let result = resolve_agent_config_with(
         &args,
         PathBuf::from("missing-working-directory"),
-        Some("secret".into()),
         &runtime_settings("secret", ApprovalPolicy::Default),
     );
 
     assert!(result.is_err());
 }
 
+// Scenario: Agnes provider resolves through CLI settings.
+// Expected: base URL and model match the Agnes catalog defaults.
+// Invariant: provider selection stays in the CLI host layer and resolves one provider bundle.
+#[test]
+fn agnes_provider_preset_resolves_defaults() {
+    let directory = tempdir().expect("temporary project directory");
+    let args = <CliArgs as clap::Parser>::parse_from([
+        "moontide",
+        "--prompt",
+        "hello",
+        "--provider",
+        "agnes",
+        "--api-key",
+        "secret",
+        "--cwd",
+        directory.path().to_str().expect("UTF-8 temp path"),
+    ]);
+    let settings = crate::settings::load_global_config_store(&args).expect("global config store");
+    let config = resolve_agent_config_with(&args, directory.path().to_owned(), &settings)
+        .expect("agnes config should resolve");
+
+    assert_eq!(config.provider.provider_id, agent::ProviderId::Agnes);
+    assert_eq!(config.provider.model, "agnes-2.5-flash");
+    assert_eq!(config.provider.base_url, "https://api.agnes-ai.cn/v1");
+    assert_eq!(
+        config.provider.family,
+        agent::AdapterFamily::OpenAiChatCompletions
+    );
+}
+
 fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> GlobalConfigStore {
     GlobalConfigStore {
+        provider: agent::ProviderId::Deepseek,
         api_key: api_key.into(),
         approval_policy,
         trace_mode: TraceMode::Off,
@@ -444,4 +472,25 @@ async fn signal_error_still_runs_turn_flushes() {
     assert!(cancellation.is_cancelled());
     assert!(progress_flushed.load(Ordering::SeqCst));
     assert!(log_flushed.load(Ordering::SeqCst));
+}
+
+// Scenario: CLI startup sources are scanned for forbidden direct catalog imports.
+// Expected: checked modules import agent::llm instead of reaching into agent-core catalog.
+// Invariant: catalog ownership stays in agent::llm for all hosts.
+#[test]
+fn cli_does_not_import_agent_core_llm_catalog_directly() {
+    const FORBIDDEN: &str = "agent_core::llm::catalog";
+    let sources = [
+        include_str!("settings.rs"),
+        include_str!("config.rs"),
+        include_str!("setting_catalog.rs"),
+        include_str!("args.rs"),
+        include_str!("main.rs"),
+    ];
+    for source in sources {
+        assert!(
+            !source.contains(FORBIDDEN),
+            "CLI must not import agent-core LLM catalog directly"
+        );
+    }
 }

@@ -7,56 +7,33 @@ mod log;
 mod progress;
 mod prompt;
 
+pub mod llm;
 pub mod platform;
+pub mod session;
 
 pub use agent::Agent;
 pub use agent_core::{
     event::{LlmCallFailureKind, LlmCallOutcome},
-    llm::{
-        adapter::AdapterFamily,
-        protocol::{
-            ContentBlock, ModelResponse, ModelResponseSnapshot, PendingBlock, StopReason,
-            ThinkingLevel,
-        },
+    llm::protocol::{
+        ContentBlock, ModelResponse, ModelResponseSnapshot, PendingBlock, StopReason, ThinkingLevel,
     },
     r#loop::{ToolApproval, ToolApprovalHandler, ToolPermission, ToolPermissionMap},
-    session::{SessionItem, SessionSnapshot, SessionSummary},
     tools::{ToolCall, ToolResult},
 };
 pub use config::ProgressObserver;
-pub use config::{
-    AgentConfig, DiagnosticPersistence, PersistenceConfig, ProviderConfig, SessionPersistence,
-};
+pub use config::{AgentConfig, DiagnosticPersistence, PersistenceConfig, SessionPersistence};
 pub use log::{AgentEventLogHandle, AgentEventLogState, AgentEventLogStatus};
 pub use progress::{ProgressEvent, ProgressHandle, ProgressStatus, ProgressWorkerState};
 
-/// Read-only facade for persisted Session Item Logs.
-pub struct SessionQuery {
-    inner: agent_core::session::SessionQuery,
-}
-
-impl SessionQuery {
-    pub fn new(sessions_dir: std::path::PathBuf) -> Self {
-        Self {
-            inner: agent_core::session::SessionQuery::new(sessions_dir),
-        }
-    }
-
-    pub fn list(&self) -> anyhow::Result<Vec<SessionSummary>> {
-        self.inner.list()
-    }
-
-    pub fn load(&self, session_id: &str) -> anyhow::Result<SessionSnapshot> {
-        self.inner.load(session_id)
-    }
-}
-
-/// Returns the most recently modified persisted session without creating a runtime Agent.
-pub fn latest_session_id(
-    sessions_dir: impl AsRef<std::path::Path>,
-) -> anyhow::Result<Option<String>> {
-    agent_core::session::SessionStore::latest_session_id(sessions_dir)
-}
+pub use llm::{
+    all_providers, api_key_env, apply_provider_switch, catalog_preset, get_model,
+    merge_startup_llm_config, models_for, provider, read_api_key_from_env, read_llm_env,
+    require_api_key, require_api_key_from_env, resolve_endpoint, resolve_provider_config,
+    AdapterFamily, EnvSource, LlmConfigLayer, LlmEnvLayer, LlmModel, OpenAiChatOptions,
+    OpenAiThinkingExtension, ProcessEnv, ProviderEntry, ProviderId, ProviderOverrides,
+    ResolveOverrides, ResolvedEndpoint, ResolvedProviderConfig,
+};
+pub use session::{latest_session_id, SessionItem, SessionQuery, SessionSnapshot, SessionSummary};
 
 #[cfg(test)]
 mod tests;

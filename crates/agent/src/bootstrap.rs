@@ -3,7 +3,7 @@ use std::sync::Arc;
 use agent_core::{
     event::{EventDispatcher, PipelineRegistry, TraceContext},
     llm::{
-        adapter::{build_provider, AdapterConfig},
+        adapter::{build_provider, AdapterConfig, AdapterFamily},
         LLMProvider,
     },
     r#loop::{AgentLoop, AgentLoopInit, ToolRuntime},
@@ -35,15 +35,20 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
     config.validate_values()?;
     config.ensure_paths()?;
 
-    let provider = build_provider(
-        config.provider.family,
-        AdapterConfig {
+    let adapter_config = match config.provider.family {
+        AdapterFamily::OpenAiChatCompletions => AdapterConfig::OpenAiChat {
+            base_url: config.provider.base_url.clone(),
+            api_key: config.provider.api_key.clone(),
+            options: config.provider.openai_chat,
+        },
+        AdapterFamily::AnthropicMessages => AdapterConfig::AnthropicMessages {
             base_url: config.provider.base_url.clone(),
             api_key: config.provider.api_key.clone(),
         },
-    )
-    .map_err(anyhow::Error::new)
-    .context("build configured LLM provider")?;
+    };
+    let provider = build_provider(adapter_config)
+        .map_err(anyhow::Error::new)
+        .context("build configured LLM provider")?;
     let provider: Arc<dyn LLMProvider> = Arc::from(provider);
 
     let registry = build_tool_registry(config)?;

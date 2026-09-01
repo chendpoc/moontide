@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-submit-turn"
+description = "Allow MoonTide Desktop submit_turn"
+commands.allow = ["submit_turn"]

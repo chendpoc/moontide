@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-new-chat"
+description = "Allow MoonTide Desktop new_chat"
+commands.allow = ["new_chat"]

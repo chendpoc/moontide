@@ -2,14 +2,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use desktop::protocol as wire;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State, WindowEvent};
 use tokio::time::timeout;
 
-use crate::bootstrap::DesktopRuntime;
-use crate::protocol_client::{
-    DesktopProtocolClient, DesktopProtocolClientEvent, DesktopProtocolClientEventStream,
+use crate::protocol as wire;
+use crate::runtime::{
+    DesktopRuntimeCoordinator, DesktopRuntimeCoordinatorHandle, DesktopRuntimeEventStream,
 };
 
 const ENVELOPE_EVENT: &str = "desktop-envelope";
@@ -17,8 +16,13 @@ const CONNECTION_EVENT: &str = "desktop-connection";
 const WINDOW_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct AppState {
-    client: DesktopProtocolClient,
+    runtime: DesktopRuntimeHandleState,
     close_started: AtomicBool,
+}
+
+#[derive(Clone)]
+struct DesktopRuntimeHandleState {
+    inner: DesktopRuntimeCoordinatorHandle,
 }
 
 #[derive(Clone, Serialize)]
@@ -38,13 +42,20 @@ enum ShutdownOutcome {
     Degraded,
 }
 
-pub(crate) fn run(runtime: DesktopRuntime) -> Result<()> {
-    let DesktopRuntime { client, events } = runtime;
+pub(crate) fn run(runtime: DesktopRuntimeCoordinator) -> Result<()> {
+    let DesktopRuntimeCoordinator { handle, events } = runtime;
     tauri::Builder::default()
         .setup(move |app| {
+            let runtime_handle = handle.clone();
+            tauri::async_runtime::block_on(async move {
+                runtime_handle.bootstrap_first_generation().await
+            })
+            .map_err(|error| {
+                anyhow::anyhow!("bootstrap MoonTide Desktop runtime generation: {error}")
+            })?;
             spawn_event_pump(app.handle().clone(), events);
             app.manage(AppState {
-                client,
+                runtime: DesktopRuntimeHandleState { inner: handle },
                 close_started: AtomicBool::new(false),
             });
             Ok(())
@@ -59,10 +70,10 @@ pub(crate) fn run(runtime: DesktopRuntime) -> Result<()> {
                 return;
             }
 
-            let client = state.client.clone();
+            let runtime = state.runtime.clone();
             let window = window.clone();
             tauri::async_runtime::spawn(async move {
-                if matches!(request_shutdown(&client).await, ShutdownOutcome::Degraded) {
+                if matches!(request_shutdown(&runtime).await, ShutdownOutcome::Degraded) {
                     let _ = window.emit(
                         CONNECTION_EVENT,
                         ConnectionPayload::DegradedShutdown {
@@ -76,83 +87,167 @@ pub(crate) fn run(runtime: DesktopRuntime) -> Result<()> {
                 }
             });
         })
-        .invoke_handler(tauri::generate_handler![desktop_request])
+        .invoke_handler(tauri::generate_handler![
+            list_sessions,
+            new_chat,
+            create_session,
+            start_session,
+            submit_turn,
+            cancel_turn,
+            approve,
+            deny,
+            snapshot,
+            shutdown,
+        ])
         .run(tauri::generate_context!())
         .context("run MoonTide Desktop Tauri shell")
 }
 
-fn spawn_event_pump(app: tauri::AppHandle, mut events: DesktopProtocolClientEventStream) {
+#[tauri::command]
+async fn list_sessions(state: State<'_, AppState>) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .list_sessions()
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn new_chat(state: State<'_, AppState>) -> Result<wire::DesktopResponse, BridgeError> {
+    state.runtime.inner.new_chat().await.map_err(bridge_error)
+}
+
+fn spawn_event_pump(app: tauri::AppHandle, mut events: DesktopRuntimeEventStream) {
     tauri::async_runtime::spawn(async move {
-        while let Some(event) = events.recv().await {
-            match event {
-                DesktopProtocolClientEvent::Envelope(envelope) => {
-                    if app.emit(ENVELOPE_EVENT, envelope).is_err() {
-                        break;
-                    }
-                }
-                DesktopProtocolClientEvent::Disconnected { graceful: true, .. } => break,
-                DesktopProtocolClientEvent::Disconnected {
-                    graceful: false,
-                    reason,
-                } => {
-                    let _ = app.emit(
-                        CONNECTION_EVENT,
-                        ConnectionPayload::Disconnected { message: reason },
-                    );
-                    break;
-                }
+        while let Some(envelope) = events.recv().await {
+            if app.emit(ENVELOPE_EVENT, envelope).is_err() {
+                break;
             }
         }
+        let _ = app.emit(
+            CONNECTION_EVENT,
+            ConnectionPayload::Disconnected {
+                message: "Desktop runtime event stream closed".into(),
+            },
+        );
     });
 }
 
 #[tauri::command]
-async fn desktop_request(
-    state: State<'_, AppState>,
-    command: wire::DesktopCommand,
-) -> std::result::Result<wire::DesktopMessageEnvelope, BridgeError> {
+async fn create_session(state: State<'_, AppState>) -> Result<wire::DesktopResponse, BridgeError> {
     state
-        .client
-        .request(command)
+        .runtime
+        .inner
+        .create_session()
         .await
-        .map_err(|error| BridgeError {
-            message: error.to_string(),
-        })
+        .map_err(bridge_error)
 }
 
-async fn request_shutdown(client: &DesktopProtocolClient) -> ShutdownOutcome {
-    let response = timeout(
-        WINDOW_SHUTDOWN_TIMEOUT,
-        client.request(wire::DesktopCommand::Shutdown),
-    )
-    .await;
+#[tauri::command]
+async fn start_session(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .start_session(session_id)
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn submit_turn(
+    state: State<'_, AppState>,
+    session_id: String,
+    text: String,
+) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .submit_turn(session_id, text)
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn cancel_turn(state: State<'_, AppState>) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .cancel_turn()
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn approve(
+    state: State<'_, AppState>,
+    approval_id: String,
+) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .approve(approval_id)
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn deny(
+    state: State<'_, AppState>,
+    approval_id: String,
+    reason: String,
+) -> Result<wire::DesktopResponse, BridgeError> {
+    state
+        .runtime
+        .inner
+        .deny(approval_id, reason)
+        .await
+        .map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn snapshot(state: State<'_, AppState>) -> Result<wire::DesktopResponse, BridgeError> {
+    state.runtime.inner.snapshot().await.map_err(bridge_error)
+}
+
+#[tauri::command]
+async fn shutdown(state: State<'_, AppState>) -> Result<wire::DesktopResponse, BridgeError> {
+    state.runtime.inner.shutdown().await.map_err(bridge_error)
+}
+
+fn bridge_error(error: crate::runtime::DesktopCommandError) -> BridgeError {
+    BridgeError {
+        message: error.to_string(),
+    }
+}
+
+async fn request_shutdown(runtime: &DesktopRuntimeHandleState) -> ShutdownOutcome {
+    let response = timeout(WINDOW_SHUTDOWN_TIMEOUT, runtime.inner.shutdown()).await;
     match response {
-        Ok(Ok(wire::DesktopMessageEnvelope {
-            payload:
-                wire::DesktopMessage::Response {
-                    response: wire::DesktopResponse::ShutdownCompleted { .. },
-                },
-            ..
-        })) => ShutdownOutcome::Clean,
+        Ok(Ok(wire::DesktopResponse::ShutdownCompleted { .. })) => ShutdownOutcome::Clean,
         Ok(Ok(_)) | Ok(Err(_)) | Err(_) => ShutdownOutcome::Degraded,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::transport::transport_pair;
 
-    // 场景：Svelte 产品入口、Tauri permission 和安全配置完成 R5 收敛。
-    // 预期：只允许 receive-only events 与 desktop_request，禁用 global API/CSP 空值和动态 HTML。
-    // 不变量：Web intent 无法绕过 protocol client，也无法取得 process/filesystem/shell authority。
+    // 场景：Svelte 产品入口、Tauri permission 和安全配置完成 integrated runtime 收敛。
+    // 预期：只允许 receive-only events 与 typed invoke commands，禁用 global API/CSP 空值和动态 HTML。
+    // 不变量：Web intent 无法绕过 runtime handle，也无法取得 process/filesystem/shell authority。
     #[test]
     fn frontend_and_capability_enforce_the_security_baseline() {
-        let permission = include_str!("../permissions/allow-desktop-request.toml");
-        let capability = include_str!("../capabilities/default.json");
+        let capabilities_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities");
+        let permissions_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("permissions");
+        let capability = std::fs::read_to_string(capabilities_dir.join("default.json"))
+            .expect("default capability");
         let config = include_str!("../tauri.conf.json");
-        let bridge = include_str!("../../frontend/src/tauriBridge.ts");
-        let app = include_str!("../../frontend/src/App.svelte");
+        let bridge = include_str!("../../frontend/src/lib/bridge/tauriBridge.ts");
+        let app = include_str!("../../frontend/src/app/App.svelte");
         let frontend = [
             include_str!("../../frontend/index.html"),
             include_str!("../../frontend/src/main.ts"),
@@ -161,7 +256,24 @@ mod tests {
         ]
         .join("\n");
 
-        assert!(permission.contains("desktop_request"));
+        for command in [
+            "list_sessions",
+            "new_chat",
+            "create_session",
+            "start_session",
+            "submit_turn",
+            "cancel_turn",
+            "approve",
+            "deny",
+            "snapshot",
+            "shutdown",
+        ] {
+            let permission = std::fs::read_to_string(
+                permissions_dir.join(format!("allow-{}.toml", command.replace('_', "-"))),
+            )
+            .unwrap_or_else(|error| panic!("permission for {command}: {error}"));
+            assert!(permission.contains(command));
+        }
         assert!(!capability.contains("core:default"));
         assert!(!capability.contains("allow-emit"));
         assert!(!capability.contains("core:window"));
@@ -177,8 +289,21 @@ mod tests {
         assert!(config.contains("\"icon\": [\"icons/icon.png\"]"));
         assert!(bridge.contains("@tauri-apps/api/core"));
         assert!(bridge.contains("@tauri-apps/api/event"));
-        assert!(bridge.contains("desktop_request"));
-        assert_eq!(bridge.matches("invoke<unknown>").count(), 1);
+        for typed_invoke in [
+            "list_sessions",
+            "new_chat",
+            "create_session",
+            "start_session",
+            "submit_turn",
+            "cancel_turn",
+            "approve",
+            "deny",
+            "snapshot",
+            "shutdown",
+        ] {
+            assert!(bridge.contains(typed_invoke));
+        }
+        assert!(!bridge.contains("desktop_request"));
         for forbidden_component_owner in [
             "@tauri-apps",
             "DesktopMessageEnvelope",
@@ -190,89 +315,8 @@ mod tests {
         for unsafe_frontend_pattern in ["window.__TAURI__", "innerHTML", "{@html"] {
             assert!(!frontend.contains(unsafe_frontend_pattern));
         }
-        for legacy_handler in [
-            "fetch_snapshot",
-            "submit_turn",
-            "cancel_turn",
-            "approve",
-            "deny",
-        ] {
-            assert!(!permission.contains(legacy_handler));
-        }
-        for legacy_invoke in [
-            "invoke(\"fetch_snapshot\"",
-            "invoke(\"submit_turn\"",
-            "invoke(\"cancel_turn\"",
-            "invoke(\"approve\"",
-            "invoke(\"deny\"",
-        ] {
+        for legacy_invoke in ["invoke(\"desktop_request\"", "invoke(\"fetch_snapshot\""] {
             assert!(!frontend.contains(legacy_invoke));
         }
-    }
-
-    // 场景：window close coordinator 分别收到完整 ShutdownCompleted 与未握手 client。
-    // 预期：前者分类为 clean，后者分类为 degraded，调用方随后都可 destroy window。
-    // 不变量：窗口关闭不把 transport/domain failure 伪装成已确认的 graceful shutdown。
-    #[tokio::test]
-    async fn close_coordinator_distinguishes_clean_and_degraded_shutdown() {
-        let (transport, mut peer) = transport_pair(8).expect("transport pair");
-        let (client, _events) = DesktopProtocolClient::start(transport, 8).expect("client");
-        let handshake = {
-            let client = client.clone();
-            tokio::spawn(async move { client.request(wire::DesktopCommand::Handshake).await })
-        };
-        let handshake_request = peer.receiver.recv().await.expect("handshake request");
-        let epoch = wire::ConnectionEpoch(5);
-        peer.sender
-            .send(Ok(wire::DesktopMessageEnvelope {
-                protocol_version: wire::DESKTOP_PROTOCOL_VERSION,
-                connection_epoch: Some(epoch),
-                request_id: handshake_request.request_id,
-                seq: None,
-                payload: wire::DesktopMessage::Response {
-                    response: wire::DesktopResponse::HandshakeAccepted {
-                        protocol_version: wire::DESKTOP_PROTOCOL_VERSION,
-                    },
-                },
-            }))
-            .await
-            .expect("handshake response");
-        handshake.await.expect("handshake task").expect("handshake");
-
-        let shutdown = {
-            let client = client.clone();
-            tokio::spawn(async move { request_shutdown(&client).await })
-        };
-        let shutdown_request = peer.receiver.recv().await.expect("shutdown request");
-        peer.sender
-            .send(Ok(wire::DesktopMessageEnvelope {
-                protocol_version: wire::DESKTOP_PROTOCOL_VERSION,
-                connection_epoch: Some(epoch),
-                request_id: shutdown_request.request_id,
-                seq: None,
-                payload: wire::DesktopMessage::Response {
-                    response: wire::DesktopResponse::ShutdownCompleted {
-                        report: wire::ShutdownReportDto {
-                            cancelled_turn: None,
-                            progress_flushed: true,
-                            diagnostic_log_flushed: true,
-                        },
-                    },
-                },
-            }))
-            .await
-            .expect("shutdown response");
-        assert!(matches!(
-            shutdown.await.expect("shutdown task"),
-            ShutdownOutcome::Clean
-        ));
-
-        let (unhandshaken_transport, _) = transport_pair(2).expect("transport pair");
-        let (unhandshaken, _events) =
-            DesktopProtocolClient::start(unhandshaken_transport, 2).expect("client");
-        assert!(matches!(
-            request_shutdown(&unhandshaken).await,
-            ShutdownOutcome::Degraded
-        ));
     }
 }

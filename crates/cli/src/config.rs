@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
 
 use agent::{
-    platform::ProjectPaths, AdapterFamily, AgentConfig, ToolApprovalHandler, ToolPermission,
+    llm::require_api_key, platform::ProjectPaths, ToolApprovalHandler, ToolPermission,
     ToolPermissionMap,
 };
 use anyhow::{bail, Context, Result};
@@ -15,19 +15,18 @@ use crate::{
 
 pub(crate) const DEFAULT_MAX_TOKENS: u32 = 4_096;
 pub(crate) const DEFAULT_MAX_STEPS: u32 = 8;
-const API_KEY_ENV: &str = "DEEPSEEK_API_KEY";
 
 pub(crate) fn resolve_agent_config(
     args: &CliArgs,
     settings: &GlobalConfigStore,
-) -> Result<AgentConfig> {
+) -> Result<agent::AgentConfig> {
     let cwd = args
         .cwd
         .clone()
         .map(Ok)
         .unwrap_or_else(env::current_dir)
         .context("resolve current working directory")?;
-    resolve_agent_config_with(args, cwd, Some(settings.api_key.clone()), settings)
+    resolve_agent_config_with(args, cwd, settings)
 }
 
 pub(crate) fn resolve_project_paths(args: &CliArgs) -> Result<ProjectPaths> {
@@ -43,12 +42,10 @@ pub(crate) fn resolve_project_paths(args: &CliArgs) -> Result<ProjectPaths> {
 pub(crate) fn resolve_agent_config_with(
     args: &CliArgs,
     cwd: PathBuf,
-    api_key: Option<String>,
     settings: &GlobalConfigStore,
-) -> Result<AgentConfig> {
-    let api_key = api_key
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| anyhow::anyhow!("{API_KEY_ENV} is required"))?;
+) -> Result<agent::AgentConfig> {
+    let merged = crate::settings::merged_llm_from_store(settings);
+    require_api_key(&merged)?;
     let paths = ProjectPaths::resolve(cwd, args.sessions_dir.clone(), args.runs_dir.clone())?;
 
     let (tool_names, permissions) = coding_preset(settings.approval_policy);
@@ -66,16 +63,11 @@ pub(crate) fn resolve_agent_config_with(
                 as Arc<dyn agent::ProgressObserver>)
         }
     };
-    Ok(AgentConfig {
+    Ok(agent::AgentConfig {
         cwd: paths.cwd,
         sessions_dir: paths.sessions_dir,
         runs_dir: paths.runs_dir,
-        provider: agent::ProviderConfig {
-            family: AdapterFamily::OpenAiChatCompletions,
-            base_url: settings.base_url.clone(),
-            api_key,
-        },
-        model: settings.model.clone(),
+        provider: merged,
         max_tokens: settings.max_tokens,
         thinking_level: settings.thinking_level,
         max_steps: settings.max_steps,

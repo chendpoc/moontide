@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-approve"
+description = "Allow MoonTide Desktop approve"
+commands.allow = ["approve"]

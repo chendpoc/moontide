@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-cancel-turn"
+description = "Allow MoonTide Desktop cancel_turn"
+commands.allow = ["cancel_turn"]

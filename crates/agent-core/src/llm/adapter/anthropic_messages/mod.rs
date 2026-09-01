@@ -2,18 +2,21 @@ use std::pin::Pin;
 
 use futures::Stream;
 
-use crate::llm::adapter::AdapterConfig;
 use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, RequestFailureKind};
 use crate::llm::LLMProvider;
 
 /// Stub adapter — constructible via [`super::super::build_provider`], not yet wired to HTTP.
 pub struct AnthropicMessagesAdapter {
-    _config: AdapterConfig,
+    _base_url: String,
+    _api_key: String,
 }
 
 impl AnthropicMessagesAdapter {
-    pub fn new(config: AdapterConfig) -> Self {
-        Self { _config: config }
+    pub fn new(base_url: String, api_key: String) -> Self {
+        Self {
+            _base_url: base_url,
+            _api_key: api_key,
+        }
     }
 }
 
@@ -53,12 +56,12 @@ mod tests {
         }
     }
 
+    // Scenario: the declared but unimplemented Anthropic adapter receives a model request.
+    // Expected: its stream returns an explicit unrecoverable error.
+    // Invariant: constructing the stub never implies HTTP support exists.
     #[tokio::test]
     async fn stub_returns_unimplemented_error() {
-        let adapter = AnthropicMessagesAdapter::new(AdapterConfig {
-            base_url: "https://api.anthropic.com".into(),
-            api_key: "k".into(),
-        });
+        let adapter = AnthropicMessagesAdapter::new("https://api.anthropic.com".into(), "k".into());
         let item = adapter.stream(sample_request()).next().await;
         assert!(item.unwrap().is_err());
     }

@@ -301,8 +301,8 @@ mod invariant_tests {
 
     use super::{assert_stream_invariants, MockProvider, *};
     use crate::llm::adapter::openai_chat::OpenAiChatAdapter;
-    use crate::llm::adapter::{build_provider, AdapterConfig, AdapterFamily};
-    use crate::llm::normalize::common::validate_request;
+    use crate::llm::adapter::{build_provider, AdapterConfig};
+    use crate::llm::normalize::{common::validate_request, openai_chat::OpenAiChatOptions};
     use crate::llm::protocol::{
         Message, MessageContent, ModelRequest, ModelStreamEvent, Role, StopReason,
     };
@@ -348,21 +348,24 @@ mod invariant_tests {
         assert!(validate_request(&request).is_err());
     }
 
+    // Scenario: the factory receives each adapter-specific configuration variant.
+    // Expected: every declared family constructs successfully.
+    // Invariant: family selection is encoded by AdapterConfig rather than parallel arguments.
     #[test]
     fn build_provider_covers_every_adapter_family_variant() {
-        let config = AdapterConfig {
-            base_url: "https://example.com".into(),
-            api_key: "k".into(),
-        };
-        let families = [
-            AdapterFamily::OpenAiChatCompletions,
-            AdapterFamily::AnthropicMessages,
+        let configs = [
+            AdapterConfig::OpenAiChat {
+                base_url: "https://example.com".into(),
+                api_key: "k".into(),
+                options: OpenAiChatOptions::default(),
+            },
+            AdapterConfig::AnthropicMessages {
+                base_url: "https://example.com".into(),
+                api_key: "k".into(),
+            },
         ];
-        for family in families {
-            assert!(
-                build_provider(family, config.clone()).is_ok(),
-                "build_provider failed for {family:?}"
-            );
+        for config in configs {
+            assert!(build_provider(config).is_ok());
         }
     }
 
@@ -439,11 +442,9 @@ data: [DONE]
             .mount(&server)
             .await;
 
-        let adapter = OpenAiChatAdapter::new(AdapterConfig {
-            base_url: server.uri(),
-            api_key: "test".into(),
-        })
-        .expect("adapter");
+        let adapter =
+            OpenAiChatAdapter::new(server.uri(), "test".into(), OpenAiChatOptions::default())
+                .expect("adapter");
 
         let request = ModelRequest {
             model: "deepseek-chat".into(),
@@ -507,7 +508,7 @@ mod error_tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use crate::llm::adapter::openai_chat::OpenAiChatAdapter;
-    use crate::llm::adapter::AdapterConfig;
+    use crate::llm::normalize::openai_chat::OpenAiChatOptions;
     use crate::llm::protocol::{
         LlmError, Message, MessageContent, ModelRequest, RequestFailureKind, Role,
     };
@@ -543,11 +544,9 @@ mod error_tests {
             )
             .mount(&server)
             .await;
-        let adapter = OpenAiChatAdapter::new(AdapterConfig {
-            base_url: server.uri(),
-            api_key: "test".into(),
-        })
-        .expect("adapter");
+        let adapter =
+            OpenAiChatAdapter::new(server.uri(), "test".into(), OpenAiChatOptions::default())
+                .expect("adapter");
         (server, adapter)
     }
 
