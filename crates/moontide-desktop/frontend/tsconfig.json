@@ -1,5 +1,10 @@
 {
   "compilerOptions": {
+    "paths": {
+      "$lib": ["./src/lib"],
+      "$lib/*": ["./src/lib/*"],
+      "$lib/utils.js": ["./src/lib/utils/index.ts"]
+    },
     "target": "ES2022",
     "useDefineForClassFields": true,
     "module": "ESNext",
@@ -13,5 +18,5 @@
     "skipLibCheck": true,
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts", "vitest.config.ts"]
+    "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts", "vitest.config.ts"]
 }

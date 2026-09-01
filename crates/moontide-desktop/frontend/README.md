@@ -1,7 +1,7 @@
 # MoonTide Desktop Frontend
 
 > **性质：** Tauri WebView 前端工程规范与模块化开发流程  
-> **契约：** wire 对齐 [`../../desktop/DESIGN.md`](../../desktop/DESIGN.md)；UI 产品边界见 [`../../desktop/UI-V0.1-SCOPE.md`](../../desktop/UI-V0.1-SCOPE.md)  
+> **契约：** wire 对齐 [`../DESIGN.md`](../DESIGN.md)；UI 产品边界见 [`../docs/UI-V0.1-SCOPE.md`](../docs/UI-V0.1-SCOPE.md)
 > **技术栈：** Svelte 5 · TypeScript · Vite SPA · pnpm · shadcn-svelte · Tailwind CSS v4
 
 本目录是 **protocol consumer + view projection**，不拥有 Agent、Session Item Log 或 approval truth。
@@ -86,14 +86,10 @@ features/
 └── chat/
     ├── ChatShell.svelte
     ├── SessionSidebar.svelte
-    ├── BlankChat.svelte
-    ├── ChatPage.svelte
-    ├── Conversation.svelte
+    ├── ChatTopBar.svelte
+    ├── BlankConversation.svelte
+    ├── LoadedConversation.svelte
     ├── Composer.svelte
-    ├── chatUiModel.ts
-    ├── chatUiModel.test.ts
-    ├── ChatShell.test.ts
-    └── index.ts
 ```
 
 `ChatShell` 只根据 view model 选择 Blank/Loaded；feature component 接收 typed callback，不 import Tauri bridge。`chatUiModel` 是 pure derivation，不发送 command。
@@ -138,9 +134,13 @@ features/            ← 同上
 2. **纯函数** → 同层新模块（如 `renderState/foldEvent.ts`）
 3. **类型/ schema** → `protocol/types.ts`、`protocol/schema.ts`
 
-当前生产代码接近或略超（待 Chat UI 批次治理）：`App.svelte`（~367）、
-`desktopController.ts`（~352）、`protocol/index.ts`（~404）、`renderState.ts`（~439）。
-`App.svelte` 抽 `features/chat/*` 后应回落到限额内。
+当前 `App.svelte` 只负责 Controller 注入、订阅与销毁（约 30 行）；Chat 组件均在
+`features/chat/*` 且低于软性限额。`protocol/index.ts`（~404）与 `renderState.ts`（~439）
+仍接近或略超限额，等出现可独立验证的边界后再拆分。
+
+`desktopController.ts`（~715）是已确认的软性例外。Session lifecycle、first Send、event buffering、
+snapshot establishment 与 resync 共享同一台异步状态机；强行拆成多个对象会造成重复的状态所有权。
+只有出现可独立验证的状态边界、第二个消费者或持续的合并冲突时，才重新评估其结构。
 
 ---
 
@@ -156,7 +156,7 @@ features ↛ bridge, protocol
 constants / utils → 无 upward 依赖（仅被引用）
 ```
 
-- 不设一级 `stores/`：`view.render` 来自 controller subscribe；见 [`UI-TECH-CHOICE.md`](../../desktop/UI-TECH-CHOICE.md)。
+- 不设一级 `stores/`：`view.render` 来自 controller subscribe；见 [`UI-TECH-CHOICE.md`](../docs/UI-TECH-CHOICE.md)。
 - `constants/` 准入：≥2 模块使用、无函数行为。
 
 ---
@@ -175,10 +175,10 @@ constants / utils → 无 upward 依赖（仅被引用）
 ### 3.2 shadcn 组件
 
 ```bash
-pnpm dlx shadcn-svelte@<recorded-version> add sidebar tooltip dropdown-menu collapsible skeleton
+pnpm dlx shadcn-svelte@1.5.1 add sidebar tooltip dropdown-menu collapsible skeleton
 ```
 
-执行前把 `<recorded-version>` 替换为本批记录的实际 CLI version；禁止使用未记录的 `@latest`。
+Batch 1 使用并记录 `shadcn-svelte 1.5.1`；禁止使用未记录的 `@latest`。
 产物 → `src/lib/components/ui/`。Token 只改 `styles.css`，CLI diff 必须先 review。
 
 ### 3.3 测试位置
@@ -197,11 +197,11 @@ pnpm dlx shadcn-svelte@<recorded-version> add sidebar tooltip dropdown-menu coll
 2. pnpm/shadcn/theme 基座。
 3. Session catalog、first-send 与 generation lifecycle。
 4. projection 与 `chatUiModel`。
-5. Chat shell、Sidebar 与 Blank。
-6. Loaded Conversation。
-7. interaction、accessibility 与 visual QA。
+4. Chat shell、Sidebar 与 Blank。
+5. Loaded Conversation。
+6. interaction、accessibility 与 visual QA。
 
-精确 gate 见 [`../../desktop/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md`](../../desktop/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md)。
+精确 gate 见 [`../docs/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md`](../docs/UI-V0.1-CHAT-IMPLEMENTATION-PLAN.md)。
 
 ---
 
@@ -221,12 +221,12 @@ Tauri：`cd ../src-tauri && cargo tauri dev`
 ## 5. Rust 边界
 
 ```text
-DesktopCommand → bridge.request → Host
-DesktopMessageEnvelope ← bridge.listenEnvelope
-desktop-connection ← bridge.listenConnection
+typed Controller intent → typed DesktopBridge method → Tauri command → Host
+DesktopMessageEnvelope ← listenEnvelope
+desktop-connection ← listenConnection
 ```
 
-UI-local state 见 [`UI-INTERACTION.md`](../../desktop/UI-INTERACTION.md)。
+UI-local state 见 [`UI-INTERACTION.md`](../docs/UI-INTERACTION.md)。
 
 ---
 
@@ -237,6 +237,6 @@ UI-local state 见 [`UI-INTERACTION.md`](../../desktop/UI-INTERACTION.md)。
 | `protocol` / `projection` / `controller` / `bridge` | 已就位 |
 | `utils/` / `constants/` | 已就位 |
 | `components/ui` | shadcn 基座 |
-| `features/chat` | 目标结构已确定；UI 仍主要在 `app/App.svelte` |
+| `features/chat` | Batch 4 Shell、Sidebar、Blank 与共享 Composer 已实现；Loaded 改版留给 Batch 5 |
 | `routes/` / `pages/` / `stores/` | **不建**；用上表映射 |
-| 单文件 ≤400 行（软性，不含 `*.test.ts`） | 已写入 README §1.4；`App.svelte` / `renderState.ts` 等待 feature 拆分 |
+| 单文件 ≤400 行（软性，不含 `*.test.ts`） | Chat feature 已满足；`desktopController.ts` 为已确认例外，projection/protocol 待出现真实边界后再评估 |
