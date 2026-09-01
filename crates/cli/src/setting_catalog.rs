@@ -1,6 +1,6 @@
 use crate::settings::apply_provider_switch_in_store;
 use agent::{
-    llm::{all_providers, catalog_preset, models_for, ProviderId},
+    llm::{all_providers, catalog_preset, models_for, ProviderId, ResolvedEndpoint},
     Agent, ThinkingLevel,
 };
 use anyhow::{bail, Result};
@@ -36,6 +36,15 @@ pub(crate) enum SettingApplyEffect {
     ReloadAgent,
 }
 
+type SettingSyncFn = fn(&str, &mut GlobalConfigStore) -> Result<()>;
+
+type ProviderRefreshFn = fn(
+    entry: &mut SettingEntry,
+    provider_id: ProviderId,
+    preset: &ResolvedEndpoint,
+    model_values: &[String],
+);
+
 pub(crate) struct SettingEntry {
     pub(crate) id: SettingId,
     pub(crate) label: &'static str,
@@ -43,6 +52,8 @@ pub(crate) struct SettingEntry {
     pub(crate) current_value: String,
     pub(crate) values: Option<Vec<String>>,
     pub(crate) apply: SettingApplyEffect,
+    sync: SettingSyncFn,
+    provider_refresh: Option<ProviderRefreshFn>,
 }
 
 impl SettingEntry {
@@ -89,6 +100,8 @@ impl SettingCatalog {
                     current_value: provider_label(settings.provider).to_owned(),
                     values: Some(provider_values),
                     apply: SettingApplyEffect::ReloadAgent,
+                    sync: sync_provider,
+                    provider_refresh: Some(refresh_provider_label),
                 },
                 SettingEntry {
                     id: SettingId::Model,
@@ -97,6 +110,8 @@ impl SettingCatalog {
                     current_value: settings.model.clone(),
                     values: Some(model_values),
                     apply: SettingApplyEffect::ReloadAgent,
+                    sync: sync_model,
+                    provider_refresh: Some(refresh_model_from_preset),
                 },
                 SettingEntry {
                     id: SettingId::BaseUrl,
@@ -105,6 +120,8 @@ impl SettingCatalog {
                     current_value: settings.base_url.clone(),
                     values: None,
                     apply: SettingApplyEffect::ReloadAgent,
+                    sync: sync_base_url,
+                    provider_refresh: Some(refresh_base_url_from_preset),
                 },
                 SettingEntry {
                     id: SettingId::ApiKey,
@@ -113,6 +130,8 @@ impl SettingCatalog {
                     current_value: format_api_key(&settings.api_key, settings.provider),
                     values: None,
                     apply: SettingApplyEffect::ReadOnly,
+                    sync: sync_noop,
+                    provider_refresh: Some(refresh_clear_api_key),
                 },
                 SettingEntry {
                     id: SettingId::ApprovalPolicy,
@@ -125,6 +144,8 @@ impl SettingCatalog {
                         "always allow".into(),
                     ]),
                     apply: SettingApplyEffect::ReloadAgent,
+                    sync: sync_approval_policy,
+                    provider_refresh: None,
                 },
                 SettingEntry {
                     id: SettingId::Trace,
@@ -137,6 +158,8 @@ impl SettingCatalog {
                         "events-thinking".into(),
                     ]),
                     apply: SettingApplyEffect::ReloadAgent,
+                    sync: sync_trace,
+                    provider_refresh: None,
                 },
                 SettingEntry {
                     id: SettingId::ThinkingLevel,
@@ -150,6 +173,8 @@ impl SettingCatalog {
                         "high".into(),
                     ]),
                     apply: SettingApplyEffect::NextTurn,
+                    sync: sync_thinking_level,
+                    provider_refresh: None,
                 },
                 SettingEntry {
                     id: SettingId::MaxSteps,
@@ -161,6 +186,8 @@ impl SettingCatalog {
                         &["4", "8", "12", "16"],
                     )),
                     apply: SettingApplyEffect::NextTurn,
+                    sync: sync_max_steps,
+                    provider_refresh: None,
                 },
                 SettingEntry {
                     id: SettingId::MaxTokens,
@@ -172,6 +199,8 @@ impl SettingCatalog {
                         &["2048", "4096", "8192"],
                     )),
                     apply: SettingApplyEffect::NextTurn,
+                    sync: sync_max_tokens,
+                    provider_refresh: None,
                 },
                 SettingEntry {
                     id: SettingId::Cwd,
@@ -180,6 +209,8 @@ impl SettingCatalog {
                     current_value: agent.cwd().display().to_string(),
                     values: None,
                     apply: SettingApplyEffect::ReadOnly,
+                    sync: sync_noop,
+                    provider_refresh: None,
                 },
             ],
         }
@@ -233,51 +264,15 @@ impl SettingCatalog {
             .map(|model| model.id.to_owned())
             .collect::<Vec<_>>();
         for entry in &mut self.entries {
-            match entry.id {
-                SettingId::Provider => {
-                    entry.current_value = provider_label(provider_id).to_owned();
-                }
-                SettingId::Model => {
-                    entry.current_value = preset.model_id.clone();
-                    entry.values = Some(model_values.clone());
-                }
-                SettingId::BaseUrl => entry.current_value = preset.base_url.clone(),
-                SettingId::ApiKey => entry.current_value = "(empty)".into(),
-                _ => {}
+            if let Some(refresh) = entry.provider_refresh {
+                refresh(entry, provider_id, &preset, &model_values);
             }
         }
     }
 
     pub(crate) fn sync_to_runtime(&self, settings: &mut GlobalConfigStore) -> Result<()> {
         for entry in &self.entries {
-            match entry.id {
-                SettingId::Provider => {
-                    let next = parse_provider(&entry.current_value)?;
-                    if next != settings.provider {
-                        apply_provider_switch_in_store(next, settings, true);
-                    }
-                }
-                SettingId::Model => settings.model = entry.current_value.clone(),
-                SettingId::BaseUrl => settings.base_url = entry.current_value.clone(),
-                SettingId::ApprovalPolicy => {
-                    settings.approval_policy = parse_approval(&entry.current_value)?;
-                }
-                SettingId::Trace => settings.trace_mode = parse_trace(&entry.current_value)?,
-                SettingId::ThinkingLevel => {
-                    settings.thinking_level = parse_thinking(&entry.current_value)?;
-                }
-                SettingId::MaxSteps => {
-                    settings.max_steps = entry.current_value.parse().map_err(|_| {
-                        anyhow::anyhow!("invalid max steps value: {}", entry.current_value)
-                    })?;
-                }
-                SettingId::MaxTokens => {
-                    settings.max_tokens = entry.current_value.parse().map_err(|_| {
-                        anyhow::anyhow!("invalid max tokens value: {}", entry.current_value)
-                    })?;
-                }
-                SettingId::ApiKey | SettingId::Cwd => {}
-            }
+            (entry.sync)(&entry.current_value, settings)?;
         }
         Ok(())
     }
@@ -345,6 +340,94 @@ fn cycle_values(current: &str, defaults: &[&str]) -> Vec<String> {
         values.push(current.into());
     }
     values
+}
+
+fn sync_noop(_value: &str, _settings: &mut GlobalConfigStore) -> Result<()> {
+    Ok(())
+}
+
+fn sync_provider(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    let next = parse_provider(value)?;
+    if next != settings.provider {
+        apply_provider_switch_in_store(next, settings, true);
+    }
+    Ok(())
+}
+
+fn sync_model(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.model = value.to_owned();
+    Ok(())
+}
+
+fn sync_base_url(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.base_url = value.to_owned();
+    Ok(())
+}
+
+fn sync_approval_policy(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.approval_policy = parse_approval(value)?;
+    Ok(())
+}
+
+fn sync_trace(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.trace_mode = parse_trace(value)?;
+    Ok(())
+}
+
+fn sync_thinking_level(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.thinking_level = parse_thinking(value)?;
+    Ok(())
+}
+
+fn sync_max_steps(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.max_steps = value
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid max steps value: {value}"))?;
+    Ok(())
+}
+
+fn sync_max_tokens(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    settings.max_tokens = value
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid max tokens value: {value}"))?;
+    Ok(())
+}
+
+fn refresh_provider_label(
+    entry: &mut SettingEntry,
+    provider_id: ProviderId,
+    _preset: &ResolvedEndpoint,
+    _model_values: &[String],
+) {
+    entry.current_value = provider_label(provider_id).to_owned();
+}
+
+fn refresh_model_from_preset(
+    entry: &mut SettingEntry,
+    _provider_id: ProviderId,
+    preset: &ResolvedEndpoint,
+    model_values: &[String],
+) {
+    entry.current_value = preset.model_id.clone();
+    entry.values = Some(model_values.to_owned());
+}
+
+fn refresh_base_url_from_preset(
+    entry: &mut SettingEntry,
+    _provider_id: ProviderId,
+    preset: &ResolvedEndpoint,
+    _model_values: &[String],
+) {
+    entry.current_value = preset.base_url.clone();
+}
+
+fn refresh_clear_api_key(
+    entry: &mut SettingEntry,
+    _provider_id: ProviderId,
+    _preset: &ResolvedEndpoint,
+    _model_values: &[String],
+) {
+    entry.current_value = "(empty)".into();
 }
 
 fn approval_label(policy: ApprovalPolicy) -> &'static str {
