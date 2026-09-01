@@ -1,7 +1,7 @@
 # llm — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R6 已完成；48 tests。Loop R1 的 retry/cancellation 接缝已确认，llm API 无需扩张。
+> **状态：** R1–R8 已完成；provider-config 修复已通过门禁，待用户 diff review。Loop R1 的 retry/cancellation 接缝已确认。
 > **关联：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`../../README.md`](../../README.md)
 
 ---
@@ -10,7 +10,9 @@
 
 内核唯一的 LLM 边界：`loop` / `context` / `session` 只依赖 **MoonTide 协议类型** 与 **`LLMProvider` trait**；HTTP、厂商 JSON/SSE、endpoint 关在 `adapter/` + `normalize/`，由 `agent` 组合根注入。
 
-**不在本 mod：** preset 表、model 路由、`resolveRoute` → `agent/preset/`。
+**不在本 mod：** concrete provider/model catalog、provider defaults、credential env registry、
+API key 解析，以及 CLI/Desktop settings schema/IO。catalog 与 provider-scoped merge 属于
+`agent::llm`；settings schema/IO 属于各 host。
 
 ---
 
@@ -50,7 +52,7 @@ loop / context / session / model_input
     └── （禁止）直接 match ModelStreamEvent / 自行 fold
 
 agent（组合根）
-    └── llm::adapter::build_provider(family, config)
+    └── llm::adapter::build_provider(AdapterConfig)
 
 llm::adapter/{family}
     └── protocol + normalize::{family} + reqwest
@@ -74,14 +76,19 @@ llm::normalize/{family}
 
 | 概念 | 含义 | 例子 |
 |------|------|------|
-| **MoonTide 协议** | 内核 domain 类型 | `ContentBlock`, `ModelRequest` |
+| **MoonTide 协议** | 内核 domain 类型 | `ContentBlock`, `ModelRequest`, `ThinkingLevel` |
 | **AdapterFamily** | wire 协议族 | `OpenAiChatCompletions`, `AnthropicMessages` |
-| **Preset** | 厂商接入配置 | `deepseek`, `openrouter` |
+| **Adapter option** | 组合根已解析的显式 wire 选择 | `OpenAiThinkingExtension::ChatTemplateKwargs` |
 
 ```text
-preset "deepseek"   × OpenAiChatCompletions → https://api.deepseek.com/chat/completions
-preset "openrouter" × OpenAiChatCompletions → https://openrouter.ai/api/v1
+agent::llm catalog → ResolvedProviderConfig
+  → AdapterFamily + AdapterConfig + adapter-specific options
+  → agent-core::llm::build_provider
 ```
+
+Wire 字段差异（thinking 出站、tool 形状、SSE delta）由 `normalize/{family}/` 从
+canonical `ModelRequest` 与 adapter-specific options 映射。normalize 不读取
+`ProviderId`，也不从 model id 前缀推断 vendor。
 
 ---
 
@@ -274,19 +281,35 @@ enum AdapterFamily {
     AnthropicMessages,
 }
 
-struct AdapterConfig { base_url: String, api_key: String }
+enum AdapterConfig {
+    OpenAiChat {
+        base_url: String,
+        api_key: String,
+        options: OpenAiChatOptions,
+    },
+    AnthropicMessages {
+        base_url: String,
+        api_key: String,
+    },
+}
 
-fn build_provider(family: AdapterFamily, config: AdapterConfig) -> Box<dyn LLMProvider>;
+fn build_provider(config: AdapterConfig) -> Result<Box<dyn LLMProvider>, LlmError>;
 ```
+
+family-specific enum variants make a family/config mismatch unrepresentable. `AdapterFamily`
+remains catalog metadata used by the composition root to select the variant.
 
 ---
 
 ## 9. Normalize
 
-- 一级目录与 `AdapterFamily` 1:1
+- 一级目录与 `AdapterFamily` 1:1（OpenAI map / Anthropic map）
 - 族内：`tool.rs` / `thinking.rs` / `stream.rs`
 - 跨族：`common.rs`（validate、handoff 清洗）
-- 入站解码：`StreamDecoder` 有状态，在 adapter 内；encode 走无状态 `encode_request`
+- 入站解码：`StreamDecoder` 有状态，在 adapter 内；encode 走无状态 `encode_request(&ModelRequest)`
+- **thinking：** 出站读 `ModelRequest.thinking_level` + `OpenAiChatOptions` 中的显式
+  `OpenAiThinkingExtension`；入站 `reasoning_content` → `ThinkingPart`。normalize 不读
+  `ProviderId`，也不检查 `agnes-*` model 前缀。
 
 ### 新增 AdapterFamily checklist
 
@@ -300,18 +323,17 @@ fn build_provider(family: AdapterFamily, config: AdapterConfig) -> Box<dyn LLMPr
 
 ---
 
-## 10. Preset（`agent/preset/`）
+## 10. Provider catalog 与 resolved config 边界
 
-```rust
-struct Preset {
-    id: String,
-    adapter_family: AdapterFamily,
-    base_url: String,
-    api_key_env: String,
-}
-```
+concrete `ProviderId`、model/default endpoint、credential env 名和 adapter option mapping
+属于 `agent::llm::catalog`，不进入 `agent-core`。catalog entry 直接拥有 model slice，
+provider lookup 使用穷尽 `match`，使缺 provider entry/default model 这类状态不可构造，
+而不是在 production path 使用 `expect`。
 
-首版默认：`deepseek` · `OpenAiChatCompletions`。
+`agent-core::llm` 只公开 provider-neutral 的 `AdapterFamily`、`AdapterConfig` 和显式
+adapter-specific option。CLI/Desktop 只向 `agent::llm` 提交 `LlmConfigLayer`；
+`agent::llm` 产出单一 `ResolvedProviderConfig`，再由 agent bootstrap 转换为 adapter config。
+完整链路见 [`crates/docs/llm-provider-config-fix.md`](../../../docs/llm-provider-config-fix.md)。
 
 ---
 
@@ -334,7 +356,7 @@ struct Preset {
 | handoff 后 history 含不支持的 block | `normalize::common` | strip，不 panic |
 | OpenAI `tool_calls.arguments` 分片 | `openai_chat/stream` | 合并后 `ToolUseFinished` |
 | OpenAI 多个并行 tool calls | `openai_chat/stream` + `response_builder` | 按 index/id 收束并保持 provider 顺序 |
-| DeepSeek thinking | `openai_chat/thinking` | `ThinkingPart` |
+| OpenAI-compatible thinking | `openai_chat/thinking` | 入站 `ThinkingPart`；出站按显式 `OpenAiThinkingExtension` 选择扩展字段 |
 | HTTP 4xx/5xx | `adapter` | `RequestFailed` |
 | 用户 abort | `loop` + provider | `Cancelled { User }` |
 
@@ -343,7 +365,7 @@ struct Preset {
 ## 13. 决策记录
 
 1. MoonTide 协议 = block 模型；厂商差异在 adapter + normalize
-2. Adapter 按协议族、Preset 按厂商
+2. Adapter 按协议族；concrete catalog 属于 `agent::llm`；wire encoding 按 normalize 族与显式 adapter option
 3. Normalize：family 一级 + 族内 concern；common 仅跨族
 4. 首版 DeepSeek × `OpenAiChatCompletions`
 5. 对外 trait 仅 `LLMProvider`
@@ -363,7 +385,7 @@ struct Preset {
 | normalize / adapter 层 | ✓ R2–R3 |
 | 不变量单测 | ✓ R4 |
 | `ModelStreamEvent` + Builder + `run_model_call*` | ✓ R5–R6 |
-| `agent/preset` deepseek | 随 agent 模块 |
+| provider-neutral adapter options；concrete catalog 外移至 `agent::llm` | ✓ R8 |
 | Responses / Gemini 族 | 后置 |
 
 ---

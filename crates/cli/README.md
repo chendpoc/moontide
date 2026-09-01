@@ -56,15 +56,20 @@ cargo run -p cli -- --session <session_id> --prompt "继续刚才的任务"
 | `--cwd <path>` | 当前目录 | Agent 工作目录与 Project Instructions 根 |
 | `--sessions-dir <path>` | `<cwd>/.moontide/sessions` | Session Item Log 目录 |
 | `--runs-dir <path>` | `<cwd>/.moontide/runs` | Agent Event 目录 |
+| `--provider <deepseek\|agnes>` | settings 或 `deepseek` | provider（catalog `ProviderId`） |
 | `--api-key <key>` | settings/env | provider API key；显式参数优先 |
-| `--model <name>` | settings 或 `deepseek-chat` | model name |
-| `--base-url <url>` | settings 或 `https://api.deepseek.com` | OpenAI-compatible endpoint root |
+| `--model <name>` | settings 或 preset 默认 | model name |
+| `--base-url <url>` | settings 或 preset 默认 | OpenAI-compatible endpoint root |
 | `--approval-policy <default\|always\|always-allow>` | settings 或 `always` | one-shot approval policy；interactive REPL 可在 Settings 中调整 |
 | `--trace <off\|events\|events-thinking>` | settings 或 `off` | 将实时 progress 事件输出到 stderr |
 
-项目设置文件为 `<cwd>/.moontide/settings.json`，从第一版开始使用 `version: 1`。它只在 CLI 启动时读取；reload/restart 也从该文件重新建立 `GlobalConfigStore`。运行期间的 `/settings` 同时更新内存中的 `GlobalConfigStore` 和持久化快照，不把 JSON 当作 live source。
+项目设置文件为 `<cwd>/.moontide/settings.json`，当前 schema 为 `version: 2`（含 `provider` 字段；version 1 缺省迁移为 `deepseek`）。它只在 CLI 启动时读取；reload/restart 也从该文件重新建立 `GlobalConfigStore`。运行期间的 `/settings` 同时更新内存中的 `GlobalConfigStore` 和持久化快照，不把 JSON 当作 live source。
 
-API key 优先级为 `--api-key` > `DEEPSEEK_API_KEY` > `settings.json` > interactive input；显式 API key 为空时直接失败，不回退到旧 key。CLI 解析后传入 `AgentConfig`，agent 不读取环境变量。API key 可以持久化在项目设置文件中。
+API key 优先级为 `--api-key` > 最终 provider 对应环境变量（`DEEPSEEK_API_KEY` /
+`AGNES_API_KEY`）> 同 provider 的 `settings.json` > interactive input；跨 provider 的
+旧 credential/base URL/model 不继承。显式空白 model/base URL 在 CLI layer 构造时
+直接失败。Agnes 集成与 catalog 分层见
+[`../docs/agnes-provider-integration.md`](../docs/agnes-provider-integration.md)。
 
 interactive REPL 启动时先进入 Settings Preflight：CLI 或环境中存在 API key 时跳过输入，设置文件中存在时直接加载，否则使用隐藏输入；用户确认 Settings 后只加载最近 Session 的 id，不立即创建新 Session。无 `--session` 时，第一条普通文本才触发 `Agent::create`；`/exit`、`/id`、`/settings` 和 `/help` 不创建 Session。显式 `--session` 仍在启动时 resume。API key 不写入 Session 或 Agent Event。
 
@@ -88,6 +93,10 @@ Trace 模式分层：`events` 展示 Turn/Step/LLM/Tool/Result 生命周期；`e
 | Ctrl-C | 取消当前 Turn，保留已提交事实并继续 REPL |
 
 初版不支持 `/new`、session 切换、多 session 并行和自定义工具参数。
+
+`/settings` 切换 Provider 时会在同一次 mutation 中刷新 Model 的 current/values、
+Base URL current 和 runtime store，并清空旧 API key；旧 projection 不会在同步阶段
+覆盖新 provider defaults。
 
 ---
 
