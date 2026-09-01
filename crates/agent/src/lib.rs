@@ -2,6 +2,7 @@
 
 mod agent;
 mod bootstrap;
+mod coding_preset;
 mod config;
 mod log;
 mod progress;
@@ -20,6 +21,7 @@ pub use agent_core::{
     r#loop::{ToolApproval, ToolApprovalHandler, ToolPermission, ToolPermissionMap},
     tools::{ToolCall, ToolResult},
 };
+pub use coding_preset::{resolve_coding_preset, CodingPresetPolicy, CODING_PRESET_EXCLUDED};
 pub use config::ProgressObserver;
 pub use config::{AgentConfig, DiagnosticPersistence, PersistenceConfig, SessionPersistence};
 pub use log::{AgentEventLogHandle, AgentEventLogState, AgentEventLogStatus};
@@ -33,7 +35,9 @@ pub use llm::{
     OpenAiThinkingExtension, ProcessEnv, ProviderEntry, ProviderId, ProviderOverrides,
     ResolveOverrides, ResolvedEndpoint, ResolvedProviderConfig,
 };
-pub use session::{latest_session_id, SessionItem, SessionQuery, SessionSnapshot, SessionSummary};
+pub use session::{
+    latest_session_id, SessionItem, SessionQuery, SessionSnapshot, SessionSummary, SessionTurnPage,
+};
 
 #[cfg(test)]
 mod tests;

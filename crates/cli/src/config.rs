@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
+use std::{env, path::PathBuf, sync::Arc};
 
 use agent::{
-    llm::require_api_key, platform::ProjectPaths, ToolApprovalHandler, ToolPermission,
-    ToolPermissionMap,
+    llm::require_api_key, platform::ProjectPaths, resolve_coding_preset, CodingPresetPolicy,
+    ToolApprovalHandler,
 };
 use anyhow::{bail, Context, Result};
 
@@ -48,7 +48,8 @@ pub(crate) fn resolve_agent_config_with(
     require_api_key(&merged)?;
     let paths = ProjectPaths::resolve(cwd, args.sessions_dir.clone(), args.runs_dir.clone())?;
 
-    let (tool_names, permissions) = coding_preset(settings.approval_policy);
+    let (tool_names, permissions) =
+        resolve_coding_preset(CodingPresetPolicy::from(settings.approval_policy));
     let approval: Option<Arc<dyn ToolApprovalHandler>> = match settings.approval_policy {
         ApprovalPolicy::AlwaysAllow => None,
         ApprovalPolicy::Default | ApprovalPolicy::Always => match settings.input_owner.clone() {
@@ -79,35 +80,14 @@ pub(crate) fn resolve_agent_config_with(
     })
 }
 
-fn coding_preset(policy: ApprovalPolicy) -> (Vec<String>, ToolPermissionMap) {
-    let allow = ["read", "find", "grep"];
-    let ask = ["write", "edit", "bash"];
-    let tool_names = allow
-        .iter()
-        .chain(ask.iter())
-        .map(|name| (*name).to_owned())
-        .collect::<Vec<_>>();
-    let mut permissions = BTreeMap::new();
-    for name in allow {
-        permissions.insert(
-            name.to_owned(),
-            match policy {
-                ApprovalPolicy::Default => ToolPermission::Allow,
-                ApprovalPolicy::Always => ToolPermission::Ask,
-                ApprovalPolicy::AlwaysAllow => ToolPermission::Allow,
-            },
-        );
+impl From<ApprovalPolicy> for CodingPresetPolicy {
+    fn from(value: ApprovalPolicy) -> Self {
+        match value {
+            ApprovalPolicy::Default => Self::Default,
+            ApprovalPolicy::Always => Self::Always,
+            ApprovalPolicy::AlwaysAllow => Self::AlwaysAllow,
+        }
     }
-    for name in ask {
-        permissions.insert(
-            name.to_owned(),
-            match policy {
-                ApprovalPolicy::AlwaysAllow => ToolPermission::Allow,
-                ApprovalPolicy::Default | ApprovalPolicy::Always => ToolPermission::Ask,
-            },
-        );
-    }
-    (tool_names, permissions)
 }
 
 pub(crate) fn session_mode(args: &CliArgs) -> &'static str {

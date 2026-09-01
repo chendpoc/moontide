@@ -4,7 +4,7 @@
 //! CLI / Desktop import this module only; they do not reach into `agent_core::session`
 //! directly.
 
-pub use agent_core::session::{SessionItem, SessionSnapshot, SessionSummary};
+pub use agent_core::session::{SessionItem, SessionSnapshot, SessionSummary, SessionTurnPage};
 
 /// Read-only facade for persisted Session Item Logs.
 pub struct SessionQuery {
@@ -22,8 +22,24 @@ impl SessionQuery {
         self.inner.list()
     }
 
+    pub fn map_snapshots<T>(
+        &self,
+        project: impl FnMut(SessionSnapshot) -> T,
+    ) -> anyhow::Result<Vec<T>> {
+        self.inner.map_snapshots(project)
+    }
+
     pub fn load(&self, session_id: &str) -> anyhow::Result<SessionSnapshot> {
         self.inner.load(session_id)
+    }
+
+    pub fn load_turn_page(
+        &self,
+        session_id: &str,
+        before_turn: Option<u64>,
+        limit: usize,
+    ) -> anyhow::Result<SessionTurnPage> {
+        self.inner.load_turn_page(session_id, before_turn, limit)
     }
 }
 
