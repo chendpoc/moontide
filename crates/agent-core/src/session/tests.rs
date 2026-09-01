@@ -114,6 +114,41 @@ fn session_query_lists_stable_summaries() {
     assert_ne!(first_id, second_id);
 }
 
+// 场景：catalog consumer 需要 summary 与首条 SessionItem metadata。
+// 预期：map_snapshots 在单次加载中立即投影每个 Session。
+// 不变量：consumer 不重复加载，也不同时持有全部 Session 的完整历史。
+#[test]
+fn session_query_maps_snapshots_for_single_pass_consumers() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut store = SessionStore::create(&dir, PathBuf::from("/workspace")).expect("create");
+    let session_id = store.header().session_id.clone();
+    store
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 0,
+            text: "catalog excerpt".into(),
+        })
+        .expect("commit item");
+
+    let rows = SessionQuery::new(&dir)
+        .map_snapshots(|snapshot| {
+            (
+                snapshot.summary,
+                snapshot
+                    .items
+                    .first()
+                    .and_then(SessionItem::text)
+                    .map(str::to_owned),
+            )
+        })
+        .expect("map snapshots");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0.session_id, session_id);
+    assert_eq!(rows[0].0.item_count, 1);
+    assert_eq!(rows[0].1.as_deref(), Some("catalog excerpt"));
+}
+
 // 场景：加载包含 canonical SessionItem 的 session。
 // 预期：返回 header summary 和完整 item payload；不变量：load 只读，不追加日志。
 #[test]
@@ -145,6 +180,69 @@ fn session_query_load_returns_snapshot_without_mutation() {
         std::fs::read_to_string(log_path).expect("read log after query"),
         before
     );
+}
+
+// 场景：一个 Session 包含五个 Turn，每个 Turn 有 user 与 assistant 两条事实。
+// 预期：倒序分页按完整 Turn 返回，before_turn 为 exclusive cursor，最后一页正确关闭 has_older。
+// 不变量：分页不会拆开同一 Turn，也不会改变 Session Item Log 顺序。
+#[test]
+fn session_query_pages_complete_turns_backwards() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut store = SessionStore::create(&dir, PathBuf::from("/workspace")).expect("create");
+    let session_id = store.header().session_id.clone();
+    for turn in 0..5 {
+        store
+            .commit_item(SessionItemDraft::UserMessage {
+                turn,
+                text: format!("user {turn}"),
+            })
+            .expect("commit user");
+        store
+            .commit_item(SessionItemDraft::AssistantMessage {
+                turn,
+                blocks: vec![ContentBlock::Text {
+                    text: format!("assistant {turn}"),
+                }],
+            })
+            .expect("commit assistant");
+    }
+    let query = SessionQuery::new(&dir);
+
+    let latest = query
+        .load_turn_page(&session_id, None, 2)
+        .expect("latest page");
+    assert_eq!(latest.oldest_turn, Some(3));
+    assert!(latest.has_older);
+    assert_eq!(
+        latest
+            .items
+            .iter()
+            .map(|item| item.base().turn)
+            .collect::<Vec<_>>(),
+        vec![3, 3, 4, 4]
+    );
+
+    let middle = query
+        .load_turn_page(&session_id, latest.oldest_turn, 2)
+        .expect("middle page");
+    assert_eq!(middle.oldest_turn, Some(1));
+    assert!(middle.has_older);
+    assert_eq!(
+        middle
+            .items
+            .iter()
+            .map(|item| item.base().turn)
+            .collect::<Vec<_>>(),
+        vec![1, 1, 2, 2]
+    );
+
+    let oldest = query
+        .load_turn_page(&session_id, middle.oldest_turn, 2)
+        .expect("oldest page");
+    assert_eq!(oldest.oldest_turn, Some(0));
+    assert!(!oldest.has_older);
+    assert_eq!(oldest.items.len(), 2);
 }
 
 // 场景：创建 v2 session 后写入消息、ToolCall 与 ToolResult，再重新加载；预期：header、顺序、身份、状态和 payload 往返一致；不变量/副作用：seq 连续，Session Item Log 不产生额外的调用模型。
@@ -287,6 +385,42 @@ fn load_rejects_seq_gap() {
         Err(err) => assert!(err.to_string().contains("seq gap")),
         Ok(_) => panic!("expected seq gap error"),
     }
+}
+
+// 场景：磁盘上的 SessionItem seq 连续，但第二条 Turn 小于第一条 Turn。
+// 预期：load 拒绝该日志，不让倒序分页建立在伪造的物理顺序上。
+// 不变量：Session Item Log 的 Turn 随 seq 单调不降，同一 Turn 的 items 保持相邻。
+#[test]
+fn load_rejects_decreasing_turn_numbers() {
+    let root = TempDir::new().expect("tempdir");
+    let dir = sessions_dir(&root);
+    let mut store = SessionStore::create(&dir, PathBuf::from("/tmp")).expect("create");
+    let session_id = store.header().session_id.clone();
+    store
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 1,
+            text: "first".into(),
+        })
+        .expect("commit first");
+    store
+        .commit_item(SessionItemDraft::UserMessage {
+            turn: 2,
+            text: "second".into(),
+        })
+        .expect("commit second");
+
+    let log_path = session_log_path(&dir, &session_id);
+    let raw = std::fs::read_to_string(&log_path).expect("read log");
+    let mut lines = raw.lines().map(str::to_owned).collect::<Vec<_>>();
+    let mut second: serde_json::Value = serde_json::from_str(&lines[1]).expect("parse line");
+    second["turn"] = json!(0);
+    lines[1] = serde_json::to_string(&second).expect("serialize line");
+    std::fs::write(&log_path, lines.join("\n") + "\n").expect("write log");
+
+    let error = SessionStore::load(&dir, &session_id)
+        .err()
+        .expect("decreasing Turn must fail");
+    assert!(error.to_string().contains("turn decreased"));
 }
 
 // 场景：磁盘上的 item session_id 被篡改为另一场 session 的身份。
