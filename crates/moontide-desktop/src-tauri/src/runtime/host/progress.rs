@@ -1,7 +1,14 @@
-use anyhow::Result;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
-use super::super::event::{DesktopEvent, EventBuffer};
+use anyhow::Result;
+
+use super::super::event::{
+    DesktopEvent,
+    EventBuffer,
+};
 use super::super::state::DesktopRunState;
 
 pub(super) struct ProgressSink {

@@ -1,14 +1,29 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::{
+    anyhow,
+    Result,
+};
 use tokio::sync::oneshot;
 
-use super::event::{DesktopEvent, EventBuffer};
+use super::event::{
+    DesktopEvent,
+    EventBuffer,
+};
 use super::state::DesktopRunState;
 
 pub type ApprovalId = String;
@@ -209,9 +224,10 @@ fn lock_resolved(
 
 #[cfg(test)]
 mod tests {
+    use agent::ToolApprovalHandler;
+
     use super::super::event::DesktopEventStream;
     use super::*;
-    use agent::ToolApprovalHandler;
 
     // 场景：ToolApprovalHandler 创建 pending request，随后 UI approve。
     // 预期：完整 ToolCall 只出现在 ApprovalRequested 事件，future 返回 Approved。

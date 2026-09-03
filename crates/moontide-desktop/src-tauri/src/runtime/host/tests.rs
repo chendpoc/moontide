@@ -1,4 +1,5 @@
-use agent_core::{llm::protocol::ThinkingLevel, r#loop::ToolPermissionMap};
+use agent_core::llm::protocol::ThinkingLevel;
+use agent_core::r#loop::ToolPermissionMap;
 use tempfile::TempDir;
 
 use super::*;
@@ -15,8 +16,12 @@ fn config(root: &TempDir) -> agent::AgentConfig {
                 base_url: Some("https://example.com/v1"),
                 model: None,
                 api_key: Some("test-key"),
+                protocol: None,
+                user_profile: None,
+                host_profile: None,
             },
-        ),
+        )
+        .expect("resolve provider"),
         max_tokens: 128,
         thinking_level: Some(ThinkingLevel::Off),
         max_steps: 4,

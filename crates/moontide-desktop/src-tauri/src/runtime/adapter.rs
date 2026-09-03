@@ -3,19 +3,39 @@
 //! This is the only runtime-to-wire conversion boundary. It is not a second protocol graph and
 //! is intentionally scoped to the Host protocol server.
 
-use crate::protocol as wire;
-use agent_core::{
-    llm::protocol::{ContentBlock, PendingBlock, StopReason, Usage},
-    session::{CompactionKind, SessionItem, SessionItemBase},
-    tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus},
+use agent_core::llm::protocol::{
+    ContentBlock,
+    PendingBlock,
+    StopReason,
+    Usage,
+};
+use agent_core::session::{
+    CompactionKind,
+    SessionItem,
+    SessionItemBase,
+};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
+    ToolResultStatus,
 };
 
 use super::approval::ApprovalRequest;
 use super::command::DesktopCommandError;
-use super::event::{DesktopEvent, DesktopEventEnvelope};
-use super::state::{
-    DesktopError, DesktopErrorKind, DesktopRunState, DesktopSnapshot, ResyncReason, ShutdownReport,
+use super::event::{
+    DesktopEvent,
+    DesktopEventEnvelope,
 };
+use super::state::{
+    DesktopError,
+    DesktopErrorKind,
+    DesktopRunState,
+    DesktopSnapshot,
+    ResyncReason,
+    ShutdownReport,
+};
+use crate::protocol as wire;
 
 pub(crate) fn event_envelope_to_wire(
     envelope: &DesktopEventEnvelope,

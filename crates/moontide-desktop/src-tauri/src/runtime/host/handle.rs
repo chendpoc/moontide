@@ -1,6 +1,11 @@
-use super::super::command::{DesktopCommandError, HostCommand};
-use super::super::state::{DesktopSnapshot, ShutdownReport};
-
+use super::super::command::{
+    DesktopCommandError,
+    HostCommand,
+};
+use super::super::state::{
+    DesktopSnapshot,
+    ShutdownReport,
+};
 use super::DesktopHostHandle;
 
 impl DesktopHostHandle {

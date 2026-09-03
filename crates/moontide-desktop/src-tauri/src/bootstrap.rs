@@ -1,21 +1,41 @@
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{
+    Path,
+    PathBuf,
 };
 
-use agent::{
-    llm::{
-        merge_startup_llm_config, read_llm_env, require_api_key, EnvSource, LlmConfigLayer,
-        ProcessEnv, ProviderId,
-    },
-    platform::ProjectPaths,
-    resolve_coding_preset, AgentConfig, CodingPresetPolicy, PersistenceConfig, SessionPersistence,
+use agent::llm::{
+    merge_startup_llm_config,
+    read_llm_env,
+    register_custom_providers,
+    require_api_key,
+    CustomProviderDefinition,
+    EnvSource,
+    LlmConfigLayer,
+    ProcessEnv,
+    ProviderId,
+    UserProtocolProfileOverride,
 };
-use anyhow::{Context, Result};
+use agent::platform::ProjectPaths;
+use agent::{
+    resolve_coding_preset,
+    AdapterFamily,
+    AgentConfig,
+    CodingPresetPolicy,
+    PersistenceConfig,
+    SessionPersistence,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use serde::Deserialize;
 
-use crate::runtime::{DesktopRuntime, DesktopRuntimeCoordinator};
+use crate::runtime::{
+    DesktopRuntime,
+    DesktopRuntimeCoordinator,
+};
 
 const DEFAULT_MAX_TOKENS: u32 = 4_096;
 const DEFAULT_MAX_STEPS: u32 = 8;
@@ -35,6 +55,12 @@ struct DesktopPersistedSettings {
     provider: ProviderId,
     model: String,
     base_url: String,
+    #[serde(default)]
+    protocol: Option<AdapterFamily>,
+    #[serde(default)]
+    profile: Option<UserProtocolProfileOverride>,
+    #[serde(default)]
+    custom_providers: BTreeMap<String, CustomProviderDefinition>,
 }
 
 struct DesktopEnv<'a, E> {
@@ -110,6 +136,9 @@ fn read_persisted_settings(path: &Path) -> Result<DesktopPersistedSettings> {
     }
     let persisted: DesktopPersistedSettings = serde_json::from_value(value)
         .with_context(|| format!("decode settings file {}", path.display()))?;
+    if !persisted.custom_providers.is_empty() {
+        register_custom_providers(persisted.custom_providers.clone())?;
+    }
     if !persisted.project_root.is_absolute() {
         anyhow::bail!(
             "Desktop settings project_root must be absolute: {}",
@@ -124,6 +153,7 @@ fn build_agent_config_for_storage(
     env: &impl EnvSource,
 ) -> Result<AgentConfig> {
     let persisted = read_persisted_settings(&storage.settings_path)?;
+    register_custom_providers(persisted.custom_providers)?;
     let project_env = read_project_dotenv(&persisted.project_root)?;
     let desktop_env = DesktopEnv {
         inherited: env,
@@ -134,6 +164,8 @@ fn build_agent_config_for_storage(
         Some(persisted.model),
         Some(persisted.base_url),
         None,
+        persisted.protocol,
+        persisted.profile,
     )
     .context("construct Desktop settings LLM layer")?;
     let env_layer = read_llm_env(&desktop_env)?;
@@ -184,10 +216,12 @@ fn read_project_dotenv(project_root: &Path) -> Result<BTreeMap<String, String>> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use agent::llm::ProviderId;
     use std::fs;
+
+    use agent::llm::ProviderId;
     use tempfile::tempdir;
+
+    use super::*;
 
     struct MapEnv(BTreeMap<&'static str, String>);
 

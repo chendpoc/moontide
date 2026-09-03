@@ -1,11 +1,22 @@
-use std::collections::{BTreeSet, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::collections::{
+    BTreeSet,
+    VecDeque,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use agent::ProgressEvent;
 use tokio::sync::Notify;
 
 use super::approval::ApprovalRequest;
-use super::state::{ActiveAssistantCall, DeliveryStatus, ResyncReason, ShutdownReport};
+use super::state::{
+    ActiveAssistantCall,
+    DeliveryStatus,
+    ResyncReason,
+    ShutdownReport,
+};
 
 #[cfg(test)]
 mod tests;

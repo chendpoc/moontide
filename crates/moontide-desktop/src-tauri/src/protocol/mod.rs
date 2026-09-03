@@ -6,7 +6,10 @@
 
 use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
 pub const DESKTOP_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion(1);

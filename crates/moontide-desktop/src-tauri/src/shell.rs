@@ -1,15 +1,31 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 use serde::Serialize;
-use tauri::{Emitter, Manager, State, WindowEvent};
+use tauri::{
+    Emitter,
+    Manager,
+    State,
+    WindowEvent,
+};
 use tokio::time::timeout;
 
-use crate::bootstrap::{self, DesktopStoragePaths};
+use crate::bootstrap::{
+    self,
+    DesktopStoragePaths,
+};
 use crate::protocol as wire;
 use crate::runtime::{
-    DesktopRuntimeCoordinator, DesktopRuntimeCoordinatorHandle, DesktopRuntimeEventStream,
+    DesktopRuntimeCoordinator,
+    DesktopRuntimeCoordinatorHandle,
+    DesktopRuntimeEventStream,
 };
 
 const ENVELOPE_EVENT: &str = "desktop-envelope";

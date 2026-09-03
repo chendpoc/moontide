@@ -1,11 +1,21 @@
 //! Integrated Desktop runtime: Host lifecycle, connection epoch, and event adaptation.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::time::Duration;
 
 use agent::AgentConfig;
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -21,14 +31,21 @@ pub(crate) mod event;
 pub(crate) mod host;
 pub(crate) mod state;
 
+pub(crate) use command::DesktopCommandError;
+pub(crate) use coordinator::{
+    DesktopRuntimeCoordinator,
+    DesktopRuntimeCoordinatorHandle,
+};
+
 use self::adapter as runtime_wire;
 use self::event::DesktopEventStream;
 use self::host::{
-    DesktopConfig, DesktopHost, DesktopHostHandle, SessionSelection, MIN_EVENT_CAPACITY,
+    DesktopConfig,
+    DesktopHost,
+    DesktopHostHandle,
+    SessionSelection,
+    MIN_EVENT_CAPACITY,
 };
-
-pub(crate) use command::DesktopCommandError;
-pub(crate) use coordinator::{DesktopRuntimeCoordinator, DesktopRuntimeCoordinatorHandle};
 
 const EVENT_FORWARDER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 const INITIAL_HISTORY_TURN_LIMIT: usize = 30;

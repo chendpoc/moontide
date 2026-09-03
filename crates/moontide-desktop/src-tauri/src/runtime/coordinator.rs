@@ -1,14 +1,24 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
-use tokio::sync::{mpsc, Mutex};
+use anyhow::{
+    Context,
+    Result,
+};
+use tokio::sync::{
+    mpsc,
+    Mutex,
+};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
+use super::{
+    DesktopCommandError,
+    DesktopRuntime,
+    DesktopRuntimeEventStream,
+    DesktopRuntimeHandle,
+};
 use crate::protocol as wire;
-
-use super::{DesktopCommandError, DesktopRuntime, DesktopRuntimeEventStream, DesktopRuntimeHandle};
 
 const GENERATION_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -288,12 +298,19 @@ fn runtime_unavailable_error() -> DesktopCommandError {
 #[cfg(test)]
 mod tests {
     use std::path::Path;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
 
-    use agent_core::{
-        llm::protocol::{ContentBlock, ThinkingLevel},
-        r#loop::ToolPermissionMap,
-        session::{SessionItemDraft, SessionStore},
+    use agent_core::llm::protocol::{
+        ContentBlock,
+        ThinkingLevel,
+    };
+    use agent_core::r#loop::ToolPermissionMap;
+    use agent_core::session::{
+        SessionItemDraft,
+        SessionStore,
     };
     use tempfile::TempDir;
 
@@ -310,8 +327,12 @@ mod tests {
                     base_url: Some("https://example.com/v1"),
                     model: None,
                     api_key: Some("test-key"),
+                    protocol: None,
+                    user_profile: None,
+                    host_profile: None,
                 },
-            ),
+            )
+            .expect("resolve provider"),
             max_tokens: 128,
             thinking_level: Some(ThinkingLevel::Off),
             max_steps: 4,

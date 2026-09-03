@@ -1,6 +1,14 @@
-use agent_core::llm::protocol::{ContentBlock, ModelResponseSnapshot};
+use agent_core::llm::protocol::{
+    ContentBlock,
+    ModelResponseSnapshot,
+};
 
-use super::super::state::{ActiveAssistantCall, DesktopError, DesktopErrorKind, DesktopRunState};
+use super::super::state::{
+    ActiveAssistantCall,
+    DesktopError,
+    DesktopErrorKind,
+    DesktopRunState,
+};
 use super::*;
 
 fn snapshot(text: &str) -> ModelResponseSnapshot {

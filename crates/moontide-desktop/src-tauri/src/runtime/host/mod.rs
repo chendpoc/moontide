@@ -1,11 +1,22 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
 use tokio::sync::mpsc;
 
 use super::approval::ApprovalBroker;
 use super::command::HostCommand;
-use super::event::{DesktopEvent, DesktopEventStream, EventBuffer};
+use super::event::{
+    DesktopEvent,
+    DesktopEventStream,
+    EventBuffer,
+};
 use super::state::DesktopRunState;
 
 mod actor;

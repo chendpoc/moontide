@@ -2,7 +2,10 @@ use std::fmt;
 
 use tokio::sync::oneshot;
 
-use super::state::{DesktopSnapshot, ShutdownReport};
+use super::state::{
+    DesktopSnapshot,
+    ShutdownReport,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]

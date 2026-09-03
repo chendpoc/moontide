@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use anyhow::Result;
 use tokio::sync::mpsc;
@@ -6,10 +9,20 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::super::approval::ApprovalBroker;
-use super::super::command::{DesktopCommandError, HostCommand};
-use super::super::event::{DesktopEvent, EventBuffer};
+use super::super::command::{
+    DesktopCommandError,
+    HostCommand,
+};
+use super::super::event::{
+    DesktopEvent,
+    EventBuffer,
+};
 use super::super::state::{
-    DesktopError, DesktopErrorKind, DesktopRunState, DesktopSnapshot, ShutdownReport,
+    DesktopError,
+    DesktopErrorKind,
+    DesktopRunState,
+    DesktopSnapshot,
+    ShutdownReport,
 };
 
 pub(super) struct ActiveTurn {
