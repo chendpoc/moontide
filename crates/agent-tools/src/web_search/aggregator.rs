@@ -1,6 +1,11 @@
 use std::collections::HashSet;
 
-use super::model::{ProviderError, SearchProvider, SearchRequest, SearchResult};
+use super::model::{
+    ProviderError,
+    SearchProvider,
+    SearchRequest,
+    SearchResult,
+};
 
 pub(crate) struct SearchAggregator {
     providers: Vec<Box<dyn SearchProvider>>,
@@ -119,11 +124,21 @@ fn canonical_url(value: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{ensure, Result};
+    use anyhow::{
+        ensure,
+        Result,
+    };
 
-    use super::{canonical_url, SearchAggregator};
+    use super::{
+        canonical_url,
+        SearchAggregator,
+    };
     use crate::web_search::model::{
-        ProviderError, ProviderFuture, SearchProvider, SearchProviderId, SearchRequest,
+        ProviderError,
+        ProviderFuture,
+        SearchProvider,
+        SearchProviderId,
+        SearchRequest,
         SearchResult,
     };
 

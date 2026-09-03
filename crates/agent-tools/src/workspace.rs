@@ -1,7 +1,17 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use agent_core::tools::{ToolCall, ToolContent, ToolResult};
-use anyhow::{Context, Result};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 
 pub const MAX_OUTPUT_BYTES: usize = 32 * 1024;
 pub const DEFAULT_MAX_LINES: usize = 2_000;

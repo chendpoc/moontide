@@ -8,7 +8,10 @@ mod web_search;
 mod workspace;
 mod write;
 
-pub use catalog::{builtin_tool_definitions, ToolDefinition};
+pub use catalog::{
+    builtin_tool_definitions,
+    ToolDefinition,
+};
 
 #[cfg(test)]
 mod tests;

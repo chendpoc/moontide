@@ -1,8 +1,19 @@
-use reqwest::header::{ACCEPT, USER_AGENT};
-use scraper::{Html, Selector};
+use reqwest::header::{
+    ACCEPT,
+    USER_AGENT,
+};
+use scraper::{
+    Html,
+    Selector,
+};
 
 use super::super::model::{
-    ProviderError, ProviderFuture, SearchProvider, SearchProviderId, SearchRequest, SearchResult,
+    ProviderError,
+    ProviderFuture,
+    SearchProvider,
+    SearchProviderId,
+    SearchRequest,
+    SearchResult,
 };
 
 const SEARCH_URL: &str = "https://html.duckduckgo.com/html/";
@@ -131,13 +142,31 @@ fn retryable_status(status: reqwest::StatusCode) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{ensure, Result};
-    use wiremock::matchers::{method, path, query_param};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use anyhow::{
+        ensure,
+        Result,
+    };
+    use wiremock::matchers::{
+        method,
+        path,
+        query_param,
+    };
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+    };
 
-    use super::DuckDuckGoProvider;
-    use super::{decode_result_url, parse_results};
-    use crate::web_search::model::{SearchProvider, SearchProviderId, SearchRequest};
+    use super::{
+        decode_result_url,
+        parse_results,
+        DuckDuckGoProvider,
+    };
+    use crate::web_search::model::{
+        SearchProvider,
+        SearchProviderId,
+        SearchRequest,
+    };
 
     // 测试场景：DuckDuckGo HTML 包含 redirect wrapper、title 和 snippet；预期解析为 destination URL 与可见文本；不变量/副作用：只解析传入字符串，不发真实网络请求。
     #[test]

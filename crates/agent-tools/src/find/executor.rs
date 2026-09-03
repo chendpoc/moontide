@@ -1,16 +1,32 @@
-use std::{
-    future::Future,
-    path::{Path, PathBuf},
-    pin::Pin,
+use std::future::Future;
+use std::path::{
+    Path,
+    PathBuf,
 };
+use std::pin::Pin;
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
-use anyhow::{Context, Result};
-use globset::{Glob, GlobSetBuilder};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
+use globset::{
+    Glob,
+    GlobSetBuilder,
+};
 use ignore::WalkBuilder;
 use serde::Deserialize;
 
-use crate::workspace::{canonical_working_dir, expected_failure, relative_display_path};
+use crate::workspace::{
+    canonical_working_dir,
+    expected_failure,
+    relative_display_path,
+};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

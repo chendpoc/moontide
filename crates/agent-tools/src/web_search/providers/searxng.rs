@@ -4,7 +4,12 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 
 use super::super::model::{
-    ProviderError, ProviderFuture, SearchProvider, SearchProviderId, SearchRequest, SearchResult,
+    ProviderError,
+    ProviderFuture,
+    SearchProvider,
+    SearchProviderId,
+    SearchRequest,
+    SearchResult,
 };
 
 const BASE_URL_ENV: &str = "MOONTIDE_SEARXNG_BASE_URL";
@@ -154,13 +159,32 @@ fn retryable_status(status: StatusCode) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{ensure, Result};
-    use wiremock::matchers::{method, path, query_param};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use anyhow::{
+        ensure,
+        Result,
+    };
+    use wiremock::matchers::{
+        method,
+        path,
+        query_param,
+    };
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+    };
 
-    use super::SearxngProvider;
-    use super::{parse_response, search_endpoint, validate_base_url};
-    use crate::web_search::model::{SearchProvider, SearchProviderId, SearchRequest};
+    use super::{
+        parse_response,
+        search_endpoint,
+        validate_base_url,
+        SearxngProvider,
+    };
+    use crate::web_search::model::{
+        SearchProvider,
+        SearchProviderId,
+        SearchRequest,
+    };
 
     // 测试场景：SearXNG 返回标准 JSON 结果；预期转换为统一 SearchResult；不变量/副作用：只解析传入 body，不执行网络请求。
     #[test]

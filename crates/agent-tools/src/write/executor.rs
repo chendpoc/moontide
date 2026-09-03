@@ -1,14 +1,27 @@
-use std::{
-    future::Future,
-    path::{Path, PathBuf},
-    pin::Pin,
+use std::future::Future;
+use std::path::{
+    Path,
+    PathBuf,
 };
+use std::pin::Pin;
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
-use anyhow::{Context, Result};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use serde::Deserialize;
 
-use crate::workspace::{canonical_working_dir, expected_failure, resolve_target};
+use crate::workspace::{
+    canonical_working_dir,
+    expected_failure,
+    resolve_target,
+};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -1,14 +1,28 @@
-use std::{future::Future, path::Path, pin::Pin, sync::Arc};
+use std::future::Future;
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::Arc;
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
-use anyhow::{Context, Result};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use serde::Deserialize;
 
+use super::aggregator::SearchAggregator;
+use super::model::SearchRequest;
 use crate::workspace::{
-    truncate_from_start, DEFAULT_MAX_LINES, MAX_OUTPUT_BYTES, OUTPUT_LIMIT_MARKER,
+    truncate_from_start,
+    DEFAULT_MAX_LINES,
+    MAX_OUTPUT_BYTES,
+    OUTPUT_LIMIT_MARKER,
 };
-
-use super::{aggregator::SearchAggregator, model::SearchRequest};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -99,14 +113,29 @@ fn format_results(
 mod tests {
     use std::path::Path;
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResultStatus};
-    use anyhow::{bail, ensure, Result};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolExecutor,
+        ToolResultStatus,
+    };
+    use anyhow::{
+        bail,
+        ensure,
+        Result,
+    };
     use serde_json::json;
 
-    use crate::workspace::{MAX_OUTPUT_BYTES, OUTPUT_LIMIT_MARKER};
-
-    use super::super::{aggregator::SearchAggregator, model::SearchProviderId};
-    use super::{format_results, WebSearchExecutor};
+    use super::super::aggregator::SearchAggregator;
+    use super::super::model::SearchProviderId;
+    use super::{
+        format_results,
+        WebSearchExecutor,
+    };
+    use crate::workspace::{
+        MAX_OUTPUT_BYTES,
+        OUTPUT_LIMIT_MARKER,
+    };
 
     fn make_executor() -> WebSearchExecutor {
         WebSearchExecutor::new(SearchAggregator::new(Vec::new()))

@@ -1,13 +1,31 @@
-use std::{
-    fs::{self, File},
-    future::Future,
-    io::{BufRead, BufReader, Read, Seek, SeekFrom},
-    path::{Path, PathBuf},
-    pin::Pin,
+use std::fs::{
+    self,
+    File,
 };
+use std::future::Future;
+use std::io::{
+    BufRead,
+    BufReader,
+    Read,
+    Seek,
+    SeekFrom,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::pin::Pin;
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
-use anyhow::{Context, Result};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use ignore::WalkBuilder;
 use regex::Regex;
 use serde::Deserialize;
@@ -330,14 +348,35 @@ fn utf8_prefix(value: &str, max_bytes: usize) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
+    use std::fs;
+    use std::path::Path;
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult, ToolResultStatus};
-    use anyhow::{anyhow, bail, ensure, Result};
-    use serde_json::{json, Value};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolExecutor,
+        ToolResult,
+        ToolResultStatus,
+    };
+    use anyhow::{
+        anyhow,
+        bail,
+        ensure,
+        Result,
+    };
+    use serde_json::{
+        json,
+        Value,
+    };
     use tempfile::TempDir;
 
-    use super::{finish_search, search_file, GrepExecutor, MatchCollector, MAX_OUTPUT_BYTES};
+    use super::{
+        finish_search,
+        search_file,
+        GrepExecutor,
+        MatchCollector,
+        MAX_OUTPUT_BYTES,
+    };
 
     #[cfg(unix)]
     fn create_file_symlink(original: &Path, link: &Path) -> std::io::Result<()> {

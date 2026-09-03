@@ -1,18 +1,35 @@
-use std::{
-    future::Future,
-    path::{Path, PathBuf},
-    pin::Pin,
-    process::{Command, Output, Stdio},
-    thread,
-    time::Duration,
+use std::future::Future;
+use std::path::{
+    Path,
+    PathBuf,
 };
+use std::pin::Pin;
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
+use std::thread;
+use std::time::Duration;
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
-use anyhow::{Context, Result};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use serde::Deserialize;
 
 use crate::workspace::{
-    canonical_working_dir, expected_failure, truncate_tail, DEFAULT_MAX_LINES, MAX_OUTPUT_BYTES,
+    canonical_working_dir,
+    expected_failure,
+    truncate_tail,
+    DEFAULT_MAX_LINES,
+    MAX_OUTPUT_BYTES,
 };
 
 #[derive(Deserialize)]

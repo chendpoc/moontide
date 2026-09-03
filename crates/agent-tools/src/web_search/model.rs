@@ -1,4 +1,6 @@
-use std::{fmt, future::Future, pin::Pin};
+use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 
 pub(crate) const DEFAULT_MAX_RESULTS: usize = 5;
 

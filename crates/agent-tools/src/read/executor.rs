@@ -1,17 +1,34 @@
-use std::{
-    future::Future,
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf},
-    pin::Pin,
+use std::future::Future;
+use std::io::{
+    BufRead,
+    BufReader,
 };
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::pin::Pin;
 
-use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResult};
-use anyhow::{Context, Result};
+use agent_core::tools::{
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolResult,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use serde::Deserialize;
 
 use crate::workspace::{
-    self, canonical_working_dir, expected_failure, relative_display_path, truncate_from_start,
-    DEFAULT_MAX_LINES, MAX_OUTPUT_BYTES,
+    self,
+    canonical_working_dir,
+    expected_failure,
+    relative_display_path,
+    truncate_from_start,
+    DEFAULT_MAX_LINES,
+    MAX_OUTPUT_BYTES,
 };
 
 #[derive(Deserialize)]

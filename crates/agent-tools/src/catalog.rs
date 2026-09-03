@@ -1,7 +1,19 @@
 use agent_core::tools::Tool;
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
 
-use crate::{bash, edit, find, grep, read, web_search, write};
+use crate::{
+    bash,
+    edit,
+    find,
+    grep,
+    read,
+    web_search,
+    write,
+};
 
 type ToolBuilder = fn() -> Result<Tool>;
 

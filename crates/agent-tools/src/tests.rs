@@ -1,8 +1,13 @@
 use agent_core::tools::ToolRegistry;
-use anyhow::{bail, ensure, Result};
+use anyhow::{
+    bail,
+    ensure,
+    Result,
+};
 use serde_json::json;
 
-use crate::{builtin_tool_definitions, catalog::ToolDefinition};
+use crate::builtin_tool_definitions;
+use crate::catalog::ToolDefinition;
 
 // 测试场景：构建完整 builtin catalog 并交给唯一运行时 registry；预期 definition 名称有序、唯一且与产出 spec 配对；不变量/副作用：build 只组装工具，不执行 grep 文件 IO。
 #[test]
@@ -47,7 +52,11 @@ async fn find_discovers_files_by_glob_and_respects_ignore_rules() -> Result<()> 
     use std::fs;
     use std::sync::Arc;
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolExecutor,
+    };
     use serde_json::json;
     use tempfile::TempDir;
 
@@ -90,7 +99,12 @@ async fn find_rejects_invalid_targets_and_bounds_results() -> Result<()> {
     use std::fs;
     use std::sync::Arc;
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResultStatus};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolExecutor,
+        ToolResultStatus,
+    };
     use serde_json::json;
     use tempfile::TempDir;
 
@@ -192,7 +206,12 @@ fn web_search_schema_matches_the_typed_input_contract() -> Result<()> {
 async fn read_write_edit_round_trip() -> Result<()> {
     use std::sync::Arc;
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResultStatus};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolExecutor,
+        ToolResultStatus,
+    };
     use serde_json::json;
     use tempfile::TempDir;
 
@@ -241,7 +260,12 @@ async fn read_write_edit_round_trip() -> Result<()> {
 async fn bash_runs_a_simple_command() -> Result<()> {
     use std::sync::Arc;
 
-    use agent_core::tools::{ToolCall, ToolContent, ToolExecutor, ToolResultStatus};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolExecutor,
+        ToolResultStatus,
+    };
     use serde_json::json;
     use tempfile::TempDir;
 

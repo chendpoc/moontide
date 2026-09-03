@@ -4,11 +4,14 @@ mod model;
 mod providers;
 mod spec;
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 
 use agent_core::tools::Tool;
-use anyhow::{Context, Result};
-
+use anyhow::{
+    Context,
+    Result,
+};
 pub(crate) use executor::WebSearchExecutor;
 
 pub(crate) const NAME: &str = "web_search";
