@@ -28,6 +28,7 @@
 
 ## 变更记录
 
+- 2026-09-03：CLI 旧 REPL 重构为 Harness Console：默认装配 Progress 直播渲染、`/new` `/sessions` `/resume` `/status` `/thinking`、行末 `\` 续行，以及无 Session 也可打开 `/settings`。
 - 2026-08-18：确认 Desktop v0.1 开发方向：单窗口、单活跃 Session、Turn 串行；`agent-core` 主干进入稳定底座阶段，下一阶段转向 Desktop Shell 宿主能力；多 Session 并发、scheduler、多 Agent 后置。
 
 - 2026-08-17：`cli` R1 完成：加入 `moontide` binary、clap/config/env 解析、create/resume dispatch、one-shot stdout/stderr 边界与 fail-closed Ask handler；workspace 197 tests、fmt/clippy 通过，等待 Review。

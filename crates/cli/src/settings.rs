@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
 use std::{
     env,
     fs,
@@ -27,6 +28,7 @@ use agent::llm::{
 use agent::{
     DiagnosticPersistence,
     PersistenceConfig,
+    ProgressObserver,
     SessionPersistence,
     ThinkingLevel,
 };
@@ -89,6 +91,7 @@ pub(crate) struct GlobalConfigStore {
     pub(crate) thinking_level: Option<ThinkingLevel>,
     pub(crate) persistence: PersistenceConfig,
     pub(crate) input_owner: Option<InputOwner>,
+    pub(crate) host_progress: Option<Arc<dyn ProgressObserver>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -378,6 +381,7 @@ fn default_non_llm_global_config_store() -> Result<GlobalConfigStore> {
             diagnostic: DiagnosticPersistence::Off,
         },
         input_owner: None,
+        host_progress: None,
     })
 }
 
@@ -852,6 +856,7 @@ mod tests {
                 diagnostic: DiagnosticPersistence::Off,
             },
             input_owner: None,
+            host_progress: None,
         };
 
         persist_global_config_store(&args, &settings).expect("settings should persist");

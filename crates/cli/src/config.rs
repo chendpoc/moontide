@@ -20,6 +20,7 @@ use crate::approval::{
     NonInteractiveApproval,
 };
 use crate::args::CliArgs;
+use crate::console_render::FanoutObserver;
 use crate::settings::{
     ApprovalPolicy,
     GlobalConfigStore,
@@ -71,13 +72,7 @@ pub(crate) fn resolve_agent_config_with(
             None => Some(Arc::new(NonInteractiveApproval)),
         },
     };
-    let progress = match settings.trace_mode {
-        TraceMode::Off => None,
-        TraceMode::Events | TraceMode::EventsAndThinking => {
-            Some(Arc::new(TraceObserver::new(settings.trace_mode))
-                as Arc<dyn agent::ProgressObserver>)
-        }
-    };
+    let progress = assemble_progress(settings);
     Ok(agent::AgentConfig {
         cwd: paths.cwd,
         sessions_dir: paths.sessions_dir,
@@ -92,6 +87,25 @@ pub(crate) fn resolve_agent_config_with(
         progress,
         persistence: settings.persistence,
     })
+}
+
+fn assemble_progress(settings: &GlobalConfigStore) -> Option<Arc<dyn agent::ProgressObserver>> {
+    let mut observers = Vec::new();
+    if let Some(host) = settings.host_progress.clone() {
+        observers.push(host);
+    }
+    match settings.trace_mode {
+        TraceMode::Off => {}
+        TraceMode::Events | TraceMode::EventsAndThinking => {
+            observers.push(Arc::new(TraceObserver::new(settings.trace_mode))
+                as Arc<dyn agent::ProgressObserver>);
+        }
+    }
+    match observers.len() {
+        0 => None,
+        1 => Some(observers.remove(0)),
+        _ => Some(Arc::new(FanoutObserver { observers }) as Arc<dyn agent::ProgressObserver>),
+    }
 }
 
 impl From<ApprovalPolicy> for CodingPresetPolicy {

@@ -33,7 +33,9 @@ pub use agent_core::r#loop::{
 };
 pub use agent_core::tools::{
     ToolCall,
+    ToolContent,
     ToolResult,
+    ToolResultStatus,
 };
 pub use coding_preset::{
     CODING_PRESET_EXCLUDED,

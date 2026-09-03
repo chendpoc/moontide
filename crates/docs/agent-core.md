@@ -24,7 +24,7 @@ cli（纯壳）→ agent（组合根）
 | `agent-core` | provider-neutral 协议、session、tool runtime contract、事件、请求组装和运行编排 | CLI 呈现、preset、第一方 builtin 实现 |
 | `agent-tools` | 第一方 tool catalog、spec 与 executor | runtime registry、permission、loop |
 | `agent` | preset、provider、tool/permission 组合、turn 输入解析 | 在组合根复制内核时序 |
-| `cli` | 参数、REPL、渲染 | 业务状态与内核策略 |
+| `cli` | 参数、Harness Console、渲染 | 业务状态与内核策略 |
 
 依赖只能向下：`agent-tools → agent-core`，`agent → agent-core + agent-tools`，`cli → agent`。`agent-core` 不反向依赖任何上层 crate。
 

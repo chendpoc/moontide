@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use agent::llm::{
     AdapterFamily,
     ProviderId,
@@ -100,7 +102,7 @@ pub(crate) struct SettingCatalog {
 }
 
 impl SettingCatalog {
-    pub(crate) fn from_runtime(settings: &GlobalConfigStore, agent: &Agent) -> Result<Self> {
+    pub(crate) fn from_runtime(settings: &GlobalConfigStore, cwd: &Path) -> Result<Self> {
         let provider_values = list_provider_ids()
             .iter()
             .map(|provider_id| provider_id.as_str().to_string())
@@ -256,7 +258,7 @@ impl SettingCatalog {
                     id: SettingId::Cwd,
                     label: "Working directory",
                     description: "Session working directory and Project Instructions root",
-                    current_value: agent.cwd().display().to_string(),
+                    current_value: cwd.display().to_string(),
                     values: None,
                     apply: SettingApplyEffect::ReadOnly,
                     sync: sync_noop,
@@ -342,7 +344,7 @@ pub(crate) async fn apply_setting_change(
     effect: SettingApplyEffect,
     previous_settings: &GlobalConfigStore,
     settings: &mut GlobalConfigStore,
-    agent: &mut Agent,
+    agent: Option<&mut Agent>,
     args: &CliArgs,
 ) -> Result<()> {
     if matches!(effect, SettingApplyEffect::ReadOnly) {
@@ -350,16 +352,18 @@ pub(crate) async fn apply_setting_change(
     }
 
     persist_global_config_store(args, settings)?;
-    let apply_result = match effect {
-        SettingApplyEffect::NextTurn => agent.apply_turn_limits(
+    let apply_result = match (effect, agent) {
+        (SettingApplyEffect::NextTurn, Some(agent)) => agent.apply_turn_limits(
             settings.max_steps,
             settings.max_tokens,
             settings.thinking_level,
         ),
-        SettingApplyEffect::ReloadAgent => {
+        (SettingApplyEffect::NextTurn, None) => Ok(()),
+        (SettingApplyEffect::ReloadAgent, Some(agent)) => {
             reload_agent_from_persisted_store(args, settings, agent).await
         }
-        SettingApplyEffect::ReadOnly => Ok(()),
+        (SettingApplyEffect::ReloadAgent, None) => Ok(()),
+        (SettingApplyEffect::ReadOnly, _) => Ok(()),
     };
     if let Err(error) = apply_result {
         if let Err(restore_error) = persist_global_config_store(args, previous_settings) {
@@ -378,8 +382,10 @@ pub(crate) async fn reload_agent_from_persisted_store(
     agent: &mut Agent,
 ) -> Result<()> {
     let input_owner = settings.input_owner.clone();
+    let host_progress = settings.host_progress.clone();
     let mut reloaded = load_persisted_global_config_store(args)?;
     reloaded.input_owner = input_owner;
+    reloaded.host_progress = host_progress;
     let config = resolve_agent_config(args, &reloaded)?;
     agent.reload(config).await?;
     *settings = reloaded;
@@ -591,9 +597,7 @@ mod tests {
         let mut settings =
             crate::settings::load_global_config_store(&args).expect("global config store");
         settings.api_key = "secret".into();
-        let config = resolve_agent_config(&args, &settings).expect("config");
-        let agent = Agent::create(config).expect("agent");
-        let catalog = SettingCatalog::from_runtime(&settings, &agent).expect("catalog");
+        let catalog = SettingCatalog::from_runtime(&settings, directory.path()).expect("catalog");
         let labels: Vec<_> = catalog.entries().iter().map(|entry| entry.label).collect();
         assert!(!labels.iter().any(|label| label.contains("session id")));
         assert!(!labels.iter().any(|label| label.contains("runs")));
@@ -657,9 +661,8 @@ mod tests {
         let mut settings =
             crate::settings::load_global_config_store(&args).expect("global config store");
         settings.api_key = "deepseek-key".into();
-        let config = resolve_agent_config(&args, &settings).expect("agent config");
-        let agent = Agent::create(config).expect("agent");
-        let mut catalog = SettingCatalog::from_runtime(&settings, &agent).expect("catalog");
+        let mut catalog =
+            SettingCatalog::from_runtime(&settings, directory.path()).expect("catalog");
         let filtered = catalog.filter_indices("provider");
         assert_eq!(filtered.len(), 1);
         assert_eq!(

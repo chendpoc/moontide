@@ -14,7 +14,7 @@ pub(crate) struct CliArgs {
     #[arg(long)]
     pub(crate) session: Option<String>,
 
-    /// Execute one user Turn and exit; without this flag the R1 shell stops at REPL dispatch.
+    /// Execute one user Turn and exit; without this flag the shell opens the Harness Console.
     #[arg(long)]
     pub(crate) prompt: Option<String>,
 
