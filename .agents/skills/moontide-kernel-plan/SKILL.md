@@ -181,7 +181,7 @@ User Parallel Task 默认从 `Trace`（追调用链）、`Review`（检查契约
 
 设计文档 ☑ 后，**必须**走子 skill [batch-implement](batch-implement/SKILL.md)：
 
-1. 从 **DESIGN.md**（+ README 公开 API）在 GitHub 创建 Issue（Review 批 + 细 TASK；可参考子 skill 内 [`llm-issue.example.md`](batch-implement/llm-issue.example.md)）
+1. 从 **DESIGN.md**（+ README 公开 API）在 GitHub 创建 Issue（Review 批 + 细 TASK；可参考子 skill 内 [`llm-TASKS.example.md`](batch-implement/llm-TASKS.example.md)）
 2. 与用户确认本批 TASK、User Parallel Task 和 Shared Acceptance（默认一个 Review 批配一个用户任务）
 3. 实现 + `just check` + 批次自检；用户并行完成 User Parallel Task → **停等用户 git diff review**
 4. 用户说 **commit** 后再提交；勾选 TASK → 下一批

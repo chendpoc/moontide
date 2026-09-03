@@ -34,14 +34,14 @@ docs/
 
 1. [`AGENTS.md`](../AGENTS.md)：每 turn 注入 LLM 的 runtime 硬约束；
 2. [`crates/docs/engineering-handbook.md`](../crates/docs/engineering-handbook.md)：Rust 工程规则与完整判据；
-3. [`crates/docs/`](../crates/docs/) 中标记为“当前”的 Rust 系统设计；
-4. 对应源码模块的 README/DESIGN：局部 API、实现和不变量；
+3. [`crates/docs/`](../crates/docs/) 中 `design/`、`features/` 与根目录当前系统设计；
+4. 对应 crate `DESIGN.md` + 模块 `README.md`：局部 API、实现和不变量；
 5. [`TODO.md`](../TODO.md)：当前执行优先级与完成状态，不覆盖架构；
 6. [`product/`](product/) 与 [`guides/`](guides/)：产品方向和操作流程；
 7. [`spec/`](spec/) 与 [`notes/`](notes/)：候选、draft、讨论和研究；
 8. [`archive/`](archive/)：历史材料，仅供追溯。
 
-`spec` 或 `notes` 中的“定稿”“开发计划”不自动成为 Rust 当前设计。架构确认后，系统设计写入 `crates/docs`，模块细节写入源码目录 README/DESIGN。
+`spec` 或 `notes` 中的“定稿”“开发计划”不自动成为 Rust 当前设计。架构确认后，跨 crate 设计写入 `crates/docs/design/` 或 `features/`，模块细节写入 crate `DESIGN.md` + `src/{mod}/README.md`。
 
 ## 3. 常用阅读路径
 
@@ -51,7 +51,7 @@ docs/
 
 ### 修改 Agent Core / TurnEvent
 
-[`crates/docs/engineering-handbook.md`](../crates/docs/engineering-handbook.md) → [`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → 对应模块 README/DESIGN
+[`crates/docs/engineering-handbook.md`](../crates/docs/engineering-handbook.md) → [`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → [`crates/agent-core/DESIGN.md`](../crates/agent-core/DESIGN.md) → 对应模块 [`README.md`](../crates/agent-core/README.md)
 
 ### 设计 Agent Runtime 产品 API
 
@@ -59,19 +59,19 @@ docs/
 
 ### 修改 Desktop Shell
 
-[`product/desktop-development-direction.md`](product/desktop-development-direction.md) → [`crates/agent/README.md`](../crates/agent/README.md) → Desktop 模块 README/DESIGN（实现前建立）
+[`product/desktop-development-direction.md`](product/desktop-development-direction.md) → [`crates/moontide-desktop/DESIGN.md`](../crates/moontide-desktop/DESIGN.md) → [`crates/moontide-desktop/docs/`](../crates/moontide-desktop/docs/)
 
 ### 修改 Context / Session
 
-[`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → [`crates/agent-core/src/session/DESIGN.md`](../crates/agent-core/src/session/DESIGN.md) → [`notes/context/context-analysis.md`](notes/context/context-analysis.md)
+[`crates/docs/agent-core.md`](../crates/docs/agent-core.md) → [`crates/agent-core/DESIGN.md#session`](../crates/agent-core/DESIGN.md#session) → [`notes/context/context-analysis.md`](notes/context/context-analysis.md)
 
 ### 修改 LLM Provider / API 适配层
 
-[`guides/pi-llm-provider-study-checklist.md`](guides/pi-llm-provider-study-checklist.md) → [`crates/agent-core/src/llm/README.md`](../crates/agent-core/src/llm/README.md) → [`crates/agent-core/src/llm/DESIGN.md`](../crates/agent-core/src/llm/DESIGN.md) → [`notes/llm/edge-local-models.md`](notes/llm/edge-local-models.md)
+[`crates/docs/features/LLM-FOUR-AXIS.md`](../crates/docs/features/LLM-FOUR-AXIS.md) → [`crates/agent-core/DESIGN.md#llm`](../crates/agent-core/DESIGN.md#llm) → [`crates/agent-core/src/llm/README.md`](../crates/agent-core/src/llm/README.md) → [`notes/llm/edge-local-models.md`](notes/llm/edge-local-models.md)
 
 ### 修改 Plugin / MCP / Sidecar
 
-[`product/platform-strategy.md`](product/platform-strategy.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
+[`product/platform-strategy.md`](product/platform-strategy.md) → [`../crates/docs/candidates/extension-request-pipeline.md`](../crates/docs/candidates/extension-request-pipeline.md) · [`../crates/docs/candidates/extension-sidecar-runtime.md`](../crates/docs/candidates/extension-sidecar-runtime.md) → [`notes/runtime/runtime-multilang.md`](notes/runtime/runtime-multilang.md)
 
 ## 4. 文档归档规则
 
@@ -80,7 +80,7 @@ docs/
 | 内容 | 应放置位置 | 不应放置位置 |
 |------|------------|--------------|
 | 产品定位、用户、产品族和非目标 | `product/` | `spec/` |
-| 当前 Rust 系统 owner、边界和不变量 | `crates/docs/`（文首标记当前） | `docs/spec/` |
+| 当前 Rust 系统 owner、边界和不变量 | `crates/docs/design/`、`features/` 或根目录 `agent-core.md` | `docs/spec/` |
 | 候选系统规格、未确认 schema | `spec/` | 写成当前实现承诺 |
 | 可重复执行的开发或评测步骤 | `guides/` | `product/` |
 | 调研、备忘、重构计划和未验证假设 | `notes/<domain>/` | 当前 Rust 文档 |

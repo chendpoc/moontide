@@ -378,7 +378,7 @@ merge 后进入 `ResolvedProviderConfig.profile` 与 `LlmCallConfig.profile`。
 `ResolvedProviderConfig`，再由 bootstrap 转换为 `AdapterConfig`。
 
 完整 Feature 见 [`crates/docs/features/LLM-FOUR-AXIS.md`](../docs/features/LLM-FOUR-AXIS.md)；
-历史 provider-config 修复见 [`llm-provider-config-fix.md`](../docs/llm-provider-config-fix.md)。
+历史 provider-config 修复见 [`llm-provider-config-fix.md`](../docs/archive/plans/llm-provider-config-fix.md)。
 
 ---
 

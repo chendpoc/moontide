@@ -2,14 +2,14 @@
 
 > 历次设计讨论沉淀的位置与主题。以下路径均相对于项目根 `/Users/chenjiayu/code/agent-learning/moontide/`。
 
-## 候选设计文档（`crates/docs/`）
+## 文档索引（`crates/docs/`）
 
 | 文档 | 主题 |
 |---|---|
-| `crates/docs/extension-request-pipeline.md` | 插件设计 Agent：用户扩展需求处理链路（意图澄清 → 判断 → draft → review → judge 门禁） |
-| `crates/docs/tiered-context-memory.md` | 分层 Context 与长期记忆：L0/L1/L2 懒加载 + session→memory 蒸馏（借鉴 OpenViking） |
-| `crates/docs/extension-sidecar-runtime.md` | 扩展边界与 Sidecar Runtime：通信四层、隔离、runtime 成本分配（共享 runtime 默认） |
-| `crates/docs/logging-and-session-design.md` | 日志与 Session：三流分离 + session log 四不变量 + 双写原则 |
+| `crates/docs/candidates/extension-request-pipeline.md` | 插件设计 Agent：用户扩展需求处理链路 |
+| `crates/docs/candidates/tiered-context-memory.md` | 分层 Context 与长期记忆 |
+| `crates/docs/candidates/extension-sidecar-runtime.md` | 扩展边界与 Sidecar Runtime |
+| `crates/docs/design/logging-and-session-design.md` | 日志与 Session：三流分离 + persistence policy |
 
 ## 当前 Rust 契约与架构
 
@@ -17,8 +17,8 @@
 |---|---|
 | `crates/docs/agent-core.md` | Rust Agent Core 系统设计：八模块 owner、依赖、请求组装与 conformance |
 | `crates/agent-core/DESIGN.md#event` | Rust Agent Event、derive、dispatcher 与 recorder 边界 |
-| `crates/agent-core/src/loop/README.md` / `DESIGN.md` | Loop R1 对外契约与状态机、ownership、retry/cancel/tool round 技术设计 |
-| `crates/moontide-desktop/DESIGN.md` | integrated Desktop runtime 目标：typed invoke、Host ownership、事件 seam 与错误接受语义（尚未实现） |
+| `crates/agent-core/DESIGN.md#loop` | Loop R1 对外契约与状态机、ownership、retry/cancel/tool round 技术设计 |
+| `crates/moontide-desktop/DESIGN.md` | integrated Desktop runtime：typed invoke、Host ownership、事件 seam（v0.1 部分落地，见 [`TODO.md`](../../../TODO.md) §2） |
 | `docs/archive/spec/context-composer.md` | TypeScript 历史 Context Composer，仅供追溯 |
 | `docs/notes/runtime/agent-kernel-architecture.md` | 内核架构收敛：crate 判据、多语言 trade-off、TurnEvent dispatch、决策清单 |
 
@@ -56,7 +56,7 @@
 
 > Desktop D1 宿主契约（2026-08-20；crate 边界于 2026-09-01 superseded）：`DesktopHostActor` 独占一个 `agent::Agent`；边界为单窗口、单活跃 Session、单活跃 Turn、同进程、Turn 串行。UI 只经 `DesktopHostHandle` 发送 submit/cancel/approval/shutdown command，经单一有序 `EventBuffer` 暴露的 `DesktopEventStream` 接收事件；高频 assistant snapshot 按 `(turn, llm_call_id)` 合并，approval、终态、错误和 shutdown 保持可见，丢失后由 `DesktopSnapshot` 建立新 resync 基线，不提供旧 seq replay。RenderState 属于 UI，按完整 `AssistantResponseSnapshot` 替换 draft，`AssistantFinalized` 后才写入 conversation projection；`agent-core::session` 提供只读 SessionQuery，`agent` re-export facade，Desktop 不解析 JSONL。Host ownership 与事件不变量继续有效，但 Host 不再保留为独立 `desktop` 产品 crate，目标是迁入 `moontide-desktop` 内部模块。
 
-> Desktop D4 process architecture（2026-08-20，2026-08-21 重规划；2026-09-01 superseded/归档）：原 `moontide-agent-host`、framed process transport 与 `desktop-supervisor` 方向不再是承诺目标，也不保留兼容路径。历史设计仅供追溯：[`crates/docs/desktop-process-architecture.md`](../../../crates/docs/desktop-process-architecture.md)。未来出现真实跨进程、后台存活、多客户端或隔离需求时重新 Discovery，不默认复活 D4。
+> Desktop D4 process architecture（2026-08-20，2026-08-21 重规划；2026-09-01 superseded/归档）：原 `moontide-agent-host`、framed process transport 与 `desktop-supervisor` 方向不再是承诺目标，也不保留兼容路径。历史设计仅供追溯：[`crates/docs/archive/desktop/desktop-process-architecture.md`](../../../crates/docs/archive/desktop/desktop-process-architecture.md)。未来出现真实跨进程、后台存活、多客户端或隔离需求时重新 Discovery，不默认复活 D4。
 
 > Desktop integrated runtime（2026-09-01，已实现）：`moontide-desktop` 拥有 Tauri shell、`DesktopRuntime`/`DesktopRuntimeHandle`、内部 `DesktopHost` actor 与 WebView-facing DTO；独立 `desktop` crate 与 `desktop-supervisor` 已删除。WebView 通过 typed invoke 直连 runtime/Host；active path 无 Handshake、`request_id`、protocol client/transport/server。事件 seam 保留 `connection_epoch`、`seq`、snapshot/resync。设计见 [`crates/moontide-desktop/DESIGN.md`](../../../crates/moontide-desktop/DESIGN.md)。
 

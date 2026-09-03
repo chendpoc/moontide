@@ -17,7 +17,7 @@ TS 时代的讨论与实现文档已归档到 [`../archive/`](../archive/)，不
 | [`runtime/kocoro-architecture.md`](runtime/kocoro-architecture.md) | Kocoro/Shannon 参考架构分析 |
 | [`runtime/budget-aware-agent-harness.md`](runtime/budget-aware-agent-harness.md) | Agent Harness 的 OS 类比、预算感知任务拆分、JIT Context、语义调度与 pi-dynamic-workflow 启发 |
 | [`runtime/declarative-permission-rules-refactor.md`](runtime/declarative-permission-rules-refactor.md) | Tool permission 声明式规则与运行时 map 的小范围重构方案 |
-| [`runtime/loop-owned-llm-event-consumption-refactor.md`](runtime/loop-owned-llm-event-consumption-refactor.md) | Loop 统一消费 provider-neutral LLM 事件流的候选重构需求 |
+| [`loop-owned-llm-event-consumption-refactor`](../../crates/docs/plans/loop-owned-llm-event-consumption-refactor.md) | Loop 统一消费 provider-neutral LLM 事件流的候选重构需求 |
 
 ## Context
 

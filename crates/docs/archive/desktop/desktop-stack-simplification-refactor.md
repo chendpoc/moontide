@@ -3,8 +3,8 @@
 > **性质：** 工程重构与实施顺序
 > **状态：** R2 已完成（2026-08-26）；旧 R0/R1/R3–R5 因产品目标变更而 superseded
 > **范围门禁：** 先完成 Single-Agent Terminal 文档与视觉 review，再另开实施 Work Packet
-> **交互权威：** [`../desktop/UI-INTERACTION.md`](../desktop/UI-INTERACTION.md)
-> **视觉权威：** [`../desktop/UI-VISUAL-DIRECTION.md`](../desktop/UI-VISUAL-DIRECTION.md)
+> **交互权威：** [`../../../moontide-desktop/docs/UI-INTERACTION.md`](../../../moontide-desktop/docs/UI-INTERACTION.md)
+> **视觉权威：** [`../../../moontide-desktop/docs/UI-VISUAL-DIRECTION.md`](../../../moontide-desktop/docs/UI-VISUAL-DIRECTION.md)
 
 ## 1. 动机
 
@@ -67,7 +67,7 @@ flowchart TB
 ### R1 — 文档对齐（本设计批，无行为变更）
 
 - [x] Scope 与 Interaction 使用 Single-Agent Terminal 术语；
-- [x] 新增 [`UI-VISUAL-DIRECTION.md`](../desktop/UI-VISUAL-DIRECTION.md)；
+- [x] 新增 [`UI-VISUAL-DIRECTION.md`](../../../moontide-desktop/docs/UI-VISUAL-DIRECTION.md)；
 - [x] README 与 UI-STATE 区分 D3-PF 现状和产品目标；
 - [x] 独立 Standards / Spec review 通过；
 - [ ] 用户视觉 review 后冻结本批 source of truth。
@@ -110,7 +110,7 @@ R2 的完成事实与既有验收证据保持不变；本设计批不重复执�
 
 ### R5 — TASKS 同步（后置）
 
-只在用户批准新的 implementation plan 后更新 [`desktop/TASKS.md`](../desktop/TASKS.md)，
+只在用户批准新的 implementation plan 后更新 [`moontide-desktop/DESIGN.md`](../../../moontide-desktop/DESIGN.md)，
 不得把本轮设计讨论直接转成未经 review 的工程任务。
 
 ## 4. 明确不做

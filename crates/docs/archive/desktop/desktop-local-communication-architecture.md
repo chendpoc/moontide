@@ -5,7 +5,7 @@ Document status: **已 superseded（2026-09-01）**
 Decision status: **已 superseded；有效决定已并入 integrated runtime**
 
 Canonical contract:
-[`crates/moontide-desktop/DESIGN.md`](../moontide-desktop/DESIGN.md)
+[`crates/moontide-desktop/DESIGN.md`](../../../moontide-desktop/DESIGN.md)
 
 Scope: historical design input for the same-process Tauri backend.
 

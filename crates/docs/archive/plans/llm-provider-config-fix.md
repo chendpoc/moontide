@@ -1,8 +1,7 @@
 # LLM Provider 与启动配置修复计划
 
-> **状态：** 已完成实现与独立复审（2026-08-26，待用户 diff review）
-> **目标版本：** Agnes provider / startup layering 当前未提交批次的修复版
-> **关联：** [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`startup-config-layering.md`](startup-config-layering.md) · [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#llm) · [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
+> **状态：** 已完成（2026-08-26 实现与复审；2026-09 LLM 四轴批次 supersede 部分细节，以 [`../../features/LLM-FOUR-AXIS.md`](../../features/LLM-FOUR-AXIS.md) 为准）
+> **关联：** [`../../design/agnes-provider-integration.md`](../../design/agnes-provider-integration.md) · [`../../design/startup-config-layering.md`](../../design/startup-config-layering.md) · [`../../../agent-core/DESIGN.md`](../../../agent-core/DESIGN.md#llm) · [`../../../agent/DESIGN.md`](../../../agent/DESIGN.md) · [`../../../cli/DESIGN.md`](../../../cli/DESIGN.md)
 
 ## 1. 问题与目标
 

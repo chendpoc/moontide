@@ -20,7 +20,7 @@
 - Go 后台监控、代理或调度服务；
 - extension request pipeline：需求澄清 → brief → review → judge。
 
-相关候选设计：[`../../../crates/docs/extension-request-pipeline.md`](../../../crates/docs/extension-request-pipeline.md)、[`../../../crates/docs/extension-sidecar-runtime.md`](../../../crates/docs/extension-sidecar-runtime.md)。
+相关候选设计：[`../../../crates/docs/candidates/extension-request-pipeline.md`](../../../crates/docs/candidates/extension-request-pipeline.md)、[`../../../crates/docs/candidates/extension-sidecar-runtime.md`](../../../crates/docs/candidates/extension-sidecar-runtime.md)。
 
 ### 本地模型与路由
 

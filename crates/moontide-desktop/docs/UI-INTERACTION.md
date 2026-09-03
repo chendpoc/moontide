@@ -5,7 +5,7 @@
 > **范围：** [`UI-V0.1-SCOPE.md`](UI-V0.1-SCOPE.md)
 > **视觉：** [`UI-VISUAL-DIRECTION.md`](UI-VISUAL-DIRECTION.md)
 > **当前 projection：** [`UI-STATE.md`](UI-STATE.md)
-> **当前 Host contract：** [`README.md`](README.md)
+> **当前 Host contract：** [`../README.md`](../README.md)
 
 ## 1. 产品状态
 

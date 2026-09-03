@@ -1,6 +1,6 @@
 # 插件设计 Agent：用户扩展需求处理链路（候选设计）
 
-> 状态：候选设计（notes），未实现。当前 Rust 系统设计见 [`agent-core.md`](agent-core.md)；执行优先级见根 [`TODO.md`](../../TODO.md)，本候选不属于当前 Desktop v0.1。
+> 状态：候选设计（notes），未实现。当前 Rust 系统设计见 [`../agent-core.md`](../agent-core.md)；执行优先级见根 [`../../../TODO.md`](../../../TODO.md)，本候选不属于当前 Desktop v0.1。
 
 ## 背景
 

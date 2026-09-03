@@ -67,7 +67,7 @@ agent create/load/fork SessionStore
 | # | 模块 | 依赖 | 设计 | 实现 | 测试 | 备注 |
 |---|---|---|---|---|---|---|
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
-| 2 | `session` | llm + tools + event seam | ☑ | ☑ | ☑ | R1–R3；R4 开放项 [#27](https://github.com/chendpoc/moontide/issues/27) |
+| 2 | `session` | llm + tools + event seam | ☑ | ☑ | ☑ | R1–R4 接缝已实现 |
 | 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2 |
 | 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | sidecar 开放项 [#28](https://github.com/chendpoc/moontide/issues/28) |
 | 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成 |

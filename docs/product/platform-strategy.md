@@ -191,7 +191,7 @@ Sidecar 是 **受控 Node 能力域**（Rust spawn/kill、权限经 broker），
 | [`kocoro-architecture.md`](../notes/runtime/kocoro-architecture.md) | Go daemon / sidecar 参考 |
 | [`agent-run-hooks.md`](../archive/notes/runtime/agent-run-hooks.md) | 历史 Hook 候选 |
 | 历史 [`plugin-host.md`](../archive/notes/runtime/plugin-host.md) | Plugin host、MCP attach、tool registry |
-| [`event/DESIGN.md`](../../crates/agent-core/src/event/DESIGN.md) | 当前 Rust Turn 级事件与 legacy Agent Event 边界 |
+| [`event`（DESIGN#event）](../../crates/agent-core/DESIGN.md#event) | 当前 Rust Turn 级事件与 legacy Agent Event 边界 |
 
 ---
 

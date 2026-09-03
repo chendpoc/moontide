@@ -5,7 +5,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff 通常�
 
 # 拆任务 · 实现 · Review · Commit
 
-父 skill：[moontide-kernel-plan](../SKILL.md)。**Implementation 前置条件：** 对应模块 `README.md` + `DESIGN.md` 已由用户确认落盘。若功能价值、契约或设计仍不确定，先进入 Discovery，不把探索性代码当作产品实现。
+父 skill：[moontide-kernel-plan](../SKILL.md)。**Implementation 前置条件：** 对应模块短 `README.md` + crate 级 `DESIGN.md`（`agent-core` 锚点）已由用户确认落盘。若功能价值、契约或设计仍不确定，先进入 Discovery，不把探索性代码当作产品实现。
 
 用户扮演 **产品/架构决策参与者、学习者和最终 reviewer**；开发流程分为 **Tideforge（Implementer）** 与 **Tidewatch（Reviewer）** 两个角色。Tideforge 负责实现，Tidewatch 独立检查；两者可以由不同 agent 承担，也可以在没有多 agent 能力时由同一 agent 以新的 review phase 承担，但不能把实现摘要直接当作 review 证据。用户不需要具备 agent 产品架构经验，也不承担独立证明方案正确的责任。Tideforge 和 Tidewatch 都必须依据 README、DESIGN、AGENTS、现有源码、测试和可复现证据工作；**公开 API 以 README 为准**；实现细节以 **DESIGN.md** 为准。若实现中必须改公开签名，**停批、回架构对齐**，禁止静默改 API。
 
@@ -107,7 +107,7 @@ Tideforge 完成后必须记录：
 
 - changed files 和 diff 规模；
 - focused tests、workspace checks 和环境阻塞；
-- README/DESIGN/TASKS/PROGRESS 是否同步；
+- README/DESIGN/GitHub Issues/PROGRESS 是否同步；
 - 已知风险、未验证假设和未完成项。
 
 ### Review Report
@@ -172,7 +172,7 @@ Replan 交付至少包含：
 - **选项：**
 - **决定：**
 - **取舍与后果：**
-- **更新文件：** Work Packet / README / DESIGN / TASKS / PROGRESS
+- **更新文件：** Work Packet / README / DESIGN / GitHub Issues / PROGRESS
 ```
 
 Replan 完成后，不强行沿用旧 TASK；应从更新后的 Work Packet 和 source of truth 重新拆最小可交付切片。
@@ -361,7 +361,7 @@ Tideforge 完成实现、验证和自检后，**停止写代码**。先由 Tidew
 ### Implementation Evidence
 - **changed files：** {列表}
 - **验证：** {focused tests / `just check` / 环境阻塞}
-- **文档状态：** {README / DESIGN / TASKS / PROGRESS}
+- **文档状态：** {README / DESIGN / GitHub Issues / PROGRESS}
 - **未验证假设：** {列表或无}
 
 ### Tidewatch Review Report

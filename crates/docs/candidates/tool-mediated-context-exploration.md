@@ -2,7 +2,7 @@
 
 > **状态：讨论候选（未实现）**。本文记录关于大文件、多样数据源和有限上下文窗口的工具设计讨论；不改变当前 `agent-core`、`agent-tools` 或 `context` 契约。
 >
-> 当前契约：[`agent-core.md`](agent-core.md) · [`agent-core::tools`](../agent-core/src/tools/README.md) · [`agent-core::context`](../agent-core/src/context/README.md)
+> 当前契约：[`../agent-core.md`](../agent-core.md) · [`../../agent-core/src/tools/README.md`](../../agent-core/src/tools/README.md) · [`../../agent-core/src/context/README.md`](../../agent-core/src/context/README.md)
 
 ## 1. 问题
 

@@ -3,7 +3,7 @@
 > **性质：** MoonTide 组合根的对外契约。
 > **状态：** 初步可用版 Agent R1–R3 已实现；CLI 宿主基线已完成，Desktop v0.1 接入准备中。
 > **实现细节：** [`DESIGN.md`](DESIGN.md)。
-> **关联：** [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-tools/README.md`](../agent-tools/README.md) · [`../cli/README.md`](../cli/README.md)
+> **关联：** [`../agent-core/README.md`](../agent-core/README.md) · [`../agent-tools/README.md`](../agent-tools/README.md) · [`../cli/README.md`](../cli/README.md)
 
 ---
 
@@ -35,7 +35,7 @@ AgentConfig（显式解析值）
 
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
-| **`cli`** | 构造 `AgentConfig`、注入 approval handler、调用 `Agent::create/resume/turn` | 直接 import SessionStore/ToolRegistry/EventDispatcher |
+| **`cli`** | 构造 `AgentConfig`、注入 approval handler、调用 `Agent::create/resume/reload/turn` | 直接 import SessionStore/ToolRegistry/EventDispatcher |
 | **桌面/HTTP 入口** | 复用同一 Agent API，提供自己的 approval 与 cancellation | 复制 AgentLoop 状态机 |
 | **`agent-core`** | 提供 provider/session/tools/event/loop 契约 | 反向依赖 agent |
 | **`agent-tools`** | 提供第一方 ToolDefinition catalog | 决定 permission 或 session 生命周期 |
@@ -43,123 +43,22 @@ AgentConfig（显式解析值）
 
 ---
 
-## 公开 API
+## 公开入口
 
-```rust
-pub struct ResolvedProviderConfig {
-    pub provider_id: ProviderId,
-    pub model: String,
-    pub family: agent_core::llm::adapter::AdapterFamily,
-    pub base_url: String,
-    pub api_key: String,
-    pub openai_chat: agent_core::llm::normalize::openai_chat::OpenAiChatOptions,
-}
+- `AgentConfig`、`ResolvedProviderConfig`、`PersistenceConfig` — 宿主注入的显式配置（`agent` 不读环境变量）
+- `Agent::create` / `resume` / `reload` / `turn` — Session 生命周期与单 Turn 入口（须在 Tokio runtime 内）
+- `SessionQuery`、`latest_session_id` — 只读 Session 列举与查询（不创建 runtime `Agent`）
+- `ProjectPaths::resolve`、`write_settings_atomically` — 跨平台项目路径与设置原子写
+- `ProgressObserver`、`ProgressStatus` — TurnEvent 派生的只读 UI 观测（fail-open，不参与 Loop 决策）
+- `AgentEventLogStatus`、`flush_agent_event_log` — 可选诊断日志（默认 `DiagnosticPersistence::Off`）
 
-pub struct AgentConfig {
-    pub cwd: std::path::PathBuf,
-    pub sessions_dir: std::path::PathBuf,
-    pub runs_dir: std::path::PathBuf,
-    pub provider: ResolvedProviderConfig,
-    pub max_tokens: u32,
-    pub thinking_level: Option<agent_core::llm::protocol::ThinkingLevel>,
-    pub max_steps: u32,
-    pub tool_names: Vec<String>,
-    pub permissions: agent_core::r#loop::ToolPermissionMap,
-    pub approval: Option<std::sync::Arc<dyn agent_core::r#loop::ToolApprovalHandler>>,
-    pub progress: Option<std::sync::Arc<dyn agent::ProgressObserver>>,
-    pub persistence: PersistenceConfig,
-}
+完整类型签名与字段见 [`DESIGN.md`](DESIGN.md) §4。
 
-pub enum SessionPersistence {
-    Items,
-    Disabled, // reserved; current batch does not implement
-}
-
-pub enum DiagnosticPersistence {
-    Off,
-    Errors,
-    Normal,
-    Debug,
-}
-
-pub struct PersistenceConfig {
-    pub session: SessionPersistence,
-    pub diagnostic: DiagnosticPersistence,
-}
-
-pub struct Agent {
-    // private: owns one agent_core::loop::AgentLoop and stable session identity
-}
-
-pub fn latest_session_id(
-    sessions_dir: impl AsRef<std::path::Path>,
-) -> anyhow::Result<Option<String>>;
-
-pub use agent::session::{SessionItem, SessionSnapshot, SessionSummary};
-
-pub struct SessionQuery;
-
-impl SessionQuery {
-    pub fn new(sessions_dir: std::path::PathBuf) -> Self;
-    pub fn list(&self) -> anyhow::Result<Vec<SessionSummary>>;
-    pub fn load(&self, session_id: &str) -> anyhow::Result<SessionSnapshot>;
-}
-
-impl Agent {
-    pub fn create(config: AgentConfig) -> anyhow::Result<Self>;
-
-    pub fn resume(
-        config: AgentConfig,
-        session_id: &str,
-    ) -> anyhow::Result<Self>;
-
-    pub async fn reload(&mut self, config: AgentConfig) -> anyhow::Result<()>;
-
-    pub fn session_id(&self) -> &str;
-
-    pub async fn flush_progress(&self) -> anyhow::Result<()>;
-    pub fn progress_status(&self) -> Option<ProgressStatus>;
-    pub async fn flush_agent_event_log(&self) -> anyhow::Result<()>;
-    pub fn agent_event_log_status(&self) -> Option<AgentEventLogStatus>;
-    pub async fn turn(
-        &mut self,
-        text: String,
-        cancellation: tokio_util::sync::CancellationToken,
-    ) -> anyhow::Result<agent_core::llm::protocol::ModelResponse>;
-}
-```
-
-`AgentEventLogState`、`AgentEventLogStatus` 和 `AgentEventLogHandle` 由 crate root 导出；
-诊断 recorder 或 worker 启动失败不会阻断 Agent，宿主通过
-`agent_event_log_status()` 和 `flush_agent_event_log()` 读取并暴露该错误。
-
-`latest_session_id()` 只查询已持久化的 Session Item Log，不创建 runtime `Agent`。`AgentConfig` 只接收已经解析好的显式值。`agent` 不读取环境变量；CLI 或其他宿主负责把环境变量、参数和默认值解析成该结构。
+`AgentEventLogState`、`AgentEventLogStatus` 和 `AgentEventLogHandle` 由 crate root 导出；诊断 recorder 或 worker 启动失败不会阻断 Agent，宿主通过 `agent_event_log_status()` 和 `flush_agent_event_log()` 读取并暴露该错误。
 
 ### 平台路径策略
 
-`agent::platform` 是宿主共用的项目路径 seam。它只处理跨平台路径解析和设置文件原子替换，不读取环境变量、不解析设置 JSON，也不拥有 Session Item Log：
-
-```rust
-pub struct ProjectPaths {
-    pub cwd: std::path::PathBuf,
-    pub sessions_dir: std::path::PathBuf,
-    pub runs_dir: std::path::PathBuf,
-    pub settings_path: std::path::PathBuf,
-}
-
-impl ProjectPaths {
-    pub fn resolve(
-        cwd: std::path::PathBuf,
-        sessions_dir: Option<std::path::PathBuf>,
-        runs_dir: Option<std::path::PathBuf>,
-    ) -> anyhow::Result<Self>;
-}
-
-pub fn write_settings_atomically(
-    path: &std::path::Path,
-    bytes: &[u8],
-) -> anyhow::Result<()>;
-```
+`agent::platform` 是宿主共用的项目路径 seam：解析 `cwd` / sessions / runs / settings 路径，并提供设置文件原子替换；不读环境变量、不解析设置 JSON，也不拥有 Session Item Log。
 
 相对路径以 resolved `cwd` 为基准；默认目录为 `<cwd>/.moontide/sessions`、`<cwd>/.moontide/runs` 和 `<cwd>/.moontide/settings.json`。普通解析只做绝对化，不默认 `canonicalize`。CLI/其他宿主负责设置 schema、优先级、环境变量和 JSON 读写；`agent-core` 不依赖该 module。
 

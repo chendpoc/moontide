@@ -1,9 +1,9 @@
 # MoonTide Desktop 进程化架构
 
 > **状态：** 已归档 / superseded（2026-09-01）
-> **替代设计：** [`crates/moontide-desktop/DESIGN.md`](../moontide-desktop/DESIGN.md)
-> **历史实现设计：** [`crates/desktop/DESIGN.md`](../desktop/DESIGN.md)
-> **UI 契约：** [`../desktop/UI-STATE.md`](../desktop/UI-STATE.md)
+> **替代设计：** [`crates/moontide-desktop/DESIGN.md`](../../../moontide-desktop/DESIGN.md)
+> **历史实现设计：** [`../../../moontide-desktop/DESIGN.md`](../../../moontide-desktop/DESIGN.md)
+> **UI 契约：** [`../../../moontide-desktop/docs/UI-STATE.md`](../../../moontide-desktop/docs/UI-STATE.md)
 
 本文记录已取消的 D4 `moontide-agent-host` / framed process transport 方向，仅供追溯，
 不再定义 Desktop 的当前或长期承诺。已确认的新方向是在 `moontide-desktop` 内集成

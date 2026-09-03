@@ -74,8 +74,8 @@ DesktopHost
 
 1. 根目录 `AGENTS.md` 与 `UBIQUITOUS_LANGUAGE.md`；
 2. 本任务文档中经用户确认的 scope、ownership、acceptance 和 stop conditions；
-3. `crates/docs/desktop-process-architecture.md`；
-4. [`crates/desktop/README.md`](crates/desktop/README.md) 与 [`DESIGN.md`](crates/desktop/DESIGN.md)（含 `desktop::protocol` 模块）；
+3. `crates/docs/archive/desktop/desktop-process-architecture.md`；
+4. [`../../../moontide-desktop/README.md`](../../../moontide-desktop/README.md) 与 [`DESIGN.md`](../../../moontide-desktop/DESIGN.md)（含 protocol 模块）；
 5. `crates/desktop/README.md`、`DESIGN.md` 和当前测试；
 6. 当前 checkout 的实现代码；
 7. `crates/desktop-supervisor` 只作为 D4 已有基础，不作为本任务实现范围。
@@ -106,8 +106,8 @@ DesktopHost
 
 实现批次只允许修改下列 concern；每个 Work Packet 还需进一步收窄到具体文件：
 
-- `crates/docs/tauri-protocol-boundary-refactor.md`；
-- `crates/docs/desktop-process-architecture.md`；
+- `crates/docs/archive/desktop/tauri-protocol-boundary-refactor.md`；
+- `crates/docs/archive/desktop/desktop-process-architecture.md`；
 - `crates/desktop/**`（含 `desktop::protocol` 模块与 fixtures）；
 - `crates/moontide-desktop/**`；
 - workspace `Cargo.toml`、`Cargo.lock`、`justfile` 中与 Desktop 依赖或验证入口直接相关的行。

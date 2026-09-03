@@ -33,7 +33,7 @@ adapter option；`agent-core` 不拥有 vendor table。
 | 入站（SSE → `ModelStreamEvent`） | `reasoning_content` → `ThinkingPart` | 同上（OpenAI 族字段） |
 
 `agent::llm` 从 Agnes catalog entry 解析 option；OpenAI adapter 把 option 传给
-[`crates/agent-core/src/llm/normalize/openai_chat/thinking.rs`](../agent-core/src/llm/normalize/openai_chat/thinking.rs)。normalize 不读取 `ProviderId`。
+[`crates/agent-core/src/llm/normalize/openai_chat/thinking.rs`](../../agent-core/src/llm/normalize/openai_chat/thinking.rs)。normalize 不读取 `ProviderId`。
 
 ### Agnes Agent 模型 catalog
 
@@ -124,13 +124,13 @@ CLI / Desktop
 
 | 模块 | 路径 |
 |------|------|
-| Catalog / startup merge | [`crates/agent/src/llm/`](../agent/src/llm/) |
-| OpenAI normalize | [`crates/agent-core/src/llm/normalize/openai_chat/`](../agent-core/src/llm/normalize/openai_chat/) |
-| OpenAI adapter | [`crates/agent-core/src/llm/adapter/openai_chat/mod.rs`](../agent-core/src/llm/adapter/openai_chat/mod.rs) |
-| Agent re-export / bootstrap | [`crates/agent/src/llm/`](../agent/src/llm/)、[`bootstrap.rs`](../agent/src/bootstrap.rs) |
-| 启动分层计划 | [`crates/docs/startup-config-layering.md`](startup-config-layering.md) |
-| CLI | [`crates/cli/src/config.rs`](../cli/src/config.rs)、[`settings.rs`](../cli/src/settings.rs) |
-| Desktop | [`crates/moontide-desktop/src-tauri/src/bootstrap.rs`](../moontide-desktop/src-tauri/src/bootstrap.rs) |
+| Catalog / startup merge | [`crates/agent/src/llm/`](../../agent/src/llm/) |
+| OpenAI normalize | [`crates/agent-core/src/llm/normalize/openai_chat/`](../../agent-core/src/llm/normalize/openai_chat/) |
+| OpenAI adapter | [`crates/agent-core/src/llm/adapter/openai_chat/mod.rs`](../../agent-core/src/llm/adapter/openai_chat/mod.rs) |
+| Agent re-export / bootstrap | [`crates/agent/src/llm/`](../../agent/src/llm/)、[`bootstrap.rs`](../../agent/src/bootstrap.rs) |
+| 启动分层计划 | [`startup-config-layering.md`](startup-config-layering.md) |
+| CLI | [`crates/cli/src/config.rs`](../../cli/src/config.rs)、[`settings.rs`](../../cli/src/settings.rs) |
+| Desktop | [`crates/moontide-desktop/src-tauri/src/bootstrap.rs`](../../moontide-desktop/src-tauri/src/bootstrap.rs) |
 
 ### 设计取舍
 

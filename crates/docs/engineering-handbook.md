@@ -19,8 +19,8 @@ AGENTS.md
 crates/docs/engineering-handbook.md
   Rust 工程规则的完整解释、判据、示例、Conformance 方法
         │
-        ├── crates/docs/*.md（标记为“当前”的文档）
-        │     Rust 系统级 owner、边界和不变量
+        ├── crates/docs/{design,features}/ + agent-core.md
+        │     跨 crate 当前设计与 Feature 对齐
         └── crates/*/DESIGN.md + agent-core/src/*/README.md
               crate 级实现方案 + 模块短集成说明；开放任务 → GitHub Issues
 ```
@@ -250,7 +250,7 @@ Item Log 正常写入，默认不注册 Agent Event Hook、不启动 diagnostic 
 runs 文件；当前实时宿主事件由 Progress 提供。启用 `Errors`、`Normal` 或 `Debug` 时，
 `agent::log` 才注册 post-commit hook 并创建 active JSONL。
 完整的三流、路径和 settings 契约见
-[`logging-and-session-design.md`](logging-and-session-design.md)。
+[`design/logging-and-session-design.md`](design/logging-and-session-design.md)。
 
 ### 5.3 Tool-call round closure
 

@@ -1,7 +1,7 @@
 # agent — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** 初步可用版 Agent R1–R3 已实现；**LLM 四轴解耦 Feature 已对齐**（[`crates/docs/features/LLM-FOUR-AXIS.md`](../docs/features/LLM-FOUR-AXIS.md)），实现未开始。
+> **状态：** 初步可用版 Agent R1–R3 已实现；**LLM 四轴解耦 R1–R5 已实现**（[`crates/docs/features/LLM-FOUR-AXIS.md`](../docs/features/LLM-FOUR-AXIS.md)）。
 > **关联：** [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#loop) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ---

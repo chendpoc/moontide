@@ -69,7 +69,7 @@ API key 优先级为 `--api-key` > 最终 provider 对应环境变量（`DEEPSEE
 `AGNES_API_KEY`）> 同 provider 的 `settings.json` > interactive input；跨 provider 的
 旧 credential/base URL/model 不继承。显式空白 model/base URL 在 CLI layer 构造时
 直接失败。Agnes 集成与 catalog 分层见
-[`../docs/agnes-provider-integration.md`](../docs/agnes-provider-integration.md)。
+[`../docs/design/agnes-provider-integration.md`](../docs/design/agnes-provider-integration.md)。
 
 interactive REPL 启动时先进入 Settings Preflight：CLI 或环境中存在 API key 时跳过输入，设置文件中存在时直接加载，否则使用隐藏输入；用户确认 Settings 后只加载最近 Session 的 id，不立即创建新 Session。无 `--session` 时，第一条普通文本才触发 `Agent::create`；`/exit`、`/id`、`/settings` 和 `/help` 不创建 Session。显式 `--session` 仍在启动时 resume。API key 不写入 Session 或 Agent Event。
 

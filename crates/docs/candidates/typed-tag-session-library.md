@@ -1,4 +1,7 @@
-# Feature: Typed Tag–Driven Session Library
+# Typed Tag–Driven Session Library
+
+> **状态：** 候选设计，未实现
+> **性质：** Feature 讨论稿
 
 ## 1. Summary
 

@@ -87,11 +87,11 @@
 
 ## 6. 文档维护门禁
 
-- [ ] 活动文档只引用当前 Rust 路径，不把 TypeScript 作为当前实现。
-- [ ] 每个当前系统或模块文档明确性质、状态、关联文档和非目标。
-- [ ] `README.md`、`docs/README.md`、`AGENTS.md`、`crates/docs/` 和 `PROGRESS.md` 的当前阶段描述一致。
-- [ ] 活动文档本地链接可解析；`docs/archive/` 的历史失效链接不纳入当前门禁。
-- [ ] 文档-only 变更运行链接审计、`git diff --check`；涉及代码示例或契约时补跑对应测试。
+- [x] 活动文档只引用当前 Rust 路径，不把 TypeScript 作为当前实现。
+- [x] 每个当前系统或模块文档明确性质、状态、关联文档和非目标。
+- [x] `README.md`、`docs/README.md`、`AGENTS.md`、`crates/docs/` 和 `PROGRESS.md` 的当前阶段描述一致。
+- [x] 活动文档本地链接可解析；`docs/archive/` 的历史失效链接不纳入当前门禁。
+- [x] 文档-only 变更运行链接审计、`git diff --check`；涉及代码示例或契约时补跑对应测试。
 
 ## 7. 历史路线
 

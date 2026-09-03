@@ -22,7 +22,7 @@
 - **Base:** `feat/assistant-host/r2` at `614ab7f`; existing Desktop/Tauri changes are dirty and preserved.
 - **Mode:** Implementation.
 - **Goal:** Freeze protocol v1 JSON evidence and identity validation before changing runtime routing.
-- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Task document:** `crates/docs/archive/desktop/tauri-protocol-boundary-refactor.md`.
 - **Source of truth:** `AGENTS.md`, the feature document, `desktop-protocol` README/DESIGN,
   current DTO source and tests.
 - **Confirmed decisions:** `desktop-protocol` is the only wire graph; command correlation and event
@@ -73,7 +73,7 @@
 - **Mode:** Implementation; public seam confirmed by the user on 2026-08-25.
 - **Goal:** Make one Host-side adapter the only active command/response/event boundary between
   `desktop-protocol` envelopes and the D1 `DesktopHost` actor.
-- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Task document:** `crates/docs/archive/desktop/tauri-protocol-boundary-refactor.md`.
 - **Source of truth:** `AGENTS.md`, the feature document, `desktop-protocol` v1 fixtures, the current
   D1 Host contract and current lifecycle tests.
 - **Confirmed decisions:** the adapter does not depend on Tauri; it owns protocol connection state
@@ -150,7 +150,7 @@
 - **Mode:** Implementation; request-identity ownership confirmed by the user on 2026-08-25.
 - **Goal:** Make the Tauri vertical slice protocol-first through one transport-neutral Rust client
   and an in-process envelope transport that D4 can replace without changing the shell contract.
-- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Task document:** `crates/docs/archive/desktop/tauri-protocol-boundary-refactor.md`.
 - **Source of truth:** `AGENTS.md`, the feature document, R1 fixtures, the committed R2 Host protocol
   server, current Tauri tracer source and current Tauri capability files.
 - **Confirmed decisions:** Web sends a typed `DesktopCommand` intent, never an envelope identity;
@@ -239,7 +239,7 @@
 - **Goal:** Make TypeScript the future single owner of Desktop product projection by establishing a
   fixture-conformant v1 schema, a pure RenderState fold and bounded boot/resync orchestration before
   any Svelte UI migration.
-- **Task document:** `crates/docs/tauri-protocol-boundary-refactor.md`.
+- **Task document:** `crates/docs/archive/desktop/tauri-protocol-boundary-refactor.md`.
 - **Source of truth:** `desktop-protocol/src/lib.rs`, all three committed v1 fixture bundles, the
   nine Rust `render_state` behavior tests and the R3 one-command Tauri bridge.
 - **Confirmed decisions:** npm is the frontend package manager because the repository has no
@@ -518,7 +518,7 @@
 
 - **Do:** Record review batches, the current Work Packet and completion gates in a durable task file.
 - **Depends on:** None.
-- **Scope:** `crates/docs/tauri-protocol-boundary-refactor-TASKS.md`.
+- **Scope:** `crates/docs/archive/desktop/tauri-protocol-boundary-refactor-TASKS.md`.
 - **Estimated diff:** ~180 lines.
 - **Completion:** R1 scope and acceptance are reviewable from this file.
 - **Status:** Complete.

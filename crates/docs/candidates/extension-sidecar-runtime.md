@@ -1,6 +1,6 @@
 # 扩展边界与 Sidecar Runtime（候选设计）
 
-> 状态：候选设计（notes），未实现。背景来自 TypeScript 时代 [`agent-core.md`](../../docs/archive/spec/agent-core.md) §12 / §15，不构成当前 Rust 契约。
+> 状态：候选设计（notes），未实现。背景来自 TypeScript 时代 [`agent-core.md`](../../../docs/archive/spec/agent-core.md) §12 / §15，不构成当前 Rust 契约。
 
 ## 背景
 

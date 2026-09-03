@@ -2,7 +2,7 @@
 
 > **性质：** Feature Task / 架构对齐文档（用户已确认）
 > **状态：** R1–R5 已实现（见 git diff review 后续 fix 批）
-> **关联：** [`../llm-provider-config-fix.md`](../llm-provider-config-fix.md) · [`../startup-config-layering.md`](../startup-config-layering.md) · [`../../agent-core/src/llm/README.md`](../../agent-core/src/llm/README.md) · [`../../agent-core/DESIGN.md`](../../agent-core/DESIGN.md#llm) · [`../../agent/DESIGN.md`](../../agent/DESIGN.md)
+> **关联：** [`../archive/plans/llm-provider-config-fix.md`](../archive/plans/llm-provider-config-fix.md) · [`../design/startup-config-layering.md`](../design/startup-config-layering.md) · [`../../agent-core/src/llm/README.md`](../../agent-core/src/llm/README.md) · [`../../agent-core/DESIGN.md`](../../agent-core/DESIGN.md#llm) · [`../../agent/DESIGN.md`](../../agent/DESIGN.md)
 
 ## 1. 结论
 
@@ -173,7 +173,7 @@ pub struct ResolvedProtocolProfile {
 
 ### 6.3 Merge 顺序与 provider-scoped 规则
 
-**Endpoint 四轴**（已有 [startup-config-layering](../startup-config-layering.md)）：
+**Endpoint 四轴**（已有 [startup-config-layering](../design/startup-config-layering.md)）：
 
 ```text
 catalog (provider, model, base_url, default protocol)
@@ -374,14 +374,14 @@ Provider 切换时原子刷新 model、base_url、protocol、**profile default �
 
 ## 12. 什么是「通用 WireProfile」（刻意不做）
 
-MoonTide 在 [provider-config 修复](../llm-provider-config-fix.md) 与 [Agnes 集成](../agnes-provider-integration.md) 中**明确拒绝**的是一层 **与 AdapterFamily 平行的、可插拔规则引擎**：
+MoonTide 在 [provider-config 修复](../archive/plans/llm-provider-config-fix.md) 与 [Agnes 集成](../design/agnes-provider-integration.md) 中**明确拒绝**的是一层 **与 AdapterFamily 平行的、可插拔规则引擎**：
 
 | 通用 WireProfile 规则引擎（不做） | **`ProtocolCapabilities` + 分层 Profile merge**（做） |
 | 单一 JSON 描述所有 wire 形状 | 按 **`AdapterFamily`** 分 adapter；**厂商维护 profile 表** |
 | 运行时动态字段映射 | `default ← user ← host` + **clamp** |
 | 「加 compat 键接新厂商」 | 新网关 = **新 catalog profile 行** 或 Custom + template |
 
-历史草稿里曾出现 `WireProfile` / `ThinkingWirePolicy` 名字，R8 已改为 **family-specific `AdapterConfig`**（见 [`agent-core/DESIGN.md`](../agent-core/DESIGN.md#llm) 与 [`PROGRESS.md`](../../.agents/skills/moontide-kernel-plan/PROGRESS.md)）。
+历史草稿里曾出现 `WireProfile` / `ThinkingWirePolicy` 名字，R8 已改为 **family-specific `AdapterConfig`**（见 [`agent-core/DESIGN.md`](../../agent-core/DESIGN.md#llm) 与 [`PROGRESS.md`](../../../.agents/skills/moontide-kernel-plan/PROGRESS.md)）。
 
 **对照：**
 

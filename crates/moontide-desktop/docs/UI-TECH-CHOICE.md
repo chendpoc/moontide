@@ -63,7 +63,7 @@ Workbench 壳层组件（Sidebar、Resizable、Sheet、Dialog 等）随 Workbenc
 shadcn-svelte add …` 引入；Agent 域专用能力（virtual-chat、diff、markdown）作为独立包后置。
 
 前端目录规范（`components / utils / constants / features≈pages / app≈routes`、不设
-`stores/`）见 [`../moontide-desktop/frontend/README.md`](../moontide-desktop/frontend/README.md)。
+`stores/`）见 [`../frontend/README.md`](../frontend/README.md)。
 
 以下内容仍不进入当前边界：
 

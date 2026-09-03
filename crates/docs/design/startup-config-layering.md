@@ -2,7 +2,7 @@
 
 > **状态：** 当前设计（2026-08-26 已实现并通过门禁，待用户 diff review）
 > **范围：** CLI / Desktop 启动时的 provider、**protocol**、model、base URL、adapter option 与 API key
-> **关联：** [`features/LLM-FOUR-AXIS.md`](features/LLM-FOUR-AXIS.md) · [`llm-provider-config-fix.md`](llm-provider-config-fix.md) · [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
+> **关联：** [`../features/LLM-FOUR-AXIS.md`](../features/LLM-FOUR-AXIS.md) · [`../archive/plans/llm-provider-config-fix.md`](../archive/plans/llm-provider-config-fix.md) · [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`../../agent/DESIGN.md`](../../agent/DESIGN.md) · [`../../cli/DESIGN.md`](../../cli/DESIGN.md)
 
 ## 1. 结论
 
@@ -54,7 +54,7 @@ Provider 切换时原子刷新 model、base_url、**protocol**、credential。
 `protocol_profiles` 与 adapter options 不能由 settings/env/host 直接覆盖，只能从 catalog
 的 `(provider, protocol)` 解析。
 
-**协议特性 Profile merge**（与上表正交，见 [`features/LLM-FOUR-AXIS.md`](features/LLM-FOUR-AXIS.md) §6.3）：
+**协议特性 Profile merge**（与上表正交，见 [`../features/LLM-FOUR-AXIS.md`](../features/LLM-FOUR-AXIS.md) §6.3）：
 
 ```text
 ProviderProtocolProfileDefault (catalog)
@@ -244,7 +244,7 @@ JSON。normalize 不读取 `ProviderId`，option 不进入 `ModelRequest` 或 Se
 
 ## 11. Validation
 
-实现验收按 [`llm-provider-config-fix.md`](llm-provider-config-fix.md) 执行 focused tests、
+实现验收按 [`../archive/plans/llm-provider-config-fix.md`](../archive/plans/llm-provider-config-fix.md) 执行 focused tests、
 workspace gate、独立 Standards/Spec review 和用户 diff review。测试/检查结果是 scoped
 evidence；若工具链 MSRV 阻塞，必须记录当前 `rustc --version` 和可复现错误，不能把
 环境失败写成代码通过。
