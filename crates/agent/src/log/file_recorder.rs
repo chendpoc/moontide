@@ -1,9 +1,21 @@
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 use agent_core::event::AgentEventRecord;
-use anyhow::{Context, Result};
-use serde_json::{json, Value};
+use anyhow::{
+    Context,
+    Result,
+};
+use serde_json::{
+    json,
+    Value,
+};
 
 pub(crate) const MAX_AGENT_EVENT_BYTES: usize = 64 * 1024;
 

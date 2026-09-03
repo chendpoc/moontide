@@ -2,7 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use agent_core::r#loop::{ToolPermission, ToolPermissionMap};
+use agent_core::r#loop::{
+    ToolPermission,
+    ToolPermissionMap,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CodingToolPosture {
@@ -93,10 +96,11 @@ fn resolve_permission(posture: CodingToolPosture, policy: CodingPresetPolicy) ->
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::BTreeSet;
 
     use agent_tools::builtin_tool_definitions;
+
+    use super::*;
 
     // Scenario: preset tool names are a subset of the first-party catalog.
     // Expected: every rule name resolves in builtin_tool_definitions; excluded tools are documented.

@@ -1,12 +1,24 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use agent_core::event::AgentEventRecord;
-use anyhow::{Context, Result};
-use tokio::sync::{mpsc, oneshot};
+use anyhow::{
+    Context,
+    Result,
+};
+use tokio::sync::{
+    mpsc,
+    oneshot,
+};
 
 use super::file_recorder::FileAgentEventRecorder;
 use super::queued_recorder::{
-    QueueState, QueueStatus, QueuedAgentEventRecorder, AGENT_EVENT_LOG_QUEUE_CAPACITY,
+    QueueState,
+    QueueStatus,
+    QueuedAgentEventRecorder,
+    AGENT_EVENT_LOG_QUEUE_CAPACITY,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,8 +215,13 @@ fn map_state(state: QueueState) -> AgentEventLogState {
 
 #[cfg(test)]
 mod tests {
+    use agent_core::event::{
+        AgentChannel,
+        AgentEventRecorder,
+        AgentPhase,
+    };
+
     use super::*;
-    use agent_core::event::{AgentChannel, AgentEventRecorder, AgentPhase};
 
     // Scenario: the worker command receiver is already closed when a host requests flush.
     // Expected: flush returns an error and status becomes Stopped with a diagnostic message.

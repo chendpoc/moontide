@@ -1,7 +1,16 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
-use agent_core::event::{AgentEventRecord, AgentEventRecorder};
-use anyhow::{anyhow, Result};
+use agent_core::event::{
+    AgentEventRecord,
+    AgentEventRecorder,
+};
+use anyhow::{
+    anyhow,
+    Result,
+};
 use tokio::sync::mpsc;
 
 use crate::DiagnosticPersistence;

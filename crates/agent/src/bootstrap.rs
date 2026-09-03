@@ -1,20 +1,30 @@
 use std::sync::Arc;
 
-use agent_core::{
-    event::{EventDispatcher, PipelineRegistry, TraceContext},
-    llm::{
-        adapter::{build_provider, AdapterConfig, AdapterFamily},
-        LLMProvider,
-    },
-    r#loop::{AgentLoop, AgentLoopInit, ToolRuntime},
-    session::SessionStore,
-    tools::ToolRegistry,
+use agent_core::event::{
+    EventDispatcher,
+    PipelineRegistry,
+    TraceContext,
 };
+use agent_core::llm::adapter::build_provider;
+use agent_core::llm::LLMProvider;
+use agent_core::r#loop::{
+    AgentLoop,
+    AgentLoopInit,
+    ToolRuntime,
+};
+use agent_core::session::SessionStore;
+use agent_core::tools::ToolRegistry;
 use agent_tools::builtin_tool_definitions;
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 use uuid::Uuid;
 
-use crate::{agent::AgentParts, config::AgentConfig, progress::ProgressHook, prompt};
+use crate::agent::AgentParts;
+use crate::config::AgentConfig;
+use crate::progress::ProgressHook;
+use crate::prompt;
 
 pub(crate) fn create(config: &AgentConfig) -> Result<AgentParts> {
     build(config, None)
@@ -35,17 +45,11 @@ fn build(config: &AgentConfig, session_id: Option<&str>) -> Result<AgentParts> {
     config.validate_values()?;
     config.ensure_paths()?;
 
-    let adapter_config = match config.provider.family {
-        AdapterFamily::OpenAiChatCompletions => AdapterConfig::OpenAiChat {
-            base_url: config.provider.base_url.clone(),
-            api_key: config.provider.api_key.clone(),
-            options: config.provider.openai_chat,
-        },
-        AdapterFamily::AnthropicMessages => AdapterConfig::AnthropicMessages {
-            base_url: config.provider.base_url.clone(),
-            api_key: config.provider.api_key.clone(),
-        },
-    };
+    let adapter_config = agent_core::llm::adapter::AdapterConfig::from_resolved(
+        &config.provider.profile,
+        config.provider.base_url.clone(),
+        config.provider.api_key.clone(),
+    );
     let provider = build_provider(adapter_config)
         .map_err(anyhow::Error::new)
         .context("build configured LLM provider")?;
@@ -131,7 +135,7 @@ fn build_agent_event_log(
         Err(error) => {
             let handle = crate::log::AgentEventLogHandle::failed(
                 &queued,
-                format!("start Agent Event Log worker: {error:#}"),
+                format!("create Agent Event Log worker: {error:#}"),
             );
             return Ok((agent_core::event::DeriveAgentEventHook::new(queued), handle));
         }

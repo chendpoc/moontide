@@ -1,18 +1,38 @@
-use std::path::{Path, PathBuf};
-
-use agent_core::{
-    llm::protocol::{ModelResponse, ThinkingLevel},
-    model_input::ModelRequestConfig,
-    r#loop::{AgentLoop, ToolPermissionMap, TurnInput, TurnPolicy},
+use std::path::{
+    Path,
+    PathBuf,
 };
-use anyhow::{bail, Context, Result};
+
+use agent_core::llm::profile_config::ContinuityHint;
+use agent_core::llm::protocol::{
+    ModelResponse,
+    ThinkingLevel,
+};
+use agent_core::model_input::LlmCallConfig;
+use agent_core::r#loop::{
+    AgentLoop,
+    ToolPermissionMap,
+    TurnInput,
+    TurnPolicy,
+};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
 use tokio_util::sync::CancellationToken;
 
+use crate::config::AgentConfig;
+use crate::log::{
+    AgentEventLogHandle,
+    AgentEventLogStatus,
+};
+use crate::progress::{
+    ProgressHandle,
+    ProgressStatus,
+};
 use crate::{
     bootstrap,
-    config::AgentConfig,
-    log::{AgentEventLogHandle, AgentEventLogStatus},
-    progress::{ProgressHandle, ProgressStatus},
     prompt,
 };
 
@@ -20,9 +40,7 @@ use crate::{
 pub struct Agent {
     loop_: AgentLoop,
     session_id: String,
-    model: String,
-    max_tokens: u32,
-    thinking_level: Option<ThinkingLevel>,
+    call_config: LlmCallConfig,
     max_steps: u32,
     cwd: PathBuf,
     tool_names: Vec<String>,
@@ -77,8 +95,8 @@ impl Agent {
             bail!("max_tokens must be greater than zero");
         }
         self.max_steps = max_steps;
-        self.max_tokens = max_tokens;
-        self.thinking_level = thinking_level;
+        self.call_config.max_tokens = max_tokens;
+        self.call_config.thinking_level = thinking_level;
         Ok(())
     }
 
@@ -137,27 +155,31 @@ impl Agent {
             &self.permissions,
             self.approval_configured,
         )?;
+        let mut config = self.call_config.clone();
+        config.session_id = Some(self.session_id.clone());
         let input = TurnInput {
             text,
-            config: ModelRequestConfig {
-                model: self.model.clone(),
-                max_tokens: self.max_tokens,
-                thinking_level: self.thinking_level,
-                session_id: Some(self.session_id.clone()),
-            },
+            config,
             system_prompt,
             policy: TurnPolicy::new(self.max_steps)?,
         };
-        self.loop_.turn(input, cancellation).await
+        let response = self.loop_.turn(input, cancellation).await?;
+        if let Some(response_id) = response.response_id.clone() {
+            self.call_config.continuity_hint.previous_response_id = Some(response_id);
+        }
+        Ok(response)
     }
 
     fn from_parts(config: AgentConfig, parts: AgentParts) -> Result<Self> {
         Ok(Self {
             loop_: parts.loop_,
             session_id: parts.session_id,
-            model: config.provider.model,
-            max_tokens: config.max_tokens,
-            thinking_level: config.thinking_level,
+            call_config: config.provider.to_call_config(
+                config.max_tokens,
+                config.thinking_level,
+                None,
+                ContinuityHint::default(),
+            ),
             max_steps: config.max_steps,
             cwd: parts.cwd,
             tool_names: config.tool_names,
@@ -171,14 +193,33 @@ impl Agent {
     fn apply_parts(&mut self, config: AgentConfig, parts: AgentParts) {
         self.loop_ = parts.loop_;
         self.cwd = parts.cwd;
-        self.model = config.provider.model;
-        self.max_tokens = config.max_tokens;
-        self.thinking_level = config.thinking_level;
+        let continuity_hint = if self.call_config.protocol == config.provider.protocol {
+            self.call_config.continuity_hint.clone()
+        } else {
+            ContinuityHint::default()
+        };
+        self.call_config = config.provider.to_call_config(
+            config.max_tokens,
+            config.thinking_level,
+            None,
+            continuity_hint,
+        );
         self.max_steps = config.max_steps;
         self.tool_names = config.tool_names;
         self.permissions = config.permissions;
         self.approval_configured = config.approval.is_some();
         self.agent_event_log_handle = parts.agent_event_log_handle;
         self.progress_handle = parts.progress_handle;
+    }
+}
+
+#[cfg(test)]
+impl Agent {
+    pub(crate) fn continuity_hint_for_test(&self) -> ContinuityHint {
+        self.call_config.continuity_hint.clone()
+    }
+
+    pub(crate) fn set_continuity_hint_for_test(&mut self, hint: ContinuityHint) {
+        self.call_config.continuity_hint = hint;
     }
 }

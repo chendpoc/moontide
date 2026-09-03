@@ -1,12 +1,31 @@
-use std::sync::{Arc, Mutex};
-
-use agent_core::{
-    event::{HookHandler, LlmCallOutcome, TraceContext, TurnEvent},
-    llm::protocol::{ContentBlock, ModelResponseSnapshot},
-    tools::{ToolCall, ToolResult},
+use std::sync::{
+    Arc,
+    Mutex,
 };
-use anyhow::{anyhow, Context, Result};
-use tokio::sync::{mpsc, oneshot};
+
+use agent_core::event::{
+    HookHandler,
+    LlmCallOutcome,
+    TraceContext,
+    TurnEvent,
+};
+use agent_core::llm::protocol::{
+    ContentBlock,
+    ModelResponseSnapshot,
+};
+use agent_core::tools::{
+    ToolCall,
+    ToolResult,
+};
+use anyhow::{
+    anyhow,
+    Context,
+    Result,
+};
+use tokio::sync::{
+    mpsc,
+    oneshot,
+};
 
 use crate::config::ProgressObserver;
 
@@ -418,13 +437,26 @@ fn derive_progress(state: &mut ProgressState, event: &TurnEvent) -> Result<Optio
 
 #[cfg(test)]
 mod tests {
+    use agent_core::event::{
+        LlmCallFailureKind,
+        LlmCallOutcome,
+        TurnEvent,
+    };
+    use agent_core::llm::protocol::{
+        ContentBlock,
+        ModelResponseSnapshot,
+        PendingBlock,
+        StopReason,
+        Usage,
+    };
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolResult,
+    };
+
     use super::*;
     use crate::config::ProgressObserver;
-    use agent_core::{
-        event::{LlmCallFailureKind, LlmCallOutcome, TurnEvent},
-        llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage},
-        tools::{ToolCall, ToolContent, ToolResult},
-    };
 
     fn state() -> ProgressState {
         ProgressState::default()

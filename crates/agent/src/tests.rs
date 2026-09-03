@@ -1,9 +1,21 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 
-use agent_core::{llm::protocol::ThinkingLevel, r#loop::ToolPermission};
+use agent_core::llm::adapter_family::AdapterFamily;
+use agent_core::llm::profile_config::ContinuityHint;
+use agent_core::llm::protocol::ThinkingLevel;
+use agent_core::r#loop::ToolPermission;
 use tempfile::TempDir;
 
-use crate::{prompt, resolve_provider_config, Agent, AgentConfig, ProviderId, ProviderOverrides};
+use crate::{
+    prompt,
+    resolve_provider_config,
+    Agent,
+    AgentConfig,
+    ProviderId,
+    ProviderOverrides,
+};
 
 fn config(temp: &TempDir) -> AgentConfig {
     AgentConfig {
@@ -16,8 +28,12 @@ fn config(temp: &TempDir) -> AgentConfig {
                 base_url: Some("https://example.com/v1"),
                 model: None,
                 api_key: Some("test-key"),
+                protocol: None,
+                user_profile: None,
+                host_profile: None,
             },
-        ),
+        )
+        .expect("resolve provider"),
         max_tokens: 128,
         thinking_level: Some(ThinkingLevel::Off),
         max_steps: 4,
@@ -89,6 +105,62 @@ async fn reload_preserves_session_and_applies_turn_limits() {
     updated.provider.base_url = "https://updated.example/v1".into();
     agent.reload(updated).await.expect("agent should reload");
     assert_eq!(agent.session_id(), session_id);
+}
+
+// Scenario: reload keeps Responses continuity sidecar when protocol is unchanged.
+// Expected: previous_response_id survives provider/base_url refresh on the same protocol.
+// Invariant: continuity_hint is memory-only and is not reset by unrelated L2 changes.
+#[tokio::test]
+async fn reload_preserves_continuity_hint_when_protocol_unchanged() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let mut agent = Agent::create(config(&temp)).expect("minimal agent should bootstrap");
+    agent.set_continuity_hint_for_test(ContinuityHint {
+        previous_response_id: Some("resp_keep".into()),
+    });
+
+    let mut updated = config(&temp);
+    updated.provider.base_url = "https://updated.example/v1".into();
+    agent.reload(updated).await.expect("agent should reload");
+
+    assert_eq!(
+        agent
+            .continuity_hint_for_test()
+            .previous_response_id
+            .as_deref(),
+        Some("resp_keep")
+    );
+}
+
+// Scenario: reload switches DeepSeek from Responses to Chat Completions.
+// Expected: continuity sidecar is cleared because optimized path is protocol-specific.
+// Invariant: protocol change must not reuse a Responses response_id on another wire family.
+#[tokio::test]
+async fn reload_clears_continuity_hint_when_protocol_changes() {
+    let temp = tempfile::tempdir().expect("tempdir should be available for test");
+    let mut agent = Agent::create(config(&temp)).expect("minimal agent should bootstrap");
+    agent.set_continuity_hint_for_test(ContinuityHint {
+        previous_response_id: Some("resp_drop".into()),
+    });
+
+    let mut switched = config(&temp);
+    switched.provider = resolve_provider_config(
+        ProviderId::Deepseek,
+        ProviderOverrides {
+            base_url: Some("https://example.com/v1"),
+            model: None,
+            api_key: Some("test-key"),
+            protocol: Some(AdapterFamily::OpenAiChatCompletions),
+            user_profile: None,
+            host_profile: None,
+        },
+    )
+    .expect("resolve chat protocol");
+    agent.reload(switched).await.expect("agent should reload");
+
+    assert!(agent
+        .continuity_hint_for_test()
+        .previous_response_id
+        .is_none());
 }
 
 // Scenario: config contains a tool name absent from the first-party catalog.

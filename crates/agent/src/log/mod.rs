@@ -5,26 +5,50 @@ mod worker;
 pub(crate) use file_recorder::FileAgentEventRecorder;
 pub(crate) use queued_recorder::QueuedAgentEventRecorder;
 pub(crate) use worker::AgentEventLogWorker;
-pub use worker::{AgentEventLogHandle, AgentEventLogState, AgentEventLogStatus};
+pub use worker::{
+    AgentEventLogHandle,
+    AgentEventLogState,
+    AgentEventLogStatus,
+};
 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
     use agent_core::event::{
-        AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase, DeriveAgentEventHook,
-        EventDispatcher, PipelineRegistry, TraceContext, TurnEvent,
+        AgentChannel,
+        AgentEventRecord,
+        AgentEventRecorder,
+        AgentPhase,
+        DeriveAgentEventHook,
+        EventDispatcher,
+        PipelineRegistry,
+        TraceContext,
+        TurnEvent,
     };
     use agent_core::session::SessionStore;
-    use agent_core::tools::{ToolCall, ToolContent, ToolResult};
+    use agent_core::tools::{
+        ToolCall,
+        ToolContent,
+        ToolResult,
+    };
     use serde_json::json;
 
-    use super::file_recorder::{truncate_record, FileAgentEventRecorder, MAX_AGENT_EVENT_BYTES};
+    use super::file_recorder::{
+        truncate_record,
+        FileAgentEventRecorder,
+        MAX_AGENT_EVENT_BYTES,
+    };
     use super::queued_recorder::{
-        QueueState, QueuedAgentEventRecorder, AGENT_EVENT_LOG_QUEUE_CAPACITY,
+        QueueState,
+        QueuedAgentEventRecorder,
+        AGENT_EVENT_LOG_QUEUE_CAPACITY,
     };
     use super::worker::AgentEventLogWorker;
-    use super::{AgentEventLogHandle, AgentEventLogState};
+    use super::{
+        AgentEventLogHandle,
+        AgentEventLogState,
+    };
     use crate::DiagnosticPersistence;
 
     fn record(run_id: &str, kind: &str, payload: serde_json::Value) -> AgentEventRecord {

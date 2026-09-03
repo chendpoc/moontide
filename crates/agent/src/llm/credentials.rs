@@ -1,31 +1,36 @@
-use super::provider;
-use super::startup::{EnvSource, ProcessEnv};
-use super::ProviderId;
+use super::provider_id::ProviderId;
+use super::{
+    provider,
+    EnvSource,
+    ProcessEnv,
+};
 
 /// Catalog-declared environment variable for a provider's API key.
-pub fn api_key_env(provider_id: ProviderId) -> &'static str {
-    provider(provider_id).api_key_env()
+pub fn api_key_env(provider_id: ProviderId) -> anyhow::Result<&'static str> {
+    Ok(provider(provider_id)?.api_key_env())
 }
 
 /// Read a non-empty API key from the provider's catalog env var, if set.
-pub fn read_api_key_from_env(provider_id: ProviderId) -> Option<String> {
+pub fn read_api_key_from_env(provider_id: ProviderId) -> anyhow::Result<Option<String>> {
     read_api_key_from_env_source(provider_id, &ProcessEnv)
 }
 
 pub(crate) fn read_api_key_from_env_source(
     provider_id: ProviderId,
     env: &impl EnvSource,
-) -> Option<String> {
-    env.var(api_key_env(provider_id)).and_then(|value| {
-        let trimmed = value.trim();
-        (!trimmed.is_empty()).then(|| trimmed.to_owned())
-    })
+) -> anyhow::Result<Option<String>> {
+    Ok(env
+        .var(api_key_env(provider_id.clone())?)
+        .and_then(|value| {
+            let trimmed = value.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_owned())
+        }))
 }
 
 /// Require a non-empty API key from the provider's catalog env var.
 pub fn require_api_key_from_env(provider_id: ProviderId) -> anyhow::Result<String> {
-    read_api_key_from_env(provider_id)
-        .ok_or_else(|| anyhow::anyhow!("{} is required", api_key_env(provider_id)))
+    let env_name = api_key_env(provider_id.clone())?;
+    read_api_key_from_env(provider_id)?.ok_or_else(|| anyhow::anyhow!("{env_name} is required"))
 }
 
 #[cfg(test)]
@@ -46,7 +51,7 @@ mod tests {
     // Expected: the requested provider's key is trimmed and returned independently.
     // Invariant: credential lookup neither parses provider selection nor crosses provider scope.
     #[test]
-    fn reads_only_requested_provider_credential() {
+    fn reads_only_requested_provider_credential() -> anyhow::Result<()> {
         let env = MapEnv(BTreeMap::from([
             ("MOONTIDE_PROVIDER", "invalid".into()),
             ("DEEPSEEK_API_KEY", " deepseek-key ".into()),
@@ -54,17 +59,19 @@ mod tests {
         ]));
 
         assert_eq!(
-            read_api_key_from_env_source(ProviderId::Deepseek, &env).as_deref(),
+            read_api_key_from_env_source(ProviderId::Deepseek, &env)?.as_deref(),
             Some("deepseek-key")
         );
+        Ok(())
     }
 
     // Scenario: the requested provider credential contains only whitespace.
     // Expected: lookup reports the credential as absent.
     // Invariant: blank secrets never enter resolved provider configuration.
     #[test]
-    fn rejects_blank_provider_credential() {
+    fn rejects_blank_provider_credential() -> anyhow::Result<()> {
         let env = MapEnv(BTreeMap::from([("AGNES_API_KEY", "   ".into())]));
-        assert!(read_api_key_from_env_source(ProviderId::Agnes, &env).is_none());
+        assert!(read_api_key_from_env_source(ProviderId::Agnes, &env)?.is_none());
+        Ok(())
     }
 }

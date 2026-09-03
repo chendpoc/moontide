@@ -4,7 +4,12 @@
 //! CLI / Desktop import this module only; they do not reach into `agent_core::session`
 //! directly.
 
-pub use agent_core::session::{SessionItem, SessionSnapshot, SessionSummary, SessionTurnPage};
+pub use agent_core::session::{
+    SessionItem,
+    SessionSnapshot,
+    SessionSummary,
+    SessionTurnPage,
+};
 
 /// Read-only facade for persisted Session Item Logs.
 pub struct SessionQuery {

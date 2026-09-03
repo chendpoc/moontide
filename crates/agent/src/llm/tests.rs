@@ -1,5 +1,6 @@
-use super::*;
 use std::collections::BTreeMap;
+
+use super::*;
 
 struct MapEnv(BTreeMap<&'static str, String>);
 
@@ -134,11 +135,11 @@ fn merge_empty_layers_use_catalog_preset() {
         &LlmConfigLayer::default(),
     )
     .expect("merge");
-    let preset = catalog_preset(ProviderId::default());
+    let preset = catalog_preset(ProviderId::default()).expect("preset");
     assert_eq!(merged.provider_id, ProviderId::default());
     assert_eq!(merged.model, preset.model_id);
     assert_eq!(merged.base_url, preset.base_url);
-    assert_eq!(merged.family, preset.family);
+    assert_eq!(merged.protocol, preset.protocol);
     assert!(merged.api_key.is_empty());
 }
 
@@ -201,14 +202,14 @@ fn merge_agnes_provider_uses_agnes_env_key_only() {
     assert_eq!(merged.api_key, "agnes-key");
 }
 
-// Scenario: MOONTIDE_PROVIDER receives an unknown label.
+// Scenario: MOONTIDE_PROVIDER receives a blank label.
 // Expected: env read fails with an explicit provider parse error.
-// Invariant: unknown providers never silently fall back to DeepSeek during env parse.
+// Invariant: blank providers never silently fall back to DeepSeek during env parse.
 #[test]
-fn read_llm_env_rejects_unknown_provider() {
-    let env = MapEnv(BTreeMap::from([("MOONTIDE_PROVIDER", "openrouter".into())]));
-    let error = read_llm_env(&env).expect_err("unknown provider");
-    assert!(error.to_string().contains("unknown provider"));
+fn read_llm_env_rejects_blank_provider() {
+    let env = MapEnv(BTreeMap::from([("MOONTIDE_PROVIDER", "   ".into())]));
+    let error = read_llm_env(&env).expect_err("blank provider");
+    assert!(error.to_string().contains("provider must not be empty"));
 }
 
 // Scenario: an external host attempts to construct a layer with a blank endpoint field.
@@ -216,8 +217,8 @@ fn read_llm_env_rejects_unknown_provider() {
 // Invariant: public layer construction cannot create present-but-blank endpoint overrides.
 #[test]
 fn llm_config_layer_constructor_rejects_blank_endpoint_fields() {
-    assert!(LlmConfigLayer::new(None, Some("  ".into()), None, None).is_err());
-    assert!(LlmConfigLayer::new(None, None, Some("\t".into()), None).is_err());
+    assert!(LlmConfigLayer::new(None, Some("  ".into()), None, None, None, None).is_err());
+    assert!(LlmConfigLayer::new(None, None, Some("\t".into()), None, None, None).is_err());
 }
 
 // Scenario: an environment layer containing provider credentials is formatted for diagnostics.
@@ -228,6 +229,7 @@ fn llm_env_layer_debug_redacts_provider_keys() {
     let layer = LlmEnvLayer {
         values: LlmConfigLayer::default(),
         provider_api_keys: BTreeMap::from([(ProviderId::Agnes, "super-secret".into())]),
+        responses_store: None,
     };
     let debug = format!("{layer:?}");
     assert!(!debug.contains("super-secret"));
@@ -245,17 +247,21 @@ fn resolve_provider_config_attaches_credentials_to_catalog_endpoint() {
             base_url: None,
             model: None,
             api_key: Some("secret"),
+            protocol: None,
+            user_profile: None,
+            host_profile: None,
         },
-    );
+    )
+    .expect("resolve");
 
     assert_eq!(resolved.provider_id, ProviderId::Agnes);
     assert_eq!(resolved.model, "agnes-2.5-flash");
     assert_eq!(resolved.base_url, "https://api.agnes-ai.cn/v1");
     assert_eq!(resolved.api_key, "secret");
-    assert_eq!(resolved.family, AdapterFamily::OpenAiChatCompletions);
+    assert_eq!(resolved.protocol, AdapterFamily::OpenAiResponses);
     assert_eq!(
-        resolved.openai_chat.thinking_extension,
-        OpenAiThinkingExtension::ChatTemplateKwargs
+        resolved.profile.wire.decode.output_text_path.as_deref(),
+        Some("output_items")
     );
 }
 
@@ -273,7 +279,8 @@ fn apply_provider_switch_resets_model_and_base_url() {
         &mut base_url,
         true,
         &mut api_key,
-    );
+    )
+    .expect("switch");
     assert_eq!(model, "agnes-2.5-flash");
     assert_eq!(base_url, "https://api.agnes-ai.cn/v1");
     assert!(api_key.is_empty());
@@ -289,6 +296,7 @@ fn merge_provider_switch_discards_lower_provider_bundle() {
         model: Some("deepseek-chat".into()),
         base_url: Some("https://deepseek-settings.example".into()),
         api_key: Some("deepseek-settings-key".into()),
+        ..Default::default()
     };
     let environment = LlmEnvLayer {
         values: LlmConfigLayer {
@@ -299,6 +307,7 @@ fn merge_provider_switch_discards_lower_provider_bundle() {
             (ProviderId::Deepseek, "deepseek-env-key".into()),
             (ProviderId::Agnes, "agnes-env-key".into()),
         ]),
+        responses_store: None,
     };
 
     let merged = merge_startup_llm_config(&settings, &environment, &LlmConfigLayer::default())
@@ -308,9 +317,10 @@ fn merge_provider_switch_discards_lower_provider_bundle() {
     assert_eq!(merged.model, "agnes-2.5-flash");
     assert_eq!(merged.base_url, "https://api.agnes-ai.cn/v1");
     assert_eq!(merged.api_key, "agnes-env-key");
+    assert_eq!(merged.protocol, AdapterFamily::OpenAiResponses);
     assert_eq!(
-        merged.openai_chat.thinking_extension,
-        OpenAiThinkingExtension::ChatTemplateKwargs
+        merged.profile.wire.decode.output_text_path.as_deref(),
+        Some("output_items")
     );
 }
 
@@ -356,8 +366,12 @@ fn resolved_provider_debug_redacts_api_key() {
             base_url: None,
             model: None,
             api_key: Some("super-secret"),
+            protocol: None,
+            user_profile: None,
+            host_profile: None,
         },
-    );
+    )
+    .expect("resolve");
     let debug = format!("{resolved:?}");
     assert!(!debug.contains("super-secret"));
     assert!(debug.contains("<redacted>"));

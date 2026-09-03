@@ -1,11 +1,22 @@
-use std::{collections::BTreeSet, fs, path::PathBuf, sync::Arc};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
 
-use agent_core::{
-    llm::protocol::ThinkingLevel,
-    r#loop::{ToolApprovalHandler, ToolPermissionMap},
+use agent_core::llm::protocol::ThinkingLevel;
+use agent_core::r#loop::{
+    ToolApprovalHandler,
+    ToolPermissionMap,
 };
-use anyhow::{bail, Context, Result};
-use serde::{Deserialize, Serialize};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use crate::llm::ResolvedProviderConfig;
 use crate::progress::ProgressEvent;

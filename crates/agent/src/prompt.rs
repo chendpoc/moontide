@@ -1,14 +1,19 @@
-use std::{
-    collections::BTreeSet,
-    fs,
-    path::{Path, PathBuf},
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{
+    Path,
+    PathBuf,
 };
 
-use agent_core::{
-    model_input::SystemPrompt,
-    r#loop::{ToolPermission, ToolPermissionMap},
+use agent_core::model_input::SystemPrompt;
+use agent_core::r#loop::{
+    ToolPermission,
+    ToolPermissionMap,
 };
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 const HARNESS_CONTRACT: &str = r#"You are running inside the MoonTide agent harness.
 
