@@ -1,4 +1,7 @@
-use super::derive::{derive_agent_event, AgentEventRecord};
+use super::derive::{
+    derive_agent_event,
+    AgentEventRecord,
+};
 use super::registry::HookHandler;
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;

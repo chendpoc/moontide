@@ -1,6 +1,10 @@
-use crate::llm::protocol::{ModelRequest, ModelStreamEvent, ThinkingLevel};
-
-use super::{tool::ChatTemplateKwargs, OpenAiThinkingExtension};
+use super::tool::ChatTemplateKwargs;
+use super::OpenAiThinkingExtension;
+use crate::llm::protocol::{
+    ModelRequest,
+    ModelStreamEvent,
+    ThinkingLevel,
+};
 
 /// Outbound: canonical `ThinkingLevel` + resolved adapter option → OpenAI extension.
 pub(super) fn encode_thinking_extensions(
@@ -61,7 +65,11 @@ pub fn split_assistant_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::protocol::{Message, MessageContent, Role};
+    use crate::llm::protocol::{
+        Message,
+        MessageContent,
+        Role,
+    };
 
     // Scenario: the resolved adapter requests chat-template kwargs and thinking is enabled.
     // Expected: the encoder returns enable_thinking=true.
@@ -79,6 +87,7 @@ mod tests {
             max_tokens: 128,
             thinking_level: Some(ThinkingLevel::Low),
             session_id: None,
+            previous_response_id: None,
         };
         assert_eq!(
             encode_thinking_extensions(&request, OpenAiThinkingExtension::ChatTemplateKwargs,),
@@ -104,6 +113,7 @@ mod tests {
             max_tokens: 128,
             thinking_level: Some(ThinkingLevel::High),
             session_id: None,
+            previous_response_id: None,
         };
         assert!(encode_thinking_extensions(&request, OpenAiThinkingExtension::None).is_none());
         request.thinking_level = None;

@@ -10,9 +10,18 @@ mod types;
 mod tests;
 
 pub use commit::commit_from_event;
-pub use query::{SessionQuery, SessionSnapshot, SessionSummary, SessionTurnPage};
+pub use query::{
+    SessionQuery,
+    SessionSnapshot,
+    SessionSummary,
+    SessionTurnPage,
+};
 pub use store::SessionStore;
 pub use types::{
-    CompactionKind, SessionHeader, SessionItem, SessionItemBase, SessionItemDraft,
+    CompactionKind,
+    SessionHeader,
+    SessionItem,
+    SessionItemBase,
+    SessionItemDraft,
     SESSION_HEADER_VERSION,
 };

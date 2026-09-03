@@ -1,14 +1,39 @@
-use std::{future::Future, path::Path, pin::Pin, sync::Arc};
+use std::future::Future;
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::Arc;
 
 use anyhow::Result;
-use serde_json::{json, Value};
-
-use crate::{
-    llm::protocol::{Message, MessageContent, Role, ThinkingLevel},
-    tools::{Tool, ToolCall, ToolExecutor, ToolRegistry, ToolResult, ToolSpec},
+use serde_json::{
+    json,
+    Value,
 };
 
-use super::{compile, ModelRequestConfig, SystemPrompt};
+use super::{
+    compile,
+    LlmCallConfig,
+    SystemPrompt,
+};
+use crate::llm::adapter_family::AdapterFamily;
+use crate::llm::profile_config::{
+    ContinuityHint,
+    ProtocolFeatureSet,
+    ResolvedProtocolProfile,
+};
+use crate::llm::protocol::{
+    Message,
+    MessageContent,
+    Role,
+    ThinkingLevel,
+};
+use crate::tools::{
+    Tool,
+    ToolCall,
+    ToolExecutor,
+    ToolRegistry,
+    ToolResult,
+    ToolSpec,
+};
 
 struct NoopExecutor;
 
@@ -41,6 +66,28 @@ fn registry(specs: Vec<ToolSpec>) -> Result<ToolRegistry> {
     )
 }
 
+fn call_config(
+    model: &str,
+    max_tokens: u32,
+    thinking_level: Option<ThinkingLevel>,
+    session_id: Option<&str>,
+) -> LlmCallConfig {
+    LlmCallConfig {
+        protocol: AdapterFamily::OpenAiChatCompletions,
+        profile: ResolvedProtocolProfile::for_protocol(
+            AdapterFamily::OpenAiChatCompletions,
+            ProtocolFeatureSet::STREAMING,
+        ),
+        model: model.to_owned(),
+        base_url: "https://api.deepseek.com".into(),
+        api_key: "test-key".into(),
+        max_tokens,
+        thinking_level,
+        session_id: session_id.map(str::to_owned),
+        continuity_hint: ContinuityHint::default(),
+    }
+}
+
 // 场景：使用完整配置、system prompt、消息历史和乱序工具 registry 编译请求；预期：所有字段完整映射，messages 原顺序保留，tool schema 按 registry 顺序输出；不变量/副作用：compile 不执行任何 tool IO。
 #[test]
 fn compile_maps_all_resolved_inputs_without_side_effects() -> Result<()> {
@@ -60,12 +107,12 @@ fn compile_maps_all_resolved_inputs_without_side_effects() -> Result<()> {
             content: MessageContent::Text("I will inspect it.".into()),
         },
     ];
-    let config = ModelRequestConfig {
-        model: "deepseek-chat".into(),
-        max_tokens: 2048,
-        thinking_level: Some(ThinkingLevel::Low),
-        session_id: Some("session-1".into()),
-    };
+    let config = call_config(
+        "deepseek-chat",
+        2048,
+        Some(ThinkingLevel::Low),
+        Some("session-1"),
+    );
     let system_prompt = SystemPrompt::new("You are MoonTide.");
 
     let request = compile(&config, &system_prompt, messages.clone(), &tools);
@@ -90,12 +137,7 @@ fn compile_maps_all_resolved_inputs_without_side_effects() -> Result<()> {
 #[test]
 fn compile_preserves_empty_and_invalid_preflight_inputs() -> Result<()> {
     let tools = registry(Vec::new())?;
-    let config = ModelRequestConfig {
-        model: String::new(),
-        max_tokens: 0,
-        thinking_level: None,
-        session_id: None,
-    };
+    let config = call_config("", 0, None, None);
 
     let request = compile(
         &config,
@@ -122,12 +164,7 @@ fn compile_reuses_stable_turn_inputs_across_steps() -> Result<()> {
         "search files",
         schema("pattern"),
     )?])?;
-    let config = ModelRequestConfig {
-        model: "deepseek-chat".into(),
-        max_tokens: 1024,
-        thinking_level: None,
-        session_id: Some("session-1".into()),
-    };
+    let config = call_config("deepseek-chat", 1024, None, Some("session-1"));
     let system_prompt = SystemPrompt::new("stable instructions");
     let first_messages = vec![Message {
         role: Role::User,

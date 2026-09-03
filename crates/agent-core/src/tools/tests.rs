@@ -1,19 +1,28 @@
-use std::{
-    future::Future,
-    path::Path,
-    pin::Pin,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+use std::future::Future;
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
 };
+use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 use serde_json::json;
 
 use super::{
-    Tool, ToolCall, ToolCancellationReason, ToolContent, ToolExecutor, ToolRegistry, ToolResult,
-    ToolResultStatus, ToolSpec,
+    Tool,
+    ToolCall,
+    ToolCancellationReason,
+    ToolContent,
+    ToolExecutor,
+    ToolRegistry,
+    ToolResult,
+    ToolResultStatus,
+    ToolSpec,
 };
 
 struct ReturningExecutor {

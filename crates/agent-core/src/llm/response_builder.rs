@@ -1,10 +1,18 @@
-use std::{collections::VecDeque, mem};
+use std::collections::VecDeque;
+use std::mem;
 
 use serde_json::Value;
 
 use crate::llm::protocol::{
-    ContentBlock, LlmError, ModelResponse, ModelResponseSnapshot, ModelStreamEvent, PendingBlock,
-    RequestFailureKind, StopReason, Usage,
+    ContentBlock,
+    LlmError,
+    ModelResponse,
+    ModelResponseSnapshot,
+    ModelStreamEvent,
+    PendingBlock,
+    RequestFailureKind,
+    StopReason,
+    Usage,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +40,7 @@ pub struct ModelResponseBuilder {
     open_tools: VecDeque<OpenTool>,
     stop_reason: Option<StopReason>,
     usage: Option<Usage>,
+    response_id: Option<String>,
     finished: bool,
 }
 
@@ -46,6 +55,7 @@ impl ModelResponseBuilder {
             open_tools: VecDeque::new(),
             stop_reason: None,
             usage: None,
+            response_id: None,
             finished: false,
         }
     }
@@ -118,7 +128,11 @@ impl ModelResponseBuilder {
                 tool.finished = Some((name, input));
                 self.flush_finished_tools();
             }
-            ModelStreamEvent::Finished { stop_reason, usage } => {
+            ModelStreamEvent::Finished {
+                stop_reason,
+                usage,
+                response_id,
+            } => {
                 self.flush_open_part();
                 if !self.open_tools.is_empty() {
                     return Err(LlmError::RequestFailed {
@@ -128,6 +142,7 @@ impl ModelResponseBuilder {
                 }
                 self.stop_reason = Some(stop_reason);
                 self.usage = usage;
+                self.response_id = response_id;
                 self.finished = true;
             }
         }
@@ -161,6 +176,7 @@ impl ModelResponseBuilder {
             stop_reason,
             usage: self.usage,
             model: self.model,
+            response_id: self.response_id,
         })
     }
 
@@ -257,9 +273,10 @@ impl ModelResponseBuilder {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::llm::protocol::ModelStreamEvent;
-    use serde_json::json;
 
     fn apply_all(builder: &mut ModelResponseBuilder, events: &[ModelStreamEvent]) {
         for event in events {
@@ -267,6 +284,9 @@ mod tests {
         }
     }
 
+    // Scenario: stream events arrive with interleaved text and thinking block indices.
+    // Expected: ModelResponse content preserves block_index order in final blocks.
+    // Invariant: response builder does not reorder blocks by type.
     #[test]
     fn interleaved_block_index_preserves_order() {
         let mut builder = ModelResponseBuilder::new("m");
@@ -288,6 +308,7 @@ mod tests {
                 ModelStreamEvent::Finished {
                     stop_reason: StopReason::EndTurn,
                     usage: None,
+                    response_id: None,
                 },
             ],
         );
@@ -304,6 +325,9 @@ mod tests {
         );
     }
 
+    // Scenario: a complete tool call sequence is folded into ModelResponse.
+    // Expected: ToolUse content block appears with parsed input JSON.
+    // Invariant: ToolUseFinished must follow Started/Part for the same call id.
     #[test]
     fn tool_use_finished_populates_content_block() {
         let mut builder = ModelResponseBuilder::new("m");
@@ -326,6 +350,7 @@ mod tests {
                 ModelStreamEvent::Finished {
                     stop_reason: StopReason::ToolUse,
                     usage: None,
+                    response_id: None,
                 },
             ],
         );
@@ -366,6 +391,7 @@ mod tests {
                 ModelStreamEvent::Finished {
                     stop_reason: StopReason::ToolUse,
                     usage: None,
+                    response_id: None,
                 },
             ],
         );
@@ -381,6 +407,9 @@ mod tests {
         assert_eq!(ids, vec!["t0", "t1"]);
     }
 
+    // Scenario: finish is called after TextPart without a Finished stream event.
+    // Expected: finish returns Err because stop_reason was never set.
+    // Invariant: partial streams cannot produce a complete ModelResponse.
     #[test]
     fn finish_errors_without_finished_event() {
         let mut builder = ModelResponseBuilder::new("m");

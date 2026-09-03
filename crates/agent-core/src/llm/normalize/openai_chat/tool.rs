@@ -1,8 +1,17 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
 use crate::llm::protocol::{
-    ContentBlock, LlmError, Message, MessageContent, RequestFailureKind, Role, ToolResultContent,
+    ContentBlock,
+    LlmError,
+    Message,
+    MessageContent,
+    RequestFailureKind,
+    Role,
+    ToolResultContent,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -303,9 +312,13 @@ fn invalid_block(role: &str, block: &ContentBlock) -> LlmError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
 
+    use super::*;
+
+    // Scenario: canonical user/assistant text messages are encoded to OpenAI wire and decoded back.
+    // Expected: round-trip preserves role and MessageContent equality.
+    // Invariant: plain Text messages do not introduce tool_calls on the wire.
     #[test]
     fn round_trip_user_and_assistant_text() {
         let original = vec![
@@ -323,6 +336,9 @@ mod tests {
         assert_eq!(original, back);
     }
 
+    // Scenario: assistant ToolUse followed by user ToolResult crosses the OpenAI wire boundary.
+    // Expected: wire uses assistant tool_calls plus tool role message; decode restores blocks.
+    // Invariant: tool result messages reference the originating tool_call id.
     #[test]
     fn round_trip_tool_use_and_result() {
         let original = vec![
@@ -351,6 +367,9 @@ mod tests {
         assert_eq!(original, back);
     }
 
+    // Scenario: assistant message contains Thinking then Text blocks for OpenAI wire.
+    // Expected: reasoning_content carries thinking; decode restores both block types.
+    // Invariant: thinking is encoded separately from visible assistant content.
     #[test]
     fn round_trip_thinking_on_assistant() {
         let original = vec![Message {

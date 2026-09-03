@@ -1,10 +1,16 @@
 use std::pin::Pin;
 
-use futures::Stream;
-use futures::StreamExt;
+use futures::{
+    Stream,
+    StreamExt,
+};
 
 use crate::llm::protocol::{
-    LlmError, ModelRequest, ModelResponse, ModelResponseSnapshot, ModelStreamEvent,
+    LlmError,
+    ModelRequest,
+    ModelResponse,
+    ModelResponseSnapshot,
+    ModelStreamEvent,
 };
 use crate::llm::ModelResponseBuilder;
 

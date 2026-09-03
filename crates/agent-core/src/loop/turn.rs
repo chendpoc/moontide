@@ -1,11 +1,17 @@
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 
-use crate::model_input::{ModelRequestConfig, SystemPrompt};
+use crate::model_input::{
+    LlmCallConfig,
+    SystemPrompt,
+};
 
 /// Inputs resolved by the composition root for one user Turn.
 pub struct TurnInput {
     pub text: String,
-    pub config: ModelRequestConfig,
+    pub config: LlmCallConfig,
     pub system_prompt: SystemPrompt,
     pub policy: TurnPolicy,
 }

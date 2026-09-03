@@ -1,5 +1,13 @@
-use anyhow::{bail, Context, Result};
-use jsonschema::{Retrieve, Uri, Validator};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
+use jsonschema::{
+    Retrieve,
+    Uri,
+    Validator,
+};
 use serde_json::Value;
 
 use super::ToolSpec;

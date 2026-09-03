@@ -1,11 +1,25 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use serde_json::json;
 use tempfile::TempDir;
 
 use crate::llm::protocol::ContentBlock;
-use crate::session::{CompactionKind, SessionItem, SessionItemDraft, SessionQuery, SessionStore};
-use crate::tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus};
+use crate::session::{
+    CompactionKind,
+    SessionItem,
+    SessionItemDraft,
+    SessionQuery,
+    SessionStore,
+};
+use crate::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
+    ToolResultStatus,
+};
 
 fn sessions_dir(root: &TempDir) -> PathBuf {
     root.path().join("sessions")
@@ -726,8 +740,12 @@ fn turn_cannot_decrease() {
 // 预期：kind、base 和 payload 保持一致；不变量：协议可往返。
 #[test]
 fn session_item_serde_round_trip() {
-    use crate::session::{SessionHeader, SessionItem};
-    use crate::session::{SessionItemBase, SESSION_HEADER_VERSION};
+    use crate::session::{
+        SessionHeader,
+        SessionItem,
+        SessionItemBase,
+        SESSION_HEADER_VERSION,
+    };
 
     let item = SessionItem::AssistantMessage {
         base: SessionItemBase {
@@ -868,7 +886,10 @@ fn fork_round_trip_load() {
 // 预期：两类控制 item 保持字段和顺序；不变量：事实源只 append、不改历史。
 #[test]
 fn compaction_and_checkpoint_commit_load() {
-    use crate::session::{SessionItem, SessionItemBase};
+    use crate::session::{
+        SessionItem,
+        SessionItemBase,
+    };
 
     let root = TempDir::new().expect("tempdir");
     let dir = sessions_dir(&root);
@@ -967,8 +988,14 @@ fn compaction_and_checkpoint_commit_load() {
 // 预期：每类事件写入对应 item；不变量：非 committable 事件不进入 commit。
 #[test]
 fn commit_from_event_maps_committable_turn_events() {
-    use crate::event::{TurnCompactionKind, TurnEvent};
-    use crate::session::{commit_from_event, SessionItem};
+    use crate::event::{
+        TurnCompactionKind,
+        TurnEvent,
+    };
+    use crate::session::{
+        commit_from_event,
+        SessionItem,
+    };
 
     let root = TempDir::new().expect("tempdir");
     let mut store =

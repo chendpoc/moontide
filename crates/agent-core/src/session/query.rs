@@ -1,8 +1,15 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 
-use super::{file_store, SessionItem, SessionStore};
+use super::{
+    file_store,
+    SessionItem,
+    SessionStore,
+};
 
 /// Stable read-only summary used by session pickers and host adapters.
 #[derive(Debug, Clone, PartialEq, Eq)]

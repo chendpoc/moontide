@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 use tokio_util::sync::CancellationToken;
 
 pub(crate) async fn wait_for_retry(

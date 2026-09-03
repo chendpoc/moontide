@@ -1,27 +1,42 @@
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use crate::{
-    context,
-    event::{EventDispatcher, LlmCallFailureKind, LlmCallOutcome, TurnEvent},
-    llm::{
-        protocol::{CancelReason, LlmError, ModelResponse, RequestFailureKind},
-        run_model_call_with_updates, LLMProvider,
-    },
-    model_input::compile,
-    session::SessionStore,
+use super::cancellation::wait_for_retry;
+use super::response::{
+    classify_response,
+    ResponseAction,
 };
-
-use super::{
-    cancellation::wait_for_retry,
-    response::{classify_response, ResponseAction},
-    retry::retry_delay,
-    tool_runtime::{ToolCallOutcome, ToolRuntime},
-    turn::TurnInput,
+use super::retry::retry_delay;
+use super::tool_runtime::{
+    ToolCallOutcome,
+    ToolRuntime,
 };
+use super::turn::TurnInput;
+use crate::context;
+use crate::event::{
+    EventDispatcher,
+    LlmCallFailureKind,
+    LlmCallOutcome,
+    TurnEvent,
+};
+use crate::llm::protocol::{
+    CancelReason,
+    LlmError,
+    ModelResponse,
+    RequestFailureKind,
+};
+use crate::llm::{
+    run_model_call_with_updates,
+    LLMProvider,
+};
+use crate::model_input::compile;
+use crate::session::SessionStore;
 
 pub struct AgentLoopInit {
     pub session: SessionStore,
@@ -49,7 +64,7 @@ impl AgentLoop {
 
     pub async fn turn(
         &mut self,
-        input: TurnInput,
+        mut input: TurnInput,
         cancellation: CancellationToken,
     ) -> Result<ModelResponse> {
         input.policy.validate()?;
@@ -149,6 +164,9 @@ impl AgentLoop {
                                 },
                             },
                         )?;
+                        if let Some(response_id) = result.response_id.clone() {
+                            input.config.continuity_hint.previous_response_id = Some(response_id);
+                        }
                         response = Some(result);
                         response_action = Some(action);
                         completed_llm_call_id = Some(llm_call_id);

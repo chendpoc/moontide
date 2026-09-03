@@ -1,9 +1,13 @@
-use crate::{
-    llm::protocol::{Message, ModelRequest, ToolSchema},
-    tools::ToolRegistry,
+use super::{
+    LlmCallConfig,
+    SystemPrompt,
 };
-
-use super::{ModelRequestConfig, SystemPrompt};
+use crate::llm::protocol::{
+    Message,
+    ModelRequest,
+    ToolSchema,
+};
+use crate::tools::ToolRegistry;
 
 /// Assembles one provider-neutral model request from resolved turn inputs.
 #[allow(
@@ -11,7 +15,7 @@ use super::{ModelRequestConfig, SystemPrompt};
     reason = "the loop module will call the compiler in a later review batch"
 )]
 pub(crate) fn compile(
-    config: &ModelRequestConfig,
+    config: &LlmCallConfig,
     system_prompt: &SystemPrompt,
     messages: Vec<Message>,
     tool_registry: &ToolRegistry,
@@ -34,5 +38,6 @@ pub(crate) fn compile(
         max_tokens: config.max_tokens,
         thinking_level: config.thinking_level,
         session_id: config.session_id.clone(),
+        previous_response_id: config.continuity_hint.previous_response_id.clone(),
     }
 }

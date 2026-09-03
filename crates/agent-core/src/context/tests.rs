@@ -1,10 +1,22 @@
 use serde_json::json;
 
 use super::materialize;
-use crate::{
-    llm::protocol::{ContentBlock, Message, MessageContent, Role, ToolResultContent},
-    session::{CompactionKind, SessionItem, SessionItemBase},
-    tools::{ToolCall, ToolContent, ToolResult},
+use crate::llm::protocol::{
+    ContentBlock,
+    Message,
+    MessageContent,
+    Role,
+    ToolResultContent,
+};
+use crate::session::{
+    CompactionKind,
+    SessionItem,
+    SessionItemBase,
+};
+use crate::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
 };
 
 fn base(seq: u64) -> SessionItemBase {

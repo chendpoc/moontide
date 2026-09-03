@@ -9,8 +9,16 @@ mod validate;
 
 pub use call::ToolCall;
 pub use executor::ToolExecutor;
-pub use registry::{Tool, ToolRegistry};
-pub use result::{ToolCancellationReason, ToolContent, ToolResult, ToolResultStatus};
+pub use registry::{
+    Tool,
+    ToolRegistry,
+};
+pub use result::{
+    ToolCancellationReason,
+    ToolContent,
+    ToolResult,
+    ToolResultStatus,
+};
 pub use spec::ToolSpec;
 
 #[cfg(test)]

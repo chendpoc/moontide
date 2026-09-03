@@ -1,9 +1,18 @@
-use anyhow::{anyhow, Result};
-
-use crate::event::{CommitHandler, TurnEvent};
+use anyhow::{
+    anyhow,
+    Result,
+};
 
 use super::store::SessionStore;
-use super::types::{CompactionKind, SessionItem, SessionItemDraft};
+use super::types::{
+    CompactionKind,
+    SessionItem,
+    SessionItemDraft,
+};
+use crate::event::{
+    CommitHandler,
+    TurnEvent,
+};
 
 /// Maps a committable `TurnEvent` to a `SessionItem` and persists it.
 ///

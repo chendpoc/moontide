@@ -1,16 +1,30 @@
-use anyhow::{Context, Result};
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use uuid::Uuid;
-
-use crate::{
-    llm::protocol::{ContentBlock, PendingBlock},
-    tools::{ToolCall, ToolContent, ToolResult, ToolResultStatus},
+use anyhow::{
+    Context,
+    Result,
 };
+use chrono::Utc;
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    json,
+    Value,
+};
+use uuid::Uuid;
 
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
+use crate::llm::protocol::{
+    ContentBlock,
+    PendingBlock,
+};
+use crate::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
+    ToolResultStatus,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

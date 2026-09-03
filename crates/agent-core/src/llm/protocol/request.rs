@@ -1,6 +1,13 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use super::message::{ContentBlock, Message, ToolSchema};
+use super::message::{
+    ContentBlock,
+    Message,
+    ToolSchema,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -11,7 +18,7 @@ pub enum ThinkingLevel {
     High,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModelRequest {
     pub model: String,
     pub system: String,
@@ -20,6 +27,9 @@ pub struct ModelRequest {
     pub max_tokens: u32,
     pub thinking_level: Option<ThinkingLevel>,
     pub session_id: Option<String>,
+    /// Optimized Responses path: prior response id (not a secret).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_response_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,4 +53,6 @@ pub struct ModelResponse {
     pub stop_reason: StopReason,
     pub usage: Option<Usage>,
     pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_id: Option<String>,
 }

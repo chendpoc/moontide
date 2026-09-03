@@ -1,15 +1,47 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::{
+    anyhow,
+    Result,
+};
 
 use crate::event::{
-    derive_agent_event, AgentChannel, AgentEventRecord, AgentEventRecorder, AgentPhase,
-    CommitHandler, DeriveAgentEventHook, EventDispatcher, HookHandler, LlmCallOutcome,
-    ObserverBridge, ObserverEvent, PipelineRegistry, TraceContext, TurnEvent,
+    derive_agent_event,
+    AgentChannel,
+    AgentEventRecord,
+    AgentEventRecorder,
+    AgentPhase,
+    CommitHandler,
+    DeriveAgentEventHook,
+    EventDispatcher,
+    HookHandler,
+    LlmCallOutcome,
+    ObserverBridge,
+    ObserverEvent,
+    PipelineRegistry,
+    TraceContext,
+    TurnEvent,
 };
-use crate::llm::protocol::{ContentBlock, ModelResponseSnapshot, PendingBlock, StopReason, Usage};
-use crate::tools::{ToolCall, ToolContent, ToolResult};
+use crate::llm::protocol::{
+    ContentBlock,
+    ModelResponseSnapshot,
+    PendingBlock,
+    StopReason,
+    Usage,
+};
+use crate::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
+};
 
 struct MockCommitHandler {
     calls: Arc<AtomicUsize>,

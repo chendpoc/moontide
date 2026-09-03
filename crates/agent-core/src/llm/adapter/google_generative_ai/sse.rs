@@ -1,0 +1,25 @@
+use crate::llm::normalize::google_generative_ai::{
+    GeminiStreamChunk,
+    StreamDecoder,
+};
+use crate::llm::protocol::{
+    LlmError,
+    ModelStreamEvent,
+    RequestFailureKind,
+};
+
+/// Incrementally feed one SSE `data:` payload (without the `data:` prefix).
+pub fn decode_sse_payload(
+    decoder: &mut StreamDecoder,
+    payload: &str,
+) -> Result<Vec<ModelStreamEvent>, LlmError> {
+    if payload.trim() == "[DONE]" {
+        return Ok(Vec::new());
+    }
+    let chunk: GeminiStreamChunk =
+        serde_json::from_str(payload).map_err(|e| LlmError::RequestFailed {
+            kind: RequestFailureKind::Unrecoverable,
+            message: format!("invalid SSE JSON: {e}"),
+        })?;
+    decoder.decode_chunk(&chunk)
+}

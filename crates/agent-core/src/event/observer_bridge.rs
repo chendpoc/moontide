@@ -1,7 +1,13 @@
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 use tokio::sync::mpsc;
 
-use super::{TraceContext, TurnEvent};
+use super::{
+    TraceContext,
+    TurnEvent,
+};
 
 /// Immutable event and correlation context delivered to an asynchronous observer.
 #[derive(Debug, Clone, PartialEq)]

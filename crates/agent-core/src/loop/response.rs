@@ -1,11 +1,16 @@
 use std::collections::BTreeSet;
 
-use anyhow::{bail, Result};
-
-use crate::{
-    llm::protocol::{ContentBlock, ModelResponse, StopReason},
-    tools::ToolCall,
+use anyhow::{
+    bail,
+    Result,
 };
+
+use crate::llm::protocol::{
+    ContentBlock,
+    ModelResponse,
+    StopReason,
+};
+use crate::tools::ToolCall;
 
 pub(crate) enum ResponseAction {
     Terminal {

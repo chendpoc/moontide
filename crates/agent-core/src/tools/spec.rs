@@ -1,4 +1,7 @@
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 use serde_json::Value;
 
 /// Model-visible declaration of one tool capability.

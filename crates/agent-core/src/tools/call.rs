@@ -1,5 +1,11 @@
-use anyhow::{bail, Result};
-use serde::{Deserialize, Serialize};
+use anyhow::{
+    bail,
+    Result,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
 /// Provider-neutral request to execute one registered tool.

@@ -2,19 +2,33 @@ pub mod stream;
 pub mod thinking;
 pub mod tool;
 
-use crate::llm::protocol::{LlmError, ModelRequest, ToolSchema};
-
-use super::common::validate_request;
+use serde::{
+    Deserialize,
+    Serialize,
+};
+pub use stream::{
+    ChatCompletionChunk,
+    StreamDecoder,
+};
 use thinking::encode_thinking_extensions;
+pub use tool::encode_messages;
 use tool::{
-    OpenAiChatMessage, OpenAiChatRequestBody, OpenAiFunctionDefinition, OpenAiToolDefinition,
+    OpenAiChatMessage,
+    OpenAiChatRequestBody,
+    OpenAiFunctionDefinition,
+    OpenAiToolDefinition,
 };
 
-pub use stream::{ChatCompletionChunk, StreamDecoder};
-pub use tool::encode_messages;
+use super::common::validate_request;
+use crate::llm::protocol::{
+    LlmError,
+    ModelRequest,
+    ToolSchema,
+};
 
 /// Provider-resolved OpenAI thinking wire extension.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum OpenAiThinkingExtension {
     #[default]
     None,
@@ -22,8 +36,9 @@ pub enum OpenAiThinkingExtension {
 }
 
 /// Provider-resolved options for the OpenAI Chat Completions adapter.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpenAiChatOptions {
+    #[serde(default)]
     pub thinking_extension: OpenAiThinkingExtension,
 }
 
@@ -78,9 +93,15 @@ fn encode_tools(tools: &[ToolSchema]) -> Vec<OpenAiToolDefinition> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::llm::protocol::{Message, MessageContent, Role, ThinkingLevel};
     use tool::ChatTemplateKwargs;
+
+    use super::*;
+    use crate::llm::protocol::{
+        Message,
+        MessageContent,
+        Role,
+        ThinkingLevel,
+    };
 
     // Scenario: a request without provider-specific extensions contains system and user messages.
     // Expected: encoding enables streaming and omits chat_template_kwargs.
@@ -98,6 +119,7 @@ mod tests {
             max_tokens: 128,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         };
         let body = encode_request(&request, OpenAiChatOptions::default()).expect("encode");
         assert!(body.stream);
@@ -122,6 +144,7 @@ mod tests {
             max_tokens: 128,
             thinking_level: Some(ThinkingLevel::Low),
             session_id: None,
+            previous_response_id: None,
         };
         let body = encode_request(
             &request,

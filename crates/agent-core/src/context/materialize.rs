@@ -5,12 +5,23 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
-use crate::{
-    llm::protocol::{ContentBlock, Message, MessageContent, Role, ToolResultContent},
-    session::SessionItem,
-    tools::{ToolCall, ToolContent, ToolResult},
+use crate::llm::protocol::{
+    ContentBlock,
+    Message,
+    MessageContent,
+    Role,
+    ToolResultContent,
+};
+use crate::session::SessionItem;
+use crate::tools::{
+    ToolCall,
+    ToolContent,
+    ToolResult,
 };
 
 /// Materializes session facts into provider-neutral model messages.

@@ -1,8 +1,13 @@
-use std::{future::Future, path::Path, pin::Pin};
+use std::future::Future;
+use std::path::Path;
+use std::pin::Pin;
 
 use anyhow::Result;
 
-use super::{ToolCall, ToolResult};
+use super::{
+    ToolCall,
+    ToolResult,
+};
 
 /// Side-effect boundary implemented by each concrete tool.
 pub trait ToolExecutor: Send + Sync {

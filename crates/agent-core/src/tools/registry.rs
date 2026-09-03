@@ -1,10 +1,19 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
+use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
 use jsonschema::Validator;
 
+use super::validate::compile_input_validator;
 use super::{
-    validate::compile_input_validator, ToolCall, ToolExecutor, ToolResult, ToolResultStatus,
+    ToolCall,
+    ToolExecutor,
+    ToolResult,
+    ToolResultStatus,
     ToolSpec,
 };
 

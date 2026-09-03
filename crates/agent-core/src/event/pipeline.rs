@@ -1,7 +1,10 @@
 use anyhow::Result;
 
 use super::observer_bridge::ObserverBridge;
-use super::registry::{CommitHandler, PipelineRegistry};
+use super::registry::{
+    CommitHandler,
+    PipelineRegistry,
+};
 use super::trace_context::TraceContext;
 use super::turn_event::TurnEvent;
 

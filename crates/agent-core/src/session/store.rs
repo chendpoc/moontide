@@ -1,11 +1,26 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
-use super::file_store::{self, FileSessionStore};
+use super::file_store::{
+    self,
+    FileSessionStore,
+};
 use super::types::{
-    freeze_item, rebase_item, validate_draft, SessionHeader, SessionItem, SessionItemBase,
-    SessionItemDraft, SESSION_HEADER_VERSION,
+    freeze_item,
+    rebase_item,
+    validate_draft,
+    SessionHeader,
+    SessionItem,
+    SessionItemBase,
+    SessionItemDraft,
+    SESSION_HEADER_VERSION,
 };
 
 pub struct SessionStore {

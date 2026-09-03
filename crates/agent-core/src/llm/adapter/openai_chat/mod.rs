@@ -2,15 +2,25 @@ mod sse;
 
 use std::pin::Pin;
 
-use futures::Stream;
-use futures::StreamExt;
+use futures::{
+    Stream,
+    StreamExt,
+};
+use sse::decode_sse_payload;
 use tokio::sync::mpsc;
 
-use crate::llm::normalize::openai_chat::{encode_request, OpenAiChatOptions, StreamDecoder};
-use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, RequestFailureKind};
+use crate::llm::normalize::openai_chat::{
+    encode_request,
+    OpenAiChatOptions,
+    StreamDecoder,
+};
+use crate::llm::protocol::{
+    LlmError,
+    ModelRequest,
+    ModelStreamEvent,
+    RequestFailureKind,
+};
 use crate::llm::LLMProvider;
-
-use sse::decode_sse_payload;
 
 /// DeepSeek / OpenAI Chat Completions adapter (fetch + SSE).
 pub struct OpenAiChatAdapter {
@@ -194,11 +204,24 @@ impl ByteLineBuffer {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::matchers::{
+        method,
+        path,
+    };
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+    };
 
     use super::*;
-    use crate::llm::protocol::{Message, MessageContent, ModelStreamEvent, Role, StopReason};
+    use crate::llm::protocol::{
+        Message,
+        MessageContent,
+        ModelStreamEvent,
+        Role,
+        StopReason,
+    };
 
     fn sample_request() -> ModelRequest {
         ModelRequest {
@@ -212,6 +235,7 @@ mod tests {
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         }
     }
 

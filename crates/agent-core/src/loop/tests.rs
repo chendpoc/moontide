@@ -1,34 +1,65 @@
-use std::{
-    collections::VecDeque,
-    future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
-    time::Duration,
+use std::collections::VecDeque;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{
+    Arc,
+    Mutex,
 };
+use std::time::Duration;
 
 use futures::stream;
 use tempfile::tempdir;
 
-use crate::{
-    event::{
-        EventDispatcher, HookHandler, LlmCallOutcome, PipelineRegistry, TraceContext, TurnEvent,
-    },
-    llm::{
-        protocol::{ContentBlock, LlmError, ModelResponse, ModelStreamEvent, StopReason},
-        LLMProvider,
-    },
-    model_input::{ModelRequestConfig, SystemPrompt},
-    session::{SessionItemDraft, SessionStore},
-    tools::{
-        Tool, ToolCall, ToolContent, ToolExecutor, ToolRegistry, ToolResult, ToolResultStatus,
-        ToolSpec,
-    },
-};
-
 use super::response::terminal_assistant_blocks;
 use super::{
-    AgentLoop, AgentLoopInit, ToolApproval, ToolPermission, ToolPermissionMap, ToolRuntime,
-    TurnInput, TurnPolicy,
+    AgentLoop,
+    AgentLoopInit,
+    ToolApproval,
+    ToolPermission,
+    ToolPermissionMap,
+    ToolRuntime,
+    TurnInput,
+    TurnPolicy,
+};
+use crate::event::{
+    EventDispatcher,
+    HookHandler,
+    LlmCallOutcome,
+    PipelineRegistry,
+    TraceContext,
+    TurnEvent,
+};
+use crate::llm::adapter_family::AdapterFamily;
+use crate::llm::profile_config::{
+    ContinuityHint,
+    ProtocolFeatureSet,
+    ResolvedProtocolProfile,
+};
+use crate::llm::protocol::{
+    ContentBlock,
+    LlmError,
+    ModelResponse,
+    ModelStreamEvent,
+    StopReason,
+};
+use crate::llm::LLMProvider;
+use crate::model_input::{
+    LlmCallConfig,
+    SystemPrompt,
+};
+use crate::session::{
+    SessionItemDraft,
+    SessionStore,
+};
+use crate::tools::{
+    Tool,
+    ToolCall,
+    ToolContent,
+    ToolExecutor,
+    ToolRegistry,
+    ToolResult,
+    ToolResultStatus,
+    ToolSpec,
 };
 
 struct MockProvider {
@@ -304,11 +335,19 @@ fn test_runtime(permission: ToolPermission) -> ToolRuntime {
 fn terminal_input() -> TurnInput {
     TurnInput {
         text: "hi".into(),
-        config: ModelRequestConfig {
+        config: LlmCallConfig {
+            protocol: AdapterFamily::OpenAiChatCompletions,
+            profile: ResolvedProtocolProfile::for_protocol(
+                AdapterFamily::OpenAiChatCompletions,
+                ProtocolFeatureSet::STREAMING,
+            ),
             model: "mock".into(),
+            base_url: "https://example.com".into(),
+            api_key: "k".into(),
             max_tokens: 32,
             thinking_level: None,
             session_id: Some("session".into()),
+            continuity_hint: ContinuityHint::default(),
         },
         system_prompt: SystemPrompt::new("system"),
         policy: TurnPolicy::new(1).expect("policy"),
@@ -391,6 +430,7 @@ fn tool_use_script(calls: &[(&str, serde_json::Value)]) -> Vec<Result<ModelStrea
         .chain([Ok(ModelStreamEvent::Finished {
             stop_reason: StopReason::ToolUse,
             usage: None,
+            response_id: None,
         })])
         .collect()
 }
@@ -404,6 +444,7 @@ fn terminal_script(text: &str) -> Vec<Result<ModelStreamEvent, LlmError>> {
         Ok(ModelStreamEvent::Finished {
             stop_reason: StopReason::EndTurn,
             usage: None,
+            response_id: None,
         }),
     ]
 }
@@ -450,6 +491,7 @@ fn terminal_response_shape_is_validated() {
             stop_reason,
             usage: None,
             model: Some("mock".into()),
+            response_id: None,
         };
         assert!(terminal_assistant_blocks(&response).is_ok());
     }
@@ -463,6 +505,7 @@ fn terminal_response_shape_is_validated() {
         stop_reason: StopReason::EndTurn,
         usage: None,
         model: None,
+        response_id: None,
     };
     assert!(terminal_assistant_blocks(&tool_use_response).is_err());
 
@@ -474,6 +517,7 @@ fn terminal_response_shape_is_validated() {
         stop_reason: StopReason::EndTurn,
         usage: None,
         model: None,
+        response_id: None,
     };
     assert!(terminal_assistant_blocks(&tool_result_response).is_err());
 }
@@ -506,6 +550,7 @@ async fn duplicate_tool_identity_is_rejected_before_side_effects() {
         Ok(ModelStreamEvent::Finished {
             stop_reason: StopReason::ToolUse,
             usage: None,
+            response_id: None,
         }),
     ]])));
     let provider: Arc<dyn LLMProvider> = Arc::new(QueuedProvider { scripts });
@@ -1475,6 +1520,7 @@ async fn terminal_turn_commits_facts_and_returns_response() {
             Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
+                response_id: None,
             }),
         ],
     });
@@ -1631,11 +1677,19 @@ async fn cancelled_before_user_commit_does_not_append() {
     token.cancel();
     let input = TurnInput {
         text: "hi".into(),
-        config: ModelRequestConfig {
+        config: LlmCallConfig {
+            protocol: AdapterFamily::OpenAiChatCompletions,
+            profile: ResolvedProtocolProfile::for_protocol(
+                AdapterFamily::OpenAiChatCompletions,
+                ProtocolFeatureSet::STREAMING,
+            ),
             model: "mock".into(),
+            base_url: "https://example.com".into(),
+            api_key: "k".into(),
             max_tokens: 32,
             thinking_level: None,
             session_id: Some("session".into()),
+            continuity_hint: ContinuityHint::default(),
         },
         system_prompt: SystemPrompt::new("system"),
         policy: TurnPolicy::new(1).expect("policy"),

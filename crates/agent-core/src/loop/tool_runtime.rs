@@ -1,16 +1,25 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    future::Future,
-    path::Path,
-    pin::Pin,
-    sync::Arc,
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
 };
+use std::future::Future;
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{
+    bail,
+    Result,
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::tools::{
-    ToolCall, ToolCancellationReason, ToolContent, ToolRegistry, ToolResult, ToolResultStatus,
+    ToolCall,
+    ToolCancellationReason,
+    ToolContent,
+    ToolRegistry,
+    ToolResult,
+    ToolResultStatus,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,7 +1,13 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::message::ContentBlock;
-use super::request::{StopReason, Usage};
+use super::request::{
+    StopReason,
+    Usage,
+};
 
 /// In-progress block for streaming UI (not written to session log).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

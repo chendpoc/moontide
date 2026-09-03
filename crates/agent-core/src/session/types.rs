@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{
-    llm::protocol::ContentBlock,
-    tools::{ToolCall, ToolResult},
+use crate::llm::protocol::ContentBlock;
+use crate::tools::{
+    ToolCall,
+    ToolResult,
 };
 
 pub const SESSION_HEADER_VERSION: u32 = 2;

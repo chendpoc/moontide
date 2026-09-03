@@ -1,7 +1,13 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
-use super::request::{StopReason, Usage};
+use super::request::{
+    StopReason,
+    Usage,
+};
 
 /// Single LLM call stream item emitted by adapter / normalize.
 ///
@@ -33,5 +39,7 @@ pub enum ModelStreamEvent {
     Finished {
         stop_reason: StopReason,
         usage: Option<Usage>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        response_id: Option<String>,
     },
 }

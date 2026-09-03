@@ -1,5 +1,10 @@
 use crate::llm::protocol::{
-    ContentBlock, LlmError, Message, MessageContent, ModelRequest, RequestFailureKind,
+    ContentBlock,
+    LlmError,
+    Message,
+    MessageContent,
+    ModelRequest,
+    RequestFailureKind,
 };
 
 /// Which blocks to keep when handing history to a target adapter family.
@@ -121,9 +126,13 @@ mod tests {
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         }
     }
 
+    // Scenario: validate_request rejects an empty message list before encode/HTTP.
+    // Expected: Unrecoverable RequestFailed is returned.
+    // Invariant: adapters never see a ModelRequest with zero messages.
     #[test]
     fn validate_rejects_empty_messages() {
         let err = validate_request(&sample_request(vec![])).unwrap_err();
@@ -136,6 +145,9 @@ mod tests {
         ));
     }
 
+    // Scenario: validate_request rejects whitespace-only model id.
+    // Expected: encoding is blocked with Unrecoverable RequestFailed.
+    // Invariant: empty model strings cannot reach provider HTTP.
     #[test]
     fn validate_rejects_empty_model() {
         let mut request = sample_request(vec![Message {
@@ -146,6 +158,9 @@ mod tests {
         assert!(validate_request(&request).is_err());
     }
 
+    // Scenario: OpenAI Chat handoff policy strips thinking blocks from assistant history.
+    // Expected: only Text blocks remain in sanitized messages.
+    // Invariant: thinking is removed before OpenAI Chat encode, not at Session layer.
     #[test]
     fn handoff_strips_thinking_blocks() {
         let messages = vec![Message {
@@ -171,6 +186,9 @@ mod tests {
         }
     }
 
+    // Scenario: Anthropic handoff policy retains thinking blocks in assistant history.
+    // Expected: Thinking blocks survive sanitize_messages_for_handoff.
+    // Invariant: Anthropic Messages encode receives thinking when policy allows it.
     #[test]
     fn handoff_keeps_thinking_for_anthropic() {
         let messages = vec![Message {

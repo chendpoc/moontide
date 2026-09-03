@@ -3,9 +3,14 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::llm::protocol::{LlmError, ModelStreamEvent, RequestFailureKind, StopReason, Usage};
-
 use super::thinking::split_assistant_text;
+use crate::llm::protocol::{
+    LlmError,
+    ModelStreamEvent,
+    RequestFailureKind,
+    StopReason,
+    Usage,
+};
 
 /// Parsed SSE JSON payload (one `data:` line body).
 #[derive(Debug, Clone, Deserialize)]
@@ -177,6 +182,7 @@ impl StreamDecoder {
         events.push(ModelStreamEvent::Finished {
             stop_reason: map_finish_reason(finish_reason),
             usage,
+            response_id: None,
         });
         self.message_end_emitted = true;
         Ok(events)
@@ -223,6 +229,9 @@ mod tests {
         serde_json::from_str(json).expect("parse chunk")
     }
 
+    // Scenario: OpenAI SSE chunk carries delta.content for visible assistant text.
+    // Expected: decoder emits TextPart at block_index 0.
+    // Invariant: content deltas never create ThinkingPart without reasoning_content.
     #[test]
     fn text_part_from_content() {
         let events = decode_stream_chunk(&chunk(
@@ -234,6 +243,9 @@ mod tests {
         ));
     }
 
+    // Scenario: DeepSeek/OpenAI reasoning chunk uses reasoning_content delta field.
+    // Expected: decoder emits ThinkingPart at block_index 0.
+    // Invariant: reasoning and text block indices remain independent in stream decode.
     #[test]
     fn thinking_part_from_reasoning_content() {
         let events = decode_stream_chunk(&chunk(
@@ -245,6 +257,9 @@ mod tests {
         ));
     }
 
+    // Scenario: a single tool call streams arguments across multiple SSE chunks.
+    // Expected: ToolUseStarted, ToolUsePart, ToolUseFinished, then Finished events appear in order.
+    // Invariant: partial argument JSON is merged before ToolUseFinished is emitted.
     #[test]
     fn tool_call_arguments_merge_before_finished() {
         let mut decoder = StreamDecoder::new();
@@ -306,6 +321,9 @@ mod tests {
         assert_eq!(ids, vec!["c0", "c1"]);
     }
 
+    // Scenario: stream receives finish_reason on a delta-only chunk after content.
+    // Expected: decoder marks message end and exposes has_emitted_message_end.
+    // Invariant: finish_reason on non-empty delta chunk terminates the assistant message.
     #[test]
     fn finish_reason_marks_message_end_emitted() {
         let mut decoder = StreamDecoder::new();
@@ -323,6 +341,9 @@ mod tests {
         assert!(decoder.has_emitted_message_end());
     }
 
+    // Scenario: provider finish_reason is length on the final chunk.
+    // Expected: Finished event carries StopReason::MaxTokens.
+    // Invariant: OpenAI finish_reason strings map to canonical StopReason values.
     #[test]
     fn finished_maps_stop_reason() {
         let events = decode_stream_chunk(&chunk(
@@ -337,11 +358,17 @@ mod tests {
         ));
     }
 
+    // Scenario: map_finish_reason receives OpenAI tool_calls finish string.
+    // Expected: StopReason::ToolUse is returned.
+    // Invariant: tool_calls finish_reason never maps to EndTurn.
     #[test]
     fn map_finish_reason_tool_calls() {
         assert_eq!(map_finish_reason("tool_calls"), StopReason::ToolUse);
     }
 
+    // Scenario: final SSE chunk includes OpenAI usage object.
+    // Expected: Finished carries input/output token counts.
+    // Invariant: usage is attached only to the terminal Finished event.
     #[test]
     fn usage_on_final_chunk() {
         let events = decode_stream_chunk(&chunk(

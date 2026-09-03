@@ -1,11 +1,28 @@
-use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
+use std::fs::{
+    self,
+    File,
+    OpenOptions,
+};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::SystemTime;
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
-use super::types::{SessionHeader, SessionItem};
+use super::types::{
+    SessionHeader,
+    SessionItem,
+};
 
 pub(crate) struct FileSessionStore {
     session_id: String,

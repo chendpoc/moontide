@@ -1,5 +1,12 @@
-use crate::llm::normalize::openai_chat::{ChatCompletionChunk, StreamDecoder};
-use crate::llm::protocol::{LlmError, ModelStreamEvent, RequestFailureKind};
+use crate::llm::normalize::openai_chat::{
+    ChatCompletionChunk,
+    StreamDecoder,
+};
+use crate::llm::protocol::{
+    LlmError,
+    ModelStreamEvent,
+    RequestFailureKind,
+};
 
 /// Incrementally feed one SSE `data:` payload (without the `data:` prefix).
 pub fn decode_sse_payload(

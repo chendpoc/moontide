@@ -1,10 +1,19 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{
-    llm::protocol::{
-        CancelReason, ContentBlock, ModelResponseSnapshot, RequestFailureKind, StopReason, Usage,
-    },
-    tools::{ToolCall, ToolResult},
+use crate::llm::protocol::{
+    CancelReason,
+    ContentBlock,
+    ModelResponseSnapshot,
+    RequestFailureKind,
+    StopReason,
+    Usage,
+};
+use crate::tools::{
+    ToolCall,
+    ToolResult,
 };
 
 /// Compaction mode carried on `CompactionApplied` (maps to session `CompactionKind`).

@@ -2,7 +2,13 @@ use std::pin::Pin;
 
 use futures::Stream;
 
-use crate::llm::protocol::{LlmError, ModelRequest, ModelStreamEvent, StopReason, Usage};
+use crate::llm::protocol::{
+    LlmError,
+    ModelRequest,
+    ModelStreamEvent,
+    StopReason,
+    Usage,
+};
 use crate::llm::LLMProvider;
 
 /// Test double: returns a fixed event sequence.
@@ -27,6 +33,7 @@ impl MockProvider {
                     input_tokens: 1,
                     output_tokens: 1,
                 }),
+                response_id: None,
             }),
         ])
     }
@@ -45,11 +52,21 @@ impl LLMProvider for MockProvider {
 /// Serde round-trips for protocol types.
 #[cfg(test)]
 mod protocol_tests {
-    use super::super::protocol::{
-        ContentBlock, Message, MessageContent, ModelRequest, ModelStreamEvent, Role, StopReason,
-    };
     use serde_json::json;
 
+    use super::super::protocol::{
+        ContentBlock,
+        Message,
+        MessageContent,
+        ModelRequest,
+        ModelStreamEvent,
+        Role,
+        StopReason,
+    };
+
+    // Scenario: ContentBlock ToolUse serializes to JSON and deserializes identically.
+    // Expected: serde round-trip preserves id, name, and input payload.
+    // Invariant: protocol types remain stable for Session Item and wire boundaries.
     #[test]
     fn content_block_round_trip() {
         let block = ContentBlock::ToolUse {
@@ -62,6 +79,9 @@ mod protocol_tests {
         assert_eq!(block, back);
     }
 
+    // Scenario: ModelRequest with user text serializes for compile/adapter boundaries.
+    // Expected: model and messages survive JSON round-trip.
+    // Invariant: previous_response_id and secrets stay on LlmCallConfig, not in this snapshot test.
     #[test]
     fn model_request_round_trip() {
         let request = ModelRequest {
@@ -75,6 +95,7 @@ mod protocol_tests {
             max_tokens: 1024,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         };
         let json = serde_json::to_string(&request).expect("serialize");
         let back: ModelRequest = serde_json::from_str(&json).expect("deserialize");
@@ -82,11 +103,15 @@ mod protocol_tests {
         assert_eq!(request.messages.len(), 1);
     }
 
+    // Scenario: Finished stream event is persisted or logged through serde.
+    // Expected: stop_reason and optional fields round-trip without loss.
+    // Invariant: Finished remains the terminal event shape across adapter families.
     #[test]
     fn model_stream_event_finished_round_trip() {
         let event = ModelStreamEvent::Finished {
             stop_reason: StopReason::ToolUse,
             usage: None,
+            response_id: None,
         };
         let json = serde_json::to_string(&event).expect("serialize");
         let back: ModelStreamEvent = serde_json::from_str(&json).expect("deserialize");
@@ -99,12 +124,25 @@ mod protocol_tests {
 mod provider_tests {
     use futures::StreamExt;
 
-    use super::{MockProvider, *};
-    use crate::llm::protocol::{
-        ContentBlock, Message, MessageContent, ModelRequest, ModelStreamEvent, RequestFailureKind,
-        Role, StopReason,
+    use super::{
+        MockProvider,
+        *,
     };
-    use crate::llm::{complete, run_model_call_with_updates, ModelResponseSnapshot};
+    use crate::llm::protocol::{
+        ContentBlock,
+        Message,
+        MessageContent,
+        ModelRequest,
+        ModelStreamEvent,
+        RequestFailureKind,
+        Role,
+        StopReason,
+    };
+    use crate::llm::{
+        complete,
+        run_model_call_with_updates,
+        ModelResponseSnapshot,
+    };
 
     fn sample_request() -> ModelRequest {
         ModelRequest {
@@ -118,9 +156,13 @@ mod provider_tests {
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         }
     }
 
+    // Scenario: MockProvider emits text then Finished for a minimal request.
+    // Expected: the last stream item is Finished with EndTurn.
+    // Invariant: mock streams always terminate with exactly one Finished.
     #[tokio::test]
     async fn mock_provider_stream_ends_with_finished() {
         let provider = MockProvider::text_then_end("hello");
@@ -137,6 +179,9 @@ mod provider_tests {
         }
     }
 
+    // Scenario: complete() folds a single TextPart stream into ModelResponse.
+    // Expected: content blocks and stop_reason match the mock stream.
+    // Invariant: complete requires a terminal Finished event.
     #[tokio::test]
     async fn complete_collects_text_part() {
         let provider = MockProvider::text_then_end("hello");
@@ -153,6 +198,9 @@ mod provider_tests {
         assert_eq!(response.model.as_deref(), Some("mock"));
     }
 
+    // Scenario: provider stream ends after TextPart without Finished.
+    // Expected: complete returns Unrecoverable RequestFailed.
+    // Invariant: partial streams never silently succeed at the port boundary.
     #[tokio::test]
     async fn complete_errors_when_stream_omits_finished() {
         let provider = MockProvider::new(vec![Ok(ModelStreamEvent::TextPart {
@@ -171,6 +219,9 @@ mod provider_tests {
         ));
     }
 
+    // Scenario: run_model_call_with_updates observes incremental ModelResponseSnapshot values.
+    // Expected: pending snapshot then terminal snapshot with stop_reason.
+    // Invariant: callback fires once per stream event, including Finished.
     #[tokio::test]
     async fn run_model_call_with_updates_invokes_callback_per_event() {
         let provider = MockProvider::text_then_end("hi");
@@ -218,6 +269,7 @@ mod provider_tests {
             Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::ToolUse,
                 usage: None,
+                response_id: None,
             }),
         ]);
 
@@ -296,15 +348,35 @@ pub(crate) fn assert_stream_invariants(events: &[ModelStreamEvent]) {
 mod invariant_tests {
     use futures::StreamExt;
     use serde_json::json;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::matchers::{
+        method,
+        path,
+    };
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+    };
 
-    use super::{assert_stream_invariants, MockProvider, *};
+    use super::{
+        assert_stream_invariants,
+        MockProvider,
+        *,
+    };
     use crate::llm::adapter::openai_chat::OpenAiChatAdapter;
-    use crate::llm::adapter::{build_provider, AdapterConfig};
-    use crate::llm::normalize::{common::validate_request, openai_chat::OpenAiChatOptions};
+    use crate::llm::adapter::{
+        build_provider,
+        AdapterConfig,
+    };
+    use crate::llm::normalize::common::validate_request;
+    use crate::llm::normalize::openai_chat::OpenAiChatOptions;
     use crate::llm::protocol::{
-        Message, MessageContent, ModelRequest, ModelStreamEvent, Role, StopReason,
+        Message,
+        MessageContent,
+        ModelRequest,
+        ModelStreamEvent,
+        Role,
+        StopReason,
     };
 
     fn sample_request() -> ModelRequest {
@@ -319,6 +391,7 @@ mod invariant_tests {
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         }
     }
 
@@ -334,6 +407,9 @@ mod invariant_tests {
         out
     }
 
+    // Scenario: validate_request rejects empty messages before adapter construction.
+    // Expected: encode/HTTP path is blocked for empty ModelRequest.messages.
+    // Invariant: invariant_tests share the same validation gate as production adapters.
     #[test]
     fn model_request_messages_must_not_be_empty() {
         let request = ModelRequest {
@@ -344,6 +420,7 @@ mod invariant_tests {
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         };
         assert!(validate_request(&request).is_err());
     }
@@ -362,6 +439,7 @@ mod invariant_tests {
             AdapterConfig::AnthropicMessages {
                 base_url: "https://example.com".into(),
                 api_key: "k".into(),
+                prompt_cache: false,
             },
         ];
         for config in configs {
@@ -369,6 +447,9 @@ mod invariant_tests {
         }
     }
 
+    // Scenario: MockProvider text stream is checked against README stream invariants.
+    // Expected: assert_stream_invariants accepts a valid text-then-finished sequence.
+    // Invariant: exactly one Finished and it is the terminal event.
     #[tokio::test]
     async fn mock_text_stream_invariants() {
         let provider = MockProvider::text_then_end("hello");
@@ -376,6 +457,9 @@ mod invariant_tests {
         assert_stream_invariants(&events);
     }
 
+    // Scenario: MockProvider emits a full tool call sequence.
+    // Expected: stream invariant helper accepts Started/Part/Finished pairing.
+    // Invariant: every ToolUsePart and ToolUseFinished references an open ToolUseStarted id.
     #[tokio::test]
     async fn mock_tool_sequence_invariants() {
         let provider = MockProvider::new(vec![
@@ -395,12 +479,16 @@ mod invariant_tests {
             Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::ToolUse,
                 usage: None,
+                response_id: None,
             }),
         ]);
         let events = collect_events(&provider, sample_request()).await;
         assert_stream_invariants(&events);
     }
 
+    // Scenario: MockProvider interleaves ThinkingPart and TextPart before Finished.
+    // Expected: invariant checker accepts mixed block indices in one assistant message.
+    // Invariant: thinking and text events do not violate tool stream bookkeeping.
     #[tokio::test]
     async fn mock_thinking_and_text_invariants() {
         let provider = MockProvider::new(vec![
@@ -415,12 +503,16 @@ mod invariant_tests {
             Ok(ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
+                response_id: None,
             }),
         ]);
         let events = collect_events(&provider, sample_request()).await;
         assert_stream_invariants(&events);
     }
 
+    // Scenario: OpenAiChatAdapter consumes wiremock SSE for a minimal chat completion.
+    // Expected: decoded stream passes README §11 invariant checks (Chat golden path).
+    // Invariant: HTTP adapter reframes provider SSE into canonical ModelStreamEvent sequence.
     #[tokio::test]
     async fn openai_adapter_mock_http_invariants() {
         const SSE: &str = "\
@@ -457,12 +549,16 @@ data: [DONE]
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         };
 
         let events = collect_events(&adapter, request).await;
         assert_stream_invariants(&events);
     }
 
+    // Scenario: invariant helper sees two Finished events in one stream.
+    // Expected: assert_stream_invariants panics.
+    // Invariant: test guard catches regressions in stream termination semantics.
     #[test]
     fn assert_stream_invariants_catches_duplicate_finished() {
         let events = vec![
@@ -473,16 +569,21 @@ data: [DONE]
             ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
+                response_id: None,
             },
             ModelStreamEvent::Finished {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
+                response_id: None,
             },
         ];
         let result = std::panic::catch_unwind(|| assert_stream_invariants(&events));
         assert!(result.is_err());
     }
 
+    // Scenario: invariant helper sees ToolUsePart without a preceding ToolUseStarted.
+    // Expected: assert_stream_invariants panics.
+    // Invariant: malformed tool streams fail fast in tests before reaching the loop.
     #[test]
     fn assert_stream_invariants_catches_tool_part_without_start() {
         let events = vec![
@@ -493,6 +594,7 @@ data: [DONE]
             ModelStreamEvent::Finished {
                 stop_reason: StopReason::ToolUse,
                 usage: None,
+                response_id: None,
             },
         ];
         let result = std::panic::catch_unwind(|| assert_stream_invariants(&events));
@@ -504,13 +606,25 @@ data: [DONE]
 #[cfg(test)]
 mod error_tests {
     use futures::StreamExt;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::matchers::{
+        method,
+        path,
+    };
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+    };
 
     use crate::llm::adapter::openai_chat::OpenAiChatAdapter;
     use crate::llm::normalize::openai_chat::OpenAiChatOptions;
     use crate::llm::protocol::{
-        LlmError, Message, MessageContent, ModelRequest, RequestFailureKind, Role,
+        LlmError,
+        Message,
+        MessageContent,
+        ModelRequest,
+        RequestFailureKind,
+        Role,
     };
     use crate::llm::LLMProvider;
 
@@ -526,6 +640,7 @@ mod error_tests {
             max_tokens: 64,
             thinking_level: None,
             session_id: None,
+            previous_response_id: None,
         }
     }
 
@@ -560,6 +675,9 @@ mod error_tests {
         panic!("expected LlmError on stream, stream ended successfully");
     }
 
+    // Scenario: OpenAI Chat adapter receives HTTP 400 from wiremock.
+    // Expected: first stream error is Unrecoverable RequestFailed.
+    // Invariant: client errors do not trigger loop-level retry semantics.
     #[tokio::test]
     async fn openai_adapter_http_4xx_is_unrecoverable() {
         let (_server, adapter) = adapter_against(400, "bad request", "text/plain").await;
@@ -573,6 +691,9 @@ mod error_tests {
         ));
     }
 
+    // Scenario: OpenAI Chat adapter receives HTTP 503 from wiremock.
+    // Expected: first stream error is Recoverable RequestFailed.
+    // Invariant: upstream 5xx remain retryable at the loop boundary.
     #[tokio::test]
     async fn openai_adapter_http_5xx_is_recoverable() {
         let (_server, adapter) = adapter_against(503, "unavailable", "text/plain").await;
@@ -586,6 +707,9 @@ mod error_tests {
         ));
     }
 
+    // Scenario: SSE body ends with [DONE] but never emits finish_reason.
+    // Expected: stream fails with Recoverable RequestFailed.
+    // Invariant: truncated successful-looking SSE cannot complete a ModelResponse.
     #[tokio::test]
     async fn openai_adapter_done_without_finish_is_recoverable() {
         const DONE_ONLY: &str = "\
@@ -604,6 +728,9 @@ data: [DONE]
         ));
     }
 
+    // Scenario: SSE stream closes without [DONE] or finish_reason after one delta chunk.
+    // Expected: Recoverable RequestFailed when the connection ends mid-message.
+    // Invariant: adapter treats abrupt close as recoverable transport failure.
     #[tokio::test]
     async fn openai_adapter_truncated_sse_is_recoverable() {
         const TRUNCATED: &str = "\
@@ -620,6 +747,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"pong\"},\"finish_reason\":null}]}
         ));
     }
 
+    // Scenario: SSE data line contains invalid JSON before [DONE].
+    // Expected: Unrecoverable RequestFailed because payload cannot be decoded.
+    // Invariant: malformed provider JSON never produces partial ModelResponse content.
     #[tokio::test]
     async fn openai_adapter_invalid_sse_json_is_unrecoverable() {
         const INVALID: &str = "\
