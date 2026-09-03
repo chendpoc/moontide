@@ -1,7 +1,7 @@
 # llm — 技术设计
 
 > **读者：** 实现者、代码审查。对外集成见 [`README.md`](README.md)。
-> **状态：** R1–R8 已完成；provider-config 修复已通过门禁，待用户 diff review。Loop R1 的 retry/cancellation 接缝已确认。
+> **状态：** R1–R8 已完成；**四轴解耦 Feature 已对齐**（[`crates/docs/features/LLM-FOUR-AXIS.md`](../../../docs/features/LLM-FOUR-AXIS.md)），实现 R1–R4 未开始。
 > **关联：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md) · [`../../README.md`](../../README.md)
 
 ---
@@ -77,8 +77,10 @@ llm::normalize/{family}
 | 概念 | 含义 | 例子 |
 |------|------|------|
 | **MoonTide 协议** | 内核 domain 类型 | `ContentBlock`, `ModelRequest`, `ThinkingLevel` |
-| **AdapterFamily** | wire 协议族 | `OpenAiChatCompletions`, `AnthropicMessages` |
+| **AdapterFamily** | wire 协议族 | `OpenAiChatCompletions`, `OpenAiResponses`, `AnthropicMessages` |
 | **Adapter option** | 组合根已解析的显式 wire 选择 | `OpenAiThinkingExtension::ChatTemplateKwargs` |
+| **`LlmCallConfig`** | 单次 LLM 调用 config（L3） | protocol + endpoint + generation；`TurnInput.config` |
+| **`ProviderProtocolProfile`** | `(provider, protocol)` 连续性与 wire 能力 | 在 `agent::llm` catalog；随 `LlmCallConfig.profile` 进入 adapter |
 
 ```text
 agent::llm catalog → ResolvedProviderConfig
@@ -278,6 +280,7 @@ Session 落盘：仅 `finish()` 后 `ModelResponse.content`，不含 `pending`�
 ```rust
 enum AdapterFamily {
     OpenAiChatCompletions,
+    OpenAiResponses,
     AnthropicMessages,
 }
 
@@ -287,17 +290,49 @@ enum AdapterConfig {
         api_key: String,
         options: OpenAiChatOptions,
     },
+    OpenAiResponses {
+        base_url: String,
+        api_key: String,
+        options: OpenAiResponsesOptions,
+    },
     AnthropicMessages {
         base_url: String,
         api_key: String,
+        options: AnthropicMessagesOptions,
     },
 }
 
 fn build_provider(config: AdapterConfig) -> Result<Box<dyn LLMProvider>, LlmError>;
 ```
 
-family-specific enum variants make a family/config mismatch unrepresentable. `AdapterFamily`
-remains catalog metadata used by the composition root to select the variant.
+family-specific enum variants make a family/config mismatch unrepresentable. Encode 按
+`ProviderProtocolProfile` 在 **Canonical**（全量 materialize）与 **Optimized**（如 OpenAI
+`previous_response_id`）之间选择；profile 来自 catalog，adapter 不读 `ProviderId`。
+
+### 8.1 `LlmCallConfig`（替换 `ModelRequestConfig`）
+
+```rust
+struct LlmCallConfig {
+    protocol: AdapterFamily,
+    profile: ProviderProtocolProfile,
+    model: String,
+    base_url: String,
+    api_key: String,
+    options: AdapterOptions,
+    max_tokens: u32,
+    thinking_level: Option<ThinkingLevel>,
+    session_id: Option<String>,
+    continuity_hint: ContinuityHint,
+}
+
+enum ContinuityHint {
+    None,
+    PreviousResponseId(String),
+}
+```
+
+`model_input::compile(&LlmCallConfig, …)` → `ModelRequest`（仍不含 secret）。Session Item Log
+是 resume 唯一事实源；`response_id` sidecar 非 model-visible，丢失时降级 Canonical。
 
 ---
 
@@ -325,15 +360,21 @@ remains catalog metadata used by the composition root to select the variant.
 
 ## 10. Provider catalog 与 resolved config 边界
 
-concrete `ProviderId`、model/default endpoint、credential env 名和 adapter option mapping
-属于 `agent::llm::catalog`，不进入 `agent-core`。catalog entry 直接拥有 model slice，
-provider lookup 使用穷尽 `match`，使缺 provider entry/default model 这类状态不可构造，
-而不是在 production path 使用 `expect`。
+concrete `ProviderId`、`ProviderEntry`（含 **`default_protocol`**、**`protocol_profiles`**）、
+model/default endpoint、credential env 名和 adapter option mapping 属于 `agent::llm::catalog`，
+不进入 `agent-core`。
 
-`agent-core::llm` 只公开 provider-neutral 的 `AdapterFamily`、`AdapterConfig` 和显式
-adapter-specific option。CLI/Desktop 只向 `agent::llm` 提交 `LlmConfigLayer`；
-`agent::llm` 产出单一 `ResolvedProviderConfig`，再由 agent bootstrap 转换为 adapter config。
-完整链路见 [`crates/docs/llm-provider-config-fix.md`](../../../docs/llm-provider-config-fix.md)。
+`ProviderProtocolProfile` 在 catalog 为每个 `(provider, protocol)` 声明连续性（
+`ClientMaterialize` / `OptionalServerResponseChain`）、Responses 能力位与 wire quirks。
+merge 后进入 `ResolvedProviderConfig.profile` 与 `LlmCallConfig.profile`。
+
+`agent-core::llm` 只公开 provider-neutral 的 `AdapterFamily`、`AdapterConfig`、
+`LlmCallConfig`、`ProviderProtocolProfile` 与 adapter-specific option。CLI/Desktop 只向
+`agent::llm` 提交 `LlmConfigLayer`（含可选 `protocol`）；`agent::llm` 产出
+`ResolvedProviderConfig`，再由 bootstrap 转换为 `AdapterConfig`。
+
+完整 Feature 见 [`crates/docs/features/LLM-FOUR-AXIS.md`](../../../docs/features/LLM-FOUR-AXIS.md)；
+历史 provider-config 修复见 [`llm-provider-config-fix.md`](../../../docs/llm-provider-config-fix.md)。
 
 ---
 
@@ -382,11 +423,11 @@ adapter-specific option。CLI/Desktop 只向 `agent::llm` 提交 `LlmConfigLayer
 | 交付 | 状态 |
 |------|------|
 | `protocol/` + `LLMProvider` | ✓ R1 |
-| normalize / adapter 层 | ✓ R2–R3 |
+| normalize / adapter 层（Chat + Anthropic stub） | ✓ R2–R3 |
 | 不变量单测 | ✓ R4 |
 | `ModelStreamEvent` + Builder + `run_model_call*` | ✓ R5–R6 |
-| provider-neutral adapter options；concrete catalog 外移至 `agent::llm` | ✓ R8 |
-| Responses / Gemini 族 | 后置 |
+| provider-neutral adapter options；catalog 外移至 `agent::llm` | ✓ R8 |
+| **四轴解耦 + Responses + 真实 Anthropic + `LlmCallConfig`** | Feature 对齐；R1–R4 待实现 |
 
 ---
 

@@ -1,7 +1,7 @@
 # agent — 技术设计
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
-> **状态：** 初步可用版 Agent R1–R3 已实现；LLM provider-config 修复已通过门禁，待用户 diff review。
+> **状态：** 初步可用版 Agent R1–R3 已实现；**LLM 四轴解耦 Feature 已对齐**（[`crates/docs/features/LLM-FOUR-AXIS.md`](../docs/features/LLM-FOUR-AXIS.md)），实现未开始。
 > **关联：** [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ---
@@ -65,13 +65,30 @@ Agent Event 的 queue、worker、persistence policy 和 file adapter 由 `agent:
 ## 3. 类型与签名
 
 ```rust
+pub struct ProviderEntry {
+    pub default_protocol: AdapterFamily,
+    pub supported_protocols: &'static [AdapterFamily],
+    pub protocol_profiles: &'static [ProviderProtocolProfile],
+    // default_base_url, api_key_env, models ...
+}
+
 pub struct ResolvedProviderConfig {
     pub provider_id: ProviderId,
+    pub protocol: AdapterFamily,
+    pub profile: ProviderProtocolProfile,
     pub model: String,
-    pub family: AdapterFamily,
     pub base_url: String,
     pub api_key: String,
-    pub openai_chat: OpenAiChatOptions,
+    pub options: AdapterOptions,
+}
+
+impl ResolvedProviderConfig {
+    pub fn to_call_config(
+        &self,
+        max_tokens: u32,
+        thinking_level: Option<ThinkingLevel>,
+        session_id: Option<String>,
+    ) -> LlmCallConfig;
 }
 
 pub struct AgentConfig {
@@ -124,11 +141,14 @@ impl Agent {
 
 ```text
 ResolvedProviderConfig
-  → match family
-  → AdapterConfig::OpenAiChat { base_url, api_key, options }
-    | AdapterConfig::AnthropicMessages { base_url, api_key }
+  → match protocol
+  → AdapterConfig::OpenAiChat | OpenAiResponses | AnthropicMessages
   → llm::adapter::build_provider(adapter_config)
   → Arc<dyn LLMProvider>
+
+Agent::turn
+  → LlmCallConfig = provider.to_call_config(max_tokens, thinking, session_id)
+  → TurnInput { config: call, ... }
 ```
 
 `AgentConfig` 只持有这一份 resolved provider fact，不再平行持有 `provider_id`、

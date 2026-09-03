@@ -1,8 +1,8 @@
 # 启动配置四层合并
 
 > **状态：** 当前设计（2026-08-26 已实现并通过门禁，待用户 diff review）
-> **范围：** CLI / Desktop 启动时的 provider、model、base URL、adapter option 与 API key
-> **关联：** [`llm-provider-config-fix.md`](llm-provider-config-fix.md) · [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
+> **范围：** CLI / Desktop 启动时的 provider、**protocol**、model、base URL、adapter option 与 API key
+> **关联：** [`features/LLM-FOUR-AXIS.md`](features/LLM-FOUR-AXIS.md) · [`llm-provider-config-fix.md`](llm-provider-config-fix.md) · [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ## 1. 结论
 
@@ -12,8 +12,8 @@ LLM 启动配置只有四个有序层：
 catalog < settings < environment < host overrides
 ```
 
-这不是无条件的字段覆盖。model、base URL 和 API key 都是 provider-scoped fields：
-高层切换 provider 后，低层其他 provider 的 endpoint、model 和 credential 不能继续存活。
+这不是无条件的字段覆盖。model、base URL、**protocol** 和 API key 都是 provider-scoped fields：
+高层切换 provider 后，低层其他 provider 的 endpoint、model、protocol 和 credential 不能继续存活。
 
 最终链路固定为：
 
@@ -42,14 +42,29 @@ CLI / Desktop host-owned settings schema + JSON IO
 
 | 层 | 来源 | 可提供字段 | 规则 |
 |---|---|---|---|
-| catalog | `agent::llm::catalog` | provider、default model/base URL、family、adapter options、credential env name | 默认 provider 的完整 baseline；不存 secret |
-| settings | `<cwd>/.moontide/settings.json` | provider、model、base URL、API key | 由宿主解析；version 1 缺 provider 时由宿主迁移为 DeepSeek |
-| environment | `MOONTIDE_PROVIDER`、`MOONTIDE_MODEL`、`MOONTIDE_BASE_URL`、provider-specific key | provider、model、base URL、API key candidates | 最终 provider 只选择自己的 credential env；空白 model/base URL 报错 |
-| host overrides | CLI flags、Desktop 显式输入 | provider、model、base URL、API key | 只有显式 `Some` 覆盖；空白 model/base URL 报错 |
+| catalog | `agent::llm::catalog` | provider、**default protocol**、default model/base URL、**protocol_profiles**、adapter options、credential env name | 默认 provider 的完整 baseline；不存 secret |
+| settings | `<cwd>/.moontide/settings.json` | provider、model、base URL、**protocol**、API key | 由宿主解析；version 1 缺 provider 时由宿主迁移为 DeepSeek |
+| environment | `MOONTIDE_PROVIDER`、`MOONTIDE_MODEL`、`MOONTIDE_BASE_URL`、**`MOONTIDE_PROTOCOL`**、provider-specific key | provider、model、base URL、**protocol**、API key candidates | 最终 provider 只选择自己的 credential env；空白 model/base URL 报错 |
+| host overrides | CLI flags、Desktop 显式输入 | provider、model、base URL、**protocol**、API key | 只有显式 `Some` 覆盖；空白 model/base URL 报错 |
 
-`family` 与 adapter options 不能由 settings/env/host 直接覆盖，只能从 final provider 的
-catalog entry 解析。自定义 base URL 可以存在，但必须由对 final provider 生效的显式
-environment/host field 提供，不能来自旧 provider settings 残留。
+**protocol** 缺省 = `ProviderEntry.default_protocol`（凡支持 Responses 的 provider 默认为
+`OpenAiResponses`）。显式 protocol 必须在 `supported_protocols` 内，否则 merge 失败。
+Provider 切换时原子刷新 model、base_url、**protocol**、credential。
+
+`protocol_profiles` 与 adapter options 不能由 settings/env/host 直接覆盖，只能从 catalog
+的 `(provider, protocol)` 解析。
+
+**协议特性 Profile merge**（与上表正交，见 [`features/LLM-FOUR-AXIS.md`](features/LLM-FOUR-AXIS.md) §6.3）：
+
+```text
+ProviderProtocolProfileDefault (catalog)
+  ← UserProtocolProfileOverride (settings.profile)
+  ← HostProtocolProfileOverride (env / CLI)
+  → clamp(ProtocolCapabilities, vendor_ceiling)
+  → ResolvedProtocolProfile
+```
+
+后层覆盖前层；禁止开启 capabilities / vendor_ceiling 之外的特性。
 
 ## 4. Provider-scoped merge
 

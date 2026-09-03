@@ -2,7 +2,7 @@
 
 > **对外使用说明** — 集成 `agent-core::llm` 时读本文即可。
 > **实现细节** — [`DESIGN.md`](DESIGN.md)
-> **状态：** R1–R8 已完成；provider-config 修复已通过门禁，待用户 diff review。Loop R1 已确认 retry/cancellation 的上层接缝，LLMProvider API 不变。
+> **状态：** R1–R8 已完成；**四轴解耦 Feature 设计已对齐**（见 [`crates/docs/features/LLM-FOUR-AXIS.md`](../../../docs/features/LLM-FOUR-AXIS.md)），R1–R4 实现未开始。
 > **系统边界：** [`crates/docs/agent-core.md`](../../../docs/agent-core.md)
 
 ---
@@ -39,8 +39,10 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 | 概念 | 含义 |
 |------|------|
 | **MoonTide 协议** | 内核 domain 类型（与厂商无关） |
-| **AdapterFamily** | wire 形状（如 OpenAI Chat Completions） |
-| **Adapter options** | 由组合根解析后传入 adapter 的显式 wire 选项；内核不推断 vendor identity |
+| **AdapterFamily** | wire 协议：`OpenAiChatCompletions` / `OpenAiResponses` / `AnthropicMessages` |
+| **Adapter options** | 组合根解析的显式 wire 选项；内核不推断 vendor |
+| **`LlmCallConfig`** | 单次 LLM 调用的完整 config（protocol、endpoint、generation）；`TurnInput` 携带 |
+| **`ProviderProtocolProfile`** | catalog 声明的 `(provider, protocol)` 连续性与 wire 能力；在 `agent::llm` |
 
 ---
 
@@ -48,10 +50,10 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 
 | 调用者 | 可用 | 禁止 |
 |--------|------|------|
-| **`loop`** | `protocol` 类型、`run_model_call*`；在外层处理同 Step retry 与 CancellationToken | `match ModelStreamEvent`、自写 fold、在 provider 内硬编码 retry policy |
+| **`loop`** | `protocol` 类型、`LlmCallConfig`、`run_model_call*`；在外层处理同 Step retry 与 CancellationToken | `match ModelStreamEvent`、自写 fold、在 provider 内硬编码 retry policy |
 | **`session`** | `protocol` 类型（`ContentBlock` 等） | `LLMProvider`、`stream` |
 | **`context`** | `Message` | `ModelRequest` 构造、HTTP、adapter |
-| **`model_input`** | `ModelRequest` / `Message` / `ToolSchema` | HTTP、adapter、请求 preflight |
+| **`model_input`** | `ModelRequest` / `Message` / `ToolSchema`；`compile(&LlmCallConfig, …)` | HTTP、adapter、请求 preflight |
 | **`agent`** | `build_provider`、`AdapterFamily`、`AdapterConfig` | 在 loop 内硬编码 endpoint |
 | **`cli`** | `ModelResponseSnapshot`、`ContentBlock`（渲染） | `ModelStreamEvent` |
 | **测试** | `MockProvider`、`complete` 别名 | — |
@@ -65,6 +67,8 @@ HTTP、厂商 JSON/SSE、endpoint 对 loop **不可见**，由 `agent` 注入 `b
 常用：`Message`、`ContentBlock`、`ToolSchema`、`ModelRequest`、`ModelResponse`、`StopReason`、`Usage`、`LlmError`。
 
 ### loop 入口（**首选**）
+
+`TurnInput.config` 类型为 **`LlmCallConfig`**（含 protocol、base_url、api_key、options、max_tokens、thinking 等；secret 不进 `ModelRequest`）。详见 Feature 文档与 [`DESIGN.md`](DESIGN.md) §6。
 
 ```rust
 /// 无流式 UI
@@ -113,7 +117,7 @@ pub trait LLMProvider: Send + Sync {
 
 ```rust
 let request = model_input::compile(
-    &request_config,
+    &call_config,
     &system_prompt,
     messages,
     &tool_registry,
@@ -207,5 +211,6 @@ Turn 的主动取消直接使用 `tokio_util::sync::CancellationToken` 包裹 `r
 ## 进一步阅读
 
 - 模块结构、normalize/adapter、不变量、单测：[`DESIGN.md`](DESIGN.md)
+- 四轴解耦 Feature：[`crates/docs/features/LLM-FOUR-AXIS.md`](../../../docs/features/LLM-FOUR-AXIS.md)
 - TypeScript 历史 provider 方案：[`docs/archive/spec/llm-provider.md`](../../../../docs/archive/spec/llm-provider.md)
 - 实现任务历史：[`TASKS.md`](TASKS.md)
