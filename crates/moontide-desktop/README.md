@@ -43,6 +43,9 @@ a fresh ready runtime with a new `connection_epoch`.
 
 Design contract: [`DESIGN.md`](DESIGN.md).
 
+Next candidate track (design only, not implemented):
+[`docs/features/HYBRID-SHELL-V0.2.md`](docs/features/HYBRID-SHELL-V0.2.md).
+
 ```bash
 cargo test -p moontide-desktop
 cargo clippy -p moontide-desktop --all-targets -- -D warnings
