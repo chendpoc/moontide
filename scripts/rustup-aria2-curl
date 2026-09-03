@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# curl-compatible wrapper for rustup downloads via aria2c (multi-connection).
+# Usage:
+#   export PATH="$(dirname "$0"):$PATH"
+#   export RUSTUP_USE_CURL=1
+#   export RUSTUP_DIST_SERVER="https://mirrors.ustc.edu.cn/rust-static"
+#   export RUSTUP_UPDATE_ROOT="https://mirrors.ustc.edu.cn/rust-static/rustup"
+#   rustup toolchain install nightly -c rustfmt --profile minimal
+set -euo pipefail
+
+url=""
+output=""
+referer=""
+user_agent=""
+
+args=("$@")
+i=0
+while [[ $i -lt ${#args[@]} ]]; do
+  case "${args[$i]}" in
+    -o | --output)
+      output="${args[$((i + 1))]}"
+      i=$((i + 2))
+      ;;
+    -A | --user-agent)
+      user_agent="${args[$((i + 1))]}"
+      i=$((i + 2))
+      ;;
+    -e | --referer)
+      referer="${args[$((i + 1))]}"
+      i=$((i + 2))
+      ;;
+    -L | --location | -k | --insecure)
+      i=$((i + 1))
+      ;;
+    http://* | https://*)
+      url="${args[$i]}"
+      i=$((i + 1))
+      ;;
+    *)
+      i=$((i + 1))
+      ;;
+  esac
+done
+
+if [[ -z "$url" || -z "$output" ]]; then
+  echo "rustup-aria2-curl: need -o and URL" >&2
+  exit 2
+fi
+
+mkdir -p "$(dirname "$output")"
+aria2_args=(-x16 -s16 -k1M --file-allocation=none --check-certificate=false -o "$(basename "$output")" -d "$(dirname "$output")")
+[[ -n "$referer" ]] && aria2_args+=(--referer="$referer")
+[[ -n "$user_agent" ]] && aria2_args+=(--user-agent="$user_agent")
+aria2_args+=("$url")
+aria2c "${aria2_args[@]}"

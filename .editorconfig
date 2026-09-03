@@ -1,0 +1,27 @@
+# https://editorconfig.org — aligns with rustfmt.toml (LF) and Rust Style Guide (4-space Rust).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.rs]
+indent_style = space
+indent_size = 4
+
+[*.{toml,md,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{js,ts,tsx,jsx,json,css,html}]
+indent_style = space
+indent_size = 2
+
+[Cargo.lock]
+indent_style = unset
+insert_final_newline = unset
+
+[Makefile]
+indent_style = tab

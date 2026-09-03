@@ -1,0 +1,9 @@
+# Auto-installed on `cd` into the repo (rustup). Build / test / clippy use stable.
+#
+# Formatting requires nightly rustfmt (`imports_layout` in rustfmt.toml):
+#   rustup toolchain install nightly -c rustfmt --profile minimal
+# Slow network: see scripts/rustup-aria2-curl
+[toolchain]
+channel = "stable"
+components = ["clippy"]
+profile = "default"

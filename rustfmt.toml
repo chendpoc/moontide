@@ -1,0 +1,8 @@
+# workspace Cargo.toml edition; keeps editor format-on-save aligned with cargo fmt
+edition = "2021"
+# LF in VCS; cross-platform checkouts stay consistent
+newline_style = "Unix"
+
+# One item per line inside `use foo::{ ... }` when the block wraps (nightly rustfmt).
+# just check / CI use `cargo +nightly fmt`; stable ignores this key.
+imports_layout = "Vertical"

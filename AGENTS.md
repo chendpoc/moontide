@@ -39,8 +39,8 @@
 
 ## 命令
 
-- 代码变更后（文档除外）：`just check`（= `cargo fmt --all --check` + `cargo clippy --workspace --all-targets` + `cargo test --workspace`），修完所有 fmt/clippy/test 再提交
-- **Git hooks（可选）：** `pre-commit install` + `pre-commit install --hook-type pre-push`（见根目录 `.pre-commit-config.yaml`）— commit 跑 `just pre-commit`（fmt + clippy），push 跑 `just pre-push`（workspace test）；需 `rustup component add rustfmt clippy`
+- 代码变更后（文档除外）：`just check`（= `cargo +nightly fmt --all --check` + `cargo clippy --workspace --all-targets` + `cargo test --workspace`），修完所有 fmt/clippy/test 再提交
+- **Git hooks（可选）：** `pre-commit install` + `pre-commit install --hook-type pre-push`（见根目录 `.pre-commit-config.yaml`）— commit 跑 rustfmt（nightly）+ clippy，push 跑 workspace test；需 `rustup toolchain install nightly -c rustfmt --profile minimal`（stable/clippy 由 `rust-toolchain.toml` 自动安装）
 - 未经用户要求：不跑 release build（`cargo build --release`）
 - 只改单个 crate 时：`cargo test -p <crate>` 直到通过，再跑 workspace
 - CI 与未装 hook 时：检查靠手动 `just check`

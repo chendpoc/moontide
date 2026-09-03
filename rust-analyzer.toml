@@ -1,0 +1,5 @@
+# Project rust-analyzer config (editor-independent; prefix "rust-analyzer." omitted).
+# Matches CI / just: nightly rustfmt reads root rustfmt.toml.
+
+[rustfmt]
+overrideCommand = ["rustup", "run", "nightly", "rustfmt", "--", "-"]

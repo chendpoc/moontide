@@ -1,10 +1,11 @@
 # Git hooks via https://pre-commit.com
 # Setup (once per clone):
 #   brew install pre-commit          # or: pip install pre-commit
-#   rustup component add rustfmt clippy
+#   rustup toolchain install nightly -c rustfmt --profile minimal
 #   pre-commit install
 #   pre-commit install --hook-type pre-push
 #
+# `rust-toolchain.toml` installs stable + clippy on cd; nightly rustfmt is separate (see above).
 # Manual: pre-commit run --all-files | just pre-commit | just check
 
 default_language_version:
@@ -13,9 +14,16 @@ default_language_version:
 repos:
   - repo: local
     hooks:
-      - id: just-pre-commit
-        name: just pre-commit (fmt + clippy)
-        entry: just pre-commit
+      - id: rustfmt-nightly
+        name: rustfmt (nightly, check)
+        entry: cargo +nightly fmt --all --check
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: clippy
+        name: clippy (workspace, -D warnings)
+        entry: cargo clippy --workspace --all-targets -- -D warnings
         language: system
         pass_filenames: false
         always_run: true

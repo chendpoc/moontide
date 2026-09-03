@@ -64,12 +64,16 @@ moontide/
 ## 开发
 
 ```sh
-just check                      # fmt + clippy + workspace test
+rustup toolchain install nightly -c rustfmt --profile minimal  # once; fmt uses nightly (rustfmt.toml)
+just check                      # nightly fmt + clippy + workspace test
+just fmt                        # cargo +nightly fmt --all
 cargo test -p agent-core
 cargo test -p agent-tools
 ```
 
-可选 git hooks：`pre-commit install` 与 `pre-commit install --hook-type pre-push`（见 [`.pre-commit-config.yaml`](.pre-commit-config.yaml)）。commit 跑 `just pre-commit`，push 跑 `just pre-push`。
+`rust-toolchain.toml` 会在进入目录时安装 stable + clippy。编辑器 format-on-save 见 `.vscode/settings.json` 与 `rust-analyzer.toml`（同样走 nightly rustfmt）。
+
+可选 git hooks：`pre-commit install` 与 `pre-commit install --hook-type pre-push`（见 [`.pre-commit-config.yaml`](.pre-commit-config.yaml)）。commit 跑 rustfmt + clippy，push 跑 workspace test。
 
 Agent 协作规则见 [`AGENTS.md`](AGENTS.md)。
 
