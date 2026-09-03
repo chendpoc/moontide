@@ -6,6 +6,14 @@ use std::{
 };
 
 use agent::llm::{
+    AdapterFamily,
+    ApiKeySource,
+    CustomProviderDefinition,
+    EnvSource,
+    LlmConfigLayer,
+    ProcessEnv,
+    ProviderId,
+    UserProtocolProfileOverride,
     api_key_env,
     apply_provider_switch,
     catalog_preset,
@@ -15,14 +23,6 @@ use agent::llm::{
     register_custom_providers,
     require_api_key,
     resolve_api_key_source,
-    AdapterFamily,
-    ApiKeySource,
-    CustomProviderDefinition,
-    EnvSource,
-    LlmConfigLayer,
-    ProcessEnv,
-    ProviderId,
-    UserProtocolProfileOverride,
 };
 use agent::{
     DiagnosticPersistence,
@@ -31,9 +31,9 @@ use agent::{
     ThinkingLevel,
 };
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use serde::{
     Deserialize,
@@ -46,9 +46,9 @@ use crate::args::{
     TraceModeArg,
 };
 use crate::config::{
-    resolve_project_paths,
     DEFAULT_MAX_STEPS,
     DEFAULT_MAX_TOKENS,
+    resolve_project_paths,
 };
 use crate::input::InputOwner;
 use crate::render::write_diagnostic_stderr;

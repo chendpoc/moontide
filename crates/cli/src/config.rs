@@ -5,14 +5,14 @@ use std::sync::Arc;
 use agent::llm::require_api_key;
 use agent::platform::ProjectPaths;
 use agent::{
-    resolve_coding_preset,
     CodingPresetPolicy,
     ToolApprovalHandler,
+    resolve_coding_preset,
 };
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 
 use crate::approval::{

@@ -160,8 +160,8 @@ fn retryable_status(status: StatusCode) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::{
-        ensure,
         Result,
+        ensure,
     };
     use wiremock::matchers::{
         method,
@@ -175,10 +175,10 @@ mod tests {
     };
 
     use super::{
+        SearxngProvider,
         parse_response,
         search_endpoint,
         validate_base_url,
-        SearxngProvider,
     };
     use crate::web_search::model::{
         SearchProvider,

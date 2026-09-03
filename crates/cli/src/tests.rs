@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{
     AtomicBool,
     Ordering,
 };
-use std::sync::Arc;
 use std::{
     future,
     io,
@@ -36,10 +36,10 @@ use crate::render::{
     write_assistant_stdout,
 };
 use crate::repl::{
-    await_turn_with_ctrl_c,
-    parse_command,
     ReplCommand,
     TurnOutcome,
+    await_turn_with_ctrl_c,
+    parse_command,
 };
 use crate::settings::{
     ApprovalPolicy,
@@ -127,10 +127,12 @@ fn always_approval_policy_maps_all_tools_to_ask() {
     )
     .expect("always approval config should resolve");
 
-    assert!(config
-        .permissions
-        .values()
-        .all(|permission| matches!(permission, agent::ToolPermission::Ask)));
+    assert!(
+        config
+            .permissions
+            .values()
+            .all(|permission| matches!(permission, agent::ToolPermission::Ask))
+    );
 }
 
 // Scenario: runtime Settings selects the AlwaysAllow approval policy.
@@ -147,10 +149,12 @@ fn always_allow_policy_maps_all_tools_to_allow() {
     )
     .expect("always-allow config should resolve");
 
-    assert!(config
-        .permissions
-        .values()
-        .all(|permission| matches!(permission, agent::ToolPermission::Allow)));
+    assert!(
+        config
+            .permissions
+            .values()
+            .all(|permission| matches!(permission, agent::ToolPermission::Allow))
+    );
     assert!(config.approval.is_none());
 }
 
@@ -164,12 +168,14 @@ fn missing_api_key_is_rejected() {
     assert!(resolve_agent_config_with(&args, PathBuf::from("project"), &empty_settings).is_err());
     let args_with_empty_key =
         <CliArgs as clap::Parser>::parse_from(["moontide", "--prompt", "hello", "--api-key", "  "]);
-    assert!(resolve_agent_config_with(
-        &args_with_empty_key,
-        PathBuf::from("project"),
-        &runtime_settings("secret", ApprovalPolicy::Default),
-    )
-    .is_err());
+    assert!(
+        resolve_agent_config_with(
+            &args_with_empty_key,
+            PathBuf::from("project"),
+            &runtime_settings("secret", ApprovalPolicy::Default),
+        )
+        .is_err()
+    );
 }
 
 // Scenario: resolved CLI config points at a missing working directory.
@@ -409,9 +415,11 @@ fn trace_mode_renders_events_and_opt_in_thinking() {
         },
     };
 
-    assert!(format_progress_event(TraceMode::Events, &tool)
-        .expect("tool event should render")
-        .contains("tool=bash"));
+    assert!(
+        format_progress_event(TraceMode::Events, &tool)
+            .expect("tool event should render")
+            .contains("tool=bash")
+    );
     assert!(format_progress_event(TraceMode::Events, &thinking).is_none());
     assert!(
         format_progress_event(TraceMode::EventsAndThinking, &thinking)

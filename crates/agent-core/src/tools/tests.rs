@@ -1,15 +1,15 @@
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::atomic::{
     AtomicUsize,
     Ordering,
 };
-use std::sync::Arc;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use serde_json::json;
 
@@ -232,9 +232,11 @@ fn registry_rejects_invalid_schema_during_construction() -> Result<()> {
         Ok(_) => bail!("invalid schema registry unexpectedly succeeded"),
         Err(error) => error,
     };
-    assert!(error
-        .to_string()
-        .contains("invalid input schema for tool broken_tool"));
+    assert!(
+        error
+            .to_string()
+            .contains("invalid input schema for tool broken_tool")
+    );
     Ok(())
 }
 
@@ -482,9 +484,11 @@ async fn tool_execute_rejects_result_with_mismatched_identity() -> Result<()> {
         Err(error) => error,
     };
 
-    assert!(error
-        .to_string()
-        .contains("tool executor result identity mismatch"));
+    assert!(
+        error
+            .to_string()
+            .contains("tool executor result identity mismatch")
+    );
     Ok(())
 }
 
@@ -505,9 +509,11 @@ async fn tool_execute_rejects_pipeline_owned_status_from_executor() -> Result<()
         Err(error) => error,
     };
 
-    assert!(error
-        .to_string()
-        .contains("tool executor returned pipeline-owned status: Denied"));
+    assert!(
+        error
+            .to_string()
+            .contains("tool executor returned pipeline-owned status: Denied")
+    );
     assert_eq!(call_count.load(Ordering::SeqCst), 1);
     Ok(())
 }

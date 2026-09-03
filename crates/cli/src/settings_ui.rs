@@ -28,21 +28,21 @@ use crossterm::style::{
     SetAttribute,
 };
 use crossterm::terminal::{
-    disable_raw_mode,
-    enable_raw_mode,
-    size,
     Clear,
     ClearType,
     EnterAlternateScreen,
     LeaveAlternateScreen,
+    disable_raw_mode,
+    enable_raw_mode,
+    size,
 };
 
 use crate::args::CliArgs;
 use crate::setting_catalog::{
-    apply_setting_change,
-    apply_status_message,
     SettingApplyEffect,
     SettingCatalog,
+    apply_setting_change,
+    apply_status_message,
 };
 use crate::settings::GlobalConfigStore;
 

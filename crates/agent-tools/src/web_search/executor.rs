@@ -18,10 +18,10 @@ use serde::Deserialize;
 use super::aggregator::SearchAggregator;
 use super::model::SearchRequest;
 use crate::workspace::{
-    truncate_from_start,
     DEFAULT_MAX_LINES,
     MAX_OUTPUT_BYTES,
     OUTPUT_LIMIT_MARKER,
+    truncate_from_start,
 };
 
 #[derive(Deserialize)]
@@ -120,17 +120,17 @@ mod tests {
         ToolResultStatus,
     };
     use anyhow::{
+        Result,
         bail,
         ensure,
-        Result,
     };
     use serde_json::json;
 
     use super::super::aggregator::SearchAggregator;
     use super::super::model::SearchProviderId;
     use super::{
-        format_results,
         WebSearchExecutor,
+        format_results,
     };
     use crate::workspace::{
         MAX_OUTPUT_BYTES,

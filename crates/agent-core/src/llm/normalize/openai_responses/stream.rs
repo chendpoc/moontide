@@ -89,14 +89,14 @@ impl StreamDecoder {
         let mut events = Vec::new();
         match event.event_type.as_str() {
             t if t == self.config.text_delta_event => {
-                if let Some(delta) = event.delta.as_deref() {
-                    if !delta.is_empty() {
-                        let block_index = u32::from(self.had_reasoning);
-                        events.push(ModelStreamEvent::TextPart {
-                            block_index,
-                            text: delta.to_string(),
-                        });
-                    }
+                if let Some(delta) = event.delta.as_deref()
+                    && !delta.is_empty()
+                {
+                    let block_index = u32::from(self.had_reasoning);
+                    events.push(ModelStreamEvent::TextPart {
+                        block_index,
+                        text: delta.to_string(),
+                    });
                 }
             }
             "response.output_item.added" => {
@@ -136,16 +136,14 @@ impl StreamDecoder {
                     .reasoning_delta_event
                     .as_deref()
                     .is_some_and(|reasoning| other == reasoning)
+                    && let Some(delta) = event.delta.as_deref()
+                    && !delta.is_empty()
                 {
-                    if let Some(delta) = event.delta.as_deref() {
-                        if !delta.is_empty() {
-                            self.had_reasoning = true;
-                            events.push(ModelStreamEvent::ThinkingPart {
-                                block_index: 0,
-                                thinking: delta.to_string(),
-                            });
-                        }
-                    }
+                    self.had_reasoning = true;
+                    events.push(ModelStreamEvent::ThinkingPart {
+                        block_index: 0,
+                        thinking: delta.to_string(),
+                    });
                 }
             }
         }
@@ -245,10 +243,10 @@ impl StreamDecoder {
         }
         let input = parse_tool_input(&entry.arguments)?;
         let name = entry.name.clone();
-        if name.is_empty() {
-            if let Some(n) = name_from_item(event) {
-                entry.name = n;
-            }
+        if name.is_empty()
+            && let Some(n) = name_from_item(event)
+        {
+            entry.name = n;
         }
         let name = entry.name.clone();
         if !name.is_empty() {

@@ -9,8 +9,8 @@ mod workspace;
 mod write;
 
 pub use catalog::{
-    builtin_tool_definitions,
     ToolDefinition,
+    builtin_tool_definitions,
 };
 
 #[cfg(test)]

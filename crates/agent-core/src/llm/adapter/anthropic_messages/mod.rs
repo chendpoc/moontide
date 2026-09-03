@@ -9,14 +9,15 @@ use futures::{
 use tokio::sync::mpsc;
 
 use super::sse::{
+    ByteLineBuffer,
     classify_http_status,
     stream_from_receiver,
-    ByteLineBuffer,
 };
+use crate::llm::LLMProvider;
 use crate::llm::normalize::anthropic_messages::{
-    encode_request,
     EncodeOptions,
     StreamDecoder,
+    encode_request,
 };
 use crate::llm::protocol::{
     LlmError,
@@ -24,7 +25,6 @@ use crate::llm::protocol::{
     ModelStreamEvent,
     RequestFailureKind,
 };
-use crate::llm::LLMProvider;
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 

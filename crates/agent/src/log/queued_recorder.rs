@@ -8,8 +8,8 @@ use agent_core::event::{
     AgentEventRecorder,
 };
 use anyhow::{
-    anyhow,
     Result,
+    anyhow,
 };
 use tokio::sync::mpsc;
 

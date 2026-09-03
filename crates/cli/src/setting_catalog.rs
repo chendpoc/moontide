@@ -1,32 +1,32 @@
 use agent::llm::{
+    AdapterFamily,
+    ProviderId,
+    ResolvedEndpoint,
     catalog_preset,
     list_provider_ids,
     models_for,
     provider,
-    AdapterFamily,
-    ProviderId,
-    ResolvedEndpoint,
 };
 use agent::{
     Agent,
     ThinkingLevel,
 };
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 
 use crate::args::CliArgs;
 use crate::config::resolve_agent_config;
 use crate::fuzzy::fuzzy_filter;
 use crate::settings::{
+    ApprovalPolicy,
+    GlobalConfigStore,
+    TraceMode,
     apply_provider_switch_in_store,
     format_api_key,
     load_persisted_global_config_store,
     persist_global_config_store,
-    ApprovalPolicy,
-    GlobalConfigStore,
-    TraceMode,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -7,21 +7,21 @@ use agent_core::llm::profile_config::{
     UserProtocolProfileOverride,
 };
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 
 use super::credentials::api_key_env;
 use super::provider_id::ProviderId;
 use super::{
-    all_providers,
-    custom_provider_entries,
-    resolve_endpoint,
-    resolve_provider_config,
     ProviderOverrides,
     ResolveOverrides,
     ResolvedEndpoint,
     ResolvedProviderConfig,
+    all_providers,
+    custom_provider_entries,
+    resolve_endpoint,
+    resolve_provider_config,
 };
 
 const ENV_PROVIDER: &str = "MOONTIDE_PROVIDER";
@@ -176,12 +176,12 @@ pub fn read_llm_env(env: &impl EnvSource) -> Result<LlmEnvLayer> {
             }
         }
     }
-    if !provider_api_keys.contains_key(&ProviderId::Google) {
-        if let Some(raw) = env.var("GEMINI_API_KEY") {
-            let trimmed = raw.trim();
-            if !trimmed.is_empty() {
-                provider_api_keys.insert(ProviderId::Google, trimmed.to_owned());
-            }
+    if !provider_api_keys.contains_key(&ProviderId::Google)
+        && let Some(raw) = env.var("GEMINI_API_KEY")
+    {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            provider_api_keys.insert(ProviderId::Google, trimmed.to_owned());
         }
     }
 

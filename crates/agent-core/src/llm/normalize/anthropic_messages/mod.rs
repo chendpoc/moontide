@@ -11,15 +11,15 @@ pub use stream::{
     StreamDecoder,
 };
 use tool::{
-    encode_messages,
     AnthropicRequestBody,
     AnthropicSystemBlock,
+    encode_messages,
 };
 
 use super::common::{
+    HandoffPolicy,
     sanitize_messages_for_handoff,
     validate_request,
-    HandoffPolicy,
 };
 use crate::llm::protocol::{
     LlmError,

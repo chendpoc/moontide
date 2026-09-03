@@ -4,9 +4,9 @@ use std::sync::{
 };
 
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use tokio::sync::mpsc;
 

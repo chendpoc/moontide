@@ -15,8 +15,8 @@ use std::sync::{
 };
 
 use anyhow::{
-    anyhow,
     Result,
+    anyhow,
 };
 use tokio::sync::oneshot;
 

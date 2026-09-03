@@ -6,8 +6,8 @@ use anyhow::{
     Result,
 };
 use tokio::sync::{
-    mpsc,
     Mutex,
+    mpsc,
 };
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -600,11 +600,13 @@ mod tests {
         assert_eq!(snapshot.session.items.len(), 60);
         assert_eq!(snapshot.session.history.oldest_turn, Some(35));
         assert!(snapshot.session.history.has_older);
-        assert!(snapshot
-            .session
-            .items
-            .iter()
-            .all(|item| (35..65).contains(&item_turn(item))));
+        assert!(
+            snapshot
+                .session
+                .items
+                .iter()
+                .all(|item| (35..65).contains(&item_turn(item)))
+        );
 
         let middle = coordinator
             .handle

@@ -143,8 +143,8 @@ fn retryable_status(status: reqwest::StatusCode) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::{
-        ensure,
         Result,
+        ensure,
     };
     use wiremock::matchers::{
         method,
@@ -158,9 +158,9 @@ mod tests {
     };
 
     use super::{
+        DuckDuckGoProvider,
         decode_result_url,
         parse_results,
-        DuckDuckGoProvider,
     };
     use crate::web_search::model::{
         SearchProvider,

@@ -15,10 +15,10 @@ use tokio::sync::{
 
 use super::file_recorder::FileAgentEventRecorder;
 use super::queued_recorder::{
+    AGENT_EVENT_LOG_QUEUE_CAPACITY,
     QueueState,
     QueueStatus,
     QueuedAgentEventRecorder,
-    AGENT_EVENT_LOG_QUEUE_CAPACITY,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,10 +241,12 @@ mod tests {
         assert!(handle.flush().await.is_err());
         let status = status.lock().expect("status");
         assert_eq!(status.state, QueueState::Stopped);
-        assert!(status
-            .last_error
-            .as_deref()
-            .is_some_and(|error| error.contains("flush command")));
+        assert!(
+            status
+                .last_error
+                .as_deref()
+                .is_some_and(|error| error.contains("flush command"))
+        );
     }
 
     // Scenario: a flush command is accepted but its completion acknowledgement is dropped.
@@ -269,10 +271,12 @@ mod tests {
         assert!(handle.flush().await.is_err());
         let status = status.lock().expect("status");
         assert_eq!(status.state, QueueState::Stopped);
-        assert!(status
-            .last_error
-            .as_deref()
-            .is_some_and(|error| error.contains("worker flush")));
+        assert!(
+            status
+                .last_error
+                .as_deref()
+                .is_some_and(|error| error.contains("worker flush"))
+        );
     }
 
     // Scenario: diagnostic recorder startup fails before a worker can be created.
@@ -285,12 +289,14 @@ mod tests {
         let handle = AgentEventLogHandle::failed(&queued, "recorder unavailable".into());
 
         assert_eq!(handle.status().state, AgentEventLogState::Stopped);
-        assert!(handle
-            .flush()
-            .await
-            .expect_err("failed worker flush should report startup error")
-            .to_string()
-            .contains("recorder unavailable"));
+        assert!(
+            handle
+                .flush()
+                .await
+                .expect_err("failed worker flush should report startup error")
+                .to_string()
+                .contains("recorder unavailable")
+        );
 
         queued
             .append(AgentEventRecord {

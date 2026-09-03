@@ -12,9 +12,9 @@ use std::time::Duration;
 
 use agent::AgentConfig;
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -43,8 +43,8 @@ use self::host::{
     DesktopConfig,
     DesktopHost,
     DesktopHostHandle,
-    SessionSelection,
     MIN_EVENT_CAPACITY,
+    SessionSelection,
 };
 
 const EVENT_FORWARDER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
@@ -500,7 +500,9 @@ impl DesktopRuntimeHandle {
             .context("Desktop runtime event forwarder is unavailable")?;
         match timeout(EVENT_FORWARDER_SHUTDOWN_TIMEOUT, forwarder).await {
             Ok(result) => result.context("Desktop runtime event forwarder task failed")?,
-            Err(_) => bail!("Desktop runtime event forwarder did not drain within {EVENT_FORWARDER_SHUTDOWN_TIMEOUT:?}"),
+            Err(_) => bail!(
+                "Desktop runtime event forwarder did not drain within {EVENT_FORWARDER_SHUTDOWN_TIMEOUT:?}"
+            ),
         }
     }
 

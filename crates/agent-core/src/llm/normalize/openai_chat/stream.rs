@@ -129,15 +129,15 @@ impl StreamDecoder {
         if let Some(name) = &tool_delta.function.name {
             entry.name.clone_from(name);
         }
-        if let Some(args) = &tool_delta.function.arguments {
-            if !args.is_empty() {
-                entry.arguments.push_str(args);
-                if entry.started {
-                    events.push(ModelStreamEvent::ToolUsePart {
-                        id: entry.id.clone(),
-                        input_json: args.clone(),
-                    });
-                }
+        if let Some(args) = &tool_delta.function.arguments
+            && !args.is_empty()
+        {
+            entry.arguments.push_str(args);
+            if entry.started {
+                events.push(ModelStreamEvent::ToolUsePart {
+                    id: entry.id.clone(),
+                    input_json: args.clone(),
+                });
             }
         }
 
@@ -288,9 +288,10 @@ mod tests {
                 r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":1}"}}]},"finish_reason":"tool_calls"}]}"#,
             ))
             .expect("d3");
-        assert!(d3
-            .iter()
-            .any(|e| matches!(e, ModelStreamEvent::ToolUseFinished { .. })));
+        assert!(
+            d3.iter()
+                .any(|e| matches!(e, ModelStreamEvent::ToolUseFinished { .. }))
+        );
         assert!(matches!(d3.last(), Some(ModelStreamEvent::Finished { .. })));
     }
 

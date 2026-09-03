@@ -94,10 +94,11 @@ mod tests {
         );
 
         assert_eq!(row.session_id, "session-1");
-        assert!(row
-            .first_user_message_excerpt
-            .as_deref()
-            .is_some_and(|excerpt| excerpt.ends_with('…')));
+        assert!(
+            row.first_user_message_excerpt
+                .as_deref()
+                .is_some_and(|excerpt| excerpt.ends_with('…'))
+        );
         assert_eq!(
             row.last_activity_at.as_deref(),
             Some("2026-09-01T08:00:00Z")

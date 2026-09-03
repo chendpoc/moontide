@@ -202,7 +202,7 @@ pub(crate) fn latest_session_id(sessions_dir: &Path) -> Result<Option<String>> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             return Err(error)
-                .with_context(|| format!("read sessions dir {}", sessions_dir.display()))
+                .with_context(|| format!("read sessions dir {}", sessions_dir.display()));
         }
     };
 
@@ -266,7 +266,7 @@ pub(crate) fn session_ids(sessions_dir: &Path) -> Result<Vec<String>> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
             return Err(error)
-                .with_context(|| format!("read sessions dir {}", sessions_dir.display()))
+                .with_context(|| format!("read sessions dir {}", sessions_dir.display()));
         }
     };
 
@@ -331,7 +331,7 @@ fn newest_modified_time(meta_path: &Path, log_path: &Path) -> Result<SystemTime>
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => {
             return Err(error)
-                .with_context(|| format!("read session log metadata {}", log_path.display()))
+                .with_context(|| format!("read session log metadata {}", log_path.display()));
         }
     };
 

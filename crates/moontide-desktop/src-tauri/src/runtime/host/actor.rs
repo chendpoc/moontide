@@ -279,10 +279,10 @@ impl HostActor {
             active.cancellation.cancel();
             active.turn
         });
-        if let Some(active) = self.active.take() {
-            if let Ok((agent, _)) = active.join.await {
-                self.agent = Some(agent);
-            }
+        if let Some(active) = self.active.take()
+            && let Ok((agent, _)) = active.join.await
+        {
+            self.agent = Some(agent);
         }
         self.broker.cancel_all();
         let (progress_flushed, diagnostic_log_flushed) = match self.agent.as_ref() {

@@ -4,9 +4,9 @@ use serde::{
 };
 
 use super::capabilities::{
-    capabilities_for,
     ProtocolCapabilities,
     ProtocolFeatureSet,
+    capabilities_for,
 };
 use crate::llm::adapter_family::AdapterFamily;
 use crate::llm::normalize::openai_chat::OpenAiChatOptions;
@@ -34,17 +34,13 @@ impl ProtocolFeatureConfig {
 /// How adapter encodes outbound wire payloads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct WireEncodeConfig {}
-
-impl Default for WireEncodeConfig {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 /// How adapter decodes inbound wire payloads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct WireDecodeConfig {
     /// JSON path hint for aggregated text (e.g. Agnes `output_items`).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,48 +50,23 @@ pub struct WireDecodeConfig {
     pub reasoning_delta_field: Option<String>,
 }
 
-impl Default for WireDecodeConfig {
-    fn default() -> Self {
-        Self {
-            output_text_path: None,
-            reasoning_delta_field: None,
-        }
-    }
-}
-
 /// Transport-level wire options.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct WireHttpConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefer_websocket: Option<bool>,
 }
 
-impl Default for WireHttpConfig {
-    fn default() -> Self {
-        Self {
-            prefer_websocket: None,
-        }
-    }
-}
-
 /// Full wire profile attached to a resolved protocol profile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct WireProfileConfig {
     pub encode: WireEncodeConfig,
     pub decode: WireDecodeConfig,
     pub http: WireHttpConfig,
-}
-
-impl Default for WireProfileConfig {
-    fn default() -> Self {
-        Self {
-            encode: WireEncodeConfig::default(),
-            decode: WireDecodeConfig::default(),
-            http: WireHttpConfig::default(),
-        }
-    }
 }
 
 /// Partial wire override from settings (merge into default).
@@ -120,10 +91,10 @@ impl WireProfilePatch {
                 base.decode.reasoning_delta_field = Some(field);
             }
         }
-        if let Some(http) = self.http {
-            if let Some(prefer) = http.prefer_websocket {
-                base.http.prefer_websocket = Some(prefer);
-            }
+        if let Some(http) = self.http
+            && let Some(prefer) = http.prefer_websocket
+        {
+            base.http.prefer_websocket = Some(prefer);
         }
         let _ = self.encode;
     }

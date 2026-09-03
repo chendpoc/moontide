@@ -1,8 +1,8 @@
 use super::provider_id::ProviderId;
 use super::{
-    provider,
     EnvSource,
     ProcessEnv,
+    provider,
 };
 
 /// Catalog-declared environment variable for a provider's API key.

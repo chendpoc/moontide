@@ -6,9 +6,9 @@ use serde::{
 };
 
 use super::capabilities::{
-    capabilities_for,
     ProtocolFeatureConfigPatch,
     ProtocolFeatureSet,
+    capabilities_for,
 };
 use super::profile::{
     ProtocolFeatureConfig,

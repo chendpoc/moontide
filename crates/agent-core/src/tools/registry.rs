@@ -2,9 +2,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use jsonschema::Validator;
 

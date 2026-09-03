@@ -8,17 +8,17 @@ use agent_core::llm::protocol::{
     ModelResponse,
     ThinkingLevel,
 };
-use agent_core::model_input::LlmCallConfig;
 use agent_core::r#loop::{
     AgentLoop,
     ToolPermissionMap,
     TurnInput,
     TurnPolicy,
 };
+use agent_core::model_input::LlmCallConfig;
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use tokio_util::sync::CancellationToken;
 

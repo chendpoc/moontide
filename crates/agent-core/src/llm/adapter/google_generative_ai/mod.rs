@@ -9,13 +9,14 @@ use futures::{
 use tokio::sync::mpsc;
 
 use super::sse::{
+    ByteLineBuffer,
     classify_http_status,
     stream_from_receiver,
-    ByteLineBuffer,
 };
+use crate::llm::LLMProvider;
 use crate::llm::normalize::google_generative_ai::{
-    encode_request,
     StreamDecoder,
+    encode_request,
 };
 use crate::llm::protocol::{
     LlmError,
@@ -23,7 +24,6 @@ use crate::llm::protocol::{
     ModelStreamEvent,
     RequestFailureKind,
 };
-use crate::llm::LLMProvider;
 
 /// Google Generative AI adapter (HTTP + SSE via `alt=sse`).
 pub struct GoogleGenerativeAiAdapter {

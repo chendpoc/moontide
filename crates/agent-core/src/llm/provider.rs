@@ -5,6 +5,7 @@ use futures::{
     StreamExt,
 };
 
+use crate::llm::ModelResponseBuilder;
 use crate::llm::protocol::{
     LlmError,
     ModelRequest,
@@ -12,7 +13,6 @@ use crate::llm::protocol::{
     ModelResponseSnapshot,
     ModelStreamEvent,
 };
-use crate::llm::ModelResponseBuilder;
 
 /// Streaming LLM port. Implementations must emit exactly one [`ModelStreamEvent::Finished`] last on success.
 pub trait LLMProvider: Send + Sync {

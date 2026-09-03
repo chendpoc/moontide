@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use tokio_util::sync::CancellationToken;
 

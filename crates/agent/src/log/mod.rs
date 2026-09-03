@@ -35,14 +35,14 @@ mod tests {
     use serde_json::json;
 
     use super::file_recorder::{
-        truncate_record,
         FileAgentEventRecorder,
         MAX_AGENT_EVENT_BYTES,
+        truncate_record,
     };
     use super::queued_recorder::{
+        AGENT_EVENT_LOG_QUEUE_CAPACITY,
         QueueState,
         QueuedAgentEventRecorder,
-        AGENT_EVENT_LOG_QUEUE_CAPACITY,
     };
     use super::worker::AgentEventLogWorker;
     use super::{
@@ -157,10 +157,12 @@ mod tests {
 
         let status = handle.status();
         assert_eq!(status.state, AgentEventLogState::Degraded);
-        assert!(status
-            .last_error
-            .as_deref()
-            .is_some_and(|error| error.contains("runId mismatch")));
+        assert!(
+            status
+                .last_error
+                .as_deref()
+                .is_some_and(|error| error.contains("runId mismatch"))
+        );
     }
 
     // Scenario: the derived Agent Event hook and Session Item Log receive the same committed event.

@@ -36,9 +36,9 @@ pub use agent_core::tools::{
     ToolResult,
 };
 pub use coding_preset::{
-    resolve_coding_preset,
-    CodingPresetPolicy,
     CODING_PRESET_EXCLUDED,
+    CodingPresetPolicy,
+    resolve_coding_preset,
 };
 pub use config::{
     AgentConfig,
@@ -48,23 +48,6 @@ pub use config::{
     SessionPersistence,
 };
 pub use llm::{
-    all_providers,
-    api_key_env,
-    apply_provider_switch,
-    catalog_preset,
-    custom_provider_entries,
-    get_model,
-    list_provider_ids,
-    merge_startup_llm_config,
-    models_for,
-    provider,
-    read_api_key_from_env,
-    read_llm_env,
-    register_custom_providers,
-    require_api_key,
-    require_api_key_from_env,
-    resolve_endpoint,
-    resolve_provider_config,
     AdapterFamily,
     ContinuityHint,
     CustomProviderDefinition,
@@ -82,6 +65,23 @@ pub use llm::{
     ResolveOverrides,
     ResolvedEndpoint,
     ResolvedProviderConfig,
+    all_providers,
+    api_key_env,
+    apply_provider_switch,
+    catalog_preset,
+    custom_provider_entries,
+    get_model,
+    list_provider_ids,
+    merge_startup_llm_config,
+    models_for,
+    provider,
+    read_api_key_from_env,
+    read_llm_env,
+    register_custom_providers,
+    require_api_key,
+    require_api_key_from_env,
+    resolve_endpoint,
+    resolve_provider_config,
 };
 pub use log::{
     AgentEventLogHandle,
@@ -95,12 +95,12 @@ pub use progress::{
     ProgressWorkerState,
 };
 pub use session::{
-    latest_session_id,
     SessionItem,
     SessionQuery,
     SessionSnapshot,
     SessionSummary,
     SessionTurnPage,
+    latest_session_id,
 };
 
 #[cfg(test)]

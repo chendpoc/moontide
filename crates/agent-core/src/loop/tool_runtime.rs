@@ -8,8 +8,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use tokio_util::sync::CancellationToken;
 

@@ -1,6 +1,6 @@
 use super::derive::{
-    derive_agent_event,
     AgentEventRecord,
+    derive_agent_event,
 };
 use super::registry::HookHandler;
 use super::trace_context::TraceContext;

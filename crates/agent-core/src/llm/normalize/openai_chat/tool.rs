@@ -263,17 +263,17 @@ pub fn decode_messages(messages: &[OpenAiChatMessage]) -> Result<Vec<Message>, L
         };
 
         let mut blocks = Vec::new();
-        if let Some(reasoning) = &message.reasoning_content {
-            if !reasoning.is_empty() {
-                blocks.push(ContentBlock::Thinking {
-                    thinking: reasoning.clone(),
-                });
-            }
+        if let Some(reasoning) = &message.reasoning_content
+            && !reasoning.is_empty()
+        {
+            blocks.push(ContentBlock::Thinking {
+                thinking: reasoning.clone(),
+            });
         }
-        if let Some(text) = &message.content {
-            if !text.is_empty() {
-                blocks.push(ContentBlock::Text { text: text.clone() });
-            }
+        if let Some(text) = &message.content
+            && !text.is_empty()
+        {
+            blocks.push(ContentBlock::Text { text: text.clone() });
         }
         if let Some(tool_calls) = &message.tool_calls {
             for call in tool_calls {

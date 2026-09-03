@@ -9,6 +9,7 @@ pub mod openai_responses;
 
 use std::fmt;
 
+use crate::llm::LLMProvider;
 pub use crate::llm::adapter_family::AdapterFamily;
 use crate::llm::normalize::openai_chat::OpenAiChatOptions;
 use crate::llm::profile_config::{
@@ -18,7 +19,6 @@ use crate::llm::profile_config::{
     WireProfileConfig,
 };
 use crate::llm::protocol::LlmError;
-use crate::llm::LLMProvider;
 
 /// Adapter-specific endpoint configuration injected by the agent composition root.
 #[derive(Clone)]

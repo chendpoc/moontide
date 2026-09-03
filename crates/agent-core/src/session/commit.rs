@@ -1,6 +1,6 @@
 use anyhow::{
-    anyhow,
     Result,
+    anyhow,
 };
 
 use super::store::SessionStore;

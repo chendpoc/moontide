@@ -1,5 +1,5 @@
-use super::tool::ChatTemplateKwargs;
 use super::OpenAiThinkingExtension;
+use super::tool::ChatTemplateKwargs;
 use crate::llm::protocol::{
     ModelRequest,
     ModelStreamEvent,
@@ -45,19 +45,19 @@ pub fn split_assistant_text(
 ) -> Vec<ModelStreamEvent> {
     let mut events = Vec::new();
     let had_reasoning = reasoning.is_some_and(|r| !r.is_empty());
-    if let Some(reasoning) = reasoning {
-        if let Some(event) = decode_reasoning_part(reasoning, 0) {
-            events.push(event);
-        }
+    if let Some(reasoning) = reasoning
+        && let Some(event) = decode_reasoning_part(reasoning, 0)
+    {
+        events.push(event);
     }
-    if let Some(text) = content {
-        if !text.is_empty() {
-            let block_index = u32::from(had_reasoning);
-            events.push(ModelStreamEvent::TextPart {
-                block_index,
-                text: text.to_string(),
-            });
-        }
+    if let Some(text) = content
+        && !text.is_empty()
+    {
+        let block_index = u32::from(had_reasoning);
+        events.push(ModelStreamEvent::TextPart {
+            block_index,
+            text: text.to_string(),
+        });
     }
     events
 }

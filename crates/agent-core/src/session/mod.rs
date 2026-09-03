@@ -19,9 +19,9 @@ pub use query::{
 pub use store::SessionStore;
 pub use types::{
     CompactionKind,
+    SESSION_HEADER_VERSION,
     SessionHeader,
     SessionItem,
     SessionItemBase,
     SessionItemDraft,
-    SESSION_HEADER_VERSION,
 };

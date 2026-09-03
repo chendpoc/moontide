@@ -125,13 +125,13 @@ fn canonical_url(value: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use anyhow::{
-        ensure,
         Result,
+        ensure,
     };
 
     use super::{
-        canonical_url,
         SearchAggregator,
+        canonical_url,
     };
     use crate::web_search::model::{
         ProviderError,

@@ -1,8 +1,8 @@
 use agent_core::tools::ToolRegistry;
 use anyhow::{
+    Result,
     bail,
     ensure,
-    Result,
 };
 use serde_json::json;
 

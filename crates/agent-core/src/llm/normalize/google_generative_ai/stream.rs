@@ -87,13 +87,13 @@ impl StreamDecoder {
         for candidate in &chunk.candidates {
             if let Some(content) = &candidate.content {
                 for part in &content.parts {
-                    if let Some(text) = part.text.as_deref() {
-                        if !text.is_empty() {
-                            events.push(ModelStreamEvent::TextPart {
-                                block_index: 0,
-                                text: text.to_string(),
-                            });
-                        }
+                    if let Some(text) = part.text.as_deref()
+                        && !text.is_empty()
+                    {
+                        events.push(ModelStreamEvent::TextPart {
+                            block_index: 0,
+                            text: text.to_string(),
+                        });
                     }
                     if let Some(call) = &part.function_call {
                         let id = format!("call_{}", call.name);
@@ -109,20 +109,20 @@ impl StreamDecoder {
                     }
                 }
             }
-            if let Some(reason) = candidate.finish_reason.as_deref() {
-                if reason == "STOP" || reason == "MAX_TOKENS" {
-                    let stop_reason = if reason == "MAX_TOKENS" {
-                        StopReason::MaxTokens
-                    } else {
-                        StopReason::EndTurn
-                    };
-                    events.push(ModelStreamEvent::Finished {
-                        stop_reason,
-                        usage: self.usage.take(),
-                        response_id: None,
-                    });
-                    self.message_end_emitted = true;
-                }
+            if let Some(reason) = candidate.finish_reason.as_deref()
+                && (reason == "STOP" || reason == "MAX_TOKENS")
+            {
+                let stop_reason = if reason == "MAX_TOKENS" {
+                    StopReason::MaxTokens
+                } else {
+                    StopReason::EndTurn
+                };
+                events.push(ModelStreamEvent::Finished {
+                    stop_reason,
+                    usage: self.usage.take(),
+                    response_id: None,
+                });
+                self.message_end_emitted = true;
             }
         }
 

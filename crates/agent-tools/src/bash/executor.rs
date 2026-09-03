@@ -25,11 +25,11 @@ use anyhow::{
 use serde::Deserialize;
 
 use crate::workspace::{
+    DEFAULT_MAX_LINES,
+    MAX_OUTPUT_BYTES,
     canonical_working_dir,
     expected_failure,
     truncate_tail,
-    DEFAULT_MAX_LINES,
-    MAX_OUTPUT_BYTES,
 };
 
 #[derive(Deserialize)]

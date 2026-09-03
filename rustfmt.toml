@@ -1,5 +1,6 @@
-# workspace Cargo.toml edition; keeps editor format-on-save aligned with cargo fmt
-edition = "2021"
+# Applies to Cargo workspace Rust sources (crates/* via `just fmt`); not scripts/ or frontend.
+edition = "2024"
+style_edition = "2024"
 # LF in VCS; cross-platform checkouts stay consistent
 newline_style = "Unix"
 

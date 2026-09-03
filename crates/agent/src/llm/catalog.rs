@@ -27,14 +27,14 @@ use agent_core::llm::profile_config::{
     WireProfileConfig,
 };
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use serde::Deserialize;
 
 use super::profile::{
-    merge_protocol_profile,
     ProviderProtocolProfileDefault,
+    merge_protocol_profile,
 };
 use super::provider_id::ProviderId;
 
@@ -781,12 +781,16 @@ mod tests {
         for entry in all_providers() {
             assert!(!entry.api_key_env().is_empty());
             assert!(!entry.models().is_empty());
-            assert!(get_model(entry.id(), entry.default_model_id())
-                .expect("provider lookup")
-                .is_some());
-            assert!(entry
-                .supported_protocols()
-                .contains(&entry.default_protocol()));
+            assert!(
+                get_model(entry.id(), entry.default_model_id())
+                    .expect("provider lookup")
+                    .is_some()
+            );
+            assert!(
+                entry
+                    .supported_protocols()
+                    .contains(&entry.default_protocol())
+            );
             for protocol in entry.supported_protocols() {
                 assert!(entry.profile_default_for(*protocol).is_some());
             }

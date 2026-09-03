@@ -359,23 +359,23 @@ mod tests {
         ToolResultStatus,
     };
     use anyhow::{
+        Result,
         anyhow,
         bail,
         ensure,
-        Result,
     };
     use serde_json::{
-        json,
         Value,
+        json,
     };
     use tempfile::TempDir;
 
     use super::{
+        GrepExecutor,
+        MAX_OUTPUT_BYTES,
+        MatchCollector,
         finish_search,
         search_file,
-        GrepExecutor,
-        MatchCollector,
-        MAX_OUTPUT_BYTES,
     };
 
     #[cfg(unix)]
@@ -528,9 +528,11 @@ mod tests {
             Ok(output) => bail!("unknown field unexpectedly produced {output:?}"),
             Err(error) => error,
         };
-        ensure!(unknown_error
-            .to_string()
-            .contains("grep input no longer matches its schema"));
+        ensure!(
+            unknown_error
+                .to_string()
+                .contains("grep input no longer matches its schema")
+        );
 
         let wrong_type = execute(
             json!({ "pattern": "needle", "max_results": "100" }),

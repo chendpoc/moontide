@@ -13,10 +13,10 @@ pub use agent_recorder::{
     DeriveAgentEventHook,
 };
 pub use derive::{
-    derive_agent_event,
     AgentChannel,
     AgentEventRecord,
     AgentPhase,
+    derive_agent_event,
 };
 pub use observer_bridge::{
     ObserverBridge,

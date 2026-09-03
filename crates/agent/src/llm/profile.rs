@@ -2,9 +2,6 @@
 
 use agent_core::llm::adapter_family::AdapterFamily;
 use agent_core::llm::profile_config::{
-    clamp_features,
-    merge_feature_config,
-    merge_wire_from_patch,
     AdapterOptions,
     ClampDiagnostic,
     HostProtocolProfileOverride,
@@ -13,6 +10,9 @@ use agent_core::llm::profile_config::{
     ResolvedProtocolProfile,
     UserProtocolProfileOverride,
     WireProfileConfig,
+    clamp_features,
+    merge_feature_config,
+    merge_wire_from_patch,
 };
 
 use super::provider_id::ProviderId;
@@ -43,15 +43,15 @@ pub fn merge_protocol_profile(
     }
 
     let mut wire = default.wire.clone();
-    if let Some(user) = user {
-        if let Some(patch) = user.wire.clone() {
-            wire = merge_wire_from_patch(wire, patch);
-        }
+    if let Some(user) = user
+        && let Some(patch) = user.wire.clone()
+    {
+        wire = merge_wire_from_patch(wire, patch);
     }
-    if let Some(host) = host {
-        if let Some(patch) = host.wire.clone() {
-            wire = merge_wire_from_patch(wire, patch);
-        }
+    if let Some(host) = host
+        && let Some(patch) = host.wire.clone()
+    {
+        wire = merge_wire_from_patch(wire, patch);
     }
 
     let (features, diagnostics) =
@@ -129,13 +129,17 @@ mod tests {
         );
 
         let (profile, diagnostics) = merge_protocol_profile(&default, Some(&user), None);
-        assert!(!profile
-            .features
-            .enabled
-            .contains(ProtocolFeatureSet::RESPONSES_STORE));
-        assert!(diagnostics
-            .iter()
-            .any(|entry| entry.feature.contains(ProtocolFeatureSet::RESPONSES_STORE)));
+        assert!(
+            !profile
+                .features
+                .enabled
+                .contains(ProtocolFeatureSet::RESPONSES_STORE)
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|entry| entry.feature.contains(ProtocolFeatureSet::RESPONSES_STORE))
+        );
     }
 
     // Scenario: settings JSON only sets one feature flag in the user profile override.
@@ -152,10 +156,12 @@ mod tests {
         );
 
         let (profile, _) = merge_protocol_profile(&default, Some(&user), None);
-        assert!(profile
-            .features
-            .enabled
-            .contains(ProtocolFeatureSet::STREAMING | ProtocolFeatureSet::TOOLS));
+        assert!(
+            profile
+                .features
+                .enabled
+                .contains(ProtocolFeatureSet::STREAMING | ProtocolFeatureSet::TOOLS)
+        );
     }
 
     // Scenario: protocol switch selects a different catalog default chain.

@@ -15,8 +15,8 @@ repos:
   - repo: local
     hooks:
       - id: rustfmt-nightly
-        name: rustfmt (nightly, check)
-        entry: cargo +nightly fmt --all --check
+        name: rustfmt (nightly, crates workspace only)
+        entry: cargo +nightly fmt -p agent-core -p agent-tools -p agent -p cli -p moontide-desktop --check
         language: system
         pass_filenames: false
         always_run: true

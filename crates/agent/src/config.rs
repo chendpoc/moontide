@@ -9,9 +9,9 @@ use agent_core::r#loop::{
     ToolPermissionMap,
 };
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use serde::{
     Deserialize,

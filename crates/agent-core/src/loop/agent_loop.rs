@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::cancellation::wait_for_retry;
 use super::response::{
-    classify_response,
     ResponseAction,
+    classify_response,
 };
 use super::retry::retry_delay;
 use super::tool_runtime::{
@@ -32,8 +32,8 @@ use crate::llm::protocol::{
     RequestFailureKind,
 };
 use crate::llm::{
-    run_model_call_with_updates,
     LLMProvider,
+    run_model_call_with_updates,
 };
 use crate::model_input::compile;
 use crate::session::SessionStore;

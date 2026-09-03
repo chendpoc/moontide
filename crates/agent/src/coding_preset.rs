@@ -167,9 +167,11 @@ mod tests {
     fn always_policy_maps_all_tools_to_ask() {
         let (_, permissions) = resolve_coding_preset(CodingPresetPolicy::Always);
         assert_eq!(permissions.len(), 6);
-        assert!(permissions
-            .values()
-            .all(|permission| matches!(permission, ToolPermission::Ask)));
+        assert!(
+            permissions
+                .values()
+                .all(|permission| matches!(permission, ToolPermission::Ask))
+        );
     }
 
     // Scenario: AlwaysAllow approval policy is resolved for the coding preset.
@@ -179,8 +181,10 @@ mod tests {
     fn always_allow_policy_maps_all_tools_to_allow() {
         let (_, permissions) = resolve_coding_preset(CodingPresetPolicy::AlwaysAllow);
         assert_eq!(permissions.len(), 6);
-        assert!(permissions
-            .values()
-            .all(|permission| matches!(permission, ToolPermission::Allow)));
+        assert!(
+            permissions
+                .values()
+                .all(|permission| matches!(permission, ToolPermission::Allow))
+        );
     }
 }

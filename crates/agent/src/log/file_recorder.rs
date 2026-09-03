@@ -13,8 +13,8 @@ use anyhow::{
     Result,
 };
 use serde_json::{
-    json,
     Value,
+    json,
 };
 
 pub(crate) const MAX_AGENT_EVENT_BYTES: usize = 64 * 1024;

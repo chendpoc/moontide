@@ -191,12 +191,16 @@ mod tests {
     fn responses_capabilities_include_previous_id() {
         let responses = capabilities_for(AdapterFamily::OpenAiResponses);
         let chat = capabilities_for(AdapterFamily::OpenAiChatCompletions);
-        assert!(responses
-            .features
-            .contains(ProtocolFeatureSet::RESPONSES_PREVIOUS_ID));
-        assert!(!chat
-            .features
-            .contains(ProtocolFeatureSet::RESPONSES_PREVIOUS_ID));
+        assert!(
+            responses
+                .features
+                .contains(ProtocolFeatureSet::RESPONSES_PREVIOUS_ID)
+        );
+        assert!(
+            !chat
+                .features
+                .contains(ProtocolFeatureSet::RESPONSES_PREVIOUS_ID)
+        );
     }
 
     // Scenario: settings JSON only toggles one feature flag.

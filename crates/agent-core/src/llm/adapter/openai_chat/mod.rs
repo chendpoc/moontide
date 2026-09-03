@@ -9,10 +9,11 @@ use futures::{
 use sse::decode_sse_payload;
 use tokio::sync::mpsc;
 
+use crate::llm::LLMProvider;
 use crate::llm::normalize::openai_chat::{
-    encode_request,
     OpenAiChatOptions,
     StreamDecoder,
+    encode_request,
 };
 use crate::llm::protocol::{
     LlmError,
@@ -20,7 +21,6 @@ use crate::llm::protocol::{
     ModelStreamEvent,
     RequestFailureKind,
 };
-use crate::llm::LLMProvider;
 
 /// DeepSeek / OpenAI Chat Completions adapter (fetch + SSE).
 pub struct OpenAiChatAdapter {

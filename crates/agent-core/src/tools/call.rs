@@ -1,6 +1,6 @@
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use serde::{
     Deserialize,

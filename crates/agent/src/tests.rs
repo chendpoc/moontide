@@ -9,12 +9,12 @@ use agent_core::r#loop::ToolPermission;
 use tempfile::TempDir;
 
 use crate::{
-    prompt,
-    resolve_provider_config,
     Agent,
     AgentConfig,
     ProviderId,
     ProviderOverrides,
+    prompt,
+    resolve_provider_config,
 };
 
 fn config(temp: &TempDir) -> AgentConfig {
@@ -56,10 +56,12 @@ async fn create_builds_minimal_agent() {
     assert!(!agent.session_id().is_empty());
     assert!(temp.path().join("sessions").is_dir());
     assert!(temp.path().join("runs").is_dir());
-    assert!(fs::read_dir(temp.path().join("runs"))
-        .expect("runs directory should be readable")
-        .next()
-        .is_none());
+    assert!(
+        fs::read_dir(temp.path().join("runs"))
+            .expect("runs directory should be readable")
+            .next()
+            .is_none()
+    );
 }
 
 // Scenario: Agent creation is attempted without a Tokio runtime.
@@ -157,10 +159,12 @@ async fn reload_clears_continuity_hint_when_protocol_changes() {
     .expect("resolve chat protocol");
     agent.reload(switched).await.expect("agent should reload");
 
-    assert!(agent
-        .continuity_hint_for_test()
-        .previous_response_id
-        .is_none());
+    assert!(
+        agent
+            .continuity_hint_for_test()
+            .previous_response_id
+            .is_none()
+    );
 }
 
 // Scenario: config contains a tool name absent from the first-party catalog.
@@ -254,13 +258,14 @@ async fn diagnostic_persistence_starts_worker() {
         .agent_event_log_status()
         .expect("diagnostic worker status should be exposed");
     assert_eq!(status.state, crate::AgentEventLogState::Running);
-    assert!(temp
-        .path()
-        .join("runs")
-        .read_dir()
-        .expect("runs")
-        .next()
-        .is_some());
+    assert!(
+        temp.path()
+            .join("runs")
+            .read_dir()
+            .expect("runs")
+            .next()
+            .is_some()
+    );
 }
 
 // Scenario: nested project directories contain AGENTS.md files at multiple ancestors.

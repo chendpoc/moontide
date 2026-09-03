@@ -13,14 +13,14 @@ use super::file_store::{
     FileSessionStore,
 };
 use super::types::{
-    freeze_item,
-    rebase_item,
-    validate_draft,
+    SESSION_HEADER_VERSION,
     SessionHeader,
     SessionItem,
     SessionItemBase,
     SessionItemDraft,
-    SESSION_HEADER_VERSION,
+    freeze_item,
+    rebase_item,
+    validate_draft,
 };
 
 pub struct SessionStore {

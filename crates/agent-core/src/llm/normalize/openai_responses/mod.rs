@@ -8,9 +8,9 @@ pub use stream::{
     StreamDecoder,
 };
 use tool::{
+    OpenAiResponsesRequestBody,
     encode_input,
     encode_tools,
-    OpenAiResponsesRequestBody,
 };
 
 use super::common::validate_request;

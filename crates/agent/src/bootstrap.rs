@@ -5,8 +5,8 @@ use agent_core::event::{
     PipelineRegistry,
     TraceContext,
 };
-use agent_core::llm::adapter::build_provider;
 use agent_core::llm::LLMProvider;
+use agent_core::llm::adapter::build_provider;
 use agent_core::r#loop::{
     AgentLoop,
     AgentLoopInit,

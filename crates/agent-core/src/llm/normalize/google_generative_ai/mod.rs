@@ -6,9 +6,9 @@ pub use stream::{
     StreamDecoder,
 };
 use tool::{
+    GeminiRequestBody,
     encode_contents,
     encode_tools,
-    GeminiRequestBody,
 };
 
 use super::common::validate_request;

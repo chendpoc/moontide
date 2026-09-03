@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 
 use moontide_desktop_lib::protocol::{
+    DESKTOP_PROTOCOL_VERSION,
     DesktopCommand,
     DesktopMessage,
     DesktopMessageEnvelope,
     DesktopProtocolEvent,
     DesktopResponse,
-    DESKTOP_PROTOCOL_VERSION,
 };
 use serde_json::Value;
 

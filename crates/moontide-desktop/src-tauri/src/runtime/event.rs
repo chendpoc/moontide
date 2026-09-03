@@ -111,26 +111,24 @@ impl EventBuffer {
         state.session_id = session_id.to_owned();
         update_active_assistant_calls(&mut state, &payload);
 
-        if let Some(key) = snapshot_key.as_ref() {
-            if let Some(existing) = state
+        if let Some(key) = snapshot_key.as_ref()
+            && let Some(existing) = state
                 .queue
                 .iter_mut()
                 .find(|queued| queued.snapshot_key.as_ref() == Some(key))
-            {
-                existing.envelope.payload = payload;
-                return true;
-            }
+        {
+            existing.envelope.payload = payload;
+            return true;
         }
 
-        if matches!(payload, DesktopEvent::StateChanged { .. }) {
-            if let Some(existing) =
+        if matches!(payload, DesktopEvent::StateChanged { .. })
+            && let Some(existing) =
                 state.queue.iter_mut().rev().find(|queued| {
                     matches!(queued.envelope.payload, DesktopEvent::StateChanged { .. })
                 })
-            {
-                existing.envelope.payload = payload;
-                return true;
-            }
+        {
+            existing.envelope.payload = payload;
+            return true;
         }
 
         if state.queue.len() >= state.capacity {

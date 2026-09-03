@@ -5,23 +5,22 @@ mod merge;
 mod profile;
 
 pub use capabilities::{
-    capabilities_for,
     ProtocolCapabilities,
     ProtocolFeatureConfigPatch,
     ProtocolFeatureConfigSerde,
     ProtocolFeatureSet,
+    capabilities_for,
 };
 pub use merge::{
-    clamp_features,
-    merge_feature_config,
-    merge_wire_from_patch,
     ClampDiagnostic,
     ClampReason,
     HostProtocolProfileOverride,
     UserProtocolProfileOverride,
+    clamp_features,
+    merge_feature_config,
+    merge_wire_from_patch,
 };
 pub use profile::{
-    default_options_for,
     AdapterOptions,
     AnthropicMessagesOptions,
     ContinuityHint,
@@ -34,4 +33,5 @@ pub use profile::{
     WireHttpConfig,
     WireProfileConfig,
     WireProfilePatch,
+    default_options_for,
 };

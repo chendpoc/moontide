@@ -91,25 +91,25 @@ impl StreamDecoder {
         let mut events = Vec::new();
         match event.event_type.as_str() {
             "content_block_start" => {
-                if let Some(block) = &event.content_block {
-                    if block.block_type == "tool_use" {
-                        let index = event.index.unwrap_or(0);
-                        let id = block.id.clone().unwrap_or_default();
-                        let name = block.name.clone().unwrap_or_default();
-                        self.tool_blocks.insert(
-                            index,
-                            ToolBlockState {
-                                id: id.clone(),
-                                name: name.clone(),
-                                arguments: String::new(),
-                                started: false,
-                            },
-                        );
-                        if !id.is_empty() && !name.is_empty() {
-                            events.push(ModelStreamEvent::ToolUseStarted { id, name });
-                            if let Some(entry) = self.tool_blocks.get_mut(&index) {
-                                entry.started = true;
-                            }
+                if let Some(block) = &event.content_block
+                    && block.block_type == "tool_use"
+                {
+                    let index = event.index.unwrap_or(0);
+                    let id = block.id.clone().unwrap_or_default();
+                    let name = block.name.clone().unwrap_or_default();
+                    self.tool_blocks.insert(
+                        index,
+                        ToolBlockState {
+                            id: id.clone(),
+                            name: name.clone(),
+                            arguments: String::new(),
+                            started: false,
+                        },
+                    );
+                    if !id.is_empty() && !name.is_empty() {
+                        events.push(ModelStreamEvent::ToolUseStarted { id, name });
+                        if let Some(entry) = self.tool_blocks.get_mut(&index) {
+                            entry.started = true;
                         }
                     }
                 }
@@ -118,10 +118,10 @@ impl StreamDecoder {
                 events.extend(self.handle_content_block_delta(event)?);
             }
             "message_delta" => {
-                if let Some(delta) = &event.delta {
-                    if let Some(reason) = delta.stop_reason.as_deref() {
-                        self.stop_reason = Some(map_stop_reason(reason));
-                    }
+                if let Some(delta) = &event.delta
+                    && let Some(reason) = delta.stop_reason.as_deref()
+                {
+                    self.stop_reason = Some(map_stop_reason(reason));
                 }
                 if let Some(usage) = &event.usage {
                     self.usage = Some(Usage {
@@ -172,23 +172,23 @@ impl StreamDecoder {
         let delta_type = delta.delta_type.as_deref().unwrap_or_default();
         match delta_type {
             "text_delta" => {
-                if let Some(text) = delta.text.as_deref() {
-                    if !text.is_empty() {
-                        events.push(ModelStreamEvent::TextPart {
-                            block_index: event.index.unwrap_or(0),
-                            text: text.to_string(),
-                        });
-                    }
+                if let Some(text) = delta.text.as_deref()
+                    && !text.is_empty()
+                {
+                    events.push(ModelStreamEvent::TextPart {
+                        block_index: event.index.unwrap_or(0),
+                        text: text.to_string(),
+                    });
                 }
             }
             "thinking_delta" => {
-                if let Some(thinking) = delta.thinking.as_deref() {
-                    if !thinking.is_empty() {
-                        events.push(ModelStreamEvent::ThinkingPart {
-                            block_index: event.index.unwrap_or(0),
-                            thinking: thinking.to_string(),
-                        });
-                    }
+                if let Some(thinking) = delta.thinking.as_deref()
+                    && !thinking.is_empty()
+                {
+                    events.push(ModelStreamEvent::ThinkingPart {
+                        block_index: event.index.unwrap_or(0),
+                        thinking: thinking.to_string(),
+                    });
                 }
             }
             "input_json_delta" => {

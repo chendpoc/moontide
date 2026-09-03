@@ -14,10 +14,10 @@ pub use adapter_family::AdapterFamily;
 pub use profile_config::*;
 pub use protocol::*;
 pub use provider::{
+    LLMProvider,
     complete,
     run_model_call,
     run_model_call_with_updates,
-    LLMProvider,
 };
 pub use response_builder::ModelResponseBuilder;
 

@@ -18,9 +18,9 @@ use agent_core::tools::{
     ToolResult,
 };
 use anyhow::{
-    anyhow,
     Context,
     Result,
+    anyhow,
 };
 use tokio::sync::{
     mpsc,
@@ -746,10 +746,12 @@ mod tests {
         assert_eq!(status.queue_len, 0);
         assert_eq!(status.dropped_events, 0);
         assert!(!status.resync_required);
-        assert!(status
-            .last_error
-            .as_deref()
-            .is_some_and(|error| error.contains("observer unavailable")));
+        assert!(
+            status
+                .last_error
+                .as_deref()
+                .is_some_and(|error| error.contains("observer unavailable"))
+        );
     }
 
     // Scenario: two queued snapshots for one call precede a lifecycle event.

@@ -5,11 +5,11 @@ use std::path::{
     PathBuf,
 };
 
-use agent_core::model_input::SystemPrompt;
 use agent_core::r#loop::{
     ToolPermission,
     ToolPermissionMap,
 };
+use agent_core::model_input::SystemPrompt;
 use anyhow::{
     Context,
     Result,

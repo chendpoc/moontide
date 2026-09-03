@@ -1,7 +1,7 @@
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use jsonschema::{
     Retrieve,

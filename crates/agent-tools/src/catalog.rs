@@ -1,8 +1,8 @@
 use agent_core::tools::Tool;
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 
 use crate::{

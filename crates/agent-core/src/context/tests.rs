@@ -346,9 +346,11 @@ fn materialize_rejects_new_call_before_results_close() {
     ];
 
     let error = materialize(&items).expect_err("interleaved tool round must fail");
-    assert!(error
-        .to_string()
-        .contains("previous tool result round closed"));
+    assert!(
+        error
+            .to_string()
+            .contains("previous tool result round closed")
+    );
     assert!(error.to_string().contains("call-c"));
     assert!(error.to_string().contains("write_file"));
     assert!(error.to_string().contains("call-b/grep"));
@@ -439,9 +441,11 @@ fn materialize_rejects_compaction_in_r1() {
 // 预期：返回空 message 列表；不变量/副作用：空历史不创建默认 user/assistant 消息。
 #[test]
 fn materialize_accepts_empty_log() {
-    assert!(materialize(&[])
-        .expect("empty log should materialize")
-        .is_empty());
+    assert!(
+        materialize(&[])
+            .expect("empty log should materialize")
+            .is_empty()
+    );
 }
 
 // 场景：检查 context 实现文件的直接依赖边界。

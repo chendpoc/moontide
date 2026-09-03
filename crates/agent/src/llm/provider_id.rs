@@ -4,8 +4,8 @@ use std::borrow::Cow;
 use std::fmt;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 use serde::{
     Deserialize,
@@ -13,20 +13,15 @@ use serde::{
 };
 
 /// Vendor identifier persisted by CLI/Desktop hosts.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum ProviderId {
+    #[default]
     Deepseek,
     Agnes,
     Openai,
     Anthropic,
     Google,
     Custom(Cow<'static, str>),
-}
-
-impl Default for ProviderId {
-    fn default() -> Self {
-        Self::Deepseek
-    }
 }
 
 impl Serialize for ProviderId {
@@ -67,7 +62,7 @@ impl ProviderId {
             "openai" => Ok(Self::Openai),
             "anthropic" => Ok(Self::Anthropic),
             "google" => Ok(Self::Google),
-            other if other.is_empty() => bail!("provider must not be empty"),
+            "" => bail!("provider must not be empty"),
             other => Ok(Self::Custom(Cow::Owned(other.to_owned()))),
         }
     }

@@ -91,10 +91,12 @@ fn session_query_list_missing_directory_is_empty_and_read_only() {
     let dir = sessions_dir(&root);
     let query = SessionQuery::new(&dir);
 
-    assert!(query
-        .list()
-        .expect("list missing sessions directory")
-        .is_empty());
+    assert!(
+        query
+            .list()
+            .expect("list missing sessions directory")
+            .is_empty()
+    );
     assert!(!dir.exists());
 }
 
@@ -359,9 +361,10 @@ fn assistant_with_tool_block_rejected() {
         })
         .expect_err("tool block in assistant");
 
-    assert!(err
-        .to_string()
-        .contains("assistant message blocks must not contain tool blocks"));
+    assert!(
+        err.to_string()
+            .contains("assistant message blocks must not contain tool blocks")
+    );
 }
 
 // 场景：从磁盘加载 seq 不连续的 Session Item Log。
@@ -666,9 +669,11 @@ fn load_rejects_unsupported_header_version() {
         Err(error) => error,
     };
 
-    assert!(error
-        .to_string()
-        .contains("unsupported session header version: 99"));
+    assert!(
+        error
+            .to_string()
+            .contains("unsupported session header version: 99")
+    );
 }
 
 // 场景：v2 ToolResult 行被破坏并删除必需的 status；预期：load 拒绝该行，而不是套用 v1 迁移默认值；不变量/副作用：兼容逻辑只作用于 v1 历史数据，不掩盖当前 schema 损坏。
@@ -741,10 +746,10 @@ fn turn_cannot_decrease() {
 #[test]
 fn session_item_serde_round_trip() {
     use crate::session::{
+        SESSION_HEADER_VERSION,
         SessionHeader,
         SessionItem,
         SessionItemBase,
-        SESSION_HEADER_VERSION,
     };
 
     let item = SessionItem::AssistantMessage {
@@ -812,9 +817,10 @@ fn fork_rejects_non_turn_boundary() {
     let boundary_id = store.items()[0].base().id.clone();
     let result = store.fork(&dir, &boundary_id);
     match result {
-        Err(err) => assert!(err
-            .to_string()
-            .contains("boundary item must be the last item of its turn")),
+        Err(err) => assert!(
+            err.to_string()
+                .contains("boundary item must be the last item of its turn")
+        ),
         Ok(_) => panic!("expected fork boundary error"),
     }
 }
@@ -993,8 +999,8 @@ fn commit_from_event_maps_committable_turn_events() {
         TurnEvent,
     };
     use crate::session::{
-        commit_from_event,
         SessionItem,
+        commit_from_event,
     };
 
     let root = TempDir::new().expect("tempdir");

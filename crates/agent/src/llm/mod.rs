@@ -23,6 +23,13 @@ pub use agent_core::llm::profile_config::{
 };
 pub use agent_core::model_input::LlmCallConfig;
 pub use catalog::{
+    CustomProviderDefinition,
+    LlmModel,
+    ProviderEntry,
+    ProviderOverrides,
+    ResolveOverrides,
+    ResolvedEndpoint,
+    ResolvedProviderConfig,
     all_providers,
     apply_provider_switch,
     custom_provider_entries,
@@ -33,13 +40,6 @@ pub use catalog::{
     register_custom_providers,
     resolve_endpoint,
     resolve_provider_config,
-    CustomProviderDefinition,
-    LlmModel,
-    ProviderEntry,
-    ProviderOverrides,
-    ResolveOverrides,
-    ResolvedEndpoint,
-    ResolvedProviderConfig,
 };
 pub use credentials::{
     api_key_env,
@@ -47,21 +47,21 @@ pub use credentials::{
     require_api_key_from_env,
 };
 pub use profile::{
-    merge_protocol_profile,
     ProviderProtocolProfileDefault,
+    merge_protocol_profile,
 };
 pub use provider_id::ProviderId;
 pub use startup::{
-    catalog_preset,
-    merge_startup_llm_config,
-    read_llm_env,
-    require_api_key,
-    resolve_api_key_source,
     ApiKeySource,
     EnvSource,
     LlmConfigLayer,
     LlmEnvLayer,
     ProcessEnv,
+    catalog_preset,
+    merge_startup_llm_config,
+    read_llm_env,
+    require_api_key,
+    resolve_api_key_source,
 };
 
 #[cfg(test)]

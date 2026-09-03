@@ -23,12 +23,12 @@ use serde::Deserialize;
 
 use crate::workspace::{
     self,
+    DEFAULT_MAX_LINES,
+    MAX_OUTPUT_BYTES,
     canonical_working_dir,
     expected_failure,
     relative_display_path,
     truncate_from_start,
-    DEFAULT_MAX_LINES,
-    MAX_OUTPUT_BYTES,
 };
 
 #[derive(Deserialize)]

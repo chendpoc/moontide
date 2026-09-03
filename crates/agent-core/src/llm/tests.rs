@@ -2,6 +2,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 
+use crate::llm::LLMProvider;
 use crate::llm::protocol::{
     LlmError,
     ModelRequest,
@@ -9,7 +10,6 @@ use crate::llm::protocol::{
     StopReason,
     Usage,
 };
-use crate::llm::LLMProvider;
 
 /// Test double: returns a fixed event sequence.
 pub struct MockProvider {
@@ -139,9 +139,9 @@ mod provider_tests {
         StopReason,
     };
     use crate::llm::{
+        ModelResponseSnapshot,
         complete,
         run_model_call_with_updates,
-        ModelResponseSnapshot,
     };
 
     fn sample_request() -> ModelRequest {
@@ -359,14 +359,14 @@ mod invariant_tests {
     };
 
     use super::{
-        assert_stream_invariants,
         MockProvider,
+        assert_stream_invariants,
         *,
     };
     use crate::llm::adapter::openai_chat::OpenAiChatAdapter;
     use crate::llm::adapter::{
-        build_provider,
         AdapterConfig,
+        build_provider,
     };
     use crate::llm::normalize::common::validate_request;
     use crate::llm::normalize::openai_chat::OpenAiChatOptions;
@@ -616,6 +616,7 @@ mod error_tests {
         ResponseTemplate,
     };
 
+    use crate::llm::LLMProvider;
     use crate::llm::adapter::openai_chat::OpenAiChatAdapter;
     use crate::llm::normalize::openai_chat::OpenAiChatOptions;
     use crate::llm::protocol::{
@@ -626,7 +627,6 @@ mod error_tests {
         RequestFailureKind,
         Role,
     };
-    use crate::llm::LLMProvider;
 
     fn sample_request() -> ModelRequest {
         ModelRequest {

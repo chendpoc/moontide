@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 
 use crate::llm::protocol::{

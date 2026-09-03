@@ -9,15 +9,16 @@ use futures::{
 use tokio::sync::mpsc;
 
 use super::sse::{
+    ByteLineBuffer,
     classify_http_status,
     stream_from_receiver,
-    ByteLineBuffer,
 };
+use crate::llm::LLMProvider;
 use crate::llm::normalize::openai_responses::{
-    decode_config_from_wire,
-    encode_request,
     EncodeOptions,
     StreamDecoder,
+    decode_config_from_wire,
+    encode_request,
 };
 use crate::llm::profile_config::WireProfileConfig;
 use crate::llm::protocol::{
@@ -26,7 +27,6 @@ use crate::llm::protocol::{
     ModelStreamEvent,
     RequestFailureKind,
 };
-use crate::llm::LLMProvider;
 
 /// OpenAI Responses API adapter (HTTP + semantic SSE).
 pub struct OpenAiResponsesAdapter {

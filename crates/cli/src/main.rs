@@ -19,9 +19,9 @@ use agent::{
     AgentConfig,
 };
 use anyhow::{
-    bail,
     Context,
     Result,
+    bail,
 };
 use args::{
     CliArgs,
@@ -36,9 +36,9 @@ use config::{
 use input::InputOwner;
 use render::write_assistant_stdout;
 use repl::{
+    TurnOutcome,
     await_turn_with_ctrl_c,
     run as run_repl,
-    TurnOutcome,
 };
 use settings::{
     resolve_interactive,
@@ -221,15 +221,15 @@ pub(crate) async fn flush_agent_event_log(agent: &Agent) {
             "ERROR: diagnostic Agent Event Log flush failed: {error:#}"
         ));
     }
-    if let Some(status) = agent.agent_event_log_status() {
-        if status.state != agent::AgentEventLogState::Running {
-            let _ = render::write_diagnostic_stderr(&format!(
-                "WARNING: diagnostic Agent Event Log state={:?}, dropped_events={}, last_error={}",
-                status.state,
-                status.dropped_events,
-                status.last_error.as_deref().unwrap_or("none")
-            ));
-        }
+    if let Some(status) = agent.agent_event_log_status()
+        && status.state != agent::AgentEventLogState::Running
+    {
+        let _ = render::write_diagnostic_stderr(&format!(
+            "WARNING: diagnostic Agent Event Log state={:?}, dropped_events={}, last_error={}",
+            status.state,
+            status.dropped_events,
+            status.last_error.as_deref().unwrap_or("none")
+        ));
     }
 }
 

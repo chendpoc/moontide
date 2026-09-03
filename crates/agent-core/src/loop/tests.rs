@@ -29,6 +29,7 @@ use crate::event::{
     TraceContext,
     TurnEvent,
 };
+use crate::llm::LLMProvider;
 use crate::llm::adapter_family::AdapterFamily;
 use crate::llm::profile_config::{
     ContinuityHint,
@@ -42,7 +43,6 @@ use crate::llm::protocol::{
     ModelStreamEvent,
     StopReason,
 };
-use crate::llm::LLMProvider;
 use crate::model_input::{
     LlmCallConfig,
     SystemPrompt,
@@ -951,13 +951,15 @@ async fn cancelled_approval_closes_remaining_calls_with_parent_status() {
         })),
     );
 
-    assert!(agent_loop
-        .turn(
-            terminal_input_with_steps(1),
-            tokio_util::sync::CancellationToken::new()
-        )
-        .await
-        .is_err());
+    assert!(
+        agent_loop
+            .turn(
+                terminal_input_with_steps(1),
+                tokio_util::sync::CancellationToken::new()
+            )
+            .await
+            .is_err()
+    );
     assert!(executed.lock().expect("executed lock").is_empty());
     let stored = SessionStore::load(&dir, &session_id).expect("load session");
     let statuses = stored
@@ -1260,10 +1262,12 @@ async fn unrecoverable_llm_failure_does_not_retry() {
     let (mut agent_loop, _session_id) =
         build_loop(&dir, provider, Vec::new(), ToolPermissionMap::new(), None);
 
-    assert!(agent_loop
-        .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
-        .await
-        .is_err());
+    assert!(
+        agent_loop
+            .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
+            .await
+            .is_err()
+    );
     assert_eq!(scripts.lock().expect("scripts lock").len(), 1);
 }
 
@@ -1597,10 +1601,12 @@ async fn terminal_turn_error_keeps_committed_user_message() {
         events,
     });
 
-    assert!(agent_loop
-        .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
-        .await
-        .is_err());
+    assert!(
+        agent_loop
+            .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
+            .await
+            .is_err()
+    );
     let stored = SessionStore::load(dir.path(), &session_id).expect("load session");
     assert_eq!(stored.items().len(), 1);
     assert!(matches!(
@@ -1643,10 +1649,12 @@ async fn terminal_turn_rejects_dangling_history_before_append() {
         events,
     });
 
-    assert!(agent_loop
-        .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
-        .await
-        .is_err());
+    assert!(
+        agent_loop
+            .turn(terminal_input(), tokio_util::sync::CancellationToken::new(),)
+            .await
+            .is_err()
+    );
     let stored = SessionStore::load(dir.path(), &session_id).expect("load session");
     assert_eq!(stored.items().len(), 1);
 }
@@ -1792,10 +1800,12 @@ async fn empty_user_text_is_rejected_before_events() {
     let mut input = terminal_input();
     input.text.clear();
 
-    assert!(agent_loop
-        .turn(input, tokio_util::sync::CancellationToken::new())
-        .await
-        .is_err());
+    assert!(
+        agent_loop
+            .turn(input, tokio_util::sync::CancellationToken::new())
+            .await
+            .is_err()
+    );
     let stored = SessionStore::load(dir.path(), &session_id).expect("load session");
     assert!(stored.items().is_empty());
 }

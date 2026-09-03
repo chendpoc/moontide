@@ -6,25 +6,25 @@ use std::path::{
 };
 
 use agent::llm::{
-    merge_startup_llm_config,
-    read_llm_env,
-    register_custom_providers,
-    require_api_key,
     CustomProviderDefinition,
     EnvSource,
     LlmConfigLayer,
     ProcessEnv,
     ProviderId,
     UserProtocolProfileOverride,
+    merge_startup_llm_config,
+    read_llm_env,
+    register_custom_providers,
+    require_api_key,
 };
 use agent::platform::ProjectPaths;
 use agent::{
-    resolve_coding_preset,
     AdapterFamily,
     AgentConfig,
     CodingPresetPolicy,
     PersistenceConfig,
     SessionPersistence,
+    resolve_coding_preset,
 };
 use anyhow::{
     Context,
@@ -511,9 +511,11 @@ mod tests {
             Ok(_) => panic!("unsupported version"),
             Err(error) => error,
         };
-        assert!(error
-            .to_string()
-            .contains("unsupported Desktop settings version"));
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported Desktop settings version")
+        );
     }
 
     // Scenario: a persisted model or base URL is explicitly blank.
@@ -601,9 +603,11 @@ mod tests {
             Ok(_) => panic!("legacy settings should fail"),
             Err(error) => error,
         };
-        assert!(error
-            .to_string()
-            .contains("unsupported Desktop settings version 2"));
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported Desktop settings version 2")
+        );
     }
 
     // Scenario: version-3 settings provide a relative project root.

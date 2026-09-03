@@ -9,12 +9,11 @@ use std::sync::{
 };
 
 use anyhow::{
-    anyhow,
     Result,
+    anyhow,
 };
 
 use crate::event::{
-    derive_agent_event,
     AgentChannel,
     AgentEventRecord,
     AgentEventRecorder,
@@ -29,6 +28,7 @@ use crate::event::{
     PipelineRegistry,
     TraceContext,
     TurnEvent,
+    derive_agent_event,
 };
 use crate::llm::protocol::{
     ContentBlock,
@@ -395,15 +395,17 @@ fn observer_bridge_does_not_publish_when_commit_fails() {
     dispatcher = dispatcher.with_observer_bridge(bridge);
     let mut commit = FailingCommitHandler;
 
-    assert!(dispatcher
-        .emit(
-            &mut commit,
-            TurnEvent::UserPromptCommitted {
-                turn: 1,
-                text: "not committed".into(),
-            },
-        )
-        .is_err());
+    assert!(
+        dispatcher
+            .emit(
+                &mut commit,
+                TurnEvent::UserPromptCommitted {
+                    turn: 1,
+                    text: "not committed".into(),
+                },
+            )
+            .is_err()
+    );
     assert!(receiver.try_recv().is_err());
 }
 

@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 
 use anyhow::{
-    bail,
     Result,
+    bail,
 };
 
 use super::{
-    file_store,
     SessionItem,
     SessionStore,
+    file_store,
 };
 
 /// Stable read-only summary used by session pickers and host adapters.
@@ -191,7 +191,7 @@ mod tests {
         for session_id in expected {
             assert_eq!(calls.get(&session_id), Some(&1));
         }
-        for pair in order.borrow().chunks_exact(2) {
+        for pair in order.borrow().as_chunks::<2>().0 {
             assert!(pair[0].starts_with("load:"));
             assert_eq!(
                 pair[0].strip_prefix("load:"),
