@@ -48,7 +48,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff 通常�
   → 生成/更新 Work Packet
   → Discovery：调研 / 追踪 / 最小 spike → Decision Record
   → 若契约稳定：进入 Implementation；若发现 L2/L3 变化：进入 Replan
-  → Implementation：生成/更新 TASKS.md 和 Review 批；Replan 后从更新范围重新拆分
+  → Implementation：创建/更新 GitHub Issue 和 Review 批；Replan 后从更新范围重新拆分
   → 向用户展示：TASK / Decision Record + **User Parallel Task** + Shared Acceptance
   → Tideforge 按 **Review 批** 实现（一批可含多个 TASK）
   → Tideforge 交付 Implementation Evidence；用户并行完成 User Parallel Task
@@ -59,7 +59,7 @@ description: MoonTide 模块分批实现：Review 批合并交付（diff 通常�
 
 **硬门禁：** 每批实现后 **必须停等 review**；**未经用户说 commit 不得 commit**。
 
-Discovery 和 Replan 不要求按 Review 批大小停顿，也不要求先生成完整 TASKS.md；它们的目标是产生足够证据和明确决策。进入 Implementation 后，恢复 Review 批、Work Packet、验证和用户 review 门禁。
+Discovery 和 Replan 不要求按 Review 批大小停顿，也不要求先创建完整 Issue 列表；它们的目标是产生足够证据和明确决策。进入 Implementation 后，恢复 Review 批、Work Packet、验证和用户 review 门禁。
 
 ---
 
@@ -179,11 +179,11 @@ Replan 完成后，不强行沿用旧 TASK；应从更新后的 Work Packet 和 
 
 ---
 
-## Step 1：拆任务（TASKS.md）
+## Step 1：拆任务（GitHub Issue）
 
-路径：`crates/agent-core/src/{mod}/TASKS.md`
+从 crate 级 **DESIGN.md** 拆成 **细 TASK**（实现步），公开 API 对照 **README.md**，再规划 **Review 批**（合并表）。每个 Review 批或 TASK 对应一个 GitHub Issue（标签如 `kernel`、`review-batch`）。
 
-从 **DESIGN.md** 拆成 **细 TASK**（实现步），公开 API 对照 **README.md**，再规划 **Review 批**（合并表）：
+**不再**在 `crates/**/TASKS.md` 落盘；Issue body 须含：**做什么 / 依赖 / 范围 / 完成标准**。
 
 **TASK：** 单一 concern、依赖清晰、预估 ≤800 行（便于合并）
 
@@ -197,9 +197,9 @@ Replan 完成后，不强行沿用旧 TASK；应从更新后的 Work Packet 和 
 | 合并后 &gt;2000 行 | 优先拆批；若仍是单一语义边界且超出有限，可说明原因后保留 |
 | 心智模型 | 一批 = 用户能用一个主题概括（「normalize 层」「adapter 层」） |
 
-TASKS.md 须含两个表：**Review 批总览**（用户主要看）+ **TASK 明细**（跟踪用）。
+Issue（或 PR 描述中的 Review 批表）须含：**Review 批总览**（用户主要看）+ **TASK 明细**（跟踪用）。
 
-**拆完 TASKS.md 后、写代码前：** 在对话里用简短表格说明各 TASK「要做什么」，并同时给出一个 User Parallel Task 和 Shared Acceptance；用户确认本批后再实现。
+**拆完 Issue 后、写代码前：** 在对话里用简短表格说明各 TASK「要做什么」，并同时给出一个 User Parallel Task 和 Shared Acceptance；用户确认本批后再实现。
 
 ### TASK 条目模板
 
@@ -306,7 +306,7 @@ User Parallel Task 的选择规则：
 | ~500–800 | 完整 `adapter/openai_chat`（含测试）— **单独一批，不与其它 TASK 合并** |
 | >800 | **必须再拆**（如 adapter 与 normalize 分离） |
 
-首版 llm 参考顺序见 [llm-TASKS.example.md](llm-TASKS.example.md)（可复制到 `src/llm/TASKS.md` 再微调）。
+首版 llm 参考顺序见 [llm-TASKS.example.md](llm-TASKS.example.md)（**deprecated**；现改为 GitHub Issue body 模板）。
 
 ---
 
@@ -314,7 +314,7 @@ User Parallel Task 的选择规则：
 
 | 默认 | 合并规则 |
 |------|----------|
-| 按 TASKS.md **Review 批**表执行 | 用户可说「R1 拆成两次」或「R2 和 R3 合并」 |
+| 按 Issue / Review 批表执行 | 用户可说「R1 拆成两次」或「R2 和 R3 合并」 |
 
 **开写前：** 确认本 **Review 批** 含哪些 TASK + 主题一句话 + 预估行数。
 

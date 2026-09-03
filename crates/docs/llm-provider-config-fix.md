@@ -2,7 +2,7 @@
 
 > **状态：** 已完成实现与独立复审（2026-08-26，待用户 diff review）
 > **目标版本：** Agnes provider / startup layering 当前未提交批次的修复版
-> **关联：** [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`startup-config-layering.md`](startup-config-layering.md) · [`../agent-core/src/llm/DESIGN.md`](../agent-core/src/llm/DESIGN.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
+> **关联：** [`agnes-provider-integration.md`](agnes-provider-integration.md) · [`startup-config-layering.md`](startup-config-layering.md) · [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#llm) · [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ## 1. 问题与目标
 

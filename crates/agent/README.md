@@ -167,11 +167,17 @@ pub fn write_settings_atomically(
 
 `Agent::create`、`Agent::resume` 和 `Agent::reload` 要求调用方已经运行在 Tokio runtime 内。无 runtime 不提供同步 Progress observer fallback。
 
-Agent Event Log 的 R3 设计与实现位于 [`src/log/README.md`](src/log/README.md)；默认
-不装配其队列、worker 或文件写入。Progress 的 snapshot/finalized 和宿主 fold 语义见
-[`src/progress/README.md`](src/progress/README.md)。
+Agent Event Log 的 R3 设计与实现见 [`DESIGN.md`](DESIGN.md#log)；默认不装配。Progress 的 snapshot/finalized 语义见 [`DESIGN.md`](DESIGN.md#progress)。
 
-Assistant snapshot、finalized 和宿主 fold 语义见 [`src/progress/README.md`](src/progress/README.md)；实现约束见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
+## 子模块索引
+
+| 子模块 | 设计锚点 | 源码 |
+|--------|----------|------|
+| Progress | [§8 Progress](DESIGN.md#progress) | `src/progress.rs` |
+| Agent Event Log | [§9 Log](DESIGN.md#log) | `src/log/` |
+| Platform | [§10 Platform](DESIGN.md#platform) | `src/platform/` |
+| LLM catalog/merge | [`DESIGN.md`](DESIGN.md) §4.1 | `src/llm/` |
+| Session query | [`DESIGN.md`](DESIGN.md) §4.3 | `src/session/` |
 
 ---
 

@@ -2,13 +2,13 @@
 
 > **性质：** 模块顶层设计 + 开发进度清单（design-first，逐模块推进）
 > **状态：** 顶层设计已定；模块 1–7 已实现并通过测试；`scheduler` 暂缓，当前转入 Desktop Shell 宿主能力建设
-> **关联：** [`crates/docs/agent-core.md`](../docs/agent-core.md)（Rust 系统设计，本文是模块进度落地）· [`docs/archive/notes/runtime/migration-plan.md`](../../docs/archive/notes/runtime/migration-plan.md)
+> **设计权威：** [`DESIGN.md`](DESIGN.md)（8 模块合并实现方案）· **系统摘要：** [`crates/docs/agent-core.md`](../docs/agent-core.md)
 
 ## 0. 原则
 
 1. **不依赖归档的 TypeScript draft 代码**（`packages/` 快照只作历史设计参考，Rust `agent-core` 以当前模块契约和实现为准）。
 2. **按依赖顺序逐模块推进**：每个模块走「写设计文档 → 实现 → 单测通过 → 下一个」循环，不先写完 8 份再写代码。
-3. **文档放模块源码目录**：`crates/agent-core/src/{mod}/README.md`（**对外使用说明**）+ `DESIGN.md`（**实现技术方案**）；可选 `TASKS.md`（分批实现）。
+3. **文档分层：** crate 级 [`DESIGN.md`](DESIGN.md) 为实现权威；`src/{mod}/README.md` 为短集成说明（~30–60 行）。开放实现任务跟踪 GitHub Issues。
 4. **按边界使用 trait**：`LLMProvider`、`ToolExecutor` 是核心能力端口；event pipeline 等需要独立实现的窄边界也可使用 trait。禁止为未来可能性或单实现逻辑提前抽象。
 
 ## 1. 依赖图（推进顺序）
@@ -64,48 +64,28 @@ agent create/load/fork SessionStore
 
 图例：☐ 未开始 · ◐ 进行中 · ☑ 完成
 
-| # | 模块 | 依赖 | 设计文档 | 实现 | 测试 | 备注 |
+| # | 模块 | 依赖 | 设计 | 实现 | 测试 | 备注 |
 |---|---|---|---|---|---|---|
 | 1 | `llm` | 无 | ☑ | ☑ | ☑ | R1–R6；[`src/llm/README.md`](src/llm/README.md) |
-| 2 | `session` | llm + tools + event seam | ☑ | ☑ | ☑ | R1–R3；v2 call/result payload；Loop 接缝增量待实现 |
-| 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2；loop 接缝归后续 loop；验收 / offload 归 scheduler |
-| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | R1–R3 + R4-A；typed call/result payload；observer bridge 后置；[`src/event/README.md`](src/event/README.md) |
-| 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成；纯组装；compile 唯一出口 |
-| 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成并通过 Review；compaction 后置 |
-| 7 | `loop` | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 + TASK-loop-06 已提交；scheduler 暂缓，转 Desktop Shell |
-| 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 暂缓；由真实资源调度需求触发 |
+| 2 | `session` | llm + tools + event seam | ☑ | ☑ | ☑ | R1–R3；R4 开放项 [#27](https://github.com/chendpoc/moontide/issues/27) |
+| 3 | `tools` | 无 | ☑ | ☑ | ☑ | RB1–RB2 |
+| 4 | `event` | llm + tools 契约 | ☑ | ☑ | ☑ | sidecar 开放项 [#28](https://github.com/chendpoc/moontide/issues/28) |
+| 5 | `model_input` | tools + llm protocol | ☑ | ☑ | ☑ | R1 完成 |
+| 6 | `context` | session + llm protocol + tools | ☑ | ☑ | ☑ | R1 materialize 完成 |
+| 7 | `loop` | 1–6 全部 | ☑ | ☑ | ☑ | R1–R3 完成 |
+| 8 | `scheduler` | llm + tools | ☐ | ☐ | ☐ | 暂缓 |
 
-## 5. 每个模块的推进模板
+## 5. 文档索引
 
-每推进一个模块，产出三样：
-
-1. `src/{mod}/README.md` — **对外使用说明**（调用者矩阵、API 速查、brief 原理图）
-2. `src/{mod}/DESIGN.md` — **实现技术方案**（类型、算法、不变量、决策、单测方向）
-3. `src/{mod}/` 实现 — 按 DESIGN 写代码
-4. `src/{mod}/tests.rs` — 覆盖真实行为
-
-**粒度：** event 的 DESIGN 可较短；loop / context / session 需状态机图 + 完整决策记录。
-
-## 6. 当前进度快照
-
-- 顶层设计：☑（本文）
-- 模块 1 `llm`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R6）
-- 模块 2 `session`、4 `event`：设计 ☑ · 实现 ☑ · 测试 ☑（R1–R3 + typed call/result 接缝）
-- 模块 3 `tools`：设计 ☑ · 实现 ☑ · 测试 ☑（RB1–RB2 + `agent-tools` R1；loop 集成归后续模块）
-- 模块 5 `model_input`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 已 commit/push
-- 模块 6 `context`：设计 ☑ · 实现 ☑ · 测试 ☑；R1 `materialize` 已完成并通过 Review
-- 模块 7 `loop`：设计 ☑ · 实现 ☑ · 测试 ☑；R1–R3 + TASK-loop-06 完成
-
-### 文档与集成入口
-
-| 模块 | 对外使用（README） | 实现方案（DESIGN） |
-|------|-------------------|-------------------|
-| `session` | [`src/session/README.md`](src/session/README.md) | [`src/session/DESIGN.md`](src/session/DESIGN.md) |
-| `event` | [`src/event/README.md`](src/event/README.md) | [`src/event/DESIGN.md`](src/event/DESIGN.md) |
-| `llm` | [`src/llm/README.md`](src/llm/README.md) | [`src/llm/DESIGN.md`](src/llm/DESIGN.md) |
-| `tools` | [`src/tools/README.md`](src/tools/README.md) | [`src/tools/DESIGN.md`](src/tools/DESIGN.md) |
-| `model_input` | [`src/model_input/README.md`](src/model_input/README.md) | [`src/model_input/DESIGN.md`](src/model_input/DESIGN.md) |
-| `context` | [`src/context/README.md`](src/context/README.md) | [`src/context/DESIGN.md`](src/context/DESIGN.md) |
-| `loop` | [`src/loop/README.md`](src/loop/README.md) | [`src/loop/DESIGN.md`](src/loop/DESIGN.md) |
+| 模块 | 集成说明（README） | 实现方案（DESIGN 锚点） |
+|------|-------------------|------------------------|
+| `llm` | [`src/llm/README.md`](src/llm/README.md) | [`DESIGN.md#llm`](DESIGN.md#llm) |
+| `session` | [`src/session/README.md`](src/session/README.md) | [`DESIGN.md#session`](DESIGN.md#session) |
+| `tools` | [`src/tools/README.md`](src/tools/README.md) | [`DESIGN.md#tools`](DESIGN.md#tools) |
+| `event` | [`src/event/README.md`](src/event/README.md) | [`DESIGN.md#event`](DESIGN.md#event) |
+| `model_input` | [`src/model_input/README.md`](src/model_input/README.md) | [`DESIGN.md#model_input`](DESIGN.md#model_input) |
+| `context` | [`src/context/README.md`](src/context/README.md) | [`DESIGN.md#context`](DESIGN.md#context) |
+| `loop` | [`src/loop/README.md`](src/loop/README.md) | [`DESIGN.md#loop`](DESIGN.md#loop) |
+| `scheduler` | — | [`DESIGN.md#scheduler`](DESIGN.md#scheduler) |
 
 **原则：** AgentLoop 独占 SessionStore；运行时写入只经 `event.emit(&mut session, TurnEvent)`；Hook post-commit 且 fail-open；`agent` 只装配，`cli` 通过 agent 调 Turn。

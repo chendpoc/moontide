@@ -21,8 +21,8 @@ crates/docs/engineering-handbook.md
         │
         ├── crates/docs/*.md（标记为“当前”的文档）
         │     Rust 系统级 owner、边界和不变量
-        └── crates/agent-core/src/*/{README,DESIGN}.md
-              模块局部 API、实现方案、不变量和测试方向
+        └── crates/*/DESIGN.md + agent-core/src/*/README.md
+              crate 级实现方案 + 模块短集成说明；开放任务 → GitHub Issues
 ```
 
 `docs/spec/` 与 `docs/notes/` 都是候选、draft、调研或迁移材料，不参与当前 Rust 契约的权威裁决。`crates/docs/` 中每份文档必须在开头标明“当前”或“候选”；候选文件不能因为标题写了“定稿”就覆盖当前设计。
@@ -32,7 +32,7 @@ crates/docs/engineering-handbook.md
 1. `AGENTS.md`；
 2. 本 handbook；
 3. `crates/docs/` 中标记为当前的 Rust 系统设计；
-4. 模块 `README.md` / `DESIGN.md`；
+4. crate `DESIGN.md` + 模块 `README.md`；
 5. `TODO.md`（只决定执行优先级，不覆盖架构）；
 6. `docs/spec/`、`docs/notes/` 与其他候选设计；
 7. `docs/archive/` 历史材料。
@@ -183,7 +183,7 @@ policy 应在组合根解析，`ToolRuntime` 只应用最终的 `Allow` / `Ask` 
 
 canonical 工具名匹配 `^[A-Za-z0-9_-]{1,64}$`。工具 schema 使用固定的 JSON Schema Draft 2020-12；R1 只保留 `input_schema`，其顶层 JSON 值必须是 object，object 内的 schema 文档在注册时校验，调用 input 在执行前校验。`output_schema` 等出现明确结构化消费者后再设计。
 
-详见 [`agent-core/src/tools/README.md`](../agent-core/src/tools/README.md) 与 [`agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。
+详见 [`agent-core/src/tools/README.md`](../agent-core/src/tools/README.md) 与 [`agent-core/DESIGN.md`](../agent-core/DESIGN.md#tools)。
 
 ### 4.3 声明式 policy 与 UI projection
 
@@ -409,8 +409,8 @@ just check
 | 变更 | 必须更新 |
 |------|----------|
 | 新增每 turn 必须遵守的硬规则 | `AGENTS.md` + 本手册对应章节 |
-| 改八模块职责或 import 边界 | 本手册 + [`agent-core.md`](agent-core.md) + 受影响模块 DESIGN |
-| 改单个模块 API / 不变量 | 模块 `README.md` / `DESIGN.md` |
+| 改八模块职责或 import 边界 | 本手册 + [`agent-core.md`](agent-core.md) + [`agent-core/DESIGN.md`](../agent-core/DESIGN.md) |
+| 改单个模块 API / 不变量 | 模块 `README.md` + [`agent-core/DESIGN.md`](../agent-core/DESIGN.md) 对应锚点 |
 | 改候选方案 | 候选文档，并注明未实现 |
 | 完成一个模块实现 | 模块文档 + `PROGRESS.md` + 测试证据 |
 

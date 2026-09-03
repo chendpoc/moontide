@@ -3,7 +3,7 @@
 > **性质：** 第一方工具库的对外使用说明。
 > **状态：** R1 已实现；静态 catalog 当前包含 `read`、`write`、`edit`、`find`、`grep`、`bash`、`web_search`。
 > **运行时契约：** [`../agent-core/src/tools/README.md`](../agent-core/src/tools/README.md)。
-> **实现细节：** [`DESIGN.md`](DESIGN.md) · **实现批次：** [`TASKS.md`](TASKS.md)。
+> **实现细节：** [`DESIGN.md`](DESIGN.md)
 
 ---
 

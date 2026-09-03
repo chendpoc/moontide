@@ -2,7 +2,7 @@
 
 > **性质：** Feature Task / 架构对齐文档（用户已确认）
 > **状态：** R1–R5 已实现（见 git diff review 后续 fix 批）
-> **关联：** [`../llm-provider-config-fix.md`](../llm-provider-config-fix.md) · [`../startup-config-layering.md`](../startup-config-layering.md) · [`../../agent-core/src/llm/README.md`](../../agent-core/src/llm/README.md) · [`../../agent-core/src/llm/DESIGN.md`](../../agent-core/src/llm/DESIGN.md) · [`../../agent/DESIGN.md`](../../agent/DESIGN.md)
+> **关联：** [`../llm-provider-config-fix.md`](../llm-provider-config-fix.md) · [`../startup-config-layering.md`](../startup-config-layering.md) · [`../../agent-core/src/llm/README.md`](../../agent-core/src/llm/README.md) · [`../../agent-core/DESIGN.md`](../../agent-core/DESIGN.md#llm) · [`../../agent/DESIGN.md`](../../agent/DESIGN.md)
 
 ## 1. 结论
 
@@ -381,7 +381,7 @@ MoonTide 在 [provider-config 修复](../llm-provider-config-fix.md) 与 [Agnes 
 | 运行时动态字段映射 | `default ← user ← host` + **clamp** |
 | 「加 compat 键接新厂商」 | 新网关 = **新 catalog profile 行** 或 Custom + template |
 
-历史草稿里曾出现 `WireProfile` / `ThinkingWirePolicy` 名字（见 [`llm/TASKS.md`](../../agent-core/src/llm/TASKS.md) TASK-llm-21），R8 已改为 **family-specific `AdapterConfig`**。
+历史草稿里曾出现 `WireProfile` / `ThinkingWirePolicy` 名字，R8 已改为 **family-specific `AdapterConfig`**（见 [`agent-core/DESIGN.md`](../agent-core/DESIGN.md#llm) 与 [`PROGRESS.md`](../../.agents/skills/moontide-kernel-plan/PROGRESS.md)）。
 
 **对照：**
 

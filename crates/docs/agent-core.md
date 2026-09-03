@@ -5,7 +5,7 @@
 > **模块进度：** [`../agent-core/README.md`](../agent-core/README.md)
 > **历史设计：** [`../../docs/archive/spec/agent-core.md`](../../docs/archive/spec/agent-core.md)
 
-本文描述 `agent-core` 的系统级 owner、依赖方向和跨模块不变量。模块局部 API 与实现细节仍以对应源码目录的 README/DESIGN 为准；冲突时遵循工程手册的权威顺序。
+本文描述 `agent-core` 的系统级 owner、依赖方向和跨模块不变量。模块实现细节以 [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md) 为准；各模块短集成说明见 `src/{mod}/README.md`。冲突时遵循工程手册的权威顺序。
 
 ---
 
@@ -73,7 +73,7 @@ Session Item Log ──materialize──► messages ──compile──► Mode
 
 - **Session Item Log** 是可恢复事实源，`session` 是唯一写者；
 - **Agent Event Log** 是由 `TurnEvent` derive 的观测记录，不反向覆盖 session；当前 `runId` 仅为 legacy 分区键，不构成 Run 实体；
-- Agent Event Log 的 queue、worker、persistence policy 和文件 writer 属于 `agent` 组合根的 [`agent::log`](../agent/src/log/README.md)；默认 `Off` 不装配它，`agent-core::event` 只拥有 derive、record 和 recorder port；
+- Agent Event Log 的 queue、worker、persistence policy 和文件 writer 属于 `agent` 组合根的 [`agent::log`](../agent/DESIGN.md#log)；默认 `Off` 不装配它，`agent-core::event` 只拥有 derive、record 和 recorder port；
 - 项目级路径与 policy 见 [`logging-and-session-design.md`](logging-and-session-design.md)，R2 默认是 `SessionPersistence::Items + DiagnosticPersistence::Off`；
 - **ModelRequest** 是单次模型调用产物，不是事实源，不持久化替代 session；
 - provider adapter 只编码请求，不修改 session/context 语义。
@@ -116,7 +116,7 @@ pub(crate) fn compile(
 
 ## 5. Context 边界
 
-`context` R1 已将输入输出边界落在模块 README/DESIGN，实现与测试已通过 Review：
+`context` R1 输入输出边界见 [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#context) 与 [`../agent-core/src/context/README.md`](../agent-core/src/context/README.md)：
 
 ```text
 Session Item Log ──context::materialize──► model-visible Vec<Message>
@@ -130,16 +130,7 @@ pub(crate) fn materialize(
 
 R1 直接映射普通 user/assistant items，聚合连续 tool call/result，忽略 checkpoint metadata；遇到 `Compaction`、未配对的 tool call/result 或身份不一致时返回错误。一个连续 ToolCall 段是一次 round；所有 call 都有配对的 ToolResult 后才能进入下一 model Step。context 只验证这一闭合条件。Loop R1 已确认先记录全部 calls、顺序执行并全量配对；并发、资源 claim、deadline 与 tool retry 后置给 scheduler。该函数只读，不写回 session，也不拥有 compaction、prune、retrieval 或预算策略。
 
-以下策略属于未来 context 设计：
-
-- compaction / prune / summary；
-- tail window 与 working set；
-- artifact / retrieval；
-- Context Manifest 与 token budget 解释。
-
-`model_input` 原样消费 messages，不实现这些策略。未来 context 即使增加 manifest，也由 loop 取出 messages 后调用 `compile`；manifest 不进入 `ModelRequest`。
-
-context 设计时需要考虑 system 与 tools 的 pinned token 成本，但本文不预设 budget object、token counter trait 或 materialize 返回结构。
+compaction / prune / summary、tail window、artifact / retrieval、Context Manifest 与 token budget 等策略属于未来 context 设计，详见 crate [`DESIGN.md#context`](../agent-core/DESIGN.md#context)。
 
 ---
 
@@ -257,13 +248,14 @@ REPL turn 的可恢复错误由 turn 边界打印后继续；配置类致命错�
 |------|----------|
 | 工程规则与权威顺序 | [`engineering-handbook.md`](engineering-handbook.md) |
 | 内核模块进度 | [`../agent-core/README.md`](../agent-core/README.md) |
-| LLM | [`../agent-core/src/llm/DESIGN.md`](../agent-core/src/llm/DESIGN.md) |
-| Session | [`../agent-core/src/session/DESIGN.md`](../agent-core/src/session/DESIGN.md) |
-| Tools | [`../agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md) |
-| Event | [`../agent-core/src/event/DESIGN.md`](../agent-core/src/event/DESIGN.md) |
-| Model input | [`../agent-core/src/model_input/DESIGN.md`](../agent-core/src/model_input/DESIGN.md) |
-| Context | [`../agent-core/src/context/README.md`](../agent-core/src/context/README.md) · [`../agent-core/src/context/DESIGN.md`](../agent-core/src/context/DESIGN.md) |
-| Loop | [`../agent-core/src/loop/README.md`](../agent-core/src/loop/README.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) |
+| agent-core 实现权威 | [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md) |
+| LLM | [`../agent-core/DESIGN.md#llm`](../agent-core/DESIGN.md#llm) · [`../agent-core/src/llm/README.md`](../agent-core/src/llm/README.md) |
+| Session | [`../agent-core/DESIGN.md#session`](../agent-core/DESIGN.md#session) |
+| Tools | [`../agent-core/DESIGN.md#tools`](../agent-core/DESIGN.md#tools) |
+| Event | [`../agent-core/DESIGN.md#event`](../agent-core/DESIGN.md#event) |
+| Model input | [`../agent-core/DESIGN.md#model_input`](../agent-core/DESIGN.md#model_input) |
+| Context | [`../agent-core/DESIGN.md#context`](../agent-core/DESIGN.md#context) |
+| Loop | [`../agent-core/DESIGN.md#loop`](../agent-core/DESIGN.md#loop) |
 | Agent composition root | [`../agent/README.md`](../agent/README.md) · [`../agent/DESIGN.md`](../agent/DESIGN.md) |
 | CLI shell | [`../cli/README.md`](../cli/README.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md) |
 

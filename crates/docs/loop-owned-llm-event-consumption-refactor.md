@@ -3,7 +3,7 @@
 > **文档性质：** Plan  
 > **状态：** Candidate，待架构评审  
 > **范围：** `agent-core::llm` / `agent-core::loop` 的单次模型调用接缝  
-> **关联：** [`agent-core.md`](agent-core.md) · [`../agent-core/src/llm/DESIGN.md`](../agent-core/src/llm/DESIGN.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md)  
+> **关联：** [`agent-core.md`](agent-core.md) · [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#llm) · [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#loop)
 > **非目标：** 本文不立即改变当前 Rust 契约，不涉及 provider adapter、HTTP/SSE 协议或 ToolRuntime 语义。
 
 ## 背景

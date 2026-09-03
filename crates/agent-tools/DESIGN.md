@@ -3,7 +3,7 @@
 > **读者：** 实现者、代码审查。
 > **状态：** R1 已实现；catalog 与 builtin 仍按同一 Review 批交付。
 > **对外契约：** [`README.md`](README.md)。
-> **上游边界：** [`../agent-core/src/tools/DESIGN.md`](../agent-core/src/tools/DESIGN.md)。
+> **上游边界：** [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#tools)。
 
 ---
 
@@ -39,7 +39,6 @@ crates/agent-tools/
   Cargo.toml
   README.md
   DESIGN.md
-  TASKS.md
   src/
     lib.rs
     catalog.rs

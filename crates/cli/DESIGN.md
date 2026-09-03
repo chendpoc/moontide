@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
 > **状态：** CLI R1/R2/R3/R4 与 R5 Progress/diagnostic status consumption 已实现；R5 待 Review。
-> **关联：** [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md)
+> **关联：** [`../agent/DESIGN.md`](../agent/DESIGN.md) · [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#loop)
 
 ---
 

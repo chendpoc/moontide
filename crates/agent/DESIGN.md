@@ -2,7 +2,7 @@
 
 > **读者：** 实现者、代码审查。对外契约见 [`README.md`](README.md)。
 > **状态：** 初步可用版 Agent R1–R3 已实现；**LLM 四轴解耦 Feature 已对齐**（[`crates/docs/features/LLM-FOUR-AXIS.md`](../docs/features/LLM-FOUR-AXIS.md)），实现未开始。
-> **关联：** [`../agent-core/src/loop/DESIGN.md`](../agent-core/src/loop/DESIGN.md) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
+> **关联：** [`../agent-core/DESIGN.md`](../agent-core/DESIGN.md#loop) · [`../agent-tools/DESIGN.md`](../agent-tools/DESIGN.md) · [`../cli/DESIGN.md`](../cli/DESIGN.md)
 
 ---
 
@@ -263,13 +263,55 @@ agent-core ↛ agent / cli / agent-tools
 
 `ProgressEvent` / `ProgressObserver` 是 agent 对上层宿主暴露的只读进度投影；其来源是 agent-core `TurnEvent`，不持久化、不携带 OTel trace/span identity，不允许影响 Loop、permission、retry 或 cancellation。Agent Event Log 的 R3 诊断 policy 不进入 `session` 或 `agent-core::event`。
 
-R2 的 snapshot/finalized identity、事件顺序和 fail-open 细节见 [`src/progress/DESIGN.md`](src/progress/DESIGN.md)。
+R2 的 snapshot/finalized identity、事件顺序和 fail-open 细节见 [§8 Progress](#progress)。
 
-## 8. Platform paths and project settings
+<a id="progress"></a>
+
+## 8. Progress
+
+`progress` 是组合根里的只读派生层：消费 `TurnEvent`，转换为宿主可用的 `ProgressEvent`。
+
+| 做 | 不做 |
+|---|---|
+| 传播 assistant 全量 snapshot | 渲染 stdout、终端或 Desktop frontend |
+| 添加 turn/step/call/update identity | 修改 AgentLoop 决策 |
+| 在 commit 后传播 finalized | 写 Session 或 Agent Event |
+| 传播完整 ToolCall / ToolResult payload | 暴露完整 provider wire event |
+| 保持 observer fail-open、入队不阻塞 | 把 observer 错误传回 Loop |
+
+`ProgressObserver::on_progress(&ProgressEvent)` 由 CLI/Desktop 实现。`ProgressEvent` 含 `TurnStarted`、`LlmCallStarted`、`AssistantResponseSnapshot`、`ToolCall`、`ToolResult`、`LlmCallEnded`、`AssistantFinalized`、`TurnEnded`。
+
+派生规则：`MessageUpdate` 携带完整 snapshot；`ProgressHook` 维护 per-call `update_index`；每个 attempt 恰好一个 `LlmCallEnded`；retry 使用新 `llm_call_id`；非空 `AssistantFinalized` 在 Session commit 后才进入 Hook。
+
+`ProgressHook` 不直接调用 observer，而是 `try_send` 到有界队列；`ProgressWorker` 串行调用 observer。队列溢出记录 `resync_required`，不阻塞 AgentLoop。`start`/`spawn` 要求 Tokio runtime。
+
+## 9. Agent Event Log
+
+<a id="log"></a>
+
+`agent::log` 负责 Agent Event Record 的 bounded queue、worker 生命周期与文件持久化；`agent-core::event` 只负责 derive 与 `AgentEventRecorder` port。
+
+```text
+EventDispatcher → DeriveAgentEventHook → QueuedAgentEventRecorder.try_send
+  → AgentEventLogWorker → FileAgentEventRecorder → JSONL
+```
+
+| policy | bootstrap |
+|---|---|
+| `DiagnosticPersistence::Off` | 不注册 Hook、不创建 worker |
+| `Errors` | 只入队 failed/cancelled LLM 与非 succeeded tool |
+| `Normal` | 生命周期、conversation、LLM/tool 语义；过滤高频 snapshot |
+| `Debug` | 全部 derived records；文件仍 64 KiB 截断 |
+
+Hook 不执行文件 IO；queue 满时丢弃并递增 `dropped_events`，不向 turn 传播 backpressure。worker 错误进入 `Degraded`/`Stopped`，不回滚 Session commit。`Agent::reload` 替换 worker 前须 flush。
+
+## 10. Platform paths and project settings
+
+<a id="platform"></a>
 
 `agent::platform` 是宿主共用的跨平台路径 seam，不是包住所有 `std::fs` / `std::path` 的万能 common module。
 
-### 8.1 `ProjectPaths`
+### 10.1 `ProjectPaths`
 
 ```text
 resolve(cwd, sessions_dir?, runs_dir?)
@@ -291,7 +333,7 @@ resolve(cwd, sessions_dir?, runs_dir?)
 
 Session/Run/Settings 均为项目本地 `.moontide` 布局；用户级 config/data/cache 目录不属于当前 module。
 
-### 8.2 Settings persistence
+### 10.2 Settings persistence
 
 设置 schema 由 CLI/frontend 拥有；当前写入 `version: 2`（可读 `version: 1`）。`api_key` 可以持久化在项目设置中；它不进入 Session Item Log 或 Agent Event Log。
 
@@ -306,7 +348,11 @@ merge 产出单一 `ResolvedProviderConfig`；`agent` 不读取 settings 文件�
 
 `write_settings_atomically(path, bytes)` 在目标目录创建临时文件，写入完整 bytes 后以平台可用的替换语义更新目标文件。它不解析 JSON、不合并配置、不实现 concurrent writer；第一版约束一个 workspace 同时只有一个 settings writer。损坏或未知版本的 settings 文件由 frontend 显式报错并保留原文件。
 
-### 8.3 Ownership
+### 10.3 Atomic settings replacement
+
+临时文件与目标同目录；bytes 完整写入后才替换；失败不删除现有目标；不解析 JSON；第一版无并发 writer。Windows/Unix 替换差异集中在本 module；测试用 `tempfile::TempDir`，不依赖 `/tmp` 或固定分隔符。
+
+### 10.4 Ownership
 
 ```text
 agent::llm                → concrete catalog、四层 provider-scoped merge、env registry、ResolvedProviderConfig
@@ -317,7 +363,7 @@ agent-core                → Session Item Log / AgentLoop，不读取 settings.
 
 ---
 
-## 9. 错误与生命周期
+## 11. 错误与生命周期
 
 - `create/resume` 失败不产生可运行 Agent；
 - `create/resume/reload` 必须在 Tokio runtime 内调用；
@@ -330,7 +376,7 @@ agent-core                → Session Item Log / AgentLoop，不读取 settings.
 
 ---
 
-## 10. 决策记录
+## 12. 决策记录
 
 1. agent 是唯一组合根，不把装配逻辑塞入 cli 或 agent-core；
 2. AgentConfig 只接收单一 `ResolvedProviderConfig`；agent runtime 不读取 settings/env；
@@ -342,7 +388,7 @@ agent-core                → Session Item Log / AgentLoop，不读取 settings.
 
 ---
 
-## 11. 单测方向
+## 13. 单测方向
 
 - ResolvedProviderConfig → family-specific AdapterConfig 映射；
 - create/resume Session identity 与独立 legacy run partition；

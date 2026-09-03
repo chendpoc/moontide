@@ -52,39 +52,27 @@ description: MoonTide 内核 Rust 化路线图与进度（8 模块依赖顺序�
 
 Discovery 不应被强行包装成完整 TASK，也不应把临时 spike 当作产品代码；只有证据支持继续后，才进入 Implementation。
 
-## 模块文档机制（README + DESIGN）
+## 模块文档机制（README + crate DESIGN）
 
-每个 `agent-core` 模块是对外提供能力的**内部产品**（消费者是 `loop` / `agent` / `cli`，不是终端用户）。双文档对应两轮评审：
+每个 `agent-core` 模块是对外提供能力的**内部产品**（消费者是 `loop` / `agent` / `cli`，不是终端用户）。
 
-| 文档 | 类比 | 回答的问题 | 评审焦点 |
-|------|------|-----------|----------|
-| **`README.md`** | **产品需求 / 对外契约**（PRD 粒度） | 这个模块**承诺什么**、**谁怎么用**、**不能做什么** | 职责边界、公开 API、调用者矩阵、典型流程、与邻模块接缝 |
-| **`DESIGN.md`** | **技术方案 / 实现设计**（Tech Design 粒度） | **怎么兑现** README 里的承诺 | 目录结构、算法、不变量、错误策略、分期、单测 |
+| 文档 | 位置 | 回答的问题 |
+|------|------|-----------|
+| **`README.md`** | `crates/agent-core/src/{mod}/` | 承诺什么、谁怎么用（~30–60 行） |
+| **`DESIGN.md`** | `crates/agent-core/DESIGN.md#{mod}` | 怎么兑现 README 里的承诺 |
 
-```text
-README（产品面）          DESIGN（实现面）
-  承诺的能力        →        兑现该承诺的工程方案
-  对外 API          →        内部模块划分与算法
-  集成方心智        →        实现者 / reviewer 心智
-```
+**纪律：** 先对齐 README（产品评审），再更新 crate DESIGN 对应节（技术评审）；实现阶段**不得静默偏离 README**。
 
-**纪律：** 先对齐 README（产品评审通过），再写 DESIGN（技术评审）；实现阶段**不得静默偏离 README**；README 变更视为产品变更，须回到架构对齐。
+每个 `src/{mod}/` **必须**维护短 **README**；实现方案写入 crate 级 [`DESIGN.md`](../../../crates/agent-core/DESIGN.md)，不在模块目录重复 `DESIGN.md`。
 
-每个 `crates/agent-core/src/{mod}/` **必须**维护两份文档，职责分离：
-
-| 文件 | 读者 | 写什么 | 不写什么 |
-|------|------|--------|----------|
-| **`README.md`** | 集成方（`agent` / `loop` / `cli` / 测试作者） | 模块是什么、brief 原理 ASCII 图、**谁该用什么**、公开 API 速查、典型用法、常见错误 | 文件树细节、fold 算法、derive 映射表、单测清单 |
-| **`DESIGN.md`** | 实现者 / reviewer | 模块结构、类型**完整**签名、算法步骤、import 边界、不变量、边界情况、决策记录、实现分期、单测方向 | 冗长教程式「怎么用」（应链到 README） |
-
-可选第四份：**`TASKS.md`** — 实现阶段由 batch-implement 从 DESIGN 拆出，跟踪 Review 批与细 TASK。
+**任务跟踪：** GitHub Issue + Review 批（由 batch-implement 从 DESIGN 拆出；不再维护 crate 内 `TASKS.md`）。
 
 ### 架构对齐 vs 落盘分工
 
 | 阶段 | 类比 | 对话 / 草稿 | 落盘 |
 |------|------|-------------|------|
 | §1 架构对齐 | **产品评审** | 职责、公开 API、调用边界、与上下游关系 | 暂不落盘，或只记 CONTEXT |
-| §2 设计文档 | **产品定稿 + 技术评审** | 用户确认 README 承诺后，补 DESIGN 兑现方案 | **同时**落 README + DESIGN |
+| §2 设计文档 | **产品定稿 + 技术评审** | 用户确认 README 承诺后，补 DESIGN 兑现方案 | README 落 `src/{mod}/`；DESIGN 更新 `crates/agent-core/DESIGN.md#{mod}` |
 | §3 实现 | **按图施工** | 契约以 **README** 为准；细节以 **DESIGN** 为准 | 改公开 API → 回 §1 产品评审 |
 
 ### 双轨协作（每个实现批次）
@@ -110,7 +98,7 @@ User Parallel Task 默认从 `Trace`（追调用链）、`Review`（检查契约
 5. 典型用法（按角色：loop / agent / cli）
 6. 与相邻模块接缝（链到邻模块 README）
 7. 常见错误
-8. 进一步阅读 → DESIGN.md
+8. 进一步阅读 → [`DESIGN.md#mod`](../../../crates/agent-core/DESIGN.md)
 ```
 
 ### DESIGN 推荐结构（实现）
@@ -138,7 +126,7 @@ User Parallel Task 默认从 `Trace`（追调用链）、`Review`（检查契约
 - **用户问「怎么实现 / 审查」**：答 DESIGN；若发现 README 承诺不可实现，**停下改 README**，不是偷偷改代码。
 - **PROGRESS 设计列**：README ☑ 且 DESIGN ☑ 才算设计完成。
 
-参考实例：`llm/`、`session/`、`event/`（均已拆分）。
+参考实例：`llm/`、`session/`、`event/`（README + crate DESIGN 锚点）。
 
 ## 依赖图（推进顺序）
 
@@ -180,12 +168,12 @@ User Parallel Task 默认从 `Trace`（追调用链）、`Review`（检查契约
 
 ### 2. 设计文档（确认后才写）
 
-用户确认接口后，写入 `crates/agent-core/src/{mod}/`（见上文 **模块文档机制**）：
+用户确认接口后：
 
-- **`README.md`** — 对外使用说明：调用者矩阵、公开 API 速查、典型用法、brief 原理 ASCII 图
-- **`DESIGN.md`** — 实现技术方案：模块结构、类型签名、算法、不变量、决策记录、实现分期、单测方向
+- **`crates/agent-core/src/{mod}/README.md`** — 短集成说明：调用者矩阵、公开 API 速查、链接到 DESIGN 锚点
+- **`crates/agent-core/DESIGN.md#{mod}`** — 实现技术方案：模块结构、类型签名、算法、不变量、决策记录、单测方向
 
-架构对齐对话中：**对外契约**写入 README 草案；**内部方案**写入 DESIGN 草案。用户可分两次确认，但落盘时两份齐全再标设计 ☑。
+架构对齐对话中：**对外契约**写入 README 草案；**内部方案**写入 crate DESIGN 对应节草案。用户可分两次确认，但落盘时 README + DESIGN 节齐全再标设计 ☑。
 
 `PROGRESS.md`：设计文档勾选完成（README + DESIGN）。
 
@@ -193,7 +181,7 @@ User Parallel Task 默认从 `Trace`（追调用链）、`Review`（检查契约
 
 设计文档 ☑ 后，**必须**走子 skill [batch-implement](batch-implement/SKILL.md)：
 
-1. 从 **DESIGN.md**（+ README 公开 API）生成 `src/{mod}/TASKS.md`（可参考子 skill 内 `llm-TASKS.example.md`）
+1. 从 **DESIGN.md**（+ README 公开 API）在 GitHub 创建 Issue（Review 批 + 细 TASK；可参考子 skill 内 [`llm-issue.example.md`](batch-implement/llm-issue.example.md)）
 2. 与用户确认本批 TASK、User Parallel Task 和 Shared Acceptance（默认一个 Review 批配一个用户任务）
 3. 实现 + `just check` + 批次自检；用户并行完成 User Parallel Task → **停等用户 git diff review**
 4. 用户说 **commit** 后再提交；勾选 TASK → 下一批

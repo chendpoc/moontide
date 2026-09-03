@@ -1,6 +1,6 @@
 本文件是 MoonTide 运行时指令来源之一：由 `agent` 在每个 user turn 解析为 `SystemPrompt`，再由 `model_input::compile` 写入 `ModelRequest.system`。
 
-**完整工程手册**（Rust 分层、Conformance 范围、术语全集、示例）位于 [`crates/docs/engineering-handbook.md`](crates/docs/engineering-handbook.md)。TypeScript 时代版本已归档至 [`docs/archive/guides/engineering-handbook.md`](docs/archive/guides/engineering-handbook.md)，仅供追溯；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 Rust handbook。
+**完整工程手册**（Rust 分层、Conformance 范围、术语全集、示例）位于 [`crates/docs/engineering-handbook.md`](crates/docs/engineering-handbook.md)。TypeScript 时代版本已归档至 [`docs/archive/guides/engineering-handbook.md`](docs/archive/guides/engineering-handbook.md)，仅供追溯；冲突时以本文件为准。维护规则：**runtime 必需、可执行的约束写本文件**；详述、表格与链接写 Rust handbook。文档层级：`AGENTS.md` → handbook → `crates/*/DESIGN.md` + 模块短 README；开放任务 → GitHub Issues。
 
 代码库是 Rust（Cargo workspace，`crates/`）。TypeScript 初版已删除，快照在 `main` 分支，文档在 [`docs/archive/`](docs/archive/)。
 

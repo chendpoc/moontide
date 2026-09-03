@@ -16,7 +16,7 @@
 | 文档 | 主题 |
 |---|---|
 | `crates/docs/agent-core.md` | Rust Agent Core 系统设计：八模块 owner、依赖、请求组装与 conformance |
-| `crates/agent-core/src/event/DESIGN.md` | Rust Agent Event、derive、dispatcher 与 recorder 边界 |
+| `crates/agent-core/DESIGN.md#event` | Rust Agent Event、derive、dispatcher 与 recorder 边界 |
 | `crates/agent-core/src/loop/README.md` / `DESIGN.md` | Loop R1 对外契约与状态机、ownership、retry/cancel/tool round 技术设计 |
 | `crates/moontide-desktop/DESIGN.md` | integrated Desktop runtime 目标：typed invoke、Host ownership、事件 seam 与错误接受语义（尚未实现） |
 | `docs/archive/spec/context-composer.md` | TypeScript 历史 Context Composer，仅供追溯 |
