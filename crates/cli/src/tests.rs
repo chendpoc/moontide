@@ -31,15 +31,21 @@ use crate::config::{
     session_mode,
     validate_prompt,
 };
-use crate::render::{
-    assistant_text,
-    write_assistant_stdout,
-};
-use crate::repl::{
-    ReplCommand,
+use crate::console::{
+    ConsoleCommand,
     TurnOutcome,
     await_turn_with_ctrl_c,
     parse_command,
+    prompt_text,
+};
+use crate::console_render::{
+    format_session_list,
+    text_delta,
+};
+use crate::input::normalize_input;
+use crate::render::{
+    assistant_text,
+    write_assistant_text,
 };
 use crate::settings::{
     ApprovalPolicy,
@@ -239,6 +245,7 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> GlobalCon
         thinking_level: None,
         persistence: agent::PersistenceConfig::default(),
         input_owner: None,
+        host_progress: None,
     }
 }
 
@@ -255,7 +262,7 @@ fn empty_prompt_is_rejected() {
 
 // Scenario: a ModelResponse contains text, thinking, and non-terminal tool blocks.
 // Expected: renderer emits only assistant text and keeps thinking/tool content out of stdout.
-// Invariant: final output is derived from ModelResponse, not streamed snapshots or diagnostics.
+// Invariant: final fallback output is derived from ModelResponse text blocks, not tool payloads.
 #[test]
 fn renderer_keeps_stdout_to_final_assistant_text() {
     let response = ModelResponse {
@@ -278,7 +285,8 @@ fn renderer_keeps_stdout_to_final_assistant_text() {
         response_id: None,
     };
     let mut output = Vec::new();
-    write_assistant_stdout(&response, &mut output).expect("stdout rendering should succeed");
+    write_assistant_text(assistant_text(&response), &mut output)
+        .expect("stdout rendering should succeed");
 
     assert_eq!(assistant_text(&response), "answer");
     assert_eq!(
@@ -287,19 +295,80 @@ fn renderer_keeps_stdout_to_final_assistant_text() {
     );
 }
 
-// Scenario: REPL command lines contain supported slash commands or ordinary user text.
-// Expected: commands are classified without entering Agent::turn; other lines preserve text.
+// Scenario: console command lines contain supported slash commands or ordinary user text.
+// Expected: commands are classified without entering Agent::turn; unknown slashes stay in the shell.
 // Invariant: command dispatch remains a CLI-shell concern and does not mutate Session facts.
 #[test]
-fn repl_commands_are_classified_without_agent_access() {
-    assert_eq!(parse_command("/id".into()), ReplCommand::SessionId);
-    assert_eq!(parse_command("/help".into()), ReplCommand::Help);
-    assert_eq!(parse_command("/settings".into()), ReplCommand::Settings);
-    assert_eq!(parse_command("/exit".into()), ReplCommand::Exit);
+fn console_commands_are_classified_without_agent_access() {
+    assert_eq!(parse_command("/id".into()), ConsoleCommand::SessionId);
+    assert_eq!(parse_command("/help".into()), ConsoleCommand::Help);
+    assert_eq!(parse_command("/settings".into()), ConsoleCommand::Settings);
+    assert_eq!(parse_command("/exit".into()), ConsoleCommand::Exit);
+    assert_eq!(parse_command("/status".into()), ConsoleCommand::Status);
+    assert_eq!(parse_command("/new".into()), ConsoleCommand::NewSession);
+    assert_eq!(
+        parse_command("/sessions".into()),
+        ConsoleCommand::ListSessions
+    );
+    assert_eq!(
+        parse_command("/resume".into()),
+        ConsoleCommand::Resume(None)
+    );
+    assert_eq!(
+        parse_command("/resume abc-123".into()),
+        ConsoleCommand::Resume(Some("abc-123".into()))
+    );
+    assert_eq!(
+        parse_command("/thinking on".into()),
+        ConsoleCommand::Thinking(Some(true))
+    );
+    assert_eq!(
+        parse_command("/thinking".into()),
+        ConsoleCommand::Thinking(None)
+    );
+    assert_eq!(
+        parse_command("/nope".into()),
+        ConsoleCommand::Unknown("/nope".into())
+    );
     assert_eq!(
         parse_command("continue the task".into()),
-        ReplCommand::Turn("continue the task".into())
+        ConsoleCommand::Turn("continue the task".into())
     );
+}
+
+// Scenario: the console prompt includes a shortened session id after a session exists.
+// Expected: idle prompt stays generic; an active session uses the first 8 id characters.
+// Invariant: prompt rendering does not require AgentLoop or Session Item Log access.
+#[test]
+fn console_prompt_uses_short_session_identity() {
+    assert_eq!(prompt_text(None), "moontide> ");
+}
+
+// Scenario: a continued input uses a trailing backslash, and a slash prefix is a known command.
+// Expected: backslashes are stripped and lines join with newlines; session list marks the active id.
+// Invariant: input normalization and list formatting stay in the CLI shell.
+#[test]
+fn console_input_and_session_list_are_shell_owned() {
+    assert_eq!(normalize_input("hello".into()), "hello");
+    assert_eq!(normalize_input("one\\\ntwo".into()), "one\ntwo");
+    assert_eq!(text_delta("Hel", "Hello"), "lo");
+    let summaries = vec![
+        agent::SessionSummary {
+            session_id: "aaaa".into(),
+            cwd: PathBuf::from("/tmp"),
+            last_turn: Some(1),
+            item_count: 2,
+        },
+        agent::SessionSummary {
+            session_id: "bbbb".into(),
+            cwd: PathBuf::from("/tmp"),
+            last_turn: Some(3),
+            item_count: 8,
+        },
+    ];
+    let listed = format_session_list(&summaries, Some("bbbb"));
+    assert!(listed.contains("* bbbb"));
+    assert!(listed.contains("  aaaa"));
 }
 
 // Scenario: terminal approval receives y/n/empty/unknown responses and a long JSON input.
@@ -531,6 +600,8 @@ fn cli_does_not_import_agent_core_llm_catalog_directly() {
         include_str!("setting_catalog.rs"),
         include_str!("args.rs"),
         include_str!("main.rs"),
+        include_str!("console.rs"),
+        include_str!("console_render.rs"),
     ];
     for source in sources {
         assert!(

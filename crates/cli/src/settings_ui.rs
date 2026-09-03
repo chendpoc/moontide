@@ -38,6 +38,7 @@ use crossterm::terminal::{
 };
 
 use crate::args::CliArgs;
+use crate::config::resolve_project_paths;
 use crate::setting_catalog::{
     SettingApplyEffect,
     SettingCatalog,
@@ -50,10 +51,11 @@ const HINT: &str = "Type to search · ↑↓ select · Enter/Space change · Esc
 
 pub(crate) async fn run_settings_ui(
     settings: &mut GlobalConfigStore,
-    agent: &mut Agent,
+    agent: Option<&mut Agent>,
     args: &CliArgs,
 ) -> Result<()> {
-    let mut catalog = SettingCatalog::from_runtime(settings, agent)?;
+    let cwd = catalog_cwd(args, agent.as_deref())?;
+    let mut catalog = SettingCatalog::from_runtime(settings, &cwd)?;
     let mut filter = String::new();
     let mut selected = 0usize;
 
@@ -92,7 +94,7 @@ async fn settings_loop(
     stdout: &mut impl Write,
     catalog: &mut SettingCatalog,
     settings: &mut GlobalConfigStore,
-    agent: &mut Agent,
+    mut agent: Option<&mut Agent>,
     args: &CliArgs,
     filter: &mut String,
     selected: &mut usize,
@@ -113,11 +115,13 @@ async fn settings_loop(
 
         match event::read().context("read settings input")? {
             Event::Key(key) => {
+                let cwd = catalog_cwd(args, agent.as_deref())?;
                 let mut ctx = SettingsKeyCtx {
                     catalog,
                     settings,
-                    agent,
+                    agent: agent.as_deref_mut(),
                     args,
+                    cwd: &cwd,
                     filter,
                     selected,
                     filtered: &filtered,
@@ -136,8 +140,9 @@ async fn settings_loop(
 struct SettingsKeyCtx<'a, W: Write> {
     catalog: &'a mut SettingCatalog,
     settings: &'a mut GlobalConfigStore,
-    agent: &'a mut Agent,
+    agent: Option<&'a mut Agent>,
     args: &'a CliArgs,
+    cwd: &'a std::path::Path,
     filter: &'a mut String,
     selected: &'a mut usize,
     filtered: &'a [usize],
@@ -170,7 +175,7 @@ async fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) ->
                     && !confirm_always_allow(ctx.stdout)?
                 {
                     *ctx.settings = previous_settings;
-                    *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent)?;
+                    *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.cwd)?;
                     return Ok(false);
                 }
                 if effect != SettingApplyEffect::ReadOnly {
@@ -178,13 +183,13 @@ async fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) ->
                         effect,
                         &previous_settings,
                         ctx.settings,
-                        ctx.agent,
+                        ctx.agent.as_deref_mut(),
                         ctx.args,
                     )
                     .await
                     {
                         *ctx.settings = previous_settings;
-                        *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent)?;
+                        *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.cwd)?;
                         return Err(error);
                     }
                     show_status(ctx.stdout, apply_status_message(effect))?;
@@ -346,4 +351,11 @@ fn truncate(value: &str, max_chars: usize) -> String {
     let mut chars = value.chars();
     let prefix: String = chars.by_ref().take(max_chars.saturating_sub(1)).collect();
     format!("{prefix}…")
+}
+
+fn catalog_cwd(args: &CliArgs, agent: Option<&Agent>) -> Result<std::path::PathBuf> {
+    if let Some(agent) = agent {
+        return Ok(agent.cwd().to_path_buf());
+    }
+    Ok(resolve_project_paths(args)?.cwd)
 }

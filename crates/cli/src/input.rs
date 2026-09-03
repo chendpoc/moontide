@@ -34,7 +34,21 @@ use rustyline::{
 
 type TerminalEditor = Editor<MaskingHelper, DefaultHistory>;
 
-/// The single terminal input owner shared by Settings, REPL, and approval.
+pub(crate) const SLASH_COMMANDS: &[&str] = &[
+    "/exit",
+    "/help",
+    "/id",
+    "/new",
+    "/resume",
+    "/sessions",
+    "/settings",
+    "/status",
+    "/thinking",
+    "/thinking off",
+    "/thinking on",
+];
+
+/// The single terminal input owner shared by Settings, console, and approval.
 #[derive(Clone)]
 pub(crate) struct InputOwner {
     editor: Arc<Mutex<TerminalEditor>>,
@@ -97,11 +111,23 @@ impl Completer for MaskingHelper {
 
     fn complete(
         &self,
-        _line: &str,
+        line: &str,
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        Ok((pos, Vec::new()))
+        if self.masking || !line.starts_with('/') {
+            return Ok((pos, Vec::new()));
+        }
+        let prefix = &line[..pos.min(line.len())];
+        let matches = SLASH_COMMANDS
+            .iter()
+            .filter(|command| command.starts_with(prefix))
+            .map(|command| Pair {
+                display: (*command).to_owned(),
+                replacement: (*command).to_owned(),
+            })
+            .collect();
+        Ok((0, matches))
     }
 }
 
@@ -124,9 +150,26 @@ impl Highlighter for MaskingHelper {
 }
 
 impl Validator for MaskingHelper {
-    fn validate(&self, _ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
-        Ok(ValidationResult::Valid(None))
+    fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
+        if self.masking {
+            return Ok(ValidationResult::Valid(None));
+        }
+        if ctx.input().ends_with('\\') {
+            Ok(ValidationResult::Incomplete)
+        } else {
+            Ok(ValidationResult::Valid(None))
+        }
     }
 }
 
 impl Helper for MaskingHelper {}
+
+pub(crate) fn normalize_input(line: String) -> String {
+    if !line.contains('\\') && !line.contains('\n') {
+        return line;
+    }
+    line.lines()
+        .map(|part| part.strip_suffix('\\').unwrap_or(part))
+        .collect::<Vec<_>>()
+        .join("\n")
+}

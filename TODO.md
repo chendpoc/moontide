@@ -34,7 +34,7 @@
 ### 1.2 宿主基线
 
 - `agent` 已提供 `Agent::create/resume/turn` 和组合根装配。
-- CLI 已具备 one-shot、REPL、approval、Settings、Ctrl-C 和 trace 接缝；当前保留 Review/端到端门禁状态。
+- CLI 已具备 one-shot、Harness Console、approval、Settings、Ctrl-C、直播 Progress 和 trace 接缝。
 - Session Item Log 是恢复事实源；Agent Event Log 只用于观测。
 - Desktop 不通过 CLI 子进程接入，直接复用 `agent`。
 

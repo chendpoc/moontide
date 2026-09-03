@@ -55,7 +55,7 @@ cli（纯壳）→ agent（组合根）
 
 | 层 | 负责 | 不负责 |
 |----|------|--------|
-| `cli` | 参数、REPL、渲染、退出码 | Agent 内核逻辑、provider 组装 |
+| `cli` | 参数、Harness Console、渲染、退出码 | Agent 内核逻辑、provider 组装 |
 | `agent-core` | 生命周期、协议、状态、工具和调度内核 | CLI 细节、厂商 preset、sidecar 进程管理 |
 | `agent-tools` | 第一方 `ToolDefinition` catalog、spec 与 executor 实现 | runtime registry、permission、loop 编排 |
 | `agent` | 组合根、preset、provider、runtime 注入 | 在 loop 内硬编码 endpoint 或工具表 |

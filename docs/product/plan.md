@@ -20,7 +20,7 @@ cli → agent
 - `agent-core`：Turn、Session、Tool、Context、Event、LLM 等运行时契约；
 - `agent-tools`：第一方工具 catalog 与 executor；
 - `agent`：组合根和宿主 API；
-- `cli`：参数、REPL、approval、诊断和最终输出。
+- `cli`：参数、Harness Console、approval、诊断和直播输出。
 
 当前产品开发从 CLI 宿主基线转向 Desktop Shell v0.1。Desktop 直接复用 `agent`，不复制 AgentLoop，不通过 CLI 子进程接入。
 

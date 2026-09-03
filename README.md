@@ -7,7 +7,7 @@ Rust 实现的 coding agent：在本地工作区跑 LLM Turn、执行工具（�
 需要 [Rust](https://rust.rust-lang.org/) stable。首次开发建议安装 nightly rustfmt（`rustup toolchain install nightly -c rustfmt --profile minimal`）。
 
 ```sh
-cargo run -p cli              # 进入 REPL
+cargo run -p cli              # 进入 Harness Console
 cargo run -p cli -- -p "..."  # one-shot
 ```
 
@@ -25,7 +25,7 @@ just check    # rustfmt + clippy + workspace tests
 |------|------|
 | `agent-core`（llm / session / tools / event / model_input / context / loop） | 已实现，有测试 |
 | `agent` 组合根、LLM 四轴与多协议 adapter | 已实现 |
-| `cli`（REPL、one-shot、approval、settings） | 已实现 |
+| `cli`（Harness Console、one-shot、approval、settings） | 已实现 |
 | `moontide-desktop` | Tauri bootstrap 已有；流式 UI、Session 工作台待做 |
 
 未纳入当前范围：scheduler、多 Session 并发写入、subagent、context compaction、MCP sidecar。

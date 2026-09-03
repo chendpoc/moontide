@@ -10,8 +10,11 @@ use agent::{
 use anyhow::Result;
 
 pub(crate) fn assistant_text(response: &ModelResponse) -> String {
-    response
-        .content
+    assistant_text_from_blocks(&response.content)
+}
+
+pub(crate) fn assistant_text_from_blocks(blocks: &[ContentBlock]) -> String {
+    blocks
         .iter()
         .filter_map(|block| match block {
             ContentBlock::Text { text } => Some(text.as_str()),
@@ -22,13 +25,9 @@ pub(crate) fn assistant_text(response: &ModelResponse) -> String {
         .collect()
 }
 
-pub(crate) fn write_assistant_stdout<W: Write>(
-    response: &ModelResponse,
-    mut writer: W,
-) -> Result<()> {
-    let text = assistant_text(response);
+pub(crate) fn write_assistant_text<W: Write>(text: String, mut writer: W) -> Result<()> {
     writer.write_all(text.as_bytes())?;
-    if !text.ends_with('\n') {
+    if !text.is_empty() && !text.ends_with('\n') {
         writer.write_all(b"\n")?;
     }
     writer.flush()?;

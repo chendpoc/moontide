@@ -1,10 +1,11 @@
 mod approval;
 mod args;
 mod config;
+mod console;
+mod console_render;
 mod fuzzy;
 mod input;
 mod render;
-mod repl;
 mod setting_catalog;
 mod settings;
 mod settings_ui;
@@ -14,10 +15,7 @@ use std::future::Future;
 use std::io;
 use std::process::ExitCode;
 
-use agent::{
-    Agent,
-    AgentConfig,
-};
+use agent::Agent;
 use anyhow::{
     Context,
     Result,
@@ -33,13 +31,16 @@ use config::{
     session_mode,
     validate_prompt,
 };
-use input::InputOwner;
-use render::write_assistant_stdout;
-use repl::{
+use console::{
     TurnOutcome,
+    attach_console_progress,
     await_turn_with_ctrl_c,
-    run as run_repl,
+    run as run_console,
+    write_banner,
 };
+use console_render::ConsoleRenderer;
+use input::InputOwner;
+use render::write_assistant_text;
 use settings::{
     resolve_interactive,
     resolve_one_shot,
@@ -66,7 +67,7 @@ async fn run() -> Result<()> {
         LaunchMode::OneShot => Some(validate_prompt(&args)?.to_owned()),
         LaunchMode::Repl => None,
     };
-    let (settings, input_owner) = match args.launch_mode() {
+    let (mut settings, input_owner) = match args.launch_mode() {
         LaunchMode::OneShot => (resolve_one_shot(&args)?, None),
         LaunchMode::Repl => {
             let input_owner = InputOwner::new()?;
@@ -74,19 +75,23 @@ async fn run() -> Result<()> {
             (settings, Some(input_owner))
         }
     };
+    let renderer = attach_console_progress(&mut settings);
     let config = resolve_agent_config(&args, &settings)?;
     let sessions_dir = config.sessions_dir.clone();
     let defer_create = matches!(args.launch_mode(), LaunchMode::Repl) && args.session.is_none();
-    let (mut agent, mut pending_config): (Option<Agent>, Option<AgentConfig>) = if defer_create {
-        (None, Some(config))
+    let mut agent = if defer_create {
+        None
     } else {
         let active_agent = match args.session.as_deref() {
             Some(session_id) => Agent::resume(config, session_id)?,
             None => Agent::create(config)?,
         };
-        (Some(active_agent), None)
+        Some(active_agent)
     };
 
+    if matches!(args.launch_mode(), LaunchMode::Repl) {
+        write_banner(&args, &settings)?;
+    }
     if let Some(active_agent) = agent.as_ref() {
         let _ = render::write_diagnostic_stderr(&format!(
             "session ({}) id: {}",
@@ -99,50 +104,61 @@ async fn run() -> Result<()> {
 
     match (args.launch_mode(), prompt) {
         (LaunchMode::OneShot, Some(prompt)) => {
-            let cancellation = CancellationToken::new();
-            let active_agent = agent
-                .as_mut()
-                .ok_or_else(|| anyhow::anyhow!("one-shot mode requires an active agent"))?;
-            let session_id = active_agent.session_id().to_owned();
-            let outcome = finalize_turn(
-                await_turn_with_ctrl_c(
-                    active_agent.turn(prompt, cancellation.clone()),
-                    cancellation,
-                    tokio::signal::ctrl_c(),
-                )
-                .await,
-                flush_progress(active_agent),
-                flush_agent_event_log(active_agent),
-            )
-            .await?;
-            let result = match outcome {
-                TurnOutcome::Completed(Ok(response)) => {
-                    write_assistant_stdout(&response, std::io::stdout().lock())?;
-                    Ok(())
-                }
-                TurnOutcome::Completed(Err(error)) => Err(error),
-                TurnOutcome::Cancelled => bail!("cancelled"),
-            };
-            write_resume_hint(&session_id)?;
-            result
+            run_one_shot(agent.as_mut(), renderer.as_ref(), prompt).await
         }
         (LaunchMode::Repl, None) => {
-            let mut runtime_settings = settings;
-            let repl_result = run_repl(
+            let console_result = run_console(
                 &mut agent,
-                &mut pending_config,
                 input_owner.ok_or_else(|| anyhow::anyhow!("interactive input owner missing"))?,
                 &args,
-                &mut runtime_settings,
+                &mut settings,
+                renderer.as_ref(),
             )
             .await;
             if let Some(active_agent) = agent.as_ref() {
                 write_resume_hint(active_agent.session_id())?;
             }
-            repl_result
+            console_result
         }
         _ => bail!("invalid CLI launch state"),
     }
+}
+
+async fn run_one_shot(
+    agent: Option<&mut Agent>,
+    renderer: &ConsoleRenderer,
+    prompt: String,
+) -> Result<()> {
+    let cancellation = CancellationToken::new();
+    let active_agent =
+        agent.ok_or_else(|| anyhow::anyhow!("one-shot mode requires an active agent"))?;
+    let session_id = active_agent.session_id().to_owned();
+    renderer.begin_turn()?;
+    let outcome = finalize_turn(
+        await_turn_with_ctrl_c(
+            active_agent.turn(prompt, cancellation.clone()),
+            cancellation,
+            tokio::signal::ctrl_c(),
+        )
+        .await,
+        flush_progress(active_agent),
+        flush_agent_event_log(active_agent),
+    )
+    .await?;
+    let result = match outcome {
+        TurnOutcome::Completed(Ok(response)) => {
+            if let Some(text) = renderer.fallback_assistant_text(&response)? {
+                write_assistant_text(text, std::io::stdout().lock())?;
+            } else {
+                renderer.ensure_stdout_newline()?;
+            }
+            Ok(())
+        }
+        TurnOutcome::Completed(Err(error)) => Err(error),
+        TurnOutcome::Cancelled => bail!("cancelled"),
+    };
+    write_resume_hint(&session_id)?;
+    result
 }
 
 pub(crate) async fn flush_progress(agent: &Agent) -> Result<()> {
