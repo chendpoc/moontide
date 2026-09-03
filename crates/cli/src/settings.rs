@@ -1,22 +1,57 @@
-use std::{env, fs, path::Path};
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::{
+    env,
+    fs,
+};
 
+use agent::llm::{
+    api_key_env,
+    apply_provider_switch,
+    catalog_preset,
+    merge_startup_llm_config,
+    provider,
+    read_llm_env,
+    register_custom_providers,
+    require_api_key,
+    resolve_api_key_source,
+    AdapterFamily,
+    ApiKeySource,
+    CustomProviderDefinition,
+    EnvSource,
+    LlmConfigLayer,
+    ProcessEnv,
+    ProviderId,
+    UserProtocolProfileOverride,
+};
 use agent::{
-    llm::{
-        api_key_env, apply_provider_switch, catalog_preset, merge_startup_llm_config, provider,
-        read_llm_env, require_api_key, resolve_api_key_source, ApiKeySource, EnvSource,
-        LlmConfigLayer, ProcessEnv, ProviderId,
-    },
-    DiagnosticPersistence, PersistenceConfig, SessionPersistence, ThinkingLevel,
+    DiagnosticPersistence,
+    PersistenceConfig,
+    SessionPersistence,
+    ThinkingLevel,
 };
-use anyhow::{bail, Context, Result};
-use serde::{Deserialize, Serialize};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{
-    args::{ApprovalPolicyArg, CliArgs, TraceModeArg},
-    config::{resolve_project_paths, DEFAULT_MAX_STEPS, DEFAULT_MAX_TOKENS},
-    input::InputOwner,
-    render::write_diagnostic_stderr,
+use crate::args::{
+    ApprovalPolicyArg,
+    CliArgs,
+    TraceModeArg,
 };
+use crate::config::{
+    resolve_project_paths,
+    DEFAULT_MAX_STEPS,
+    DEFAULT_MAX_TOKENS,
+};
+use crate::input::InputOwner;
+use crate::render::write_diagnostic_stderr;
 
 const SETTINGS_VERSION: u32 = 2;
 
@@ -46,6 +81,9 @@ pub(crate) struct GlobalConfigStore {
     pub(crate) trace_mode: TraceMode,
     pub(crate) model: String,
     pub(crate) base_url: String,
+    pub(crate) protocol: Option<AdapterFamily>,
+    pub(crate) profile: Option<UserProtocolProfileOverride>,
+    pub(crate) custom_providers: BTreeMap<String, CustomProviderDefinition>,
     pub(crate) max_tokens: u32,
     pub(crate) max_steps: u32,
     pub(crate) thinking_level: Option<ThinkingLevel>,
@@ -62,6 +100,12 @@ struct PersistedSettings {
     trace_mode: TraceMode,
     model: String,
     base_url: String,
+    #[serde(default)]
+    protocol: Option<AdapterFamily>,
+    #[serde(default)]
+    profile: Option<UserProtocolProfileOverride>,
+    #[serde(default)]
+    custom_providers: BTreeMap<String, CustomProviderDefinition>,
     max_tokens: u32,
     max_steps: u32,
     thinking_level: Option<ThinkingLevel>,
@@ -72,12 +116,15 @@ impl PersistedSettings {
     fn from_runtime(settings: &GlobalConfigStore) -> Self {
         Self {
             version: SETTINGS_VERSION,
-            provider: settings.provider,
+            provider: settings.provider.clone(),
             api_key: settings.api_key.clone(),
             approval_policy: settings.approval_policy,
             trace_mode: settings.trace_mode,
             model: settings.model.clone(),
             base_url: settings.base_url.clone(),
+            protocol: settings.protocol,
+            profile: settings.profile.clone(),
+            custom_providers: settings.custom_providers.clone(),
             max_tokens: settings.max_tokens,
             max_steps: settings.max_steps,
             thinking_level: settings.thinking_level,
@@ -99,6 +146,9 @@ impl PersistedSettings {
         settings.trace_mode = self.trace_mode;
         settings.model = self.model;
         settings.base_url = self.base_url;
+        settings.protocol = self.protocol;
+        settings.profile = self.profile;
+        settings.custom_providers = self.custom_providers;
         settings.max_tokens = self.max_tokens;
         settings.max_steps = self.max_steps;
         settings.thinking_level = self.thinking_level;
@@ -108,10 +158,12 @@ impl PersistedSettings {
 
     fn to_llm_layer(&self) -> Result<LlmConfigLayer> {
         LlmConfigLayer::new(
-            Some(self.provider),
+            Some(self.provider.clone()),
             Some(self.model.clone()),
             Some(self.base_url.clone()),
             non_empty_api_key(&self.api_key),
+            self.protocol,
+            self.profile.clone(),
         )
         .context("construct settings LLM layer")
     }
@@ -126,7 +178,9 @@ pub(crate) fn format_api_key(api_key: &str, provider_id: ProviderId) -> String {
     if api_key.trim().is_empty() {
         return "(empty)".into();
     }
-    let env_name = api_key_env(provider_id);
+    let Ok(env_name) = api_key_env(provider_id) else {
+        return "*** (runtime)".into();
+    };
     if env::var(env_name)
         .ok()
         .filter(|value| !value.trim().is_empty())
@@ -139,11 +193,11 @@ pub(crate) fn format_api_key(api_key: &str, provider_id: ProviderId) -> String {
 
 pub(crate) fn resolve_one_shot(args: &CliArgs) -> Result<GlobalConfigStore> {
     let settings = load_global_config_store(args)?;
-    let merged = merged_llm_from_store(&settings);
+    let merged = merged_llm_from_store(&settings)?;
     require_api_key(&merged).with_context(|| {
         format!(
             "API key is required for one-shot mode; provide --api-key, {}, or settings.json",
-            api_key_env(settings.provider)
+            api_key_env(settings.provider.clone()).unwrap_or("provider API key env")
         )
     })?;
     Ok(settings)
@@ -166,7 +220,7 @@ pub(crate) fn resolve_interactive(
 
     let mut settings = load_global_config_store(args)?;
     settings.input_owner = Some(input_owner.clone());
-    let provider_label = provider(settings.provider).id().label();
+    let provider_label = provider(settings.provider.clone())?.id().label();
     let (_, settings_layer, env_layer, host_layer) = read_cli_llm_layers(args)?;
     let api_key_source = resolve_api_key_source(&settings_layer, &env_layer, &host_layer);
 
@@ -184,7 +238,7 @@ pub(crate) fn resolve_interactive(
             ApiKeySource::Host => format!("{provider_label} API key: from --api-key"),
             ApiKeySource::Environment => format!(
                 "{provider_label} API key: from {}",
-                api_key_env(settings.provider)
+                api_key_env(settings.provider.clone()).unwrap_or("provider API key env")
             ),
             ApiKeySource::Settings => {
                 format!("{provider_label} API key: from settings.json")
@@ -259,8 +313,10 @@ fn load_global_config_store_with_env(
     args: &CliArgs,
     env: &impl EnvSource,
 ) -> Result<GlobalConfigStore> {
-    let (paths, settings_layer, env_layer, host_layer) = read_cli_llm_layers_with_env(args, env)?;
-    let mut store = default_non_llm_global_config_store();
+    let paths = resolve_project_paths(args)?;
+    ensure_custom_providers_registered(&paths.settings_path)?;
+    let (_, settings_layer, env_layer, host_layer) = read_cli_llm_layers_with_env(args, env)?;
+    let mut store = default_non_llm_global_config_store()?;
     if paths.settings_path.exists() {
         let persisted = load_persisted_settings(&paths.settings_path)?;
         persisted.apply_to(&mut store)?;
@@ -273,7 +329,8 @@ fn load_global_config_store_with_env(
 
 pub(crate) fn load_persisted_global_config_store(args: &CliArgs) -> Result<GlobalConfigStore> {
     let paths = resolve_project_paths(args)?;
-    let mut store = default_non_llm_global_config_store();
+    ensure_custom_providers_registered(&paths.settings_path)?;
+    let mut store = default_non_llm_global_config_store()?;
     if paths.settings_path.exists() {
         let persisted = load_persisted_settings(&paths.settings_path)?;
         persisted.apply_to(&mut store)?;
@@ -301,15 +358,18 @@ pub(crate) fn persist_global_config_store(
     })
 }
 
-fn default_non_llm_global_config_store() -> GlobalConfigStore {
-    let preset = catalog_preset(ProviderId::default());
-    GlobalConfigStore {
+fn default_non_llm_global_config_store() -> Result<GlobalConfigStore> {
+    let preset = catalog_preset(ProviderId::default()).context("builtin catalog preset")?;
+    Ok(GlobalConfigStore {
         provider: preset.provider_id,
         api_key: String::new(),
         approval_policy: ApprovalPolicy::Always,
         trace_mode: TraceMode::Off,
         model: preset.model_id,
         base_url: preset.base_url,
+        protocol: None,
+        profile: None,
+        custom_providers: BTreeMap::new(),
         max_tokens: DEFAULT_MAX_TOKENS,
         max_steps: DEFAULT_MAX_STEPS,
         thinking_level: None,
@@ -318,7 +378,7 @@ fn default_non_llm_global_config_store() -> GlobalConfigStore {
             diagnostic: DiagnosticPersistence::Off,
         },
         input_owner: None,
-    }
+    })
 }
 
 fn cli_host_llm_layer(args: &CliArgs) -> Result<LlmConfigLayer> {
@@ -327,26 +387,32 @@ fn cli_host_llm_layer(args: &CliArgs) -> Result<LlmConfigLayer> {
         args.model.clone(),
         args.base_url.clone(),
         args.api_key.clone(),
+        None,
+        None,
     )
     .context("construct CLI LLM layer")
 }
 
 fn apply_merged_llm(store: &mut GlobalConfigStore, merged: &agent::llm::ResolvedProviderConfig) {
-    store.provider = merged.provider_id;
+    store.provider = merged.provider_id.clone();
     store.model = merged.model.clone();
     store.base_url = merged.base_url.clone();
     store.api_key = merged.api_key.clone();
+    store.protocol = Some(merged.protocol);
 }
 
 pub(crate) fn merged_llm_from_store(
     store: &GlobalConfigStore,
-) -> agent::llm::ResolvedProviderConfig {
+) -> Result<agent::llm::ResolvedProviderConfig> {
     agent::llm::resolve_provider_config(
-        store.provider,
+        store.provider.clone(),
         agent::llm::ProviderOverrides {
             base_url: Some(store.base_url.as_str()),
             model: Some(store.model.as_str()),
             api_key: Some(store.api_key.as_str()),
+            protocol: store.protocol,
+            user_profile: store.profile.as_ref(),
+            host_profile: None,
         },
     )
 }
@@ -380,15 +446,18 @@ pub(crate) fn apply_provider_switch_in_store(
     provider_id: ProviderId,
     store: &mut GlobalConfigStore,
     clear_api_key: bool,
-) {
+) -> Result<()> {
     apply_provider_switch(
-        provider_id,
+        provider_id.clone(),
         &mut store.model,
         &mut store.base_url,
         clear_api_key,
         &mut store.api_key,
-    );
+    )?;
     store.provider = provider_id;
+    store.protocol = None;
+    store.profile = None;
+    Ok(())
 }
 
 fn load_persisted_settings(path: &Path) -> Result<PersistedSettings> {
@@ -414,12 +483,29 @@ fn load_persisted_settings(path: &Path) -> Result<PersistedSettings> {
     }
     serde_json::from_value(value)
         .with_context(|| format!("decode settings file {}", path.display()))
+        .and_then(register_persisted_custom_providers)
+}
+
+fn register_persisted_custom_providers(settings: PersistedSettings) -> Result<PersistedSettings> {
+    if !settings.custom_providers.is_empty() {
+        register_custom_providers(settings.custom_providers.clone())?;
+    }
+    Ok(settings)
+}
+
+fn ensure_custom_providers_registered(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return register_custom_providers(BTreeMap::new());
+    }
+    let persisted = load_persisted_settings(path)?;
+    register_custom_providers(persisted.custom_providers)
 }
 
 fn read_persisted_llm_layer(path: &Path) -> Result<LlmConfigLayer> {
     if !path.exists() {
         return Ok(LlmConfigLayer::default());
     }
+    ensure_custom_providers_registered(path)?;
     load_persisted_settings(path)?.to_llm_layer()
 }
 
@@ -483,7 +569,8 @@ impl From<TraceModeArg> for TraceMode {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs};
+    use std::collections::BTreeMap;
+    use std::fs;
 
     use clap::Parser;
     use tempfile::tempdir;
@@ -754,6 +841,9 @@ mod tests {
             trace_mode: TraceMode::EventsAndThinking,
             model: "agnes-2.5-pro".into(),
             base_url: "https://persisted.example".into(),
+            protocol: None,
+            profile: None,
+            custom_providers: BTreeMap::new(),
             max_tokens: 8192,
             max_steps: 12,
             thinking_level: Some(ThinkingLevel::High),

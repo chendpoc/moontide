@@ -1,25 +1,50 @@
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 
 use agent::Agent;
-use anyhow::{Context, Result};
-use crossterm::{
-    cursor::{Hide, MoveTo, Show},
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-    queue,
-    style::{Attribute, Print, ResetColor, SetAttribute},
-    terminal::{
-        disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen,
-        LeaveAlternateScreen,
-    },
+use anyhow::{
+    Context,
+    Result,
+};
+use crossterm::cursor::{
+    Hide,
+    MoveTo,
+    Show,
+};
+use crossterm::event::{
+    self,
+    Event,
+    KeyCode,
+    KeyEvent,
+    KeyModifiers,
+};
+use crossterm::queue;
+use crossterm::style::{
+    Attribute,
+    Print,
+    ResetColor,
+    SetAttribute,
+};
+use crossterm::terminal::{
+    disable_raw_mode,
+    enable_raw_mode,
+    size,
+    Clear,
+    ClearType,
+    EnterAlternateScreen,
+    LeaveAlternateScreen,
 };
 
-use crate::{
-    args::CliArgs,
-    setting_catalog::{
-        apply_setting_change, apply_status_message, SettingApplyEffect, SettingCatalog,
-    },
-    settings::GlobalConfigStore,
+use crate::args::CliArgs;
+use crate::setting_catalog::{
+    apply_setting_change,
+    apply_status_message,
+    SettingApplyEffect,
+    SettingCatalog,
 };
+use crate::settings::GlobalConfigStore;
 
 const HINT: &str = "Type to search · ↑↓ select · Enter/Space change · Esc cancel";
 
@@ -28,7 +53,7 @@ pub(crate) async fn run_settings_ui(
     agent: &mut Agent,
     args: &CliArgs,
 ) -> Result<()> {
-    let mut catalog = SettingCatalog::from_runtime(settings, agent);
+    let mut catalog = SettingCatalog::from_runtime(settings, agent)?;
     let mut filter = String::new();
     let mut selected = 0usize;
 
@@ -145,7 +170,7 @@ async fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) ->
                     && !confirm_always_allow(ctx.stdout)?
                 {
                     *ctx.settings = previous_settings;
-                    *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent);
+                    *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent)?;
                     return Ok(false);
                 }
                 if effect != SettingApplyEffect::ReadOnly {
@@ -159,7 +184,7 @@ async fn handle_key<W: Write>(key: KeyEvent, ctx: &mut SettingsKeyCtx<'_, W>) ->
                     .await
                     {
                         *ctx.settings = previous_settings;
-                        *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent);
+                        *ctx.catalog = SettingCatalog::from_runtime(ctx.settings, ctx.agent)?;
                         return Err(error);
                     }
                     show_status(ctx.stdout, apply_status_message(effect))?;

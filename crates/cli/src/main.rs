@@ -10,17 +10,40 @@ mod settings;
 mod settings_ui;
 mod trace;
 
-use std::{future::Future, io, process::ExitCode};
+use std::future::Future;
+use std::io;
+use std::process::ExitCode;
 
-use agent::{Agent, AgentConfig};
-use anyhow::{bail, Context, Result};
-use args::{CliArgs, LaunchMode};
+use agent::{
+    Agent,
+    AgentConfig,
+};
+use anyhow::{
+    bail,
+    Context,
+    Result,
+};
+use args::{
+    CliArgs,
+    LaunchMode,
+};
 use clap::Parser;
-use config::{resolve_agent_config, session_mode, validate_prompt};
+use config::{
+    resolve_agent_config,
+    session_mode,
+    validate_prompt,
+};
 use input::InputOwner;
 use render::write_assistant_stdout;
-use repl::{await_turn_with_ctrl_c, run as run_repl, TurnOutcome};
-use settings::{resolve_interactive, resolve_one_shot};
+use repl::{
+    await_turn_with_ctrl_c,
+    run as run_repl,
+    TurnOutcome,
+};
+use settings::{
+    resolve_interactive,
+    resolve_one_shot,
+};
 use tokio_util::sync::CancellationToken;
 
 #[cfg(test)]

@@ -1,6 +1,12 @@
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 
-use agent::{ContentBlock, ModelResponse};
+use agent::{
+    ContentBlock,
+    ModelResponse,
+};
 use anyhow::Result;
 
 pub(crate) fn assistant_text(response: &ModelResponse) -> String {

@@ -1,18 +1,32 @@
-use crate::settings::apply_provider_switch_in_store;
-use agent::{
-    llm::{all_providers, catalog_preset, models_for, ProviderId, ResolvedEndpoint},
-    Agent, ThinkingLevel,
+use agent::llm::{
+    catalog_preset,
+    list_provider_ids,
+    models_for,
+    provider,
+    AdapterFamily,
+    ProviderId,
+    ResolvedEndpoint,
 };
-use anyhow::{bail, Result};
+use agent::{
+    Agent,
+    ThinkingLevel,
+};
+use anyhow::{
+    bail,
+    Result,
+};
 
-use crate::{
-    args::CliArgs,
-    config::resolve_agent_config,
-    fuzzy::fuzzy_filter,
-    settings::{
-        format_api_key, load_persisted_global_config_store, persist_global_config_store,
-        ApprovalPolicy, GlobalConfigStore, TraceMode,
-    },
+use crate::args::CliArgs;
+use crate::config::resolve_agent_config;
+use crate::fuzzy::fuzzy_filter;
+use crate::settings::{
+    apply_provider_switch_in_store,
+    format_api_key,
+    load_persisted_global_config_store,
+    persist_global_config_store,
+    ApprovalPolicy,
+    GlobalConfigStore,
+    TraceMode,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +40,8 @@ pub(crate) enum SettingId {
     Model,
     Provider,
     ThinkingLevel,
+    Protocol,
+    Profile,
     Trace,
 }
 
@@ -70,6 +86,8 @@ impl SettingEntry {
             SettingId::MaxSteps => "max-steps",
             SettingId::MaxTokens => "max-tokens",
             SettingId::Model => "model",
+            SettingId::Protocol => "protocol",
+            SettingId::Profile => "profile",
             SettingId::Provider => "provider",
             SettingId::ThinkingLevel => "thinking-level",
             SettingId::Trace => "trace",
@@ -82,22 +100,27 @@ pub(crate) struct SettingCatalog {
 }
 
 impl SettingCatalog {
-    pub(crate) fn from_runtime(settings: &GlobalConfigStore, agent: &Agent) -> Self {
-        let provider_values = all_providers()
+    pub(crate) fn from_runtime(settings: &GlobalConfigStore, agent: &Agent) -> Result<Self> {
+        let provider_values = list_provider_ids()
             .iter()
-            .map(|entry| entry.id().as_str().to_owned())
+            .map(|provider_id| provider_id.as_str().to_string())
             .collect();
-        let model_values = models_for(settings.provider)
+        let model_values = models_for(settings.provider.clone())?
             .iter()
             .map(|option| option.id.to_owned())
             .collect();
-        Self {
+        let protocol_values = provider(settings.provider.clone())?
+            .supported_protocols()
+            .iter()
+            .map(|protocol| protocol.as_str().to_string())
+            .collect();
+        Ok(Self {
             entries: vec![
                 SettingEntry {
                     id: SettingId::Provider,
                     label: "Provider",
                     description: "LLM provider preset",
-                    current_value: provider_label(settings.provider).to_owned(),
+                    current_value: provider_label(settings.provider.clone()),
                     values: Some(provider_values),
                     apply: SettingApplyEffect::ReloadAgent,
                     sync: sync_provider,
@@ -124,10 +147,37 @@ impl SettingCatalog {
                     provider_refresh: Some(refresh_base_url_from_preset),
                 },
                 SettingEntry {
+                    id: SettingId::Protocol,
+                    label: "Protocol",
+                    description: "Wire protocol adapter family",
+                    current_value: settings
+                        .protocol
+                        .map(|protocol| protocol.as_str().to_string())
+                        .unwrap_or_else(|| "catalog default".into()),
+                    values: Some(protocol_values),
+                    apply: SettingApplyEffect::ReloadAgent,
+                    sync: sync_protocol,
+                    provider_refresh: Some(refresh_protocol_from_preset),
+                },
+                SettingEntry {
+                    id: SettingId::Profile,
+                    label: "Profile",
+                    description: "User protocol profile override persisted in settings.json",
+                    current_value: if settings.profile.is_some() {
+                        "custom".into()
+                    } else {
+                        "catalog default".into()
+                    },
+                    values: None,
+                    apply: SettingApplyEffect::ReadOnly,
+                    sync: sync_noop,
+                    provider_refresh: None,
+                },
+                SettingEntry {
                     id: SettingId::ApiKey,
                     label: "API key",
                     description: "Provider API key for this process (masked)",
-                    current_value: format_api_key(&settings.api_key, settings.provider),
+                    current_value: format_api_key(&settings.api_key, settings.provider.clone()),
                     values: None,
                     apply: SettingApplyEffect::ReadOnly,
                     sync: sync_noop,
@@ -213,7 +263,7 @@ impl SettingCatalog {
                     provider_refresh: None,
                 },
             ],
-        }
+        })
     }
 
     pub(crate) fn entries(&self) -> &[SettingEntry] {
@@ -252,22 +302,32 @@ impl SettingCatalog {
             (entry.id, entry.apply, next_value)
         };
         if id == SettingId::Provider {
-            self.refresh_provider_projection(parse_provider(&next_value)?);
+            self.refresh_provider_projection(parse_provider(&next_value)?)?;
         }
         Ok(Some(effect))
     }
 
-    fn refresh_provider_projection(&mut self, provider_id: ProviderId) {
-        let preset = catalog_preset(provider_id);
-        let model_values = models_for(provider_id)
+    fn refresh_provider_projection(&mut self, provider_id: ProviderId) -> Result<()> {
+        let preset = catalog_preset(provider_id.clone())?;
+        let model_values = models_for(provider_id.clone())?
             .iter()
             .map(|model| model.id.to_owned())
             .collect::<Vec<_>>();
+        let protocol_values = provider(provider_id.clone())?
+            .supported_protocols()
+            .iter()
+            .map(|protocol| protocol.as_str().to_string())
+            .collect::<Vec<_>>();
         for entry in &mut self.entries {
             if let Some(refresh) = entry.provider_refresh {
-                refresh(entry, provider_id, &preset, &model_values);
+                refresh(entry, provider_id.clone(), &preset, &model_values);
+            }
+            if entry.id == SettingId::Protocol {
+                entry.values = Some(protocol_values.clone());
+                entry.current_value = preset.protocol.as_str().to_string();
             }
         }
+        Ok(())
     }
 
     pub(crate) fn sync_to_runtime(&self, settings: &mut GlobalConfigStore) -> Result<()> {
@@ -349,8 +409,20 @@ fn sync_noop(_value: &str, _settings: &mut GlobalConfigStore) -> Result<()> {
 fn sync_provider(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
     let next = parse_provider(value)?;
     if next != settings.provider {
-        apply_provider_switch_in_store(next, settings, true);
+        apply_provider_switch_in_store(next, settings, true)?;
     }
+    Ok(())
+}
+
+fn sync_protocol(value: &str, settings: &mut GlobalConfigStore) -> Result<()> {
+    if value == "catalog default" {
+        settings.protocol = None;
+        return Ok(());
+    }
+    settings.protocol = Some(
+        AdapterFamily::parse(value)
+            .ok_or_else(|| anyhow::anyhow!("unknown protocol label: {value}"))?,
+    );
     Ok(())
 }
 
@@ -473,8 +545,17 @@ fn parse_trace(value: &str) -> Result<TraceMode> {
     }
 }
 
-fn provider_label(provider_id: ProviderId) -> &'static str {
-    provider_id.as_str()
+fn refresh_protocol_from_preset(
+    entry: &mut SettingEntry,
+    _provider_id: ProviderId,
+    preset: &ResolvedEndpoint,
+    _model_values: &[String],
+) {
+    entry.current_value = preset.protocol.as_str().to_string();
+}
+
+fn provider_label(provider_id: ProviderId) -> String {
+    provider_id.as_str().into_owned()
 }
 
 fn parse_provider(value: &str) -> Result<ProviderId> {
@@ -493,10 +574,11 @@ fn parse_thinking(value: &str) -> Result<Option<ThinkingLevel>> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::settings::persist_global_config_store;
     use clap::Parser;
     use tempfile::tempdir;
+
+    use super::*;
+    use crate::settings::persist_global_config_store;
 
     // Scenario: catalog excludes session id, runs dir, and tool list settings.
     // Expected: only user-facing agent settings appear in the catalog.
@@ -511,7 +593,7 @@ mod tests {
         settings.api_key = "secret".into();
         let config = resolve_agent_config(&args, &settings).expect("config");
         let agent = Agent::create(config).expect("agent");
-        let catalog = SettingCatalog::from_runtime(&settings, &agent);
+        let catalog = SettingCatalog::from_runtime(&settings, &agent).expect("catalog");
         let labels: Vec<_> = catalog.entries().iter().map(|entry| entry.label).collect();
         assert!(!labels.iter().any(|label| label.contains("session id")));
         assert!(!labels.iter().any(|label| label.contains("runs")));
@@ -577,7 +659,7 @@ mod tests {
         settings.api_key = "deepseek-key".into();
         let config = resolve_agent_config(&args, &settings).expect("agent config");
         let agent = Agent::create(config).expect("agent");
-        let mut catalog = SettingCatalog::from_runtime(&settings, &agent);
+        let mut catalog = SettingCatalog::from_runtime(&settings, &agent).expect("catalog");
         let filtered = catalog.filter_indices("provider");
         assert_eq!(filtered.len(), 1);
         assert_eq!(

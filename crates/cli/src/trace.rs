@@ -1,4 +1,8 @@
-use agent::{PendingBlock, ProgressEvent, ProgressObserver};
+use agent::{
+    PendingBlock,
+    ProgressEvent,
+    ProgressObserver,
+};
 use anyhow::Result;
 
 use crate::settings::TraceMode;

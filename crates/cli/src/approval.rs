@@ -1,7 +1,15 @@
-use std::{future::Future, pin::Pin};
+use std::future::Future;
+use std::pin::Pin;
 
-use agent::{ToolApproval, ToolApprovalHandler, ToolCall};
-use anyhow::{Context, Result};
+use agent::{
+    ToolApproval,
+    ToolApprovalHandler,
+    ToolCall,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 
 use crate::input::InputOwner;
 

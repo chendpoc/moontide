@@ -1,17 +1,31 @@
-use std::{env, path::PathBuf, sync::Arc};
+use std::env;
+use std::path::PathBuf;
+use std::sync::Arc;
 
+use agent::llm::require_api_key;
+use agent::platform::ProjectPaths;
 use agent::{
-    llm::require_api_key, platform::ProjectPaths, resolve_coding_preset, CodingPresetPolicy,
+    resolve_coding_preset,
+    CodingPresetPolicy,
     ToolApprovalHandler,
 };
-use anyhow::{bail, Context, Result};
-
-use crate::args::CliArgs;
-use crate::{
-    approval::{InteractiveApproval, NonInteractiveApproval},
-    settings::{ApprovalPolicy, GlobalConfigStore, TraceMode},
-    trace::TraceObserver,
+use anyhow::{
+    bail,
+    Context,
+    Result,
 };
+
+use crate::approval::{
+    InteractiveApproval,
+    NonInteractiveApproval,
+};
+use crate::args::CliArgs;
+use crate::settings::{
+    ApprovalPolicy,
+    GlobalConfigStore,
+    TraceMode,
+};
+use crate::trace::TraceObserver;
 
 pub(crate) const DEFAULT_MAX_TOKENS: u32 = 4_096;
 pub(crate) const DEFAULT_MAX_STEPS: u32 = 8;
@@ -44,7 +58,7 @@ pub(crate) fn resolve_agent_config_with(
     cwd: PathBuf,
     settings: &GlobalConfigStore,
 ) -> Result<agent::AgentConfig> {
-    let merged = crate::settings::merged_llm_from_store(settings);
+    let merged = crate::settings::merged_llm_from_store(settings)?;
     require_api_key(&merged)?;
     let paths = ProjectPaths::resolve(cwd, args.sessions_dir.clone(), args.runs_dir.clone())?;
 

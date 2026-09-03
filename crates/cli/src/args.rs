@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use agent::ProviderId;
-use clap::{Parser, ValueEnum};
+use clap::{
+    Parser,
+    ValueEnum,
+};
 
 /// Command-line values before environment and path defaults are resolved.
 #[derive(Debug, Clone, Parser)]

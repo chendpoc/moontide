@@ -1,19 +1,35 @@
-use std::{
-    borrow::Cow,
-    io,
-    sync::{Arc, Mutex},
+use std::borrow::Cow;
+use std::io;
+use std::sync::{
+    Arc,
+    Mutex,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
+use rustyline::completion::{
+    Completer,
+    Pair,
+};
+use rustyline::config::Configurer;
+use rustyline::error::ReadlineError;
+use rustyline::highlight::{
+    CmdKind,
+    Highlighter,
+};
+use rustyline::hint::Hinter;
+use rustyline::history::DefaultHistory;
+use rustyline::validate::{
+    ValidationContext,
+    ValidationResult,
+    Validator,
+};
 use rustyline::{
-    completion::{Completer, Pair},
-    config::Configurer,
-    error::ReadlineError,
-    highlight::{CmdKind, Highlighter},
-    hint::Hinter,
-    history::DefaultHistory,
-    validate::{ValidationContext, ValidationResult, Validator},
-    ColorMode, Editor, Helper,
+    ColorMode,
+    Editor,
+    Helper,
 };
 
 type TerminalEditor = Editor<MaskingHelper, DefaultHistory>;

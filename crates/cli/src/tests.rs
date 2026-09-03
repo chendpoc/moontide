@@ -1,26 +1,56 @@
+use std::collections::BTreeMap;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::Arc;
 use std::{
-    future, io,
-    io::Write,
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    future,
+    io,
 };
 
-use agent::{ContentBlock, ModelResponse, StopReason};
+use agent::{
+    ContentBlock,
+    ModelResponse,
+    StopReason,
+};
 use tempfile::tempdir;
 
+use crate::approval::{
+    parse_response,
+    truncate_preview,
+};
+use crate::args::{
+    CliArgs,
+    LaunchMode,
+};
+use crate::config::{
+    resolve_agent_config_with,
+    session_mode,
+    validate_prompt,
+};
+use crate::render::{
+    assistant_text,
+    write_assistant_stdout,
+};
+use crate::repl::{
+    await_turn_with_ctrl_c,
+    parse_command,
+    ReplCommand,
+    TurnOutcome,
+};
+use crate::settings::{
+    ApprovalPolicy,
+    GlobalConfigStore,
+    TraceMode,
+};
+use crate::trace::format_progress_event;
 use crate::{
-    approval::{parse_response, truncate_preview},
-    args::{CliArgs, LaunchMode},
-    config::{resolve_agent_config_with, session_mode, validate_prompt},
-    finalize_turn, progress_status_messages,
-    render::{assistant_text, write_assistant_stdout},
-    repl::{await_turn_with_ctrl_c, parse_command, ReplCommand, TurnOutcome},
+    finalize_turn,
+    progress_status_messages,
     report_progress_diagnostics,
-    settings::{ApprovalPolicy, GlobalConfigStore, TraceMode},
-    trace::format_progress_event,
 };
 
 // Scenario: clap parses one-shot and explicit path/model flags.
@@ -182,8 +212,8 @@ fn agnes_provider_preset_resolves_defaults() {
     assert_eq!(config.provider.model, "agnes-2.5-flash");
     assert_eq!(config.provider.base_url, "https://api.agnes-ai.cn/v1");
     assert_eq!(
-        config.provider.family,
-        agent::AdapterFamily::OpenAiChatCompletions
+        config.provider.protocol,
+        agent::AdapterFamily::OpenAiResponses
     );
 }
 
@@ -195,6 +225,9 @@ fn runtime_settings(api_key: &str, approval_policy: ApprovalPolicy) -> GlobalCon
         trace_mode: TraceMode::Off,
         model: "deepseek-chat".into(),
         base_url: "https://api.deepseek.com".into(),
+        protocol: None,
+        profile: None,
+        custom_providers: BTreeMap::new(),
         max_tokens: super::config::DEFAULT_MAX_TOKENS,
         max_steps: super::config::DEFAULT_MAX_STEPS,
         thinking_level: None,
@@ -236,6 +269,7 @@ fn renderer_keeps_stdout_to_final_assistant_text() {
         stop_reason: StopReason::EndTurn,
         usage: None,
         model: Some("deepseek-chat".into()),
+        response_id: None,
     };
     let mut output = Vec::new();
     write_assistant_stdout(&response, &mut output).expect("stdout rendering should succeed");
@@ -304,6 +338,7 @@ async fn ctrl_c_cancels_and_awaits_turn_cleanup() {
             stop_reason: StopReason::EndTurn,
             usage: None,
             model: None,
+            response_id: None,
         })
     };
     let outcome = await_turn_with_ctrl_c(turn, cancellation.clone(), async move {
@@ -335,6 +370,7 @@ async fn completed_turn_wins_pending_ctrl_c() {
                 stop_reason: StopReason::EndTurn,
                 usage: None,
                 model: None,
+                response_id: None,
             })
         },
         cancellation.clone(),
@@ -442,6 +478,7 @@ async fn signal_error_still_runs_turn_flushes() {
             stop_reason: StopReason::EndTurn,
             usage: None,
             model: None,
+            response_id: None,
         })
     };
     let turn_result = await_turn_with_ctrl_c(turn, cancellation.clone(), async move {

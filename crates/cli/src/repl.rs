@@ -1,13 +1,24 @@
-use std::{future::Future, io};
+use std::future::Future;
+use std::io;
 
-use agent::{Agent, AgentConfig, ModelResponse};
-use anyhow::{Context, Result};
+use agent::{
+    Agent,
+    AgentConfig,
+    ModelResponse,
+};
+use anyhow::{
+    Context,
+    Result,
+};
 use rustyline::error::ReadlineError;
 use tokio_util::sync::CancellationToken;
 
 use crate::args::CliArgs;
 use crate::input::InputOwner;
-use crate::render::{write_assistant_stdout, write_diagnostic_stderr};
+use crate::render::{
+    write_assistant_stdout,
+    write_diagnostic_stderr,
+};
 use crate::settings::GlobalConfigStore;
 use crate::settings_ui::run_settings_ui;
 
